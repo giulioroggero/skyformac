@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Builds MacZWO/Resources/AstroCatalog/astro_catalog.sqlite from real astronomical data:
+"""Builds skyformac/Resources/AstroCatalog/astro_catalog.sqlite from real astronomical data:
 
 - Stellarium's bundled DSO catalog (nebulae/default/catalog.txt + names.dat) for
   NGC/IC/Messier galaxies, nebulae, and clusters — see
   https://github.com/Stellarium/stellarium, CC-BY-SA-4.0 data.
-- This repo's own hand-curated MacZWO/Resources/SkyCatalog/bright_stars.json for the
+- This repo's own hand-curated skyformac/Resources/SkyCatalog/bright_stars.json for the
   bright-star layer (Stellarium's own star catalog is a proprietary binary format not
   worth reverse-engineering for a ~14-star list).
 
-Schema matches spec/MacZWO_Catalog_HUD_Spec.md section 2.2 exactly. Run this whenever the
+Schema matches spec/skyformac_Catalog_HUD_Spec.md section 2.2 exactly. Run this whenever the
 Stellarium source or bright_stars.json changes; the output is checked in as a bundled
 resource, not regenerated at build time.
 
@@ -131,7 +131,7 @@ def parse_dso_catalog(stellarium_root: Path, names: dict) -> list[tuple]:
 
 
 def parse_bright_stars(repo_root: Path) -> list[tuple]:
-    path = repo_root / "MacZWO/Resources/SkyCatalog/bright_stars.json"
+    path = repo_root / "skyformac/Resources/SkyCatalog/bright_stars.json"
     stars = json.loads(path.read_text(encoding="utf-8"))
     rows = []
     for star in stars:
@@ -149,7 +149,7 @@ def main():
         sys.exit(1)
     stellarium_root = Path(sys.argv[1])
     repo_root = Path(__file__).resolve().parent.parent
-    out_path = repo_root / "MacZWO/Resources/AstroCatalog/astro_catalog.sqlite"
+    out_path = repo_root / "skyformac/Resources/AstroCatalog/astro_catalog.sqlite"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.unlink(missing_ok=True)
 
