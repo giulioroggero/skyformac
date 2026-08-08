@@ -11,6 +11,12 @@ import Foundation
 final class LiveStacker {
     private(set) var frameCount = 0
     private var sums: [UInt64] = []
+    /// Per-pixel contribution count — usually identical to `frameCount` for every pixel, except
+    /// wherever `add(_:mask:)` was given a `StreakMask` that excluded that pixel from a given
+    /// frame (a detected satellite/aircraft trail), in which case it lags behind. Averaging by
+    /// this instead of the single scalar `frameCount` is what lets masked-out pixels in some
+    /// frames still average correctly against however many frames *did* contribute to them.
+    private var counts: [UInt32] = []
     private var width = 0
     private var height = 0
     private var imageType: ASI_IMG_TYPE?
@@ -18,7 +24,11 @@ final class LiveStacker {
     /// Adds `frame` to the running average. Frames with a different size/type than what's
     /// already accumulated cause an implicit reset (e.g. after `changeImageType`), since
     /// averaging incompatible frames together would be meaningless.
-    func add(_ frame: CapturedFrame) {
+    ///
+    /// - Parameter mask: When non-nil (see `StreakMask`), pixels it marks as masked-out are
+    ///   excluded from this frame's contribution to the average entirely, instead of polluting it
+    ///   with a satellite/aircraft trail's pixel values.
+    func add(_ frame: CapturedFrame, mask: StreakMask? = nil) {
         if imageType?.rawValue != frame.imageType.rawValue || width != frame.width || height != frame.height {
             reset(width: frame.width, height: frame.height, imageType: frame.imageType)
         }
@@ -29,13 +39,21 @@ final class LiveStacker {
             guard frame.data.count >= count else { return }
             frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
                 guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
-                for i in 0..<count { sums[i] += UInt64(base[i]) }
+                for i in 0..<count {
+                    guard mask?.isKept(flatIndex: i) ?? true else { continue }
+                    sums[i] += UInt64(base[i])
+                    counts[i] += 1
+                }
             }
         case ASI_IMG_RAW16:
             guard frame.data.count >= count * 2 else { return }
             frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
                 guard let base = raw.bindMemory(to: UInt16.self).baseAddress else { return }
-                for i in 0..<count { sums[i] += UInt64(base[i]) }
+                for i in 0..<count {
+                    guard mask?.isKept(flatIndex: i) ?? true else { continue }
+                    sums[i] += UInt64(base[i])
+                    counts[i] += 1
+                }
             }
         default:
             return
@@ -43,7 +61,9 @@ final class LiveStacker {
         frameCount += 1
     }
 
-    /// The current running-average frame, or `nil` if no frames have been added yet.
+    /// The current running-average frame, or `nil` if no frames have been added yet. A pixel
+    /// masked out of every single contributing frame so far (`counts[i] == 0`) falls back to 0
+    /// rather than dividing by zero — an edge case only a pathological all-streak mask could hit.
     func currentAverage() -> CapturedFrame? {
         guard frameCount > 0, let imageType else { return nil }
         let count = width * height
@@ -53,14 +73,20 @@ final class LiveStacker {
             var output = Data(count: count)
             output.withUnsafeMutableBytes { (o: UnsafeMutableRawBufferPointer) in
                 guard let op = o.bindMemory(to: UInt8.self).baseAddress else { return }
-                for i in 0..<count { op[i] = UInt8(sums[i] / UInt64(frameCount)) }
+                for i in 0..<count {
+                    let c = counts[i]
+                    op[i] = c > 0 ? UInt8(sums[i] / UInt64(c)) : 0
+                }
             }
             return CapturedFrame(width: width, height: height, imageType: imageType, data: output)
         case ASI_IMG_RAW16:
             var output = Data(count: count * 2)
             output.withUnsafeMutableBytes { (o: UnsafeMutableRawBufferPointer) in
                 guard let op = o.bindMemory(to: UInt16.self).baseAddress else { return }
-                for i in 0..<count { op[i] = UInt16(sums[i] / UInt64(frameCount)) }
+                for i in 0..<count {
+                    let c = counts[i]
+                    op[i] = c > 0 ? UInt16(sums[i] / UInt64(c)) : 0
+                }
             }
             return CapturedFrame(width: width, height: height, imageType: imageType, data: output)
         default:
@@ -71,6 +97,7 @@ final class LiveStacker {
     func reset() {
         frameCount = 0
         sums = [UInt64](repeating: 0, count: width * height)
+        counts = [UInt32](repeating: 0, count: width * height)
     }
 
     private func reset(width: Int, height: Int, imageType: ASI_IMG_TYPE) {
@@ -79,5 +106,6 @@ final class LiveStacker {
         self.imageType = imageType
         self.frameCount = 0
         self.sums = [UInt64](repeating: 0, count: width * height)
+        self.counts = [UInt32](repeating: 0, count: width * height)
     }
 }

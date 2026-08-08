@@ -239,6 +239,46 @@ kernel void bilateralDenoise(
     destination.write(float4(sumValue / max(sumWeight, 1e-6), 0, 0, 0), gid);
 }
 
+/// Live GPU Enhancement Controls, stage 1 (specs/skyformac_GPU_Live_Controls_Spec.md): blends
+/// `currentFrame` into a persistent `accumulator` texture with an exponential moving average —
+/// cancels random per-frame sensor/webcam noise without the unbounded-weight-decay a true running
+/// average (`accumulateMono`/`clearMono`, used by Live Stack) has, which suits a live *moving*
+/// target better than a stacked static one. `access::read_write` on a single texture (rather than
+/// the spec's literal current/previous/output 3-texture ping-pong) is safe here since each thread
+/// only ever touches its own pixel, and needs one fewer texture allocated per the spec's own
+/// "never allocate inside the frame loop" guardrail.
+kernel void temporalAccumulator(
+    texture2d<float, access::read> currentFrame [[texture(0)]],
+    texture2d<float, access::read_write> accumulator [[texture(1)]],
+    constant float &alpha [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= currentFrame.get_width() || gid.y >= currentFrame.get_height()) { return; }
+    float current = currentFrame.read(gid).r;
+    float previous = accumulator.read(gid).r;
+    float blended = mix(previous, current, alpha);
+    accumulator.write(float4(blended, 0, 0, 0), gid);
+}
+
+/// Live GPU Enhancement Controls, stage 3: non-linear inverse-hyperbolic-sine contrast stretch,
+/// applied in place on the already-debayered/stretched RGBA display texture. Independent of (and
+/// layered on top of, not replacing — see the spec file's deviation note) the base
+/// `StretchParams`/`applyStretch` linear black/white stretch every render path already applies.
+kernel void arcsinhStretch(
+    texture2d<float, access::read_write> texture [[texture(0)]],
+    constant float &blackPoint [[buffer(0)]],
+    constant float &whitePoint [[buffer(1)]],
+    constant float &intensity [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= texture.get_width() || gid.y >= texture.get_height()) { return; }
+    float4 color = texture.read(gid);
+    float3 normalized = max(color.rgb - float3(blackPoint), float3(0.0));
+    normalized /= max(whitePoint - blackPoint, 0.001);
+    float3 stretched = intensity > 1.0 ? asinh(normalized * intensity) / asinh(intensity) : normalized;
+    texture.write(float4(saturate(stretched), color.a), gid);
+}
+
 /// One level of an à trous ("with holes") wavelet blur — the standard stationary wavelet
 /// transform used by multi-scale sharpening tools like RegiStax: a B3-spline low-pass filter
 /// applied with `spacing` gaps between taps (rather than shrinking the image, as a dyadic

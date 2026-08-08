@@ -17,6 +17,15 @@ enum AppSettings {
         case isPlanetaryTrackingEnabled
         case isPlanetaryCropEnabled
         case isNightModeEnabled
+        case isLiveGPUControlsEnabled
+        case gpuTemporalAlpha
+        case gpuSpatialSigma
+        case gpuRangeSigma
+        case gpuStretchIntensity
+        case gpuBlackPoint
+        case gpuWhitePoint
+        case isCloudSentinelEnabled
+        case isStreakMaskingEnabled
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -73,5 +82,60 @@ enum AppSettings {
     static var isNightModeEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Key.isNightModeEnabled.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.isNightModeEnabled.rawValue) }
+    }
+
+    // MARK: - Live GPU Enhancement Controls (specs/skyformac_GPU_Live_Controls_Spec.md)
+
+    static var isLiveGPUControlsEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isLiveGPUControlsEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isLiveGPUControlsEnabled.rawValue) }
+    }
+
+    private static func storedFloat(_ key: Key, default defaultValue: Float) -> Float {
+        UserDefaults.standard.object(forKey: key.rawValue) != nil
+            ? UserDefaults.standard.float(forKey: key.rawValue)
+            : defaultValue
+    }
+
+    static var gpuTemporalAlpha: Float {
+        get { storedFloat(.gpuTemporalAlpha, default: 0.15) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.gpuTemporalAlpha.rawValue) }
+    }
+
+    static var gpuSpatialSigma: Float {
+        get { storedFloat(.gpuSpatialSigma, default: 3.5) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.gpuSpatialSigma.rawValue) }
+    }
+
+    static var gpuRangeSigma: Float {
+        get { storedFloat(.gpuRangeSigma, default: 0.12) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.gpuRangeSigma.rawValue) }
+    }
+
+    static var gpuStretchIntensity: Float {
+        get { storedFloat(.gpuStretchIntensity, default: 25.0) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.gpuStretchIntensity.rawValue) }
+    }
+
+    static var gpuBlackPoint: Float {
+        get { storedFloat(.gpuBlackPoint, default: 0.02) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.gpuBlackPoint.rawValue) }
+    }
+
+    static var gpuWhitePoint: Float {
+        get { storedFloat(.gpuWhitePoint, default: 0.98) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.gpuWhitePoint.rawValue) }
+    }
+
+    // MARK: - AI Suite (specs/skyformac_AI_Features_Pipeline_Spec.md)
+
+    static var isCloudSentinelEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isCloudSentinelEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isCloudSentinelEnabled.rawValue) }
+    }
+
+    static var isStreakMaskingEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isStreakMaskingEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isStreakMaskingEnabled.rawValue) }
     }
 }

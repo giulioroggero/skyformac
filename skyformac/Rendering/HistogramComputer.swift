@@ -36,4 +36,41 @@ enum HistogramComputer {
         }
         return buckets
     }
+
+    /// Coarse, stride-sampled mean brightness (roughly 0...255 regardless of source format) for
+    /// `CloudDriftSentinel` — deliberately *not* a full per-pixel pass like `histogram(for:)`
+    /// above, since this needs to run on every incoming main-pipeline frame rather than only when
+    /// the histogram view redraws. Every `stride`th pixel is enough to track a sky-brightness
+    /// trend; a dense cloud bank or a stray light source changes overall brightness by far more
+    /// than sampling noise from skipping pixels would hide.
+    static func meanBrightness(of frame: CapturedFrame, stride: Int = 16) -> Double {
+        var sum = 0.0
+        var sampleCount = 0
+        frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            let count = frame.width * frame.height
+            switch frame.imageType {
+            case ASI_IMG_RAW8, ASI_IMG_Y8:
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                var i = 0
+                while i < count { sum += Double(base[i]); sampleCount += 1; i += stride }
+            case ASI_IMG_RAW16:
+                guard let base = raw.bindMemory(to: UInt16.self).baseAddress else { return }
+                var i = 0
+                while i < count { sum += Double(base[i] >> 8); sampleCount += 1; i += stride }
+            case ASI_IMG_RGB24:
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                var i = 0
+                while i < count {
+                    let offset = i * 3
+                    let luma = (Int(base[offset]) * 3 + Int(base[offset + 1]) * 4 + Int(base[offset + 2])) / 8
+                    sum += Double(luma)
+                    sampleCount += 1
+                    i += stride
+                }
+            default:
+                break
+            }
+        }
+        return sampleCount > 0 ? sum / Double(sampleCount) : 0
+    }
 }

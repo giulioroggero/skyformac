@@ -16,14 +16,14 @@ enum ControlMode: String, CaseIterable, Identifiable {
 
 enum ToolSection: CaseIterable {
     case focusAssist, smartExposure, planetary, polarAlignment, enhancement
-    case darkFrame, liveStack, luckyImaging, recording
+    case darkFrame, liveStack, luckyImaging, recording, liveGPU, aiSuite
 
     func isVisible(in mode: ControlMode) -> Bool {
         switch mode {
         case .all: return true
-        case .general: return [.focusAssist, .smartExposure, .darkFrame].contains(self)
+        case .general: return [.focusAssist, .smartExposure, .darkFrame, .liveGPU, .aiSuite].contains(self)
         case .planetary: return [.planetary, .enhancement, .luckyImaging, .recording].contains(self)
-        case .deepSky: return [.focusAssist, .smartExposure, .darkFrame, .liveStack, .polarAlignment].contains(self)
+        case .deepSky: return [.focusAssist, .smartExposure, .darkFrame, .liveStack, .polarAlignment, .liveGPU, .aiSuite].contains(self)
         }
     }
 }
@@ -60,101 +60,143 @@ struct ControlsPanelView: View {
     @State private var showPlanetarySection = false
     @State private var showPolarAlignmentSection = false
     @State private var showEnhancementSection = false
+    @State private var showLiveGPUSection = false
+    @State private var showAISuiteSection = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if cameraManager.connectedCamera != nil {
-                    Picker("Mode", selection: $mode) {
-                        ForEach(ControlMode.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    // `.segmented` doesn't degrade gracefully at this panel's width (320-340pt,
-                    // minus this view's own `.padding()`): 4 segments including "Planetary" and
-                    // "All Tools" get squeezed to where only the already-selected one reliably
-                    // registers taps. `.menu` has no such width contention.
-                    .pickerStyle(.menu)
-                    .help("Filters which tool sections below are shown — nothing is ever disabled, \"All Tools\" always shows everything.")
-                    Divider()
-
-                    singleExposureSection
-                    Divider()
-
-                    if ToolSection.focusAssist.isVisible(in: mode) {
-                        DisclosureGroup("Focus Assist", isExpanded: $showFocusAssistSection) {
-                            focusAssistSection
+        VStack(alignment: .leading, spacing: 0) {
+            if cameraManager.connectedCamera != nil {
+                // This used to be the first row *inside* the `ScrollView` below — first a
+                // `Picker(selection:)` with `.pickerStyle(.menu)` (an `NSPopUpButton`), then a
+                // `Menu`, both reported to reliably fail to open (no menu, on any click count)
+                // specifically there, while an identical menu-bar `Picker`/`Button` set bound to
+                // the same `@AppStorage("controlMode")` key (`SkyformacCommands`'s Mode menu)
+                // always worked — ruling out the state/binding and pointing at *that screen
+                // position* (the very first view inside this pane's `ScrollView`, directly under
+                // the window's toolbar) rather than either control itself. Moved out of the
+                // `ScrollView` entirely, into its own fixed header row above it, so it's not the
+                // scroll content's first pixel anymore — also better UX, since the mode stays
+                // visible and clickable while the tool list below it scrolls.
+                HStack {
+                    Text("Mode")
+                    Spacer()
+                    Menu(mode.rawValue) {
+                        ForEach(ControlMode.allCases) { candidate in
+                            Button {
+                                mode = candidate
+                            } label: {
+                                if candidate == mode {
+                                    Label(candidate.rawValue, systemImage: "checkmark")
+                                } else {
+                                    Text(candidate.rawValue)
+                                }
+                            }
                         }
-                        Divider()
                     }
-                    if ToolSection.smartExposure.isVisible(in: mode) {
-                        DisclosureGroup("Smart Exposure", isExpanded: $showSmartExposureSection) {
-                            smartExposureSection
-                        }
-                        Divider()
-                    }
-                    if ToolSection.planetary.isVisible(in: mode) {
-                        DisclosureGroup("Planetary Auto-Center", isExpanded: $showPlanetarySection) {
-                            planetarySection
-                        }
-                        Divider()
-                    }
-                    if ToolSection.polarAlignment.isVisible(in: mode) {
-                        DisclosureGroup("Polar Alignment", isExpanded: $showPolarAlignmentSection) {
-                            polarAlignmentSection
-                        }
-                        Divider()
-                    }
-                    if ToolSection.enhancement.isVisible(in: mode) {
-                        DisclosureGroup("Image Enhancement", isExpanded: $showEnhancementSection) {
-                            enhancementSection
-                        }
-                        Divider()
-                    }
-                    if ToolSection.darkFrame.isVisible(in: mode) {
-                        DisclosureGroup("Calibration (Dark/Flat)", isExpanded: $showDarkFrameSection) {
-                            darkFrameSection
-                        }
-                        Divider()
-                    }
-                    if ToolSection.liveStack.isVisible(in: mode) {
-                        DisclosureGroup("Live Stack", isExpanded: $showLiveStackSection) {
-                            liveStackSection
-                        }
-                        Divider()
-                    }
-                    if ToolSection.luckyImaging.isVisible(in: mode) {
-                        DisclosureGroup("Lucky Imaging", isExpanded: $showLuckyImagingSection) {
-                            luckyImagingSection
-                        }
-                        Divider()
-                    }
-
-                    DisclosureGroup("Export", isExpanded: $showExportSection) {
-                        exportSection
-                    }
-                    Divider()
-
-                    if ToolSection.recording.isVisible(in: mode) {
-                        DisclosureGroup("Record to Disk (GPU sharpness gate)", isExpanded: $showRecordingSection) {
-                            recordingSection
-                        }
-                        Divider()
-                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
-
-                Text("Controls").font(.headline)
-
-                if cameraManager.controls.isEmpty {
-                    Text("Connect a camera to see its controls.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(cameraManager.controls) { cap in
-                        controlRow(cap)
-                        Divider()
-                    }
-                }
+                .help("Filters which tool sections below are shown — nothing is ever disabled, \"All Tools\" always shows everything.")
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                Divider()
             }
-            .padding()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if cameraManager.connectedCamera != nil {
+                        singleExposureSection
+                        Divider()
+
+                        if ToolSection.focusAssist.isVisible(in: mode) {
+                            DisclosureGroup("Focus Assist", isExpanded: $showFocusAssistSection) {
+                                focusAssistSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.smartExposure.isVisible(in: mode) {
+                            DisclosureGroup("Smart Exposure", isExpanded: $showSmartExposureSection) {
+                                smartExposureSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.planetary.isVisible(in: mode) {
+                            DisclosureGroup("Planetary Auto-Center", isExpanded: $showPlanetarySection) {
+                                planetarySection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.polarAlignment.isVisible(in: mode) {
+                            DisclosureGroup("Polar Alignment", isExpanded: $showPolarAlignmentSection) {
+                                polarAlignmentSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.enhancement.isVisible(in: mode) {
+                            DisclosureGroup("Image Enhancement", isExpanded: $showEnhancementSection) {
+                                enhancementSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.liveGPU.isVisible(in: mode) {
+                            DisclosureGroup("Live GPU Enhancement Controls", isExpanded: $showLiveGPUSection) {
+                                liveGPUControlsSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.aiSuite.isVisible(in: mode) {
+                            DisclosureGroup("AI & Machine Learning Suite", isExpanded: $showAISuiteSection) {
+                                aiSuiteSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.darkFrame.isVisible(in: mode) {
+                            DisclosureGroup("Calibration (Dark/Flat)", isExpanded: $showDarkFrameSection) {
+                                darkFrameSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.liveStack.isVisible(in: mode) {
+                            DisclosureGroup("Live Stack", isExpanded: $showLiveStackSection) {
+                                liveStackSection
+                            }
+                            Divider()
+                        }
+                        if ToolSection.luckyImaging.isVisible(in: mode) {
+                            DisclosureGroup("Lucky Imaging", isExpanded: $showLuckyImagingSection) {
+                                luckyImagingSection
+                            }
+                            Divider()
+                        }
+
+                        DisclosureGroup("Export", isExpanded: $showExportSection) {
+                            exportSection
+                        }
+                        Divider()
+
+                        if ToolSection.recording.isVisible(in: mode) {
+                            DisclosureGroup("Record to Disk (GPU sharpness gate)", isExpanded: $showRecordingSection) {
+                                recordingSection
+                            }
+                            Divider()
+                        }
+                    }
+
+                    Text("Controls").font(.headline)
+
+                    if cameraManager.controls.isEmpty {
+                        Text("Connect a camera to see its controls.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(cameraManager.controls) { cap in
+                            controlRow(cap)
+                            Divider()
+                        }
+                    }
+                }
+                .padding()
+            }
         }
     }
 
@@ -164,7 +206,18 @@ struct ControlsPanelView: View {
     private var singleExposureSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Single Exposure").font(.headline)
-            ExposureField(seconds: $exposureSeconds)
+            // Safety guardrail (specs/skyformac_GPU_Live_Controls_Spec.md section 6.2): a webcam
+            // has no real controllable exposure (see `CameraManager.captureSingleExposure`'s
+            // `cameraID == -2` branch — it freezes the current frame regardless of this value),
+            // so there's no hardware reason to floor it at 1ms specifically; this exists purely
+            // so the slider doesn't invite dialing in a value that implies a capability the
+            // source doesn't have.
+            ExposureField(seconds: $exposureSeconds, minSeconds: cameraManager.isExternalWebcam ? 0.001 : 0.000_001)
+            if cameraManager.isExternalWebcam && exposureSeconds < 0.010 {
+                Label("iPhone/webcam sources ignore exposure length — \"Capture\" just freezes the current frame.", systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
             HStack {
                 Button {
                     Task { await cameraManager.captureSingleExposure(seconds: exposureSeconds) }
@@ -400,6 +453,112 @@ struct ControlsPanelView: View {
         }
     }
 
+    // MARK: - Live GPU Enhancement Controls (specs/skyformac_GPU_Live_Controls_Spec.md)
+
+    @ViewBuilder
+    private var liveGPUControlsSection: some View {
+        let gpu = cameraManager.gpuControls
+        VStack(alignment: .leading, spacing: 8) {
+            Text("A three-stage GPU pipeline — temporal + spatial denoise, then a non-linear contrast stretch — independent of Image Enhancement above and the Black/White Point sliders under the histogram. GPU renderer only.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Toggle("Enabled", isOn: Binding(get: { gpu.isEnabled }, set: { gpu.isEnabled = $0 }))
+
+            Text("Temporal Denoise (Live Smoothing)").font(.caption.bold())
+            gpuSlider("Smoothness", value: Binding(get: { gpu.temporalAlpha }, set: { gpu.temporalAlpha = $0 }), range: 0.01...1.0)
+
+            Text("Spatial Denoise (Bilateral)").font(.caption.bold())
+            gpuSlider("Radius", value: Binding(get: { gpu.spatialSigma }, set: { gpu.spatialSigma = $0 }), range: 1.0...10.0)
+            gpuSlider("Range", value: Binding(get: { gpu.rangeSigma }, set: { gpu.rangeSigma = $0 }), range: 0.01...0.50)
+
+            Text("Non-Linear Contrast (Arcsinh Stretch)").font(.caption.bold())
+            gpuSlider("Boost", value: Binding(get: { gpu.stretchIntensity }, set: { gpu.stretchIntensity = $0 }), range: 1.0...200.0)
+            gpuSlider("Black Pt", value: Binding(get: { gpu.blackPoint }, set: { gpu.blackPoint = $0 }), range: 0...0.4)
+            gpuSlider("White Pt", value: Binding(get: { gpu.whitePoint }, set: { gpu.whitePoint = $0 }), range: 0.10...1.0)
+
+            Button("Auto-Stretch Safety Lock") {
+                gpu.autoStretch(histogram: cameraManager.gpuHistogramCounts ?? currentCPUHistogram())
+            }
+            .help("Sets Black/White Point and Boost from the current frame's histogram (1st/99th percentile).")
+        }
+    }
+
+    @ViewBuilder
+    private func gpuSlider(_ label: String, value: Binding<Float>, range: ClosedRange<Float>) -> some View {
+        HStack {
+            Text(label).font(.caption).frame(width: 62, alignment: .leading)
+            Slider(value: value, in: range)
+            Text(String(format: "%.2f", value.wrappedValue))
+                .font(.caption.monospacedDigit())
+                .frame(width: 40, alignment: .trailing)
+        }
+    }
+
+    /// Fallback for "Auto-Stretch Safety Lock" when the GPU histogram isn't populated yet (e.g.
+    /// Metal renderer just turned on, no frame processed since) — same underlying math
+    /// (`HistogramComputer`), just computed on-demand from the raw sensor frame instead of read
+    /// from the live GPU compute-kernel histogram.
+    private func currentCPUHistogram() -> [Int] {
+        guard let frame = cameraManager.currentFrame else { return [] }
+        return HistogramComputer.histogram(for: frame)
+    }
+
+    // MARK: - AI & Machine Learning Suite (specs/skyformac_AI_Features_Pipeline_Spec.md)
+
+    @ViewBuilder
+    private var aiSuiteSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Two of the spec's five features (Neural Engine AI Denoise, AI Super-Resolution) need a trained Core ML model this app doesn't ship and can't fabricate — see the spec file's Implementation Notes. Denoise already has a real classical-technique equivalent under Image Enhancement; Lucky Imaging's real quality scoring is under its own section, with a live readout there.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            Text("Satellite & Aircraft Trail Masking").font(.caption.bold())
+            Toggle("Enabled", isOn: Binding(
+                get: { cameraManager.isStreakMaskingEnabled },
+                set: { cameraManager.isStreakMaskingEnabled = $0 }
+            ))
+            if cameraManager.useMetalRenderer {
+                Label("Only affects the CPU (non-GPU) live-stack path — see the spec file's Implementation Notes for why the GPU accumulate kernel isn't wired up yet. Turn off \"GPU\" in the toolbar to use this.", systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            } else if cameraManager.isStreakMaskingEnabled {
+                Text(streakStatusText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            Text("Cloud Cover & Drift Sentinel").font(.caption.bold())
+            Toggle("Enabled", isOn: Binding(
+                get: { cameraManager.isCloudSentinelEnabled },
+                set: { cameraManager.isCloudSentinelEnabled = $0 }
+            ))
+            if cameraManager.isCloudSentinelEnabled {
+                Label(
+                    cameraManager.isCloudAlertActive ? "Cloud/Light Alert — recording paused" : "Sky Stable • Baseline Locked",
+                    systemImage: cameraManager.isCloudAlertActive ? "cloud.fill" : "checkmark.circle"
+                )
+                .font(.caption2)
+                .foregroundStyle(cameraManager.isCloudAlertActive ? .orange : .secondary)
+                Text("Pauses active disk recording and sends a system notification on a sudden sky-brightness drop or spike, using the same baseline-tracking logic as the All-Sky Monitor's own alerts.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var streakStatusText: String {
+        guard let mask = cameraManager.currentStreakMask else { return "Watching for streaks…" }
+        let percent = mask.maskedFraction * 100
+        return percent > 0.01
+            ? String(format: "Masking ~%.1f%% of frame (streak detected)", percent)
+            : "No streaks detected in the current frame."
+    }
+
     // MARK: - Dark frame
 
     @ViewBuilder
@@ -522,6 +681,17 @@ struct ControlsPanelView: View {
             Text("Captures a burst, scores each frame's sharpness, and stacks only the best fraction — for beating atmospheric seeing on the Moon/planets. No frame alignment.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+            if let score = cameraManager.currentFrameQualityScore {
+                HStack {
+                    Text("Live Score").font(.caption)
+                    Spacer()
+                    Text(String(format: "%.1f / 100", score))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .help("Relative to the sharpest frame seen so far this session — not a calibrated absolute scale, since Laplacian-variance sharpness has no fixed ceiling.")
+            }
 
             HStack {
                 Text("\(Int(luckyBurstCount)) frames")

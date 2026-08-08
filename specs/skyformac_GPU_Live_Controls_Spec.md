@@ -225,3 +225,51 @@ final class GPUControlSettings {
 2. Build a central `GPUPipelineManager` class executing the command queue off the Main Actor.
 3. Wire the `LiveGPUControlsView` controls directly to the `GPUControlSettings` state model.
 4. Verify zero memory growth under Xcode Instruments (Allocations/Metal System Trace) during 60 FPS live streaming.
+
+---
+
+## 8. Implementation Notes (deviations from the above, as built)
+
+Per `specs/README.md`'s "update the spec to match what was actually built" — this section records
+where the shipped implementation diverges from sections 1-7 above, and why.
+
+1. **`MPSImageBilateralScale` does not exist.** `MetalPerformanceShaders` has no bilateral-filter
+   image kernel (`MPSImageBilinearScale`/`MPSImageLanczosScale` are *resizing* filters, easy to
+   confuse with a similar-sounding name, but unrelated) — the same shape of mistake this project's
+   own `docs/design-notes.md` already documents once for `vImageBayerToRGB`. Section 4.2's Stage 2
+   is implemented as a second, independent invocation of `Shaders.metal`'s existing
+   `bilateralDenoise` compute kernel (already used by the pre-existing "Image Enhancement" ->
+   Denoise toggle) with its own texture and user-adjustable `spatialSigma`/`rangeSigma`, instead of
+   MPS. No `MetalPerformanceShaders` import was needed.
+2. **Stage 1's persistent state is one `access::read_write` texture, not the literal
+   current/previous/output 3-texture design in section 4.1.** Since each thread only ever touches
+   its own pixel, reading and writing the same texture in one dispatch is safe, and needs one
+   fewer `MTLTexture` allocated — a closer fit to section 6.3's "zero allocation in the frame loop"
+   guardrail than the literal design, not a looser one.
+3. **Stage 3 (arcsinh) is layered on top of the existing linear `DisplayStretch` black/white
+   stretch, not a replacement of it**, despite section 1's "replaces raw linear ... clipping"
+   framing. Every render path (CPU and GPU) already applies `DisplayStretch` before the live
+   histogram is computed from it; swapping that out for arcsinh directly would mean either
+   duplicating the debayer/stretch pass or changing what the existing black/white-point sliders
+   and histogram mean for every camera, unconditionally. Layering keeps this feature strictly
+   additive and opt-in (see point 5) instead of changing existing, already-tested behavior.
+4. **No standalone `GPUPipelineManager` or `LiveGPUControlsView.swift` file.** The three new
+   stages were added directly into the existing `MetalFrameRenderer`/`ControlsPanelView` — those
+   already own exactly this kind of stage (compare `isDenoisingEnabled`/`isWaveletSharpeningEnabled`)
+   and already run entirely off the main actor (`MetalFrameRenderer` is driven by `MTKViewDelegate.draw(in:)`
+   on its own rendering thread). Introducing a second manager/view for a pipeline that plugs into
+   the same command buffer would split one render pass across two owners for no behavioral benefit.
+5. **`GPUControlSettings.isEnabled` defaults to `false`, not the literal `= true` in section 5.1.**
+   Every other visually-altering toggle in this app defaults off; shipping a new three-stage
+   pipeline that's silently active for existing users the next time they update would be a
+   surprising default. The default only applies pre-persistence — `AppSettings` remembers the
+   user's choice across relaunches like every other enhancement toggle.
+6. **Section 6.2's exposure-time floor is implemented as a UI-only affordance, not a real hardware
+   safeguard.** A webcam/Continuity Camera source has no controllable exposure at all —
+   `CameraManager.captureSingleExposure`'s `cameraID == -2` branch already ignores the exposure
+   slider's value entirely and just freezes the current frame — so there's nothing for a "minimum
+   exposure" to actually protect against on that path. The 1ms floor and the warning badge below
+   10ms exist purely so the slider doesn't invite dialing in a value that implies a capability the
+   source doesn't have; the "warn in dark ambient conditions" qualifier was dropped since it would
+   need its own brightness-sensing heuristic for a warning that's already unconditionally accurate
+   (a webcam ignores exposure length regardless of ambient light).

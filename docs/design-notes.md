@@ -99,6 +99,86 @@ made along the way.
   spelled out as `$(PRODUCT_BUNDLE_IDENTIFIER)` explicitly, along with
   `CFBundleName`, `CFBundleExecutable`, etc. This silently doesn't matter for
   normal launches, but breaks `XCUITest`'s bundle-ID-based app lookup outright.
+- **`MPSImageBilateralScale` doesn't exist.** `MetalPerformanceShaders` has no bilateral-filter
+  image kernel — `MPSImageBilinearScale`/`MPSImageLanczosScale` are *resizing* filters with a
+  similar-sounding name, not a denoise operation. The "Live GPU Enhancement Controls" feature
+  (`specs/skyformac_GPU_Live_Controls_Spec.md`) reuses `Shaders.metal`'s existing hand-written
+  `bilateralDenoise` compute kernel instead — see that spec's own "Implementation Notes" section
+  for the rest of its deliberate deviations from the literal spec text.
+- **A `didSet` that reassigns its own property recurses on every call, not just when the value
+  changes.** `GPUControlSettings`'s clamping setters (`blackPoint = blackPoint.clamped(to:)` etc.)
+  first shipped without checking whether clamping actually changed anything — since `didSet`
+  fires on every assignment including ones made from inside itself, that recursed unconditionally
+  and stack-overflowed (`SIGBUS`, `Could not determine thread index for stack guard region`) the
+  first time a test exercised it. Fixed by comparing the clamped value against the current one
+  first, and only reassigning (which re-enters `didSet` exactly once more, now idempotent) when
+  they actually differ.
+- **Two of the five `skyformac_AI_Features_Pipeline_Spec.md` features can't be
+  built as literally specced, for the same reason as the Neural Engine
+  denoiser above: they require a trained Core ML model that doesn't exist and
+  can't be produced from a feature request.** "AI Denoise via the Neural
+  Engine" (Feature 1) and "AI Super-Resolution" (Feature 4) are both declined
+  outright rather than faked under an AI-sounding name — the existing
+  bilateral/temporal denoise and CPU/GPU stretch pipeline already covers the
+  same real-time-usable ground. See that spec's own "Implementation Notes"
+  section for the full reasoning per feature.
+- **Lucky Imaging's live quality score (Feature 2) reuses the existing
+  Laplacian-variance `SharpnessScorer`, not a Vision/Core-ML aesthetic
+  model.** The spec's "AI-Estimated Quality Score" language doesn't name a
+  concrete, verifiable API — the sharpness metric already driving lucky
+  imaging's keep/discard ranking is a real, tested measurement of the same
+  underlying thing (how much of a star's fine structure survived seeing/
+  tracking-error blur), just surfaced live in the Lucky Imaging panel instead
+  of only after a burst finishes.
+- **Satellite/aircraft trail masking (Feature 3) is CPU live-stacking only —
+  the GPU live-stack accumulate kernel can't do per-pixel masking without a
+  bigger, riskier rewrite.** `Shaders.metal`'s `accumulateMono` divides every
+  pixel by one shared scalar frame count; skipping specific pixels in specific
+  frames needs a *per-pixel* count instead, which would mean threading a
+  second accumulator texture through `accumulateMono`,
+  `stretchMono`/`debayerAndStretch`, and `histogramReduce` all at once. `
+  StreakDetector` (Vision `VNDetectContoursRequest`, the same request
+  `StarDetector` already uses, with an inverted elongated-vs-round geometric
+  filter) and `StreakMask` (a per-pixel keep/mask grid) only wire into the CPU
+  `LiveStacker`; `ControlsPanelView` shows a warning when the GPU renderer is
+  active and streak masking is toggled on, rather than silently doing
+  nothing.
+- **A normalized bounding-box's upper edge is exclusive, not inclusive —
+  rounding it the wrong way spills a mask into the next pixel.** `StreakMask`
+  converts a Vision-normalized box (`0...1`) to a pixel-index range by
+  `floor`-ing the lower bound and `ceil`-ing the upper one; the first version
+  used the `ceil`'d value directly as the last included index, which is
+  correct for a non-boundary-aligned box but wrong whenever the upper edge
+  lands exactly on a pixel boundary — e.g. a box of width `0.5` on a
+  2px-wide frame gives `ceil(0.5 * 2) = ceil(1.0) = 1`, wrongly keeping pixel
+  index 1 too (pixel `i` spans `[i/width, (i+1)/width)`, so index 1 is
+  entirely outside a box ending at exactly `0.5`). Caught by
+  `LiveStackerTests.maskedPixelIsExcludedFromThatFramesContribution` failing
+  with both pixels masked instead of one; fixed by subtracting 1 from the
+  `ceil`'d value on both axes.
+- **Cloud & Drift Sentinel (Feature 5) reuses the existing All-Sky monitor's
+  cloud/light-alert analysis exactly, applied to the main capture pipeline
+  instead of a second webcam feed.** `CloudDriftSentinel` mirrors
+  `AllSkyMonitor.applyAnalysis`'s unconditional exponential-moving-average
+  baseline update (`baseline * 0.98 + brightness * 0.02` every sample, even
+  while already alerting) and calls the same `AllSkyAnalyzer.isCloudOrLightAlert`
+  threshold check — brightness is sampled cheaply via
+  `HistogramComputer.meanBrightness` (stride-sampled, not a full per-pixel
+  scan) rather than adding a second real-time analysis path. "Pause capture"
+  on alert is `stopRecording()`; there's no separate concept of pausing vs.
+  stopping elsewhere in the capture pipeline to hook into instead.
+- **A control that's the first view inside a sidebar `ScrollView`, directly under the window's
+  toolbar, can be permanently unclickable regardless of which control it is.**
+  `ControlsPanelView`'s "Mode" selector was reported to never open on click — first a
+  `Picker(selection:)` with `.pickerStyle(.menu)` (an `NSPopUpButton`), then (after swapping
+  controls to test whether it was `NSPopUpButton`-specific) a `Menu` (an `NSMenu` off a plain
+  button) — while `SkyformacCommands`'s menu-bar "Mode" menu, bound to the exact same
+  `@AppStorage("controlMode")` key, always worked. Ruling out both the state/binding and the
+  specific control type left *screen position* as the common factor: the very first pixel row of
+  this pane's `ScrollView`. Fixed by moving the Mode selector out of the `ScrollView` entirely,
+  into its own fixed header `HStack` above it (see `ControlsPanelView.body`) — it's no longer the
+  scroll content's first row, and it now stays visible while the tool list below it scrolls. The
+  menu-bar path stays too, as an independent mouse-free way to reach the same state.
 - **No custom Bluetooth video-streaming companion app.** Bluetooth (classic or
   BLE) doesn't have the throughput for live video — Apple's own Continuity
   Camera deliberately uses Wi-Fi/peer-to-peer for the video itself and only

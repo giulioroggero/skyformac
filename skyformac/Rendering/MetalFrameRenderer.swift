@@ -20,6 +20,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private let denoisePipeline: MTLComputePipelineState
     private let waveletBlurPipeline: MTLComputePipelineState
     private let waveletCombinePipeline: MTLComputePipelineState
+    private let temporalAccumulatorPipeline: MTLComputePipelineState
+    private let arcsinhStretchPipeline: MTLComputePipelineState
     private let histogramBuffer: MTLBuffer
 
     private var sourceTexture: MTLTexture?
@@ -30,6 +32,11 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private var waveletLayer0Texture: MTLTexture?
     private var waveletLayer1Texture: MTLTexture?
     private var waveletOutputTexture: MTLTexture?
+    /// Scratch destination for the Live GPU Controls' spatial-denoise stage — deliberately
+    /// separate from `denoiseTexture` (the pre-existing "Image Enhancement" denoise scratch) so
+    /// the two independent bilateral-denoise stages don't alias the same texture if both happen
+    /// to be enabled at once.
+    private var liveGPUSpatialTexture: MTLTexture?
     private var sourceWidth = 0
     private var sourceHeight = 0
     private var sourcePixelFormat: MTLPixelFormat = .r8Unorm
@@ -45,11 +52,25 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private var accumulatedHeight = 0
     private var accumulatedFrameCount = 0
 
+    /// Live GPU Controls' persistent temporal (EMA) accumulator — unlike `accumulationTexture`
+    /// above (a running *sum*, divided back down at display time), this holds the blended value
+    /// directly, in the source's own mono format, since it's meant to look like "the current
+    /// frame, smoothed" rather than a multi-frame stack.
+    private var temporalTexture: MTLTexture?
+    private var temporalWidth = 0
+    private var temporalHeight = 0
+    private var temporalPixelFormat: MTLPixelFormat = .r8Unorm
+    /// Tracks the rising edge of `GPULiveControlsSnapshot.isEnabled` so the first frame after
+    /// (re)enabling seeds the accumulator with `alpha: 1.0` (i.e. just copies the current frame)
+    /// instead of blending against stale content from before it was last turned off.
+    private var liveGPUWasEnabled = false
+
     /// Set by the owning view whenever a new frame should be (re)processed.
     var pendingUpdate: (
         frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
         stretch: DisplayStretch, isLiveStacking: Bool,
-        isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float
+        isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
+        liveGPUControls: GPULiveControlsSnapshot
     )?
 
     /// Fired (off the main thread — hop back before touching UI state) with a fresh 256-bucket
@@ -75,6 +96,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let denoiseFn = library.makeFunction(name: "bilateralDenoise"),
               let waveletBlurFn = library.makeFunction(name: "waveletBlur"),
               let waveletCombineFn = library.makeFunction(name: "waveletCombine"),
+              let temporalAccumulatorFn = library.makeFunction(name: "temporalAccumulator"),
+              let arcsinhStretchFn = library.makeFunction(name: "arcsinhStretch"),
               let vertexFn = library.makeFunction(name: "fullscreenTriangleVertex"),
               let fragmentFn = library.makeFunction(name: "blitFragment"),
               let histogramBuffer = device.makeBuffer(
@@ -97,6 +120,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             self.denoisePipeline = try device.makeComputePipelineState(function: denoiseFn)
             self.waveletBlurPipeline = try device.makeComputePipelineState(function: waveletBlurFn)
             self.waveletCombinePipeline = try device.makeComputePipelineState(function: waveletCombineFn)
+            self.temporalAccumulatorPipeline = try device.makeComputePipelineState(function: temporalAccumulatorFn)
+            self.arcsinhStretchPipeline = try device.makeComputePipelineState(function: arcsinhStretchFn)
 
             let renderDescriptor = MTLRenderPipelineDescriptor()
             renderDescriptor.vertexFunction = vertexFn
@@ -141,6 +166,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         waveletLayer0Texture = makeScratch()
         waveletLayer1Texture = makeScratch()
         waveletOutputTexture = makeScratch()
+        liveGPUSpatialTexture = makeScratch()
     }
 
     /// Just the display-sized `outputTexture`, for `processRGB24` — RGB24 has no mono
@@ -162,7 +188,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
     /// Stretch + display (no debayer) for webcam/iPhone RGB24 frames, entirely on the GPU —
     /// see `stretchRGB24`'s doc comment for why this reads from a buffer, not a texture.
-    private func processRGB24(frame: CapturedFrame, stretch: DisplayStretch) {
+    private func processRGB24(frame: CapturedFrame, stretch: DisplayStretch, liveGPUControls: GPULiveControlsSnapshot) {
         ensureOutputTexture(width: frame.width, height: frame.height)
         let byteCount = frame.width * frame.height * 3
         ensureRGBSourceBuffer(byteCount: byteCount)
@@ -188,6 +214,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         encoder.setBytes(&stretchParams, length: MemoryLayout.size(ofValue: stretchParams), index: 2)
         encoder.setTexture(outputTexture, index: 0)
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+
+        applyArcsinhStretchIfNeeded(liveGPUControls, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         encoder.endEncoding()
 
         if onHistogramUpdate != nil, let histogramEncoder = commandBuffer.makeComputeCommandEncoder() {
@@ -235,6 +263,58 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         resetLiveStack()
     }
 
+    /// Resets the Live GPU Controls temporal accumulator (new camera session, or the next
+    /// enabled frame reseeds it anyway via `liveGPUWasEnabled`) — called alongside
+    /// `resetLiveStack()` by `MetalPreviewView` whenever `CameraManager.liveStackGeneration`
+    /// changes, so a stale frame from a previous session/camera never blends into a new one.
+    func resetTemporalAccumulator() {
+        liveGPUWasEnabled = false
+        guard let temporalTexture, let commandBuffer = commandQueue.makeCommandBuffer(),
+              let encoder = commandBuffer.makeComputeCommandEncoder()
+        else { return }
+        dispatch(clearPipeline, encoder: encoder, texture0: temporalTexture, width: temporalWidth, height: temporalHeight)
+        encoder.endEncoding()
+        commandBuffer.commit()
+    }
+
+    /// Lazily (re)allocates the temporal accumulator at the current frame's dimensions/format —
+    /// only actually touched when Live GPU Controls is enabled, unlike the always-allocated
+    /// denoise/wavelet scratch textures in `ensureTextures`, since it's a newer, opt-in feature.
+    private func ensureTemporalTexture(width: Int, height: Int, pixelFormat: MTLPixelFormat) -> MTLTexture? {
+        if temporalTexture == nil || width != temporalWidth || height != temporalHeight || pixelFormat != temporalPixelFormat {
+            temporalWidth = width
+            temporalHeight = height
+            temporalPixelFormat = pixelFormat
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: pixelFormat, width: width, height: height, mipmapped: false
+            )
+            descriptor.usage = [.shaderRead, .shaderWrite]
+            temporalTexture = device.makeTexture(descriptor: descriptor)
+            resetTemporalAccumulator()
+        }
+        return temporalTexture
+    }
+
+    /// Live GPU Controls stage 3 — shared by `process` (RAW8/RAW16) and `processRGB24`, since
+    /// arcsinh stretch operates on the final RGBA `outputTexture` regardless of source format.
+    private func applyArcsinhStretchIfNeeded(
+        _ liveGPUControls: GPULiveControlsSnapshot,
+        encoder: MTLComputeCommandEncoder,
+        threadgroups: MTLSize,
+        threadsPerGroup: MTLSize
+    ) {
+        guard liveGPUControls.isEnabled, let outputTexture else { return }
+        var blackPoint = liveGPUControls.blackPoint
+        var whitePoint = liveGPUControls.whitePoint
+        var intensity = liveGPUControls.stretchIntensity
+        encoder.setComputePipelineState(arcsinhStretchPipeline)
+        encoder.setTexture(outputTexture, index: 0)
+        encoder.setBytes(&blackPoint, length: MemoryLayout<Float>.size, index: 0)
+        encoder.setBytes(&whitePoint, length: MemoryLayout<Float>.size, index: 1)
+        encoder.setBytes(&intensity, length: MemoryLayout<Float>.size, index: 2)
+        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+    }
+
     private func dispatch(
         _ pipeline: MTLComputePipelineState,
         encoder: MTLComputeCommandEncoder,
@@ -259,7 +339,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         isLiveStacking: Bool,
         isDenoisingEnabled: Bool,
         isWaveletSharpeningEnabled: Bool,
-        sharpenAmount: Float
+        sharpenAmount: Float,
+        liveGPUControls: GPULiveControlsSnapshot
     ) {
         if frame.imageType == ASI_IMG_RGB24 {
             // Webcam/iPhone frames: already color-processed by the device's own ISP, so no
@@ -267,7 +348,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             // mono-only kernels today (see their textures' `r8Unorm`/`r16Unorm`/`r32Float`
             // formats) and aren't wired up for this path; the CPU (`CGImageRenderer`) path has
             // the same gap. Only affects webcam sources — ZWO cameras never produce RGB24.
-            processRGB24(frame: frame, stretch: stretch)
+            // Arcsinh stretch (stage 3) is source-agnostic, so it's still applied.
+            processRGB24(frame: frame, stretch: stretch, liveGPUControls: liveGPUControls)
             return
         }
 
@@ -301,6 +383,42 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         // to a single frame's range. Pre-processing each frame before stacking sidesteps that
         // entirely, and is arguably the more useful order anyway (stack already-denoised frames).
         var workingTexture = sourceTexture
+
+        // Live GPU Controls stages 1+2 (temporal EMA denoise, then spatial bilateral denoise) —
+        // run first, ahead of the pre-existing "Image Enhancement" denoise/wavelet stages below,
+        // per the spec's pipeline order. Independent controls/textures from those, so both can
+        // be on at once without interfering (if unusually heavy-handed together).
+        if liveGPUControls.isEnabled {
+            let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
+            let threadgroups = MTLSize(width: (frame.width + 15) / 16, height: (frame.height + 15) / 16, depth: 1)
+
+            if let temporalTexture = ensureTemporalTexture(width: frame.width, height: frame.height, pixelFormat: pixelFormat) {
+                // Rising edge (just enabled, or a fresh session via `resetTemporalAccumulator`):
+                // alpha 1.0 makes `mix(previous, current, 1.0) == current`, so the accumulator's
+                // possibly-stale/cleared-to-zero previous content is discarded outright instead
+                // of being blended in as if it were a real prior frame.
+                var alpha = liveGPUWasEnabled ? liveGPUControls.temporalAlpha : 1.0
+                encoder.setComputePipelineState(temporalAccumulatorPipeline)
+                encoder.setTexture(workingTexture, index: 0)
+                encoder.setTexture(temporalTexture, index: 1)
+                encoder.setBytes(&alpha, length: MemoryLayout<Float>.size, index: 0)
+                encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+                workingTexture = temporalTexture
+            }
+
+            if let liveGPUSpatialTexture {
+                var spatialSigma = liveGPUControls.spatialSigma
+                var rangeSigma = liveGPUControls.rangeSigma
+                encoder.setComputePipelineState(denoisePipeline)
+                encoder.setTexture(workingTexture, index: 0)
+                encoder.setTexture(liveGPUSpatialTexture, index: 1)
+                encoder.setBytes(&spatialSigma, length: MemoryLayout<Float>.size, index: 0)
+                encoder.setBytes(&rangeSigma, length: MemoryLayout<Float>.size, index: 1)
+                encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+                workingTexture = liveGPUSpatialTexture
+            }
+        }
+        liveGPUWasEnabled = liveGPUControls.isEnabled
 
         if isDenoisingEnabled, let denoiseTexture {
             var spatialSigma: Float = 1.5
@@ -389,6 +507,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         }
 
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+
+        applyArcsinhStretchIfNeeded(liveGPUControls, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         encoder.endEncoding()
 
         // Histogram is computed from the same (possibly-stacked) source, matching
@@ -432,7 +552,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 isLiveStacking: update.isLiveStacking,
                 isDenoisingEnabled: update.isDenoisingEnabled,
                 isWaveletSharpeningEnabled: update.isWaveletSharpeningEnabled,
-                sharpenAmount: update.sharpenAmount
+                sharpenAmount: update.sharpenAmount,
+                liveGPUControls: update.liveGPUControls
             )
         }
 
@@ -488,6 +609,7 @@ struct MetalPreviewView: NSViewRepresentable {
         if context.coordinator.lastSeenStackGeneration != cameraManager.liveStackGeneration {
             context.coordinator.lastSeenStackGeneration = cameraManager.liveStackGeneration
             renderer.resetLiveStack()
+            renderer.resetTemporalAccumulator()
         }
 
         guard let camera = cameraManager.connectedCamera,
@@ -504,7 +626,8 @@ struct MetalPreviewView: NSViewRepresentable {
             isLiveStacking: cameraManager.isLiveStackingEnabled,
             isDenoisingEnabled: cameraManager.isDenoisingEnabled,
             isWaveletSharpeningEnabled: cameraManager.isWaveletSharpeningEnabled,
-            sharpenAmount: Float(cameraManager.waveletSharpenAmount)
+            sharpenAmount: Float(cameraManager.waveletSharpenAmount),
+            liveGPUControls: cameraManager.gpuControls.snapshot
         )
         nsView.setNeedsDisplay(nsView.bounds)
     }

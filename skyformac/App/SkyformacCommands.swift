@@ -6,6 +6,12 @@ import SwiftUI
 struct SkyformacCommands: Commands {
     var cameraManager: CameraManager
 
+    // Same `@AppStorage` key `ControlsPanelView`'s own Mode picker reads/writes — this menu is a
+    // second, independent path to the exact same state, not a separate concept. Added as a
+    // mouse-free (and click-target-independent) fallback after the in-panel dropdown was reported
+    // unresponsive to clicks; see `docs/design-notes.md`.
+    @AppStorage("controlMode") private var mode: ControlMode = .general
+
     var body: some Commands {
         CommandGroup(after: .newItem) {
             Divider()
@@ -36,6 +42,13 @@ struct SkyformacCommands: Commands {
             }
         }
 
+        CommandMenu("Mode") {
+            modeButton(.general, shortcut: "1")
+            modeButton(.planetary, shortcut: "2")
+            modeButton(.deepSky, shortcut: "3")
+            modeButton(.all, shortcut: "4")
+        }
+
         CommandGroup(after: .toolbar) {
             Toggle("Metal Renderer", isOn: Binding(
                 get: { cameraManager.useMetalRenderer },
@@ -55,5 +68,19 @@ struct SkyformacCommands: Commands {
             ))
             .keyboardShortcut("a", modifiers: [.command, .shift])
         }
+    }
+
+    @ViewBuilder
+    private func modeButton(_ candidate: ControlMode, shortcut: KeyEquivalent) -> some View {
+        Button {
+            mode = candidate
+        } label: {
+            if mode == candidate {
+                Label(candidate.rawValue, systemImage: "checkmark")
+            } else {
+                Text(candidate.rawValue)
+            }
+        }
+        .keyboardShortcut(shortcut, modifiers: .command)
     }
 }

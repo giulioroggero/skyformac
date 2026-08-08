@@ -4,6 +4,7 @@ import CoreGraphics
 import Foundation
 import Observation
 import UniformTypeIdentifiers
+import UserNotifications
 
 enum ExportKind {
     case fits
@@ -180,6 +181,56 @@ final class CameraManager {
     var waveletSharpenAmount: Double = AppSettings.waveletSharpenAmount {
         didSet { AppSettings.waveletSharpenAmount = waveletSharpenAmount }
     }
+
+    /// "Live GPU Enhancement Controls" (specs/skyformac_GPU_Live_Controls_Spec.md) — a separate,
+    /// independent three-stage pipeline (temporal + spatial denoise, then arcsinh stretch) from
+    /// the classical `isDenoisingEnabled`/`isWaveletSharpeningEnabled` pair above. Metal-only, per
+    /// the spec; there's no CPU fallback (the existing enhancement pair already covers that path).
+    let gpuControls = GPUControlSettings()
+
+    // MARK: - AI Suite (specs/skyformac_AI_Features_Pipeline_Spec.md)
+    //
+    // Features 1 (AI Denoise) and 4 (Super-Resolution) from that spec need a trained Core ML
+    // model file this repo doesn't have and can't fabricate from a feature request — see
+    // `docs/design-notes.md` for why that's a hard blocker, not a scoping choice, and
+    // `isDenoisingEnabled` above for the classical-technique substitute this project already
+    // ships for exactly that reason. Feature 2 (lucky-imaging quality scoring) already exists for
+    // real below (`SharpnessScorer`/`LuckyImagingSession`) — `currentFrameQualityScore` just
+    // surfaces its live value. Features 3 (streak masking) and 5 (cloud sentinel) are genuinely
+    // new, real implementations.
+
+    var isCloudSentinelEnabled = AppSettings.isCloudSentinelEnabled {
+        didSet {
+            AppSettings.isCloudSentinelEnabled = isCloudSentinelEnabled
+            if isCloudSentinelEnabled {
+                requestNotificationAuthorizationIfNeeded()
+            } else {
+                cloudSentinel.reset()
+                isCloudAlertActive = false
+            }
+        }
+    }
+    /// `true` from the moment a brightness-drop/spike is detected until the rolling baseline
+    /// catches back up (see `CloudDriftSentinel`'s doc comment on why that's an accepted,
+    /// already-shipped tradeoff rather than a sticky flag that needs manual clearing).
+    private(set) var isCloudAlertActive = false
+    private let cloudSentinel = CloudDriftSentinel()
+    private var cloudSentinelFrameCounter = 0
+
+    /// Excludes Vision-detected satellite/aircraft-trail pixels from live-stack accumulation
+    /// (both the CPU `LiveStacker` and the GPU accumulate kernel) — see `StreakDetector`.
+    var isStreakMaskingEnabled = AppSettings.isStreakMaskingEnabled {
+        didSet { AppSettings.isStreakMaskingEnabled = isStreakMaskingEnabled }
+    }
+    private var streakDetectionTask: Task<Void, Never>?
+    private(set) var currentStreakMask: StreakMask?
+
+    /// Live "Lucky Imaging" frame quality (0...100, Laplacian-variance sharpness normalized the
+    /// same way `SharpnessScorer`'s existing consumers already do) — `nil` until at least one
+    /// frame has been scored. Scored on every frame regardless of whether a lucky-imaging burst
+    /// is actively being captured, since it's cheap enough (unlike Vision-based work) and the
+    /// live readout is useful for judging seeing conditions even between bursts.
+    private(set) var currentFrameQualityScore: Double?
 
     // MARK: - Calibration (multiple named dark + flat frames)
 
@@ -556,12 +607,18 @@ final class CameraManager {
         if let camera = connectedCamera, let session = luckyImagingSession, !session.isComplete {
             session.add(processed, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
         }
+        scheduleQualityScoreIfNeeded(processed)
+        scheduleCloudSentinelIfNeeded(processed)
 
         if isLiveStackingEnabled && !useMetalRenderer {
             // CPU accumulation for the CGImage render path. When the Metal renderer is active,
             // `currentFrame` stays the raw per-frame data — `MetalFrameRenderer` does its own
             // GPU-side running-sum accumulation on each raw frame instead (see `resetLiveStack`).
-            liveStacker.add(processed)
+            // Streak masking (see `currentStreakMask`'s doc comment) only applies here — it's a
+            // CPU-`LiveStacker`-only feature, disclosed as such in the Controls UI.
+            let mask = isStreakMaskingEnabled ? currentStreakMask : nil
+            let maskToApply = (mask?.width == processed.width && mask?.height == processed.height) ? mask : nil
+            liveStacker.add(processed, mask: maskToApply)
             currentFrame = liveStacker.currentAverage() ?? processed
         } else {
             currentFrame = processed
@@ -569,6 +626,78 @@ final class CameraManager {
 
         frameID &+= 1
         refreshCurrentImage()
+    }
+
+    // MARK: - AI Suite: quality score, cloud sentinel, streak masking
+
+    private var qualityScoreFrameCounter = 0
+    private var maxObservedSharpness = 0.0
+
+    /// Throttled to every 5th frame — `SharpnessScorer` does a real per-pixel Laplacian-variance
+    /// pass (debayering color frames first), the same cost `LuckyImagingSession.add` already pays
+    /// during an active burst; running it on *every* frame just for a live readout even when no
+    /// burst is active would double that cost for everyone, for a number that only needs to
+    /// update a few times a second to read as "live".
+    private func scheduleQualityScoreIfNeeded(_ frame: CapturedFrame) {
+        guard let camera = connectedCamera else { return }
+        qualityScoreFrameCounter += 1
+        guard qualityScoreFrameCounter % 5 == 0 else { return }
+        let raw = SharpnessScorer.score(for: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
+        // Laplacian variance has no fixed theoretical ceiling, so "out of 100" here is relative to
+        // the sharpest frame *this session has actually seen* — a genuinely meaningful "how good
+        // is this frame compared to the best seeing we've had" readout, not a fabricated absolute
+        // scale. Matches the spirit of Lucky Imaging itself: relative ranking, not calibrated units.
+        maxObservedSharpness = max(maxObservedSharpness, raw)
+        currentFrameQualityScore = maxObservedSharpness > 0 ? min(raw / maxObservedSharpness * 100, 100) : 0
+    }
+
+    /// Runs every ~10th ingested frame — see `scheduleFocusAssistIfNeeded`'s doc comment for the
+    /// same "don't do this on every single video-rate frame" rationale.
+    private func scheduleCloudSentinelIfNeeded(_ frame: CapturedFrame) {
+        guard isCloudSentinelEnabled else { return }
+        cloudSentinelFrameCounter += 1
+        guard cloudSentinelFrameCounter % 10 == 0 else { return }
+
+        let brightness = HistogramComputer.meanBrightness(of: frame)
+        let justAlerted = cloudSentinel.evaluate(brightness: brightness)
+        isCloudAlertActive = cloudSentinel.isAlerting
+        if justAlerted {
+            if isRecordingToDisk { stopRecording() }
+            sendCloudAlertNotification()
+        }
+    }
+
+    private func requestNotificationAuthorizationIfNeeded() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private func sendCloudAlertNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Cloud Interruption"
+        content.body = "skyformac detected a sudden sky-brightness change and paused active recording."
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    /// Runs Vision streak detection at most a few times a second (same throttling shape as
+    /// `scheduleFocusAssistIfNeeded`) against `currentImage` — called from `refreshCurrentImage()`
+    /// once that's been (re)rendered for this frame, not from `ingest()` directly, since building
+    /// a `CGImage` is exactly what Vision needs and `ingest()` doesn't have one yet.
+    private func scheduleStreakDetectionIfNeeded() {
+        guard isStreakMaskingEnabled, isLiveStackingEnabled, streakDetectionTask == nil,
+              let image = currentImage, let frame = currentFrame
+        else { return }
+        let width = frame.width
+        let height = frame.height
+        streakDetectionTask = Task { [weak self] in
+            let streaks = (try? StreakDetector.detectStreaks(in: image)) ?? []
+            try? await Task.sleep(for: .milliseconds(250)) // simple rate limit, mirrors focus assist
+            await MainActor.run {
+                self?.currentStreakMask = StreakMask(width: width, height: height, streaks: streaks)
+                self?.streakDetectionTask = nil
+            }
+        }
     }
 
     /// Applies whichever of dark subtraction / flat correction are enabled and have an active
@@ -800,16 +929,20 @@ final class CameraManager {
     private func refreshCurrentImage() {
         guard let frame = currentFrame, let camera = connectedCamera else { return }
         // On the Metal path, `PreviewView` shows `MetalPreviewView` and never reads
-        // `currentImage` — so only pay for the CPU debayer/stretch pass here when focus assist
-        // needs a CGImage for Vision star detection. Otherwise it'd be a full CPU render wasted
-        // every frame on top of the GPU pipeline already doing the same work. (Export and polar
-        // alignment are rare, user-initiated actions that render on demand instead — see
-        // `renderedCurrentImage()`.)
-        if !useMetalRenderer || isFocusAssistEnabled {
+        // `currentImage` — so only pay for the CPU debayer/stretch pass here when focus assist or
+        // streak detection needs a CGImage for a Vision request. Otherwise it'd be a full CPU
+        // render wasted every frame on top of the GPU pipeline already doing the same work.
+        // (Export and polar alignment are rare, user-initiated actions that render on demand
+        // instead — see `renderedCurrentImage()`.)
+        let needsStreakDetectionImage = isStreakMaskingEnabled && isLiveStackingEnabled
+        if !useMetalRenderer || isFocusAssistEnabled || needsStreakDetectionImage {
             currentImage = renderedCurrentImage(frame: frame, camera: camera)
         }
         scheduleFocusAssistIfNeeded()
         scheduleCPUEnhancementIfNeeded(frame: frame, camera: camera)
+        if needsStreakDetectionImage {
+            scheduleStreakDetectionIfNeeded()
+        }
     }
 
     private func renderedCurrentImage(frame: CapturedFrame, camera: ZWOCameraInfo) -> CGImage? {
@@ -1029,6 +1162,13 @@ final class CameraManager {
         focusTracker.reset()
         isRecordingToDisk = false
         resetPolarAlignment()
+        cloudSentinel.reset()
+        isCloudAlertActive = false
+        streakDetectionTask?.cancel()
+        streakDetectionTask = nil
+        currentStreakMask = nil
+        currentFrameQualityScore = nil
+        maxObservedSharpness = 0
         // Deliberately NOT clearing darkFrame/isDarkSubtractionEnabled — a captured dark frame
         // is reusable across a reconnect of the same camera/settings.
         if let camera = connectedCamera, camera.cameraID >= 0 {
