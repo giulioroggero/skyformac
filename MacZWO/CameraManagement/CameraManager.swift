@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import CoreGraphics
 import Foundation
 import Observation
@@ -38,18 +39,26 @@ enum CameraConnectionState: Equatable {
 @MainActor
 final class CameraManager {
     private(set) var availableCameras: [ZWOCameraInfo] = []
+    /// Non-ZWO video sources — Continuity Camera (iPhone/iPad) or any other AVFoundation webcam —
+    /// discovered separately from `availableCameras` since the connect/control surface is
+    /// entirely different (see `WebcamCaptureEngine`/`connectToWebcam`).
+    private(set) var availableWebcams: [AVCaptureDevice] = []
     private(set) var connectedCamera: ZWOCameraInfo?
     /// `true` while a synthetic camera from `simulateTestPattern`/`simulateDemoTarget` is active
     /// (see `ZWOCameraInfo`'s `cameraID: -1` doc comment) — lets the UI offer a way back to the
     /// real "no camera connected" state, since simulated cameras never show up in
     /// `availableCameras` for `CameraListView`'s per-row Disconnect button to attach to.
     var isSimulating: Bool { connectedCamera?.cameraID == -1 }
+    /// `true` while a real `WebcamCaptureEngine` source (iPhone/webcam) is connected — same
+    /// "offer a way back" rationale as `isSimulating` (see `ZWOCameraInfo.external`'s cameraID).
+    var isExternalWebcam: Bool { connectedCamera?.cameraID == -2 }
     private(set) var controls: [ZWOControlCaps] = []
     private(set) var controlValues: [Int32: ZWOControlValue] = [:]
     private(set) var connectionState: CameraConnectionState = .disconnected
     private(set) var lastErrorMessage: String?
 
     private(set) var captureEngine: CaptureEngine?
+    private var webcamEngine: WebcamCaptureEngine?
     private(set) var currentImage: CGImage?
     private(set) var currentFrame: CapturedFrame?
     /// Bumped every time `currentFrame` is replaced — lets non-`@Observable` consumers
@@ -380,6 +389,71 @@ final class CameraManager {
             }
         }
         availableCameras = cameras
+    }
+
+    /// Re-scans for Continuity Camera / USB webcam sources (see `WebcamCaptureEngine`). Separate
+    /// from `refreshCameraList()` since it's a distinct, optional-permission AVFoundation API
+    /// rather than the always-available ZWO SDK enumeration.
+    func refreshWebcams() {
+        availableWebcams = WebcamCaptureEngine.discoverDevices()
+    }
+
+    /// Connects to an iPhone/iPad (Continuity Camera, wired over USB or wireless) or other
+    /// AVFoundation webcam as the live source — same downstream pipeline (`ingest`) as a ZWO
+    /// camera, just sourced from `AVCaptureVideoDataOutput` instead of the ZWO SDK poll loop.
+    /// Typical use: an iPhone held to a telescope eyepiece (afocal projection) for lunar/
+    /// planetary shots.
+    func connectToWebcam(_ device: AVCaptureDevice) async {
+        disconnect()
+        connectionState = .connecting
+        lastErrorMessage = nil
+
+        guard await WebcamCaptureEngine.requestAccess() else {
+            connectionState = .error("Camera access denied")
+            lastErrorMessage = "Camera access was denied — check System Settings > Privacy & Security > Camera."
+            return
+        }
+
+        let dimensions = Self.activeDimensions(of: device)
+        let engine = WebcamCaptureEngine(device: device)
+        engine.onFrame = { [weak self] frame in self?.ingest(frame) }
+        engine.onDisconnect = { [weak self] in self?.handleWebcamDisconnected() }
+
+        do {
+            try await engine.start()
+        } catch {
+            connectionState = .error(String(describing: error))
+            lastErrorMessage = String(describing: error)
+            return
+        }
+
+        webcamEngine = engine
+        connectedCamera = ZWOCameraInfo.external(name: device.localizedName, width: dimensions.width, height: dimensions.height)
+        controls = []
+        controlValues = [:]
+        // `MetalFrameRenderer.process` doesn't debayer/stretch RGB24 yet (see its doc comment) —
+        // force the CPU renderer so the preview doesn't just go blank.
+        useMetalRenderer = false
+        isLiveViewActive = true
+        connectionState = .streaming
+    }
+
+    private static func activeDimensions(of device: AVCaptureDevice) -> (width: Int, height: Int) {
+        let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+        return (Int(dimensions.width), Int(dimensions.height))
+    }
+
+    private func handleWebcamDisconnected() {
+        webcamEngine?.stop()
+        webcamEngine = nil
+        currentImage = nil
+        currentFrame = nil
+        connectionState = .error("Camera disconnected")
+        lastErrorMessage = "The camera was disconnected."
+        connectedCamera = nil
+        controls = []
+        controlValues = [:]
+        refreshWebcams()
     }
 
     func connect(to camera: ZWOCameraInfo) async {
@@ -992,6 +1066,8 @@ final class CameraManager {
         catalogFetchTask?.cancel()
         catalogFetchTask = nil
         demoWCS = nil
+        webcamEngine?.stop()
+        webcamEngine = nil
         isLiveViewActive = true
         isCapturingExposure = false
         currentImage = nil

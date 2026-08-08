@@ -1,0 +1,30 @@
+# Vendored SDK download — only the extracted bits we need live in Vendor/ZWO/, checked in.
+ASI_Camera_SDK/
+ASI_Camera_SDK.zip
+
+# Xcode / xcodebuild build products
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Xcode Playgrounds & timeline
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager (not used for the app target, but harmless to ignore)
+.build/
+.swiftpm/
+
+# CocoaPods / Carthage (not used, kept in case they're introduced later)
+Pods/
+Carthage/Build/
+
+# macOS
+.DS_Store

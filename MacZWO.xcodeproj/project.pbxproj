@@ -93,6 +93,7 @@
 		6E7AEC0C260D4688ABF71497 /* astro_catalog.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = CECA47B0DA774F678B906942 /* astro_catalog.sqlite */; };
 		2E8D9BBC01554726AD73296D /* WCSProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3300E705A6AD404B91F04E5A /* WCSProjectionTests.swift */; };
 		4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */; };
+		4356247B24614D5F9FD7F857 /* WebcamCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -217,6 +218,7 @@
 		CECA47B0DA774F678B906942 /* astro_catalog.sqlite */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = astro_catalog.sqlite; sourceTree = "<group>"; };
 		3300E705A6AD404B91F04E5A /* WCSProjectionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WCSProjectionTests.swift; sourceTree = "<group>"; };
 		0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CatalogRepositoryTests.swift; sourceTree = "<group>"; };
+		43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WebcamCaptureEngine.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -468,6 +470,7 @@
 				7300188FBB4F3D4964CD94C8 /* AllSkyMonitor.swift */,
 				27EBFCB3EEF2743F5F87DBE0 /* CalibrationLibrary.swift */,
 				8CEFBC991708FDCE0EA4CC1E /* AllSkyAnalyzer.swift */,
+				43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */,
 			);
 			name = Capture;
 			path = Capture;
@@ -690,6 +693,7 @@
 				099973C00C3E99A41739F432 /* AllSkyAnalyzer.swift in Sources */,
 				E27273C1437161A8B073027E /* DiskSpaceChecker.swift in Sources */,
 				056885C6201C1236C8D50051 /* MacZWOCommands.swift in Sources */,
+				4356247B24614D5F9FD7F857 /* WebcamCaptureEngine.swift in Sources */,
 				37A64BE1A4544856BD8BC4A5 /* WCSProjection.swift in Sources */,
 				EF109FFB0C5449ACAE62F6D3 /* CatalogRepository.swift in Sources */,
 				62FDFFA0A3724251AAC9D828 /* SkyHUDView.swift in Sources */,

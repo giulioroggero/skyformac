@@ -70,6 +70,11 @@ struct ContentView: View {
                         cameraManager.disconnect()
                     }
                     .help("Stop the simulated camera and return to the disconnected state")
+                } else if cameraManager.isExternalWebcam {
+                    Button("Disconnect Camera", systemImage: "xmark.circle") {
+                        cameraManager.disconnect()
+                    }
+                    .help("Stop the iPhone/webcam feed and return to the disconnected state")
                 }
             }
             ToolbarItem(placement: .status) {
@@ -89,7 +94,10 @@ struct ContentView: View {
 
     @ViewBuilder
     private var imageTypePicker: some View {
-        if let camera = cameraManager.connectedCamera {
+        // RGB24-only sources (webcam/iPhone) have no RAW8/RAW16 to switch between — showing an
+        // empty segmented control would be worse than showing none.
+        if let camera = cameraManager.connectedCamera,
+           camera.supportedVideoFormats.contains(ASI_IMG_RAW8) || camera.supportedVideoFormats.contains(ASI_IMG_RAW16) {
             Picker("Format", selection: Binding(
                 get: { cameraManager.selectedImageType.rawValue },
                 set: { raw in

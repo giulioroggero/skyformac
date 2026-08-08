@@ -11,10 +11,11 @@ struct CameraListView: View {
                 Spacer()
                 Button {
                     cameraManager.refreshCameraList()
+                    cameraManager.refreshWebcams()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .help("Rescan for connected ASI cameras")
+                .help("Rescan for connected ASI cameras and iPhone/webcam sources")
             }
 
             if cameraManager.availableCameras.isEmpty {
@@ -30,6 +31,10 @@ struct CameraListView: View {
                 }
                 .listStyle(.inset)
             }
+
+            Divider()
+
+            webcamSection
 
             Divider()
 
@@ -65,6 +70,38 @@ struct CameraListView: View {
             }
         }
         .padding()
+        .onAppear { cameraManager.refreshWebcams() }
+    }
+
+    /// iPhone (Continuity Camera, wired over USB or wireless) or other AVFoundation webcam as a
+    /// primary capture source — e.g. holding an iPhone to a telescope eyepiece (afocal
+    /// projection) for lunar/planetary shots. Separate from the ZWO SDK camera list above since
+    /// it's a completely different connect path (`CameraManager.connectToWebcam`).
+    @ViewBuilder
+    private var webcamSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("iPhone / Webcam").font(.headline)
+            if cameraManager.availableWebcams.isEmpty {
+                Text("No iPhone or webcam found. Connect an iPhone via USB (or have it nearby, signed into the same Apple ID, for wireless Continuity Camera) and rescan.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(cameraManager.availableWebcams, id: \.uniqueID) { device in
+                    HStack {
+                        Text(device.localizedName)
+                        Spacer()
+                        if cameraManager.connectedCamera?.name == device.localizedName && cameraManager.isExternalWebcam {
+                            Button("Disconnect") { cameraManager.disconnect() }
+                        } else {
+                            Button("Connect") {
+                                Task { await cameraManager.connectToWebcam(device) }
+                            }
+                        }
+                    }
+                    .font(.callout)
+                }
+            }
+        }
     }
 
     @ViewBuilder

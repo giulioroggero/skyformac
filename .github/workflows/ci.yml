@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Ensure Metal toolchain is installed
+        # Needed to compile Shaders.metal. A no-op if already present on the runner image;
+        # `|| true` so an already-installed toolchain (a non-zero-exit "nothing to do" case on
+        # some Xcode versions) doesn't fail the job.
+        run: xcodebuild -downloadComponent MetalToolchain || true
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test

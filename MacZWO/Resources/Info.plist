@@ -27,7 +27,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Used only for the optional all-sky/rig safety monitor (a secondary webcam or nearby iPhone via Continuity Camera) — never for the ZWO ASI capture pipeline itself, which talks to the camera directly over USB.</string>
+	<string>Used for the optional all-sky/rig safety monitor, and to use an iPhone or other Continuity Camera/USB webcam as a live capture source (e.g. eyepiece afocal photography) — the ZWO ASI SDK path talks to ASI cameras directly over USB and doesn't need this permission.</string>
 	<key>NSCameraUseContinuityCameraDeviceType</key>
 	<true/>
 </dict>

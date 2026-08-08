@@ -68,8 +68,11 @@ struct ControlsPanelView: View {
                     Picker("Mode", selection: $mode) {
                         ForEach(ControlMode.allCases) { Text($0.rawValue).tag($0) }
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    // `.segmented` doesn't degrade gracefully at this panel's width (320-340pt,
+                    // minus this view's own `.padding()`): 4 segments including "Planetary" and
+                    // "All Tools" get squeezed to where only the already-selected one reliably
+                    // registers taps. `.menu` has no such width contention.
+                    .pickerStyle(.menu)
                     .help("Filters which tool sections below are shown — nothing is ever disabled, \"All Tools\" always shows everything.")
                     Divider()
 

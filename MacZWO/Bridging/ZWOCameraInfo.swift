@@ -55,25 +55,30 @@ struct ZWOCameraInfo: Identifiable, Hashable, Sendable {
         hasher.combine(cameraID)
     }
 
-    /// Synthetic camera info for the "Simulate Test Pattern" debug path — lets the capture,
-    /// debayer, histogram, and Metal rendering pipelines all be exercised end-to-end with no
-    /// physical ASI camera attached. `cameraID: -1` so it can never collide with a real device.
+    /// Synthetic camera info for the non-ZWO-SDK connection paths — the "Simulate Test Pattern"
+    /// debug targets (`cameraID: -1`) and real `WebcamCaptureEngine` sources (`cameraID: -2`,
+    /// Continuity Camera/USB webcam) — so both can flow through the exact same `CameraManager`/
+    /// `CGImageRenderer`/histogram pipeline a real ASI camera does, without an `ASI_CAMERA_INFO`
+    /// to back them. The two negative `cameraID`s are distinguished by `CameraManager.isSimulating`
+    /// vs. `isExternalWebcam` and can never collide with a real device (ZWO IDs are always >= 0).
     private init(
         simulatedName name: String,
+        cameraID: Int32,
         isColorCamera: Bool,
         bayerPattern: ASI_BAYER_PATTERN,
         maxWidth: Int,
         maxHeight: Int,
-        bitDepth: Int
+        bitDepth: Int,
+        supportedVideoFormats: [ASI_IMG_TYPE]
     ) {
         self.name = name
-        self.cameraID = -1
+        self.cameraID = cameraID
         self.maxHeight = maxHeight
         self.maxWidth = maxWidth
         self.isColorCamera = isColorCamera
         self.bayerPattern = bayerPattern
         self.supportedBinnings = [1]
-        self.supportedVideoFormats = [ASI_IMG_RAW8, ASI_IMG_RAW16]
+        self.supportedVideoFormats = supportedVideoFormats
         self.pixelSizeMicrons = 3.75
         self.hasMechanicalShutter = false
         self.hasST4Port = false
@@ -88,22 +93,43 @@ struct ZWOCameraInfo: Identifiable, Hashable, Sendable {
     static func simulatedMono(width: Int = 640, height: Int = 480) -> ZWOCameraInfo {
         ZWOCameraInfo(
             simulatedName: "Simulated Mono Camera",
+            cameraID: -1,
             isColorCamera: false,
             bayerPattern: ASI_BAYER_RG,
             maxWidth: width,
             maxHeight: height,
-            bitDepth: 8
+            bitDepth: 8,
+            supportedVideoFormats: [ASI_IMG_RAW8, ASI_IMG_RAW16]
         )
     }
 
     static func simulatedColor(width: Int = 640, height: Int = 480) -> ZWOCameraInfo {
         ZWOCameraInfo(
             simulatedName: "Simulated Color Camera",
+            cameraID: -1,
             isColorCamera: true,
             bayerPattern: ASI_BAYER_RG,
             maxWidth: width,
             maxHeight: height,
-            bitDepth: 8
+            bitDepth: 8,
+            supportedVideoFormats: [ASI_IMG_RAW8, ASI_IMG_RAW16]
+        )
+    }
+
+    /// An iPhone/iPad (Continuity Camera, wired or wireless) or other AVFoundation webcam,
+    /// connected via `WebcamCaptureEngine` instead of the ZWO SDK. Always RGB24: the frames
+    /// arrive already through the device's own ISP (debayered, color-processed), so there's no
+    /// raw Bayer data the way there is from an actual ASI sensor — `bayerPattern` is unused.
+    static func external(name: String, width: Int, height: Int) -> ZWOCameraInfo {
+        ZWOCameraInfo(
+            simulatedName: name,
+            cameraID: -2,
+            isColorCamera: true,
+            bayerPattern: ASI_BAYER_RG,
+            maxWidth: width,
+            maxHeight: height,
+            bitDepth: 8,
+            supportedVideoFormats: [ASI_IMG_RGB24]
         )
     }
 }
