@@ -39,15 +39,24 @@ final class WebcamCaptureEngine: @unchecked Sendable {
     /// `AVCaptureDevice` aren't `Sendable`, so this class opts out of automatic checking
     /// (`@unchecked Sendable`) and enforces single-queue access by hand instead.
     private let sessionQueue = DispatchQueue(label: "com.skyformac.webcam.session")
-    /// Only ever set/cleared on `sessionQueue` (see `frames()`/`stop()`); `yield`/`finish` on the
-    /// continuation itself are documented safe to call concurrently, but the optional wrapping it
-    /// is a plain (non-atomic) property, so writes are confined to one queue by hand.
+    /// Guarded by `continuationLock`, not `sessionQueue` — `frames()` is called from the main
+    /// actor (`CameraManager.connectToWebcam`/`resumeLiveView`) and needs the swap to take effect
+    /// immediately, not whenever `sessionQueue` next happens to be free. `sessionQueue` is also
+    /// the `AVCaptureVideoDataOutput` delegate queue, so it's continuously busy converting frames
+    /// (`WebcamSampleBufferForwarder.captureOutput`'s BGRA->RGB loop) the whole time the session
+    /// runs; a `sessionQueue.async` reassignment queued behind that had no guaranteed turnaround
+    /// and was observed to never run at all across an entire `resumeLiveView()` session in
+    /// practice — `next()` on a `bufferingNewest` stream doesn't pull from `sessionQueue`, so
+    /// nothing ever forced it to drain. A lock makes the swap synchronous instead.
+    private let continuationLock = NSLock()
     private var continuation: AsyncStream<CapturedFrame>.Continuation?
 
     init(device: AVCaptureDevice) {
         self.device = device
         sampleBufferHandler.onFrame = { [weak self] frame in
-            self?.continuation?.yield(frame)
+            guard let self else { return }
+            let current = continuationLock.withLock { self.continuation }
+            current?.yield(frame)
         }
         sampleBufferHandler.onDisconnect = { [weak self] in
             Task { @MainActor in self?.onDisconnect?() }
@@ -68,8 +77,8 @@ final class WebcamCaptureEngine: @unchecked Sendable {
     /// single-consumer, pull-based shape `CaptureEngine.frames()` already uses for real ZWO
     /// cameras, so a slow renderer just sees the source's effective frame rate drop instead.
     func frames() -> AsyncStream<CapturedFrame> {
-        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
-            sessionQueue.async { [self] in self.continuation = continuation }
+        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { [self] continuation in
+            continuationLock.withLock { self.continuation = continuation }
         }
     }
 
@@ -143,9 +152,11 @@ final class WebcamCaptureEngine: @unchecked Sendable {
     /// need to wait for it, and `disconnect()` itself is synchronous.
     func stop() {
         NotificationCenter.default.removeObserver(sampleBufferHandler)
-        sessionQueue.async { [self] in
+        continuationLock.withLock {
             continuation?.finish()
             continuation = nil
+        }
+        sessionQueue.async { [self] in
             guard session.isRunning else { return }
             session.stopRunning()
             for input in session.inputs { session.removeInput(input) }
