@@ -10,5 +10,8 @@ struct MacZWOApp: App {
                 .environment(cameraManager)
         }
         .defaultSize(width: 1100, height: 720)
+        .commands {
+            MacZWOCommands(cameraManager: cameraManager)
+        }
     }
 }

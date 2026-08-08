@@ -1,0 +1,1102 @@
+[
+  {
+    "id": "M1",
+    "commonName": "Crab Nebula",
+    "objectType": "Supernova Remnant",
+    "raDegrees": 83.63308,
+    "decDegrees": 22.0145,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 4.0
+  },
+  {
+    "id": "M2",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 323.36258,
+    "decDegrees": -0.82325,
+    "magnitude": 6.6,
+    "majorAxisArcmin": 16.0,
+    "minorAxisArcmin": 16.0
+  },
+  {
+    "id": "M3",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 205.54842,
+    "decDegrees": 28.37728,
+    "magnitude": 6.3,
+    "majorAxisArcmin": 18.0,
+    "minorAxisArcmin": 18.0
+  },
+  {
+    "id": "M4",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 245.89675,
+    "decDegrees": -26.52575,
+    "magnitude": 5.4,
+    "majorAxisArcmin": 26.0,
+    "minorAxisArcmin": 26.0
+  },
+  {
+    "id": "M5",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 229.63842,
+    "decDegrees": 2.08103,
+    "magnitude": 5.7,
+    "majorAxisArcmin": 23.0,
+    "minorAxisArcmin": 23.0
+  },
+  {
+    "id": "M6",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 265.083,
+    "decDegrees": -32.253,
+    "magnitude": 4.2,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "M7",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 268.463,
+    "decDegrees": -34.793,
+    "magnitude": 3.3,
+    "majorAxisArcmin": 80.0,
+    "minorAxisArcmin": 80.0
+  },
+  {
+    "id": "M8",
+    "commonName": "Lagoon Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 270.904,
+    "decDegrees": -24.378,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 90.0,
+    "minorAxisArcmin": 40.0
+  },
+  {
+    "id": "M9",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 259.79908,
+    "decDegrees": -18.51625,
+    "magnitude": 7.8,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": 12.0
+  },
+  {
+    "id": "M10",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 254.28771,
+    "decDegrees": -4.10031,
+    "magnitude": 6.6,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "M11",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 282.771,
+    "decDegrees": -6.27,
+    "magnitude": 5.8,
+    "majorAxisArcmin": 14.0,
+    "minorAxisArcmin": 14.0
+  },
+  {
+    "id": "M12",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 251.80908,
+    "decDegrees": -1.94853,
+    "magnitude": 6.1,
+    "majorAxisArcmin": 16.0,
+    "minorAxisArcmin": 16.0
+  },
+  {
+    "id": "M13",
+    "commonName": "Hercules Globular Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 250.42348,
+    "decDegrees": 36.46132,
+    "magnitude": 5.8,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 7.91
+  },
+  {
+    "id": "M14",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 264.40063,
+    "decDegrees": -3.24592,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 11.0,
+    "minorAxisArcmin": 11.0
+  },
+  {
+    "id": "M15",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 322.49304,
+    "decDegrees": 12.167,
+    "magnitude": 6.3,
+    "majorAxisArcmin": 18.0,
+    "minorAxisArcmin": 18.0
+  },
+  {
+    "id": "M16",
+    "commonName": "Eagle Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 274.7,
+    "decDegrees": -13.807,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 120.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "M17",
+    "commonName": "Omega Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 275.196,
+    "decDegrees": -16.172,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 40.0,
+    "minorAxisArcmin": 30.0
+  },
+  {
+    "id": "M18",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 274.992,
+    "decDegrees": -17.102,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 7.0,
+    "minorAxisArcmin": 7.0
+  },
+  {
+    "id": "M19",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 255.65704,
+    "decDegrees": -26.26794,
+    "magnitude": 6.8,
+    "majorAxisArcmin": 17.0,
+    "minorAxisArcmin": 17.0
+  },
+  {
+    "id": "M20",
+    "commonName": "Trifid Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 270.675,
+    "decDegrees": -22.972,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "M21",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 271.054,
+    "decDegrees": -22.49,
+    "magnitude": 5.9,
+    "majorAxisArcmin": 16.0,
+    "minorAxisArcmin": 16.0
+  },
+  {
+    "id": "M22",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 279.09975,
+    "decDegrees": -23.90475,
+    "magnitude": 5.2,
+    "majorAxisArcmin": 32.0,
+    "minorAxisArcmin": 32.0
+  },
+  {
+    "id": "M23",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 269.267,
+    "decDegrees": -18.985,
+    "magnitude": 5.5,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "M24",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 274.2,
+    "decDegrees": -18.55,
+    "magnitude": 4.6,
+    "majorAxisArcmin": 90.0,
+    "minorAxisArcmin": 60.0
+  },
+  {
+    "id": "M25",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 277.946,
+    "decDegrees": -19.117,
+    "magnitude": 4.6,
+    "majorAxisArcmin": 26.0,
+    "minorAxisArcmin": 26.0
+  },
+  {
+    "id": "M26",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 281.325,
+    "decDegrees": -9.383,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "M27",
+    "commonName": "Dumbbell Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 299.90158,
+    "decDegrees": 22.72104,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 5.6
+  },
+  {
+    "id": "M28",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 276.13704,
+    "decDegrees": -24.86983,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 11.2,
+    "minorAxisArcmin": 11.2
+  },
+  {
+    "id": "M29",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 305.983,
+    "decDegrees": 38.523,
+    "magnitude": 6.6,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "M30",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 325.09217,
+    "decDegrees": -23.17986,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": 12.0
+  },
+  {
+    "id": "M31",
+    "commonName": "Andromeda Galaxy",
+    "objectType": "Gx",
+    "raDegrees": 10.68471,
+    "decDegrees": 41.26875,
+    "magnitude": 3.4,
+    "majorAxisArcmin": 189.1,
+    "minorAxisArcmin": 61.7
+  },
+  {
+    "id": "M32",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 10.67427,
+    "decDegrees": 40.86517,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 8.5,
+    "minorAxisArcmin": 6.5
+  },
+  {
+    "id": "M33",
+    "commonName": "Triangulum Galaxy",
+    "objectType": "Gx",
+    "raDegrees": 23.4621,
+    "decDegrees": 30.65994,
+    "magnitude": 5.7,
+    "majorAxisArcmin": 68.7,
+    "minorAxisArcmin": 41.6
+  },
+  {
+    "id": "M34",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 40.521,
+    "decDegrees": 42.762,
+    "magnitude": 5.2,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "M35",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 92.225,
+    "decDegrees": 24.333,
+    "magnitude": 5.1,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "M36",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 84.075,
+    "decDegrees": 34.14,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "M37",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 88.075,
+    "decDegrees": 32.553,
+    "magnitude": 5.6,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": 15.0
+  },
+  {
+    "id": "M38",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 82.179,
+    "decDegrees": 35.855,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": 15.0
+  },
+  {
+    "id": "M39",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 322.95,
+    "decDegrees": 48.433,
+    "magnitude": 4.6,
+    "majorAxisArcmin": 31.0,
+    "minorAxisArcmin": 31.0
+  },
+  {
+    "id": "M40",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 185.55221,
+    "decDegrees": 58.08294,
+    "magnitude": 9.65,
+    "majorAxisArcmin": 0.0,
+    "minorAxisArcmin": 0.0
+  },
+  {
+    "id": "M41",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 101.504,
+    "decDegrees": -20.757,
+    "magnitude": 4.5,
+    "majorAxisArcmin": 39.0,
+    "minorAxisArcmin": 39.0
+  },
+  {
+    "id": "M42",
+    "commonName": "Orion Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 83.8221,
+    "decDegrees": -5.3911,
+    "magnitude": 4.0,
+    "majorAxisArcmin": 90.0,
+    "minorAxisArcmin": 60.0
+  },
+  {
+    "id": "M43",
+    "commonName": null,
+    "objectType": "HII Region",
+    "raDegrees": 83.879,
+    "decDegrees": -5.27,
+    "magnitude": 6.8,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 15.0
+  },
+  {
+    "id": "M44",
+    "commonName": "Beehive Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 130.1,
+    "decDegrees": 19.667,
+    "magnitude": 3.1,
+    "majorAxisArcmin": 70.0,
+    "minorAxisArcmin": 70.0
+  },
+  {
+    "id": "M45",
+    "commonName": "Pleiades",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 56.75,
+    "decDegrees": 24.117,
+    "magnitude": 1.2,
+    "majorAxisArcmin": 110.0,
+    "minorAxisArcmin": 110.0
+  },
+  {
+    "id": "M46",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 115.442,
+    "decDegrees": -14.81,
+    "magnitude": 6.1,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "M47",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 114.146,
+    "decDegrees": -14.483,
+    "magnitude": 4.4,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "M48",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 123.429,
+    "decDegrees": -5.75,
+    "magnitude": 5.8,
+    "majorAxisArcmin": 30.0,
+    "minorAxisArcmin": 30.0
+  },
+  {
+    "id": "M49",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 187.44499,
+    "decDegrees": 8.00041,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 10.2,
+    "minorAxisArcmin": 8.3
+  },
+  {
+    "id": "M50",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 105.6979,
+    "decDegrees": -8.3378,
+    "magnitude": 5.9,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": 15.0
+  },
+  {
+    "id": "M51",
+    "commonName": "Whirlpool Galaxy",
+    "objectType": "Gx",
+    "raDegrees": 202.46958,
+    "decDegrees": 47.19526,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 11.2,
+    "minorAxisArcmin": 8.4
+  },
+  {
+    "id": "M52",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 351.2,
+    "decDegrees": 61.593,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 16.0,
+    "minorAxisArcmin": 16.0
+  },
+  {
+    "id": "M53",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 198.23021,
+    "decDegrees": 18.16817,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 13.0,
+    "minorAxisArcmin": 13.0
+  },
+  {
+    "id": "M54",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 283.76387,
+    "decDegrees": -30.47986,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": 12.0
+  },
+  {
+    "id": "M55",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 294.99879,
+    "decDegrees": -30.96475,
+    "magnitude": 6.3,
+    "majorAxisArcmin": 19.0,
+    "minorAxisArcmin": 19.0
+  },
+  {
+    "id": "M56",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 289.14821,
+    "decDegrees": 30.18347,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 8.8,
+    "minorAxisArcmin": 8.8
+  },
+  {
+    "id": "M57",
+    "commonName": "Ring Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 283.39616,
+    "decDegrees": 33.02918,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 3.8,
+    "minorAxisArcmin": 2.4
+  },
+  {
+    "id": "M58",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 189.43165,
+    "decDegrees": 11.81809,
+    "magnitude": 9.66,
+    "majorAxisArcmin": 9.7,
+    "minorAxisArcmin": 4.7
+  },
+  {
+    "id": "M59",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 190.50968,
+    "decDegrees": 11.64693,
+    "magnitude": 9.6,
+    "majorAxisArcmin": 5.4,
+    "minorAxisArcmin": 3.7
+  },
+  {
+    "id": "M60",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 190.9167,
+    "decDegrees": 11.55261,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 7.4,
+    "minorAxisArcmin": 6.0
+  },
+  {
+    "id": "M61",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 185.47896,
+    "decDegrees": 4.47359,
+    "magnitude": 9.65,
+    "majorAxisArcmin": 9.7,
+    "minorAxisArcmin": 5.8
+  },
+  {
+    "id": "M62",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 255.3025,
+    "decDegrees": -30.11236,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": 15.0
+  },
+  {
+    "id": "M63",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 198.95554,
+    "decDegrees": 42.02929,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 13.18,
+    "minorAxisArcmin": 7.94
+  },
+  {
+    "id": "M64",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 194.18207,
+    "decDegrees": 21.68266,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 9.77,
+    "minorAxisArcmin": 4.9
+  },
+  {
+    "id": "M65",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 169.73315,
+    "decDegrees": 13.09221,
+    "magnitude": 9.3,
+    "majorAxisArcmin": 8.71,
+    "minorAxisArcmin": 2.45
+  },
+  {
+    "id": "M66",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 170.06261,
+    "decDegrees": 12.99129,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 9.1,
+    "minorAxisArcmin": 4.2
+  },
+  {
+    "id": "M67",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 132.825,
+    "decDegrees": 11.8,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "M68",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 189.86658,
+    "decDegrees": -26.74406,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 11.0,
+    "minorAxisArcmin": 11.0
+  },
+  {
+    "id": "M69",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 277.84625,
+    "decDegrees": -32.34808,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 8.1,
+    "minorAxisArcmin": 8.1
+  },
+  {
+    "id": "M70",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 280.80317,
+    "decDegrees": -32.29211,
+    "magnitude": 7.8,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 8.0
+  },
+  {
+    "id": "M71",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 298.44371,
+    "decDegrees": 18.77919,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 7.2,
+    "minorAxisArcmin": 7.2
+  },
+  {
+    "id": "M72",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 313.36542,
+    "decDegrees": -12.53731,
+    "magnitude": 9.2,
+    "majorAxisArcmin": 6.6,
+    "minorAxisArcmin": 6.6
+  },
+  {
+    "id": "M73",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 314.75,
+    "decDegrees": -12.63,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 2.8,
+    "minorAxisArcmin": 2.8
+  },
+  {
+    "id": "M74",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 24.17405,
+    "decDegrees": 15.78346,
+    "magnitude": 9.4,
+    "majorAxisArcmin": 10.5,
+    "minorAxisArcmin": 9.5
+  },
+  {
+    "id": "M75",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 301.52017,
+    "decDegrees": -21.92226,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 6.8,
+    "minorAxisArcmin": 1.94
+  },
+  {
+    "id": "M76",
+    "commonName": null,
+    "objectType": "Planetary Nebula",
+    "raDegrees": 25.58312,
+    "decDegrees": 51.57532,
+    "magnitude": 10.1,
+    "majorAxisArcmin": 3.12,
+    "minorAxisArcmin": 2.31
+  },
+  {
+    "id": "M77",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 40.66988,
+    "decDegrees": -0.01329,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 7.1,
+    "minorAxisArcmin": 6.0
+  },
+  {
+    "id": "M78",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 86.6948,
+    "decDegrees": 0.014,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 6.0
+  },
+  {
+    "id": "M79",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 81.04413,
+    "decDegrees": -24.52425,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 9.6,
+    "minorAxisArcmin": 9.6
+  },
+  {
+    "id": "M80",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 244.26004,
+    "decDegrees": -22.97608,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "M81",
+    "commonName": "Bode's Galaxy",
+    "objectType": "Gx",
+    "raDegrees": 148.88822,
+    "decDegrees": 69.0653,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 26.9,
+    "minorAxisArcmin": 14.1
+  },
+  {
+    "id": "M82",
+    "commonName": "Cigar Galaxy",
+    "objectType": "Gx",
+    "raDegrees": 148.96846,
+    "decDegrees": 69.6797,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 11.2,
+    "minorAxisArcmin": 4.3
+  },
+  {
+    "id": "M83",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 204.25383,
+    "decDegrees": -29.86576,
+    "magnitude": 7.5,
+    "majorAxisArcmin": 12.9,
+    "minorAxisArcmin": 11.5
+  },
+  {
+    "id": "M84",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 186.2656,
+    "decDegrees": 12.88698,
+    "magnitude": 9.1,
+    "majorAxisArcmin": 6.5,
+    "minorAxisArcmin": 5.6
+  },
+  {
+    "id": "M85",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 186.35022,
+    "decDegrees": 18.19108,
+    "magnitude": 9.1,
+    "majorAxisArcmin": 7.1,
+    "minorAxisArcmin": 5.5
+  },
+  {
+    "id": "M86",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 186.54923,
+    "decDegrees": 12.94597,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 8.9,
+    "minorAxisArcmin": 5.8
+  },
+  {
+    "id": "M87",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 187.70593,
+    "decDegrees": 12.39112,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 7.2,
+    "minorAxisArcmin": 6.8
+  },
+  {
+    "id": "M88",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 187.99673,
+    "decDegrees": 14.42041,
+    "magnitude": 9.6,
+    "majorAxisArcmin": 6.9,
+    "minorAxisArcmin": 3.7
+  },
+  {
+    "id": "M89",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 188.91618,
+    "decDegrees": 12.55604,
+    "magnitude": 9.8,
+    "majorAxisArcmin": 5.1,
+    "minorAxisArcmin": 4.7
+  },
+  {
+    "id": "M90",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 189.20757,
+    "decDegrees": 13.16287,
+    "magnitude": 9.5,
+    "majorAxisArcmin": 9.5,
+    "minorAxisArcmin": 4.4
+  },
+  {
+    "id": "M91",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 188.86013,
+    "decDegrees": 14.49632,
+    "magnitude": 10.2,
+    "majorAxisArcmin": 5.4,
+    "minorAxisArcmin": 4.3
+  },
+  {
+    "id": "M92",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 259.28079,
+    "decDegrees": 43.13594,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 14.0,
+    "minorAxisArcmin": 14.0
+  },
+  {
+    "id": "M93",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 116.125,
+    "decDegrees": -23.857,
+    "magnitude": 6.2,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "M94",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 192.72145,
+    "decDegrees": 41.12015,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 11.2,
+    "minorAxisArcmin": 9.1
+  },
+  {
+    "id": "M95",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 160.99055,
+    "decDegrees": 11.70361,
+    "magnitude": 9.7,
+    "majorAxisArcmin": 3.1,
+    "minorAxisArcmin": 2.9
+  },
+  {
+    "id": "M96",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 161.6906,
+    "decDegrees": 11.81994,
+    "magnitude": 9.3,
+    "majorAxisArcmin": 7.6,
+    "minorAxisArcmin": 5.2
+  },
+  {
+    "id": "M97",
+    "commonName": "Owl Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 168.69875,
+    "decDegrees": 55.01909,
+    "magnitude": 9.9,
+    "majorAxisArcmin": 3.4,
+    "minorAxisArcmin": 3.3
+  },
+  {
+    "id": "M98",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 183.45122,
+    "decDegrees": 14.90047,
+    "magnitude": 10.1,
+    "majorAxisArcmin": 9.8,
+    "minorAxisArcmin": 2.8
+  },
+  {
+    "id": "M99",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 184.70677,
+    "decDegrees": 14.41649,
+    "magnitude": 9.9,
+    "majorAxisArcmin": 5.4,
+    "minorAxisArcmin": 4.7
+  },
+  {
+    "id": "M100",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 185.72875,
+    "decDegrees": 15.82238,
+    "magnitude": 9.4,
+    "majorAxisArcmin": 7.4,
+    "minorAxisArcmin": 6.3
+  },
+  {
+    "id": "M101",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 210.80243,
+    "decDegrees": 54.34875,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 28.8,
+    "minorAxisArcmin": 26.9
+  },
+  {
+    "id": "M102",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 226.62317,
+    "decDegrees": 55.76331,
+    "magnitude": 9.9,
+    "majorAxisArcmin": 6.5,
+    "minorAxisArcmin": 3.1
+  },
+  {
+    "id": "M103",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 23.346,
+    "decDegrees": 60.65,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 6.0,
+    "minorAxisArcmin": 6.0
+  },
+  {
+    "id": "M104",
+    "commonName": "Sombrero Galaxy",
+    "objectType": "Gx",
+    "raDegrees": 189.99763,
+    "decDegrees": -11.62305,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 8.7,
+    "minorAxisArcmin": 3.5
+  },
+  {
+    "id": "M105",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 161.95667,
+    "decDegrees": 12.58163,
+    "magnitude": 9.3,
+    "majorAxisArcmin": 5.4,
+    "minorAxisArcmin": 4.8
+  },
+  {
+    "id": "M106",
+    "commonName": "Centaurus A (M106)",
+    "objectType": "Gx",
+    "raDegrees": 184.74008,
+    "decDegrees": 47.30372,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 18.6,
+    "minorAxisArcmin": 7.2
+  },
+  {
+    "id": "M107",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 248.13275,
+    "decDegrees": -13.05378,
+    "magnitude": 7.8,
+    "majorAxisArcmin": 13.0,
+    "minorAxisArcmin": 13.0
+  },
+  {
+    "id": "M108",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 167.87903,
+    "decDegrees": 55.67412,
+    "magnitude": 10.0,
+    "majorAxisArcmin": 8.7,
+    "minorAxisArcmin": 2.2
+  },
+  {
+    "id": "M109",
+    "commonName": null,
+    "objectType": "Gx",
+    "raDegrees": 179.39993,
+    "decDegrees": 53.37452,
+    "magnitude": 9.8,
+    "majorAxisArcmin": 7.6,
+    "minorAxisArcmin": 4.7
+  },
+  {
+    "id": "M110",
+    "commonName": "M110",
+    "objectType": "Gx",
+    "raDegrees": 10.09198,
+    "decDegrees": 41.6853,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 21.9,
+    "minorAxisArcmin": 11.0
+  }
+]

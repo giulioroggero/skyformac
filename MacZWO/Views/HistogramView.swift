@@ -2,19 +2,19 @@ import SwiftUI
 
 /// Live histogram with black/white point stretch sliders, per spec Milestone 4.
 ///
-/// - Note: Recomputes the 256-bucket histogram on the CPU (`HistogramComputer`) every time a
-///   new frame arrives — fine for the correctness baseline, but a full per-pixel pass on every
-///   multi-megapixel frame is the first thing the GPU upgrade pass should move to a Metal
-///   reduction kernel.
+/// When the Metal renderer is active, uses the GPU-computed histogram (`Shaders.metal`'s
+/// `histogramReduce` kernel, surfaced via `CameraManager.gpuHistogramCounts`) instead of
+/// `HistogramComputer`'s CPU pass — avoiding a second full per-pixel CPU pass over
+/// multi-megapixel frames on top of the GPU debayer/stretch already happening for preview.
 struct HistogramView: View {
     var cameraManager: CameraManager
+    var useMetalRenderer: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Histogram").font(.headline)
 
-            if let frame = cameraManager.currentFrame {
-                let buckets = HistogramComputer.histogram(for: frame)
+            if let buckets = currentBuckets {
                 let maxCount = max(buckets.max() ?? 1, 1)
 
                 Canvas { context, size in
@@ -56,6 +56,14 @@ struct HistogramView: View {
             stretchSlider("White Point", value: whitePointBinding)
         }
         .padding()
+    }
+
+    private var currentBuckets: [Int]? {
+        if useMetalRenderer {
+            return cameraManager.gpuHistogramCounts
+        }
+        guard let frame = cameraManager.currentFrame else { return nil }
+        return HistogramComputer.histogram(for: frame)
     }
 
     private func stretchSlider(_ title: String, value: Binding<Double>) -> some View {

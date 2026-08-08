@@ -1,6 +1,26 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Observation
+import UniformTypeIdentifiers
+
+enum ExportKind {
+    case fits
+    case png
+    case tiff
+}
+
+enum PolarAlignmentStage: Equatable {
+    case idle
+    case firstFrameCaptured
+    case complete
+}
+
+struct SmartExposureRecommendation: Sendable {
+    let readNoiseElectrons: Double
+    let skyRateElectronsPerSecond: Double
+    let recommendedSubExposureSeconds: Double
+}
 
 enum CameraConnectionState: Equatable {
     case disconnected
@@ -42,14 +62,274 @@ final class CameraManager {
     private(set) var isLiveViewActive = true
     private(set) var isCapturingExposure = false
 
-    var isFocusAssistEnabled = false {
-        didSet { focusAssist = nil }
+    var isFocusAssistEnabled = AppSettings.isFocusAssistEnabled {
+        didSet {
+            focusAssist = nil
+            AppSettings.isFocusAssistEnabled = isFocusAssistEnabled
+        }
     }
     private(set) var focusAssist: FocusAssistResult?
+
+    /// Rolling Half-Flux-Diameter history (real-time focus tracking + thermal-drift alerting),
+    /// recorded alongside every focus-assist star detection pass.
+    let focusTracker = FocusTracker()
+    var isFocusDriftDetected: Bool { focusTracker.isDriftDetected() }
+
+    /// Reuses focus assist's star detections — requires `isFocusAssistEnabled` too, since
+    /// running a second independent Vision pass just for this would be wasteful.
+    var isStarRecognitionEnabled = AppSettings.isStarRecognitionEnabled {
+        didSet {
+            recognizedObjects = []
+            AppSettings.isStarRecognitionEnabled = isStarRecognitionEnabled
+        }
+    }
+    private(set) var recognizedObjects: [StarPatternRecognizer.Match] = []
+
+    // MARK: - Planetary auto-center & crop (Vision)
+
+    private let planetTracker = PlanetTracker()
+    var isPlanetaryTrackingEnabled = AppSettings.isPlanetaryTrackingEnabled {
+        didSet {
+            planetTracker.reset()
+            planetROI = nil
+            AppSettings.isPlanetaryTrackingEnabled = isPlanetaryTrackingEnabled
+        }
+    }
+    /// Also crop `currentFrame` (and everything downstream: stretch, export, recording, lucky
+    /// imaging) to the tracked ROI, not just overlay it — the dynamic bounding-box "auto-crop"
+    /// behavior real planetary capture tools offer.
+    var isPlanetaryCropEnabled = AppSettings.isPlanetaryCropEnabled {
+        didSet { AppSettings.isPlanetaryCropEnabled = isPlanetaryCropEnabled }
+    }
+    private(set) var planetROI: CGRect?
+    private var planetTrackingTask: Task<Void, Never>?
+
+    /// Populated by `MetalPreviewView`'s renderer callback (GPU histogram compute kernel) when
+    /// the Metal preview is active; `HistogramView` prefers this over its own CPU pass when
+    /// non-nil. Not written to from anywhere else.
+    var gpuHistogramCounts: [Int]?
+
+    /// Which render path `PreviewView`/`HistogramView` use, and which live-stacking accumulator
+    /// (`LiveStacker` CPU vs. `MetalFrameRenderer`'s GPU accumulation texture) is authoritative.
+    var useMetalRenderer = AppSettings.useMetalRenderer {
+        didSet { AppSettings.useMetalRenderer = useMetalRenderer }
+    }
+
+    /// Lifted up from being view-local `@State` so both toolbar toggles and menu bar commands
+    /// (`MacZWOCommands`) can drive the same source of truth.
+    var isNightModeEnabled = AppSettings.isNightModeEnabled {
+        didSet { AppSettings.isNightModeEnabled = isNightModeEnabled }
+    }
+    var isAllSkyMonitorVisible = false
+
+    // MARK: - Real-time denoise & wavelet sharpening
+    //
+    // Denoise is a classical bilateral filter, not a trained model — seeing "Apple Neural
+    // Engine"/Core ML in a feature request doesn't create a shippable trained model out of
+    // nothing; this delivers the same real-time noise-suppression *outcome* with a
+    // well-understood, verifiable classical technique instead. Wavelet sharpening is a real
+    // 2-level à trous decomposition (RegiStax-style multiscale sharpening). Both have a Metal
+    // path (`Shaders.metal`, used when `useMetalRenderer`) and a CPU fallback (`ImageEnhancer`).
+    var isDenoisingEnabled = AppSettings.isDenoisingEnabled {
+        didSet { AppSettings.isDenoisingEnabled = isDenoisingEnabled }
+    }
+    var isWaveletSharpeningEnabled = AppSettings.isWaveletSharpeningEnabled {
+        didSet { AppSettings.isWaveletSharpeningEnabled = isWaveletSharpeningEnabled }
+    }
+    var waveletSharpenAmount: Double = AppSettings.waveletSharpenAmount {
+        didSet { AppSettings.waveletSharpenAmount = waveletSharpenAmount }
+    }
+
+    // MARK: - Calibration (multiple named dark + flat frames)
+
+    let calibrationLibrary = CalibrationLibrary()
+    var isDarkSubtractionEnabled = false
+    var isFlatCorrectionEnabled = false
+
+    /// Convenience accessor for the currently-active dark frame's pixel data, kept for call
+    /// sites that only care about "is there one, and what's in it" rather than its metadata.
+    var darkFrame: CapturedFrame? { calibrationLibrary.activeDark?.frame }
+    var flatFrame: CapturedFrame? { calibrationLibrary.activeFlat?.frame }
+
+    // MARK: - Live stacking (unaligned running average)
+    //
+    // Two accumulators, exactly one of which is live at a time depending on `useMetalRenderer`:
+    // `LiveStacker` (CPU, feeds the `CGImage` render path) or `MetalFrameRenderer`'s own GPU
+    // accumulation texture (feeds the Metal render path — see `MetalPreviewView`). `ingest`
+    // only ever runs the CPU one; the GPU one runs entirely inside `MetalFrameRenderer.process`.
+
+    private let liveStacker = LiveStacker()
+    /// Bumped on every enable/disable/reset so `MetalPreviewView` knows to clear its GPU
+    /// accumulator, mirroring `liveStacker.reset()` for the CPU path.
+    private(set) var liveStackGeneration = 0
+    var gpuLiveStackFrameCount = 0
+
+    var isLiveStackingEnabled = false {
+        didSet {
+            liveStacker.reset()
+            liveStackGeneration &+= 1
+            gpuLiveStackFrameCount = 0
+        }
+    }
+    func resetLiveStack() {
+        liveStacker.reset()
+        liveStackGeneration &+= 1
+        gpuLiveStackFrameCount = 0
+    }
+    var liveStackedFrameCount: Int { useMetalRenderer ? gpuLiveStackFrameCount : liveStacker.frameCount }
+
+    // MARK: - Plate-solved polar alignment
+
+    private(set) var polarAlignmentStage: PolarAlignmentStage = .idle
+    private(set) var polarAlignmentRotationCenter: CGPoint?
+    private(set) var polarAlignmentCorrespondenceCount = 0
+    private var polarAlignmentFirstFrameStars: [CGPoint]?
+
+    /// Step 1: capture the current live frame as the "near the pole, before rotation" reference.
+    /// Detects stars via Vision (`StarDetector`) and stores their pixel positions.
+    func capturePolarAlignmentReferenceFrame() async {
+        guard let image = currentImage, let frame = currentFrame else { return }
+        guard let result = try? StarDetector.detectStars(in: image), result.stars.count >= 2 else {
+            lastErrorMessage = "Not enough stars detected — point at a star-rich field near the pole."
+            return
+        }
+        polarAlignmentFirstFrameStars = result.stars.map { pixelPosition(of: $0, in: frame) }
+        polarAlignmentStage = .firstFrameCaptured
+        lastErrorMessage = nil
+    }
+
+    /// Step 2 (after the user has physically rotated the mount's RA axis ~90°, alt/az
+    /// untouched): capture again, match stars against the reference frame, and solve for the
+    /// mount's actual mechanical rotation center.
+    func solvePolarAlignment() async {
+        guard let beforeStars = polarAlignmentFirstFrameStars,
+              let image = currentImage, let frame = currentFrame
+        else { return }
+        guard let result = try? StarDetector.detectStars(in: image), result.stars.count >= 2 else {
+            lastErrorMessage = "Not enough stars detected in the second frame."
+            return
+        }
+        let afterStars = result.stars.map { pixelPosition(of: $0, in: frame) }
+        let correspondences = PolarAlignmentSolver.matchStars(before: beforeStars, after: afterStars)
+        polarAlignmentCorrespondenceCount = correspondences.count
+
+        guard let center = PolarAlignmentSolver.solveRotationCenter(from: correspondences) else {
+            lastErrorMessage = "Couldn't solve a rotation center — matched \(correspondences.count) stars; try a richer star field or confirm the mount actually rotated between frames."
+            return
+        }
+        polarAlignmentRotationCenter = center
+        polarAlignmentStage = .complete
+        lastErrorMessage = nil
+    }
+
+    func resetPolarAlignment() {
+        polarAlignmentStage = .idle
+        polarAlignmentFirstFrameStars = nil
+        polarAlignmentRotationCenter = nil
+        polarAlignmentCorrespondenceCount = 0
+    }
+
+    private func pixelPosition(of star: DetectedStar, in frame: CapturedFrame) -> CGPoint {
+        let box = star.boundingBoxNormalized
+        return CGPoint(x: box.midX * CGFloat(frame.width), y: (1 - box.midY) * CGFloat(frame.height))
+    }
+
+    // MARK: - Continuous recording with a GPU sharpness gate
+
+    private let sharpnessScorer = GPUSharpnessScorer()
+    private(set) var isRecordingToDisk = false
+    private(set) var recordingDirectory: URL?
+    private(set) var recordedFrameCount = 0
+    private(set) var discardedFrameCount = 0
+    private(set) var recordingBytesWritten: Int64 = 0
+    private(set) var recordingLowDiskSpaceStopped = false
+    /// Frames scoring below this (GPU mean-squared-Laplacian) are discarded rather than written.
+    /// `0` keeps every frame — a pure passthrough recorder with the gate effectively disabled.
+    var sharpnessDiscardThreshold: Double = AppSettings.sharpnessDiscardThreshold {
+        didSet { AppSettings.sharpnessDiscardThreshold = sharpnessDiscardThreshold }
+    }
+
+    /// Below this much free space on the recording volume, recording refuses to start / stops
+    /// itself mid-session — an unbounded FITS-per-frame stream can fill a disk fast, and running
+    /// a Mac's boot volume out of space has real consequences beyond just losing the recording.
+    private static let minimumFreeDiskSpaceBytes: Int64 = 500 * 1024 * 1024 // 500 MB
+
+    var estimatedBytesPerFrame: Int64? {
+        recordedFrameCount > 0 ? recordingBytesWritten / Int64(recordedFrameCount) : nil
+    }
+
+    /// Starts writing every sufficiently-sharp incoming (dark-subtracted) frame as a FITS file
+    /// into `directory`, scored on the GPU via `GPUSharpnessScorer` — real-time quality-gated
+    /// recording, the same idea as lucky imaging's burst-and-rank but for a continuous, unbounded
+    /// stream written straight to disk instead of held in memory.
+    func startRecording(to directory: URL) {
+        if let free = DiskSpaceChecker.availableBytes(at: directory), free < Self.minimumFreeDiskSpaceBytes {
+            lastErrorMessage = "Only \(formattedBytes(free)) free on that volume — need at least \(formattedBytes(Self.minimumFreeDiskSpaceBytes)) to start recording."
+            return
+        }
+        recordingDirectory = directory
+        recordedFrameCount = 0
+        discardedFrameCount = 0
+        recordingBytesWritten = 0
+        recordingLowDiskSpaceStopped = false
+        isRecordingToDisk = true
+    }
+
+    func stopRecording() {
+        isRecordingToDisk = false
+    }
+
+    /// - Note: `GPUSharpnessScorer.score` blocks (`waitUntilCompleted`) for a correct per-frame
+    ///   keep/discard decision (see its doc comment), and `ingest` runs on `@MainActor` — so
+    ///   recording briefly blocks the main thread once per frame for the GPU round-trip. Fine at
+    ///   typical planetary/lunar video rates on Apple Silicon (sub-millisecond in practice for a
+    ///   modest ROI), but a future pass could move this off-actor if it becomes a bottleneck.
+    private func recordIfNeeded(_ frame: CapturedFrame) {
+        guard isRecordingToDisk, let directory = recordingDirectory else { return }
+
+        // Checked every frame: `resourceValues` is a cheap stat-like call, and disk space can
+        // genuinely run out between any two frames during a long unattended session.
+        if let free = DiskSpaceChecker.availableBytes(at: directory), free < Self.minimumFreeDiskSpaceBytes {
+            isRecordingToDisk = false
+            recordingLowDiskSpaceStopped = true
+            lastErrorMessage = "Recording stopped: only \(formattedBytes(free)) free on the recording volume."
+            return
+        }
+
+        let score = sharpnessScorer?.score(frame: frame) ?? Double.greatestFiniteMagnitude
+        guard score >= sharpnessDiscardThreshold else {
+            discardedFrameCount += 1
+            return
+        }
+        let url = directory.appendingPathComponent(String(format: "frame_%06d.fits", recordedFrameCount))
+        do {
+            try FITSWriter.write(frame: frame, instrumentName: connectedCamera?.name ?? "MacZWO", to: url)
+            recordedFrameCount += 1
+            if let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int64 {
+                recordingBytesWritten += size
+            }
+        } catch {
+            lastErrorMessage = String(describing: error)
+            isRecordingToDisk = false
+        }
+    }
+
+    private func formattedBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    // MARK: - Lucky imaging (burst capture + sharpness-ranked stacking — see `LuckyImagingSession`)
+
+    private(set) var luckyImagingSession: LuckyImagingSession?
+    var luckyImagingProgress: (captured: Int, total: Int)? {
+        luckyImagingSession.map { ($0.capturedCount, $0.targetFrameCount) }
+    }
+    var isLuckyImagingBurstComplete: Bool { luckyImagingSession?.isComplete ?? false }
 
     private var frameConsumerTask: Task<Void, Never>?
     private var simulationTask: Task<Void, Never>?
     private var focusAssistTask: Task<Void, Never>?
+    private var enhancementTask: Task<Void, Never>?
 
     init() {
         refreshCameraList()
@@ -104,9 +384,7 @@ final class CameraManager {
         frameConsumerTask = Task { [weak self] in
             for await frame in stream {
                 guard let self else { return }
-                self.currentFrame = frame
-                self.frameID &+= 1
-                self.refreshCurrentImage()
+                self.ingest(frame)
             }
         }
         do {
@@ -153,11 +431,312 @@ final class CameraManager {
                 let frame = color
                     ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
                     : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
-                self.currentFrame = frame
-                self.frameID &+= 1
-                self.refreshCurrentImage()
+                self.ingest(frame)
                 try? await Task.sleep(for: .milliseconds(200))
             }
+        }
+    }
+
+    /// Same debug/demo path as `simulateTestPattern`, but rendering a recognizable
+    /// solar-system/deep-sky target (`DemoTargetGenerator`) instead of an abstract test card —
+    /// useful for exercising planetary auto-center, focus/HFD tracking, and star recognition
+    /// without any hardware.
+    func simulateDemoTarget(_ target: DemoTarget) {
+        disconnect()
+        let camera = ZWOCameraInfo.simulatedMono()
+        connectedCamera = camera
+        controls = []
+        controlValues = [:]
+        connectionState = .streaming
+        lastErrorMessage = nil
+
+        simulationTask = Task { [weak self] in
+            var phase = 0.0
+            while !Task.isCancelled {
+                guard let self else { return }
+                let frame = DemoTargetGenerator.generate(
+                    target, width: camera.maxWidth, height: camera.maxHeight, animationPhase: phase
+                )
+                self.ingest(frame)
+                phase += 0.15
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+        }
+    }
+
+    /// The single place a freshly-captured raw frame (real camera or simulated) enters the
+    /// display pipeline: dark subtraction, then lucky-imaging burst collection, then live
+    /// stacking — all operating on raw sensor data, before `refreshCurrentImage` debayers and
+    /// stretches whatever `currentFrame` ends up being for on-screen display.
+    private func ingest(_ rawFrame: CapturedFrame) {
+        var processed = applyDarkSubtraction(rawFrame)
+
+        // Tracking always runs against the full, uncropped sensor frame — if it ran against an
+        // already-cropped previous frame instead, the ROI's pixel coordinates would need
+        // re-anchoring every frame and small errors would compound into drift. Only the final
+        // `processed` frame handed downstream gets cropped.
+        if isPlanetaryTrackingEnabled {
+            schedulePlanetTrackingIfNeeded(fullFrame: processed)
+        }
+        if isPlanetaryCropEnabled, let roi = planetROI {
+            let padded = Self.paddedPixelRect(for: roi, frameWidth: processed.width, frameHeight: processed.height)
+            if let cropped = FrameCropper.crop(processed, toPixelRect: padded) {
+                processed = cropped
+            }
+        }
+
+        recordIfNeeded(processed)
+
+        if let camera = connectedCamera, let session = luckyImagingSession, !session.isComplete {
+            session.add(processed, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
+        }
+
+        if isLiveStackingEnabled && !useMetalRenderer {
+            // CPU accumulation for the CGImage render path. When the Metal renderer is active,
+            // `currentFrame` stays the raw per-frame data — `MetalFrameRenderer` does its own
+            // GPU-side running-sum accumulation on each raw frame instead (see `resetLiveStack`).
+            liveStacker.add(processed)
+            currentFrame = liveStacker.currentAverage() ?? processed
+        } else {
+            currentFrame = processed
+        }
+
+        frameID &+= 1
+        refreshCurrentImage()
+    }
+
+    /// Applies whichever of dark subtraction / flat correction are enabled and have an active
+    /// calibration frame — dark first (removes fixed-pattern noise/hot pixels), then flat
+    /// (corrects vignetting/dust shadows), matching the standard real-world calibration order.
+    private func applyDarkSubtraction(_ frame: CapturedFrame) -> CapturedFrame {
+        var result = frame
+        if isDarkSubtractionEnabled, let dark = darkFrame,
+           let subtracted = FrameArithmetic.subtract(light: result, dark: dark) {
+            result = subtracted
+        }
+        if isFlatCorrectionEnabled, let flat = flatFrame,
+           let corrected = FlatFieldCorrector.correct(light: result, flat: flat) {
+            result = corrected
+        }
+        return result
+    }
+
+    /// Captures a dark frame (lens capped / scope covered) the same way `captureSingleExposure`
+    /// captures a light frame, and adds it to `calibrationLibrary` (becoming the active dark if
+    /// it's the first one). Toggle `isDarkSubtractionEnabled` to start subtracting it.
+    func captureDarkFrame(seconds: Double) async {
+        guard let camera = connectedCamera else { return }
+        frameConsumerTask?.cancel()
+        frameConsumerTask = nil
+        isLiveViewActive = false
+        isCapturingExposure = true
+        lastErrorMessage = nil
+        defer { isCapturingExposure = false }
+
+        let exposureMicroseconds = Int(seconds * 1_000_000)
+
+        if camera.cameraID < 0 {
+            try? await Task.sleep(for: .seconds(min(seconds, 2)))
+            let frame = camera.isColorCamera
+                ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
+                : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
+            calibrationLibrary.addDark(frame, exposureMicroseconds: exposureMicroseconds)
+            return
+        }
+
+        guard let engine = captureEngine else { return }
+        do {
+            let frame = try await engine.captureSingleExposure(
+                imageType: selectedImageType, exposureMicroseconds: exposureMicroseconds, isDark: true
+            )
+            calibrationLibrary.addDark(frame, exposureMicroseconds: exposureMicroseconds)
+            connectionState = .connected
+        } catch {
+            lastErrorMessage = String(describing: error)
+            connectionState = .error(String(describing: error))
+        }
+    }
+
+    /// Captures a flat frame (evenly-illuminated target — twilight sky, a light panel) and adds
+    /// it to `calibrationLibrary`. Toggle `isFlatCorrectionEnabled` to start correcting with it.
+    func captureFlatFrame(seconds: Double) async {
+        guard let camera = connectedCamera else { return }
+        frameConsumerTask?.cancel()
+        frameConsumerTask = nil
+        isLiveViewActive = false
+        isCapturingExposure = true
+        lastErrorMessage = nil
+        defer { isCapturingExposure = false }
+
+        let exposureMicroseconds = Int(seconds * 1_000_000)
+
+        if camera.cameraID < 0 {
+            try? await Task.sleep(for: .seconds(min(seconds, 2)))
+            let frame = camera.isColorCamera
+                ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
+                : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
+            calibrationLibrary.addFlat(frame, exposureMicroseconds: exposureMicroseconds)
+            return
+        }
+
+        guard let engine = captureEngine else { return }
+        do {
+            let frame = try await engine.captureSingleExposure(
+                imageType: selectedImageType, exposureMicroseconds: exposureMicroseconds
+            )
+            calibrationLibrary.addFlat(frame, exposureMicroseconds: exposureMicroseconds)
+            connectionState = .connected
+        } catch {
+            lastErrorMessage = String(describing: error)
+            connectionState = .error(String(describing: error))
+        }
+    }
+
+    func clearDarkFrame() {
+        calibrationLibrary.darkFrames.forEach { calibrationLibrary.removeDark(id: $0.id) }
+        isDarkSubtractionEnabled = false
+    }
+
+    func clearFlatFrame() {
+        calibrationLibrary.flatFrames.forEach { calibrationLibrary.removeFlat(id: $0.id) }
+        isFlatCorrectionEnabled = false
+    }
+
+    // MARK: - Smart Exposure (sub-exposure length optimizer)
+
+    private(set) var smartExposureRecommendation: SmartExposureRecommendation?
+    private(set) var isMeasuringSmartExposure = false
+
+    /// Measures read noise (from a minimum-length bias frame's pixel noise) and sky background
+    /// brightness (from a short test exposure's median level), then recommends a sub-exposure
+    /// length via `ExposureOptimizer`. See `ExposureOptimizer`'s doc comment for why this
+    /// measures rather than reads read noise from the SDK (there's no such API).
+    func measureSmartExposure(testExposureSeconds: Double = 2.0) async {
+        guard let camera = connectedCamera else { return }
+        frameConsumerTask?.cancel()
+        frameConsumerTask = nil
+        isLiveViewActive = false
+        isMeasuringSmartExposure = true
+        lastErrorMessage = nil
+        defer { isMeasuringSmartExposure = false }
+
+        let electronsPerADU = Double(camera.electronsPerADU)
+        let biasFrame: CapturedFrame
+        let skyFrame: CapturedFrame
+
+        if camera.cameraID < 0 {
+            try? await Task.sleep(for: .milliseconds(500))
+            biasFrame = TestPatternGenerator.syntheticBias(width: camera.maxWidth, height: camera.maxHeight)
+            skyFrame = TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
+        } else {
+            guard let engine = captureEngine else { return }
+            do {
+                let minimumMicroseconds = controls
+                    .first { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }
+                    .map { max($0.minValue, 32) } ?? 32
+                biasFrame = try await engine.captureSingleExposure(
+                    imageType: selectedImageType, exposureMicroseconds: minimumMicroseconds
+                )
+                skyFrame = try await engine.captureSingleExposure(
+                    imageType: selectedImageType,
+                    exposureMicroseconds: Int(testExposureSeconds * 1_000_000)
+                )
+                connectionState = .connected
+            } catch {
+                lastErrorMessage = String(describing: error)
+                connectionState = .error(String(describing: error))
+                return
+            }
+        }
+
+        guard let readNoise = ExposureOptimizer.readNoiseElectrons(biasFrame: biasFrame, electronsPerADU: electronsPerADU),
+              let skyRate = ExposureOptimizer.skyBackgroundRate(
+                testFrame: skyFrame, exposureSeconds: testExposureSeconds, electronsPerADU: electronsPerADU
+              ),
+              let recommended = ExposureOptimizer.optimalSubExposureSeconds(
+                readNoiseElectrons: readNoise, skyRateElectronsPerSecond: skyRate
+              )
+        else {
+            lastErrorMessage = "Could not compute a recommendation from the measured frames."
+            return
+        }
+
+        smartExposureRecommendation = SmartExposureRecommendation(
+            readNoiseElectrons: readNoise,
+            skyRateElectronsPerSecond: skyRate,
+            recommendedSubExposureSeconds: recommended
+        )
+
+        currentFrame = skyFrame
+        frameID &+= 1
+        refreshCurrentImage()
+    }
+
+    // MARK: - Lucky imaging
+
+    /// Arms a new burst: the next `frameCount` incoming frames (live view or single-exposure
+    /// captures don't count — only the continuous `ingest` path does) get scored and held.
+    func startLuckyImagingBurst(frameCount: Int) {
+        luckyImagingSession = LuckyImagingSession(targetFrameCount: frameCount)
+    }
+
+    /// Stacks the sharpest `fraction` of the current burst and shows it as `currentFrame`.
+    /// Can be called repeatedly with different fractions without recapturing.
+    func stackLuckyImagingBest(fraction: Double) {
+        guard let session = luckyImagingSession, let stacked = session.stackBest(fraction: fraction) else { return }
+        currentFrame = stacked
+        frameID &+= 1
+        refreshCurrentImage()
+    }
+
+    func discardLuckyImagingSession() {
+        luckyImagingSession = nil
+    }
+
+    // MARK: - Export
+
+    /// Presents a save panel and writes `currentFrame`/`currentImage` in the requested format:
+    /// FITS carries the raw (pre-debayer) sensor data — the standard way capture software
+    /// archives what the sensor actually saw; PNG/TIFF export the already-debayered, stretched
+    /// display image for quick sharing.
+    func exportCurrentFrame(as kind: ExportKind) {
+        guard currentFrame != nil else { return }
+        let panel = NSSavePanel()
+        switch kind {
+        case .fits:
+            panel.allowedContentTypes = [UTType(filenameExtension: "fits") ?? .data]
+            panel.nameFieldStringValue = "capture.fits"
+        case .png:
+            panel.allowedContentTypes = [.png]
+            panel.nameFieldStringValue = "capture.png"
+        case .tiff:
+            panel.allowedContentTypes = [.tiff]
+            panel.nameFieldStringValue = "capture.tiff"
+        }
+
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor [weak self] in
+                self?.finishExport(kind: kind, to: url)
+            }
+        }
+    }
+
+    private func finishExport(kind: ExportKind, to url: URL) {
+        do {
+            switch kind {
+            case .fits:
+                guard let frame = currentFrame else { return }
+                try FITSWriter.write(frame: frame, instrumentName: connectedCamera?.name ?? "MacZWO", to: url)
+            case .png:
+                guard let image = currentImage else { return }
+                try ImageExporter.writePNG(image, to: url)
+            case .tiff:
+                guard let image = currentImage else { return }
+                try ImageExporter.writeTIFF(image, to: url)
+            }
+        } catch {
+            lastErrorMessage = String(describing: error)
         }
     }
 
@@ -170,19 +749,118 @@ final class CameraManager {
             stretch: stretch
         )
         scheduleFocusAssistIfNeeded()
+        scheduleCPUEnhancementIfNeeded(frame: frame, camera: camera)
+    }
+
+    /// Denoise/wavelet-sharpen are display-only enhancements (exactly like their Metal
+    /// counterparts — `MetalFrameRenderer.process` never touches `currentFrame` either, so
+    /// export/recording/lucky-imaging always see the untouched data). Unlike the GPU path,
+    /// `ImageEnhancer`'s unoptimized Swift loops are nowhere near fast enough to run synchronously
+    /// on `@MainActor` per frame — measured at 10+ seconds and 100% CPU on a single 640×480 frame
+    /// in a debug build, which would otherwise freeze the whole app. So: compute the plain
+    /// (un-enhanced) image immediately above for a responsive UI, then replace it with the
+    /// enhanced version in the background once it's ready, throttled and skip-if-busy exactly
+    /// like `scheduleFocusAssistIfNeeded`/`schedulePlanetTrackingIfNeeded`.
+    private func scheduleCPUEnhancementIfNeeded(frame: CapturedFrame, camera: ZWOCameraInfo) {
+        guard !useMetalRenderer, isDenoisingEnabled || isWaveletSharpeningEnabled, enhancementTask == nil else { return }
+        let denoiseEnabled = isDenoisingEnabled
+        let sharpenEnabled = isWaveletSharpeningEnabled
+        let sharpenAmount = waveletSharpenAmount
+        let isColorCamera = camera.isColorCamera
+        let bayerPattern = camera.bayerPattern
+        let currentStretch = stretch
+        let frameIDAtSchedule = frameID
+
+        enhancementTask = Task.detached(priority: .userInitiated) { [weak self] in
+            var displayFrame = frame
+            if denoiseEnabled, let denoised = ImageEnhancer.denoise(displayFrame) {
+                displayFrame = denoised
+            }
+            if sharpenEnabled, let sharpened = ImageEnhancer.waveletSharpen(
+                displayFrame, fineGain: sharpenAmount, midGain: sharpenAmount * 0.6
+            ) {
+                displayFrame = sharpened
+            }
+            let image = CGImageRenderer.makeDisplayImage(
+                from: displayFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
+            )
+            await MainActor.run {
+                guard let self else { return }
+                // Only apply if a newer frame hasn't already arrived — otherwise this stale,
+                // slow-to-compute enhanced image would visibly replace a fresher plain one.
+                if self.frameID == frameIDAtSchedule, let image {
+                    self.currentImage = image
+                }
+                self.enhancementTask = nil
+            }
+        }
+    }
+
+    /// Runs `PlanetDetector` (Vision contours, biggest-blob selection) at a throttled rate and
+    /// feeds the result through `PlanetTracker`'s smoothing. Takes the full, uncropped frame
+    /// explicitly (see `ingest`) rather than reading `currentImage`/`currentFrame`, which may
+    /// already be cropped to the previous ROI.
+    private func schedulePlanetTrackingIfNeeded(fullFrame: CapturedFrame) {
+        guard isPlanetaryTrackingEnabled, planetTrackingTask == nil, let camera = connectedCamera else { return }
+        guard let image = CGImageRenderer.makeDisplayImage(
+            from: fullFrame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern, stretch: stretch
+        ) else { return }
+
+        planetTrackingTask = Task { [weak self] in
+            let detection = try? PlanetDetector.detectDisk(in: image)
+            try? await Task.sleep(for: .milliseconds(200))
+            await MainActor.run {
+                guard let self else { return }
+                self.planetROI = self.planetTracker.update(with: detection ?? nil)
+                self.planetTrackingTask = nil
+            }
+        }
+    }
+
+    /// Expands a normalized (Vision bottom-left-origin) ROI by 40% and converts it to a pixel
+    /// rect in the frame's coordinate space, so the crop has comfortable margin around the
+    /// tracked disk rather than clipping it tight to the raw contour box.
+    private static func paddedPixelRect(
+        for normalizedROI: CGRect, frameWidth: Int, frameHeight: Int
+    ) -> (x: Int, y: Int, width: Int, height: Int) {
+        let paddingFactor: CGFloat = 0.4
+        let paddedWidth = normalizedROI.width * (1 + paddingFactor)
+        let paddedHeight = normalizedROI.height * (1 + paddingFactor)
+        let centerX = normalizedROI.midX
+        let centerY = 1 - normalizedROI.midY // flip Vision's bottom-left origin to top-left pixel space
+
+        let pixelWidth = Int(paddedWidth * CGFloat(frameWidth))
+        let pixelHeight = Int(paddedHeight * CGFloat(frameHeight))
+        let pixelX = Int(centerX * CGFloat(frameWidth)) - pixelWidth / 2
+        let pixelY = Int(centerY * CGFloat(frameHeight)) - pixelHeight / 2
+        return (x: pixelX, y: pixelY, width: max(pixelWidth, 8), height: max(pixelHeight, 8))
     }
 
     /// Runs `StarDetector` on the current preview image at most a few times a second — a full
     /// Vision contour pass every single incoming frame would be wasteful, especially at video
     /// frame rates. Skips scheduling if a detection pass is already in flight.
     private func scheduleFocusAssistIfNeeded() {
-        guard isFocusAssistEnabled, focusAssistTask == nil, let image = currentImage else { return }
+        guard isFocusAssistEnabled, focusAssistTask == nil, let image = currentImage, let frame = currentFrame else { return }
+        let width = frame.width
+        let height = frame.height
+        let recognizeStars = isStarRecognitionEnabled
         focusAssistTask = Task { [weak self] in
             let result = try? StarDetector.detectStars(in: image)
+            let matches = (recognizeStars ? result?.stars : nil).map {
+                StarPatternRecognizer.recognize(detectedStars: $0, imageWidth: width, imageHeight: height)
+            } ?? []
+            // HFD is measured on the raw (linear, pre-stretch) sensor data, not the debayered/
+            // stretched display image the star positions were detected on — a non-linear
+            // stretch would distort the flux ratios HFD's centroid/radius math depends on.
+            let hfd = result.flatMap { HFDCalculator.medianHFD(frame: frame, stars: $0.stars) }
             try? await Task.sleep(for: .milliseconds(250)) // simple rate limit
             await MainActor.run {
                 self?.focusAssist = result
+                self?.recognizedObjects = matches
                 self?.focusAssistTask = nil
+                if let hfd {
+                    self?.focusTracker.record(medianHFD: hfd, at: Date())
+                }
             }
         }
     }
@@ -204,9 +882,10 @@ final class CameraManager {
             // Simulated camera: no hardware exposure to wait on, just synthesize a frame.
             try? await Task.sleep(for: .seconds(min(seconds, 2))) // still feels like "capturing"
             let isColor = camera.isColorCamera
-            currentFrame = isColor
+            let raw = isColor
                 ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
                 : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
+            currentFrame = applyDarkSubtraction(raw)
             frameID &+= 1
             refreshCurrentImage()
             return
@@ -218,7 +897,7 @@ final class CameraManager {
                 imageType: selectedImageType,
                 exposureMicroseconds: Int(seconds * 1_000_000)
             )
-            currentFrame = frame
+            currentFrame = applyDarkSubtraction(frame)
             frameID &+= 1
             refreshCurrentImage()
             connectionState = .connected
@@ -246,10 +925,24 @@ final class CameraManager {
         focusAssistTask?.cancel()
         focusAssistTask = nil
         focusAssist = nil
+        enhancementTask?.cancel()
+        enhancementTask = nil
+        planetTrackingTask?.cancel()
+        planetTrackingTask = nil
+        planetTracker.reset()
+        planetROI = nil
+        gpuHistogramCounts = nil
         isLiveViewActive = true
         isCapturingExposure = false
         currentImage = nil
         currentFrame = nil
+        liveStacker.reset()
+        luckyImagingSession = nil
+        focusTracker.reset()
+        isRecordingToDisk = false
+        resetPolarAlignment()
+        // Deliberately NOT clearing darkFrame/isDarkSubtractionEnabled — a captured dark frame
+        // is reusable across a reconnect of the same camera/settings.
         if let camera = connectedCamera, camera.cameraID >= 0 {
             let engine = captureEngine
             Task {

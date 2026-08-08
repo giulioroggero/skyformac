@@ -45,6 +45,25 @@ enum TestPatternGenerator {
         return CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: data)
     }
 
+    /// A flat bias level plus Gaussian read-noise, RAW8 mono — a synthetic stand-in for a real
+    /// bias/minimum-exposure frame, used by the "Smart Exposure" sub-exposure calculator's
+    /// demo/no-hardware path so it has something realistic to measure a standard deviation from.
+    static func syntheticBias(width: Int, height: Int, biasLevel: UInt8 = 20, noiseSigma: Double = 3.0) -> CapturedFrame {
+        var data = Data(count: width * height)
+        var rng = SeededGenerator(seed: 42)
+        data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+            for i in 0..<(width * height) {
+                // Box-Muller for approximately-Gaussian noise around the bias level.
+                let u1 = Double.random(in: 0.0001...1, using: &rng)
+                let u2 = Double.random(in: 0...1, using: &rng)
+                let gaussian = (-2 * log(u1)).squareRoot() * cos(2 * .pi * u2)
+                base[i] = UInt8(clamping: Int(Double(biasLevel) + gaussian * noiseSigma))
+            }
+        }
+        return CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: data)
+    }
+
     private static func samplePattern(x: Int, y: Int, width: Int, height: Int) -> UInt8 {
         let gradient = Double(x + y) / Double(width + height) * 180.0
 

@@ -80,7 +80,11 @@ actor CaptureEngine {
     /// for longer deep-sky exposures that don't suit the continuous video-poll loop. Stops video
     /// streaming first if it's running — the SDK does not support both modes concurrently.
     /// Entirely on the actor's background execution context, per the "Strict Threading" rule.
-    func captureSingleExposure(imageType: ASI_IMG_TYPE, exposureMicroseconds: Int) async throws -> CapturedFrame {
+    func captureSingleExposure(
+        imageType: ASI_IMG_TYPE,
+        exposureMicroseconds: Int,
+        isDark: Bool = false
+    ) async throws -> CapturedFrame {
         if isRunning { stop() }
 
         let width = camera.maxWidth
@@ -112,7 +116,7 @@ actor CaptureEngine {
             frameBuffer = FrameBuffer(byteCount: byteCount)
         }
 
-        try ZWOSDK.startExposure(cameraID: camera.cameraID, isDark: false)
+        try ZWOSDK.startExposure(cameraID: camera.cameraID, isDark: isDark)
 
         // Poll status at a cadence proportional to the exposure length, capped at 4x/second,
         // so a 30-minute exposure doesn't get hammered with pointless status queries.

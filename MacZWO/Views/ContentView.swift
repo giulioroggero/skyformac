@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(CameraManager.self) private var cameraManager
-    @State private var useMetalRenderer = false
 
     var body: some View {
         NavigationSplitView {
@@ -11,21 +10,50 @@ struct ContentView: View {
         } detail: {
             HSplitView {
                 VStack(spacing: 0) {
-                    PreviewView(cameraManager: cameraManager, useMetalRenderer: useMetalRenderer)
+                    PreviewView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
                         .frame(minWidth: 480, minHeight: 300)
-                    HistogramView(cameraManager: cameraManager)
+                        .overlay(alignment: .bottomTrailing) {
+                            if cameraManager.isAllSkyMonitorVisible {
+                                AllSkyMonitorView()
+                                    .frame(width: 220)
+                                    .padding(12)
+                            }
+                        }
+                    HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
                 }
                 ControlsPanelView(cameraManager: cameraManager)
                     .frame(minWidth: 260, idealWidth: 300)
             }
         }
+        // Night mode: preserves dark adaptation by rendering the whole content area in red only
+        // (green/blue channels zeroed via component-wise color multiplication). Applied to the
+        // SwiftUI content, not the native window toolbar chrome above it.
+        .compositingGroup()
+        .colorMultiply(cameraManager.isNightModeEnabled ? .red : .white)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 imageTypePicker
             }
             ToolbarItem {
-                Toggle("Metal Renderer", systemImage: "cpu", isOn: $useMetalRenderer)
+                Toggle("Metal Renderer", systemImage: "cpu", isOn: Binding(
+                    get: { cameraManager.useMetalRenderer },
+                    set: { cameraManager.useMetalRenderer = $0 }
+                ))
                     .help("Switch the live preview between the CPU (CGImage) and GPU (Metal) rendering paths")
+            }
+            ToolbarItem {
+                Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(
+                    get: { cameraManager.isNightModeEnabled },
+                    set: { cameraManager.isNightModeEnabled = $0 }
+                ))
+                    .help("Red-only UI to preserve night vision during visual observation")
+            }
+            ToolbarItem {
+                Toggle("All-Sky Monitor", systemImage: "cloud.sun", isOn: Binding(
+                    get: { cameraManager.isAllSkyMonitorVisible },
+                    set: { cameraManager.isAllSkyMonitorVisible = $0 }
+                ))
+                    .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
             }
             ToolbarItem(placement: .status) {
                 statusText

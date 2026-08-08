@@ -34,6 +34,20 @@
                ReferencedContainer = "container:MacZWO.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "4D538914DF8D849E6CF88120"
+               BuildableName = "MacZWOUITests.xctest"
+               BlueprintName = "MacZWOUITests"
+               ReferencedContainer = "container:MacZWO.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -49,6 +63,16 @@
                BlueprintIdentifier = "5DF1C07E66EED9490FC4CCDD"
                BuildableName = "MacZWOTests.xctest"
                BlueprintName = "MacZWOTests"
+               ReferencedContainer = "container:MacZWO.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "4D538914DF8D849E6CF88120"
+               BuildableName = "MacZWOUITests.xctest"
+               BlueprintName = "MacZWOUITests"
                ReferencedContainer = "container:MacZWO.xcodeproj">
             </BuildableReference>
          </TestableReference>

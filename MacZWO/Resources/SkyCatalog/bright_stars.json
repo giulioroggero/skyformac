@@ -1,0 +1,16 @@
+[
+  {"id": "Sirius", "commonName": "Sirius", "objectType": "Star", "raDegrees": 101.28715, "decDegrees": -16.71611, "magnitude": -1.46},
+  {"id": "Canopus", "commonName": "Canopus", "objectType": "Star", "raDegrees": 95.98787, "decDegrees": -52.69566, "magnitude": -0.74},
+  {"id": "Arcturus", "commonName": "Arcturus", "objectType": "Star", "raDegrees": 213.91530, "decDegrees": 19.18241, "magnitude": -0.05},
+  {"id": "Vega", "commonName": "Vega", "objectType": "Star", "raDegrees": 279.23473, "decDegrees": 38.78369, "magnitude": 0.03},
+  {"id": "Capella", "commonName": "Capella", "objectType": "Star", "raDegrees": 79.17232, "decDegrees": 45.99799, "magnitude": 0.08},
+  {"id": "Rigel", "commonName": "Rigel", "objectType": "Star", "raDegrees": 78.63446, "decDegrees": -8.20164, "magnitude": 0.13},
+  {"id": "Procyon", "commonName": "Procyon", "objectType": "Star", "raDegrees": 114.82550, "decDegrees": 5.22499, "magnitude": 0.34},
+  {"id": "Betelgeuse", "commonName": "Betelgeuse", "objectType": "Star", "raDegrees": 88.79294, "decDegrees": 7.40706, "magnitude": 0.50},
+  {"id": "Altair", "commonName": "Altair", "objectType": "Star", "raDegrees": 297.69582, "decDegrees": 8.86832, "magnitude": 0.76},
+  {"id": "Aldebaran", "commonName": "Aldebaran", "objectType": "Star", "raDegrees": 68.98016, "decDegrees": 16.50930, "magnitude": 0.86},
+  {"id": "Spica", "commonName": "Spica", "objectType": "Star", "raDegrees": 201.29825, "decDegrees": -11.16132, "magnitude": 0.97},
+  {"id": "Antares", "commonName": "Antares", "objectType": "Star", "raDegrees": 247.35192, "decDegrees": -26.43200, "magnitude": 1.06},
+  {"id": "Deneb", "commonName": "Deneb", "objectType": "Star", "raDegrees": 310.35798, "decDegrees": 45.28028, "magnitude": 1.25},
+  {"id": "Polaris", "commonName": "Polaris", "objectType": "Star", "raDegrees": 37.95456, "decDegrees": 89.26411, "magnitude": 1.98}
+]

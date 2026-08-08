@@ -42,6 +42,26 @@ struct CameraListView: View {
                     Button("Simulate Color") { cameraManager.simulateTestPattern(color: true) }
                 }
                 .controlSize(.small)
+
+                Text("Or a recognizable demo target (real positions/magnitudes from Stellarium's catalog):")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Menu("Demo Target…") {
+                    Section("Planets") {
+                        Button("Jupiter") { cameraManager.simulateDemoTarget(.jupiter) }
+                        Button("Saturn") { cameraManager.simulateDemoTarget(.saturn) }
+                        Button("Mars") { cameraManager.simulateDemoTarget(.mars) }
+                    }
+                    Section("Stars") {
+                        Button("Star Field") { cameraManager.simulateDemoTarget(.starField) }
+                    }
+                    Section("Deep Sky") {
+                        ForEach(DemoTarget.deepSkyShowcase) { target in
+                            Button(target.displayName) { cameraManager.simulateDemoTarget(target) }
+                        }
+                    }
+                }
+                .controlSize(.small)
             }
         }
         .padding()
