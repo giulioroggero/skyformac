@@ -56,6 +56,89 @@ enum StarPatternRecognizer {
             .compactMap { id, count in catalog.first { $0.id == id }.map { Match(object: $0, confidence: count) } }
     }
 
+    /// One detected pixel position resolved to a specific catalog star — unlike `recognize`'s
+    /// aggregate per-star votes, this is exact point-to-point correspondence, e.g. for
+    /// `LiveWCSSolver` to fit a real `WCSFrame` from.
+    struct Correspondence {
+        let pixel: CGPoint
+        let object: SkyCatalogObject
+        let confidence: Int
+    }
+
+    /// Resolves real pixel<->catalog-star correspondences, not just "which stars are plausibly
+    /// present" (see `recognize`'s doc comment on why sorted-side-ratio triangle shape matching
+    /// alone can't do this: it discards which vertex is which). This tries all 6 vertex-label
+    /// orderings of each candidate catalog triangle against each detected triple's *fixed* order,
+    /// so a shape match also pins down which detected point is which catalog star. Only keeps a
+    /// detected point's best-voted catalog star once it has `minimumVotes` independent triangle
+    /// matches agreeing on it, as a simple confidence/outlier filter.
+    static func correspondences(
+        detectedStars: [DetectedStar],
+        imageWidth: Int,
+        imageHeight: Int,
+        catalog: [SkyCatalogObject] = SkyCatalog.brightStars,
+        toleranceFraction: Double = 0.08,
+        minimumVotes: Int = 2
+    ) -> [Correspondence] {
+        guard imageWidth > 0, imageHeight > 0, detectedStars.count >= 3, catalog.count >= 3 else { return [] }
+
+        let points = detectedStars.map { star -> CGPoint in
+            let box = star.boundingBoxNormalized
+            return CGPoint(x: box.midX * CGFloat(imageWidth), y: (1 - box.midY) * CGFloat(imageHeight))
+        }
+        let cappedPoints = Array(points.prefix(12))
+
+        var votes: [Int: [String: Int]] = [:] // detected-point index -> catalog object id -> votes
+
+        for i in 0..<cappedPoints.count {
+            for j in (i + 1)..<cappedPoints.count {
+                for k in (j + 1)..<cappedPoints.count {
+                    let s12 = Double(hypot(cappedPoints[i].x - cappedPoints[j].x, cappedPoints[i].y - cappedPoints[j].y))
+                    guard s12 > 0 else { continue }
+                    let s23 = Double(hypot(cappedPoints[j].x - cappedPoints[k].x, cappedPoints[j].y - cappedPoints[k].y))
+                    let s13 = Double(hypot(cappedPoints[i].x - cappedPoints[k].x, cappedPoints[i].y - cappedPoints[k].y))
+                    let pixelR1 = s23 / s12
+                    let pixelR2 = s13 / s12
+
+                    for a in 0..<catalog.count {
+                        for b in (a + 1)..<catalog.count {
+                            for c in (b + 1)..<catalog.count {
+                                for (p1, p2, p3) in labelings(catalog[a], catalog[b], catalog[c]) {
+                                    let cs12 = angularSeparation(p1, p2)
+                                    guard cs12 > 0 else { continue }
+                                    let r1 = angularSeparation(p2, p3) / cs12
+                                    let r2 = angularSeparation(p1, p3) / cs12
+                                    guard abs(r1 - pixelR1) < toleranceFraction, abs(r2 - pixelR2) < toleranceFraction
+                                    else { continue }
+                                    votes[i, default: [:]][p1.id, default: 0] += 1
+                                    votes[j, default: [:]][p2.id, default: 0] += 1
+                                    votes[k, default: [:]][p3.id, default: 0] += 1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        var results: [Correspondence] = []
+        for (pixelIndex, tally) in votes {
+            guard let best = tally.max(by: { $0.value < $1.value }), best.value >= minimumVotes,
+                  let object = catalog.first(where: { $0.id == best.key })
+            else { continue }
+            results.append(Correspondence(pixel: cappedPoints[pixelIndex], object: object, confidence: best.value))
+        }
+        return results.sorted { $0.confidence > $1.confidence }
+    }
+
+    /// All 6 orderings of a triangle's 3 vertices — trying each against a detected triple's fixed
+    /// order is what lets `correspondences` recover which vertex is which (see its doc comment).
+    private static func labelings(
+        _ a: SkyCatalogObject, _ b: SkyCatalogObject, _ c: SkyCatalogObject
+    ) -> [(SkyCatalogObject, SkyCatalogObject, SkyCatalogObject)] {
+        [(a, b, c), (a, c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a)]
+    }
+
     // MARK: - Geometry
 
     private struct CatalogTriangle {

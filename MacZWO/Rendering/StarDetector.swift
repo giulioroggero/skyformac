@@ -45,7 +45,7 @@ enum StarDetector {
             let box = contour.normalizedPath.boundingBoxOfPath
             // Reject anything that isn't a small, roughly point-like blob: stars are small in
             // frame and roughly as wide as they are tall. Large/irregular contours are noise,
-            // gradients, or (for the simulated pattern) the frame border itself.
+            // gradients, or the frame border itself.
             guard box.width < 0.2, box.height < 0.2, box.width > 0, box.height > 0 else { continue }
             let aspect = box.width / box.height
             guard aspect > 0.4, aspect < 2.5 else { continue }

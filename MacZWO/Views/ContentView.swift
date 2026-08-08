@@ -65,12 +65,7 @@ struct ContentView: View {
                     .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
             }
             ToolbarItem {
-                if cameraManager.isSimulating {
-                    Button("Exit Demo Mode", systemImage: "xmark.circle") {
-                        cameraManager.disconnect()
-                    }
-                    .help("Stop the simulated camera and return to the disconnected state")
-                } else if cameraManager.isExternalWebcam {
+                if cameraManager.isExternalWebcam {
                     Button("Disconnect Camera", systemImage: "xmark.circle") {
                         cameraManager.disconnect()
                     }

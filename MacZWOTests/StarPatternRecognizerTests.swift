@@ -77,4 +77,52 @@ struct StarPatternRecognizerTests {
         let matches = StarPatternRecognizer.recognize(detectedStars: detected, imageWidth: 100, imageHeight: 100)
         #expect(matches.isEmpty)
     }
+
+    @Test func correspondencesResolveWhichPointIsWhichStar() {
+        // A scalene triangle (no two sides/labelings share a ratio) so there's exactly one
+        // correct vertex assignment for `correspondences` to find, unlike `recognize`'s
+        // unordered-vote test above which only checks catalog membership, not which point is which.
+        // Side lengths ~3, ~2.69, ~1.12 — clearly distinct (well beyond the 8% tolerance) so
+        // exactly one vertex labeling can match, unlike the near-isoceles shape this originally
+        // used, where two similar side lengths let more than one labeling satisfy the tolerance.
+        let catalog = [
+            catalogObject(id: "A", ra: 0, dec: 0),
+            catalogObject(id: "B", ra: 3, dec: 0),
+            catalogObject(id: "C", ra: 0.5, dec: 1),
+        ]
+        let theta = 20.0 * .pi / 180
+        let scale = 80.0
+        let translate = (x: 250.0, y: 250.0)
+        func project(_ dx: Double, _ dy: Double) -> (Double, Double) {
+            let x = translate.x + scale * (dx * cos(theta) - dy * sin(theta))
+            let y = translate.y + scale * (dx * sin(theta) + dy * cos(theta))
+            return (x, y)
+        }
+        let (ax, ay) = project(0, 0)
+        let (bx, by) = project(3, 0)
+        let (cx, cy) = project(0.5, 1)
+
+        let detected = [
+            detectedStar(pixelX: ax, pixelY: ay, imageSize: 500),
+            detectedStar(pixelX: bx, pixelY: by, imageSize: 500),
+            detectedStar(pixelX: cx, pixelY: cy, imageSize: 500),
+        ]
+
+        let correspondences = StarPatternRecognizer.correspondences(
+            detectedStars: detected, imageWidth: 500, imageHeight: 500, catalog: catalog, minimumVotes: 1
+        )
+
+        #expect(correspondences.count == 3)
+        for correspondence in correspondences {
+            let expected: (Double, Double)
+            switch correspondence.object.id {
+            case "A": expected = (ax, ay)
+            case "B": expected = (bx, by)
+            case "C": expected = (cx, cy)
+            default: Issue.record("Unexpected catalog id \(correspondence.object.id)"); continue
+            }
+            #expect(abs(correspondence.pixel.x - expected.0) < 0.001)
+            #expect(abs(correspondence.pixel.y - expected.1) < 0.001)
+        }
+    }
 }

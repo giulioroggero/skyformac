@@ -164,12 +164,7 @@ struct ControlsPanelView: View {
     private var singleExposureSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Single Exposure").font(.headline)
-            HStack {
-                Text(String(format: "%.1f s", exposureSeconds))
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 48, alignment: .leading)
-                Slider(value: $exposureSeconds, in: 0.1...60)
-            }
+            ExposureField(seconds: $exposureSeconds)
             HStack {
                 Button {
                     Task { await cameraManager.captureSingleExposure(seconds: exposureSeconds) }
@@ -466,12 +461,7 @@ struct ControlsPanelView: View {
             Text(title).font(.caption.bold())
             Text(helpText).font(.caption2).foregroundStyle(.secondary)
 
-            HStack {
-                Text(String(format: "%.1f s", seconds.wrappedValue))
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 48, alignment: .leading)
-                Slider(value: seconds, in: 0.1...60)
-            }
+            ExposureField(seconds: seconds)
             Button(captureLabel) { Task { await onCapture() } }
                 .disabled(cameraManager.isCapturingExposure)
 
@@ -731,5 +721,47 @@ struct ControlsPanelView: View {
                 .foregroundStyle(.secondary)
         }
         .help(cap.controlDescription)
+    }
+}
+
+/// Exposure-duration control shared by "Single Exposure", "Dark Frames", and "Flat Frames":
+/// real ASI sensors expose exposure lengths from tens of microseconds (planetary/lucky imaging)
+/// up to hundreds of seconds (deep sky), a range a linear seconds slider can't usefully cover —
+/// at 0.1s resolution over a 60s span, there's no way to dial in, say, 500µs. The slider itself
+/// operates in log10(seconds) space so every decade (µs/ms/s) gets equal room, while the
+/// underlying binding stays plain seconds — `CameraManager.captureSingleExposure`/
+/// `captureDarkFrame`/`captureFlatFrame` all already take fractional seconds and convert to
+/// microseconds internally, so no call site needed to change.
+private struct ExposureField: View {
+    @Binding var seconds: Double
+    var minSeconds: Double = 0.000_001 // 1 µs — comfortably below any real ASI sensor's floor
+    var maxSeconds: Double = 60
+
+    private var logRange: ClosedRange<Double> { log10(minSeconds)...log10(maxSeconds) }
+
+    private var logValue: Binding<Double> {
+        Binding(
+            get: { log10(min(max(seconds, minSeconds), maxSeconds)) },
+            set: { seconds = pow(10, $0) }
+        )
+    }
+
+    var body: some View {
+        HStack {
+            Text(Self.format(seconds))
+                .font(.caption.monospacedDigit())
+                .frame(width: 64, alignment: .leading)
+            Slider(value: logValue, in: logRange)
+        }
+    }
+
+    private static func format(_ seconds: Double) -> String {
+        if seconds < 0.001 {
+            return String(format: "%.0f µs", seconds * 1_000_000)
+        } else if seconds < 1 {
+            return String(format: "%.1f ms", seconds * 1_000)
+        } else {
+            return String(format: "%.2f s", seconds)
+        }
     }
 }

@@ -44,13 +44,10 @@ final class CameraManager {
     /// entirely different (see `WebcamCaptureEngine`/`connectToWebcam`).
     private(set) var availableWebcams: [AVCaptureDevice] = []
     private(set) var connectedCamera: ZWOCameraInfo?
-    /// `true` while a synthetic camera from `simulateTestPattern`/`simulateDemoTarget` is active
-    /// (see `ZWOCameraInfo`'s `cameraID: -1` doc comment) — lets the UI offer a way back to the
-    /// real "no camera connected" state, since simulated cameras never show up in
-    /// `availableCameras` for `CameraListView`'s per-row Disconnect button to attach to.
-    var isSimulating: Bool { connectedCamera?.cameraID == -1 }
-    /// `true` while a real `WebcamCaptureEngine` source (iPhone/webcam) is connected — same
-    /// "offer a way back" rationale as `isSimulating` (see `ZWOCameraInfo.external`'s cameraID).
+    /// `true` while a real `WebcamCaptureEngine` source (iPhone/webcam) is connected — lets the
+    /// UI offer a way back to the real "no camera connected" state, since webcam sources never
+    /// show up in `availableCameras` for `CameraListView`'s per-row Disconnect button to attach
+    /// to (see `ZWOCameraInfo.external`'s cameraID doc comment).
     var isExternalWebcam: Bool { connectedCamera?.cameraID == -2 }
     private(set) var controls: [ZWOControlCaps] = []
     private(set) var controlValues: [Int32: ZWOControlValue] = [:]
@@ -118,28 +115,28 @@ final class CameraManager {
     private(set) var planetROI: CGRect?
     private var planetTrackingTask: Task<Void, Never>?
 
-    /// Ground-truth astrometric calibration for the current demo target, per
-    /// spec/MacZWO_Catalog_HUD_Spec.md — see `DemoTarget.groundTruthWCS`'s doc comment for why
-    /// this is demo-only (no blind plate solver exists). `nil` for real camera streaming, planet
-    /// demos, and the plain test patterns; `PreviewView` only shows `SkyHUDView` when non-nil.
-    private(set) var demoWCS: WCSFrame? {
+    /// Astrometric calibration for the current field, solved by `LiveWCSSolver` from real
+    /// `StarPatternRecognizer.correspondences` (see `scheduleFocusAssistIfNeeded`) — needs
+    /// `isStarRecognitionEnabled` (Focus Assist -> Recognize Stars) and enough confidently-matched
+    /// stars in frame. `nil` otherwise; `PreviewView` only shows `SkyHUDView` when non-nil.
+    private(set) var liveWCS: WCSFrame? {
         didSet { refreshVisibleSkyObjects() }
     }
     private(set) var visibleSkyObjects: [SkyObject] = []
     private var catalogFetchTask: Task<Void, Never>?
 
-    /// Re-queries `CatalogRepository` for whatever falls inside `demoWCS`'s field of view.
-    /// Cancels any in-flight fetch first (spec section 6.3) — moot today since `demoWCS` is
-    /// static for the lifetime of a demo session, but keeps this correct if a future WCS source
-    /// (e.g. a real plate solver) starts updating it continuously.
+    /// Re-queries `CatalogRepository` for whatever falls inside `liveWCS`'s field of view.
+    /// Cancels any in-flight fetch first (spec section 6.3) — `liveWCS` can change every focus-
+    /// assist pass as the field drifts or the star match improves/degrades, unlike the old
+    /// demo-mode WCS which was fixed for a whole session.
     private func refreshVisibleSkyObjects() {
         catalogFetchTask?.cancel()
-        guard let demoWCS else {
+        guard let liveWCS else {
             visibleSkyObjects = []
             return
         }
-        let bounds = demoWCS.boundingBox()
-        let fov = demoWCS.fieldOfViewDegrees
+        let bounds = liveWCS.boundingBox()
+        let fov = liveWCS.fieldOfViewDegrees
         let maxMagnitude = CatalogRepository.magnitudeLimit(forFOVDegrees: max(fov.width, fov.height))
         catalogFetchTask = Task { [weak self] in
             let objects = await CatalogRepository.shared.fetchObjects(in: bounds, maxMagnitude: maxMagnitude)
@@ -371,7 +368,6 @@ final class CameraManager {
     var isLuckyImagingBurstComplete: Bool { luckyImagingSession?.isComplete ?? false }
 
     private var frameConsumerTask: Task<Void, Never>?
-    private var simulationTask: Task<Void, Never>?
     private var focusAssistTask: Task<Void, Never>?
     private var enhancementTask: Task<Void, Never>?
 
@@ -416,8 +412,8 @@ final class CameraManager {
 
         let dimensions = Self.activeDimensions(of: device)
         let engine = WebcamCaptureEngine(device: device)
-        engine.onFrame = { [weak self] frame in self?.ingest(frame) }
         engine.onDisconnect = { [weak self] in self?.handleWebcamDisconnected() }
+        let stream = engine.frames()
 
         do {
             try await engine.start()
@@ -431,11 +427,23 @@ final class CameraManager {
         connectedCamera = ZWOCameraInfo.external(name: device.localizedName, width: dimensions.width, height: dimensions.height)
         controls = []
         controlValues = [:]
-        // `MetalFrameRenderer.process` doesn't debayer/stretch RGB24 yet (see its doc comment) —
-        // force the CPU renderer so the preview doesn't just go blank.
-        useMetalRenderer = false
         isLiveViewActive = true
         connectionState = .streaming
+        consumeWebcamFrames(stream)
+    }
+
+    /// Single pull-based consumer, mirroring `startPreview`'s ZWO frame loop — `frames()` buffers
+    /// only the newest frame (see its doc comment), so this naturally paces itself to however
+    /// fast `ingest` can actually render instead of racing ahead of it. Shared by the initial
+    /// `connectToWebcam` subscription and `resumeLiveView`'s re-subscription after
+    /// `captureSingleExposure` cancels the previous consumer to freeze on a single frame.
+    private func consumeWebcamFrames(_ stream: AsyncStream<CapturedFrame>) {
+        frameConsumerTask = Task { [weak self] in
+            for await frame in stream {
+                guard let self else { return }
+                self.ingest(frame)
+            }
+        }
     }
 
     private static func activeDimensions(of device: AVCaptureDevice) -> (width: Int, height: Int) {
@@ -522,59 +530,7 @@ final class CameraManager {
         }
     }
 
-    /// Feeds synthetic frames through the exact same debayer/histogram/render pipeline as a
-    /// real camera, with no hardware attached — used by the "Simulate Test Pattern" debug
-    /// action (see `CameraListView`) to exercise and visually verify the rendering pipeline.
-    func simulateTestPattern(color: Bool) {
-        disconnect()
-        let camera = color ? ZWOCameraInfo.simulatedColor() : ZWOCameraInfo.simulatedMono()
-        connectedCamera = camera
-        controls = []
-        controlValues = [:]
-        connectionState = .streaming
-        lastErrorMessage = nil
-
-        simulationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                let frame = color
-                    ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
-                    : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
-                self.ingest(frame)
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-        }
-    }
-
-    /// Same debug/demo path as `simulateTestPattern`, but rendering a recognizable
-    /// solar-system/deep-sky target (`DemoTargetGenerator`) instead of an abstract test card —
-    /// useful for exercising planetary auto-center, focus/HFD tracking, and star recognition
-    /// without any hardware.
-    func simulateDemoTarget(_ target: DemoTarget) {
-        disconnect()
-        let camera = ZWOCameraInfo.simulatedMono()
-        connectedCamera = camera
-        controls = []
-        controlValues = [:]
-        connectionState = .streaming
-        lastErrorMessage = nil
-        demoWCS = target.groundTruthWCS(width: camera.maxWidth, height: camera.maxHeight)
-
-        simulationTask = Task { [weak self] in
-            var phase = 0.0
-            while !Task.isCancelled {
-                guard let self else { return }
-                let frame = DemoTargetGenerator.generate(
-                    target, width: camera.maxWidth, height: camera.maxHeight, animationPhase: phase
-                )
-                self.ingest(frame)
-                phase += 0.15
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-        }
-    }
-
-    /// The single place a freshly-captured raw frame (real camera or simulated) enters the
+    /// The single place a freshly-captured raw frame (real camera or webcam) enters the
     /// display pipeline: dark subtraction, then lucky-imaging burst collection, then live
     /// stacking — all operating on raw sensor data, before `refreshCurrentImage` debayers and
     /// stretches whatever `currentFrame` ends up being for on-screen display.
@@ -645,12 +601,8 @@ final class CameraManager {
 
         let exposureMicroseconds = Int(seconds * 1_000_000)
 
-        if camera.cameraID < 0 {
-            try? await Task.sleep(for: .seconds(min(seconds, 2)))
-            let frame = camera.isColorCamera
-                ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
-                : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
-            calibrationLibrary.addDark(frame, exposureMicroseconds: exposureMicroseconds)
+        guard camera.cameraID >= 0 else {
+            lastErrorMessage = "Dark-frame calibration needs a real ASI camera's controllable exposure — not available for iPhone/webcam sources."
             return
         }
 
@@ -680,12 +632,8 @@ final class CameraManager {
 
         let exposureMicroseconds = Int(seconds * 1_000_000)
 
-        if camera.cameraID < 0 {
-            try? await Task.sleep(for: .seconds(min(seconds, 2)))
-            let frame = camera.isColorCamera
-                ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
-                : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
-            calibrationLibrary.addFlat(frame, exposureMicroseconds: exposureMicroseconds)
+        guard camera.cameraID >= 0 else {
+            lastErrorMessage = "Flat-frame calibration needs a real ASI camera's controllable exposure — not available for iPhone/webcam sources."
             return
         }
 
@@ -730,33 +678,32 @@ final class CameraManager {
         lastErrorMessage = nil
         defer { isMeasuringSmartExposure = false }
 
+        guard camera.cameraID >= 0 else {
+            lastErrorMessage = "Smart Exposure measures a real ASI sensor's read noise from a controllable bias frame — not available for iPhone/webcam sources."
+            return
+        }
+
         let electronsPerADU = Double(camera.electronsPerADU)
         let biasFrame: CapturedFrame
         let skyFrame: CapturedFrame
 
-        if camera.cameraID < 0 {
-            try? await Task.sleep(for: .milliseconds(500))
-            biasFrame = TestPatternGenerator.syntheticBias(width: camera.maxWidth, height: camera.maxHeight)
-            skyFrame = TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
-        } else {
-            guard let engine = captureEngine else { return }
-            do {
-                let minimumMicroseconds = controls
-                    .first { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }
-                    .map { max($0.minValue, 32) } ?? 32
-                biasFrame = try await engine.captureSingleExposure(
-                    imageType: selectedImageType, exposureMicroseconds: minimumMicroseconds
-                )
-                skyFrame = try await engine.captureSingleExposure(
-                    imageType: selectedImageType,
-                    exposureMicroseconds: Int(testExposureSeconds * 1_000_000)
-                )
-                connectionState = .connected
-            } catch {
-                lastErrorMessage = String(describing: error)
-                connectionState = .error(String(describing: error))
-                return
-            }
+        guard let engine = captureEngine else { return }
+        do {
+            let minimumMicroseconds = controls
+                .first { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }
+                .map { max($0.minValue, 32) } ?? 32
+            biasFrame = try await engine.captureSingleExposure(
+                imageType: selectedImageType, exposureMicroseconds: minimumMicroseconds
+            )
+            skyFrame = try await engine.captureSingleExposure(
+                imageType: selectedImageType,
+                exposureMicroseconds: Int(testExposureSeconds * 1_000_000)
+            )
+            connectionState = .connected
+        } catch {
+            lastErrorMessage = String(describing: error)
+            connectionState = .error(String(describing: error))
+            return
         }
 
         guard let readNoise = ExposureOptimizer.readNoiseElectrons(biasFrame: biasFrame, electronsPerADU: electronsPerADU),
@@ -980,6 +927,15 @@ final class CameraManager {
             let matches = (recognizeStars ? result?.stars : nil).map {
                 StarPatternRecognizer.recognize(detectedStars: $0, imageWidth: width, imageHeight: height)
             } ?? []
+            // Real point-to-point correspondences (not just `matches`' aggregate votes) are what
+            // `LiveWCSSolver` needs to fit an actual WCS — see `StarPatternRecognizer.recognize`'s
+            // doc comment on why unordered triangle-shape voting alone can't provide those.
+            let wcs = (recognizeStars ? result?.stars : nil).flatMap { stars -> WCSFrame? in
+                let correspondences = StarPatternRecognizer.correspondences(
+                    detectedStars: stars, imageWidth: width, imageHeight: height
+                )
+                return LiveWCSSolver.solve(correspondences: correspondences, imageWidth: width, imageHeight: height)
+            }
             // HFD is measured on the raw (linear, pre-stretch) sensor data, not the debayered/
             // stretched display image the star positions were detected on — a non-linear
             // stretch would distort the flux ratios HFD's centroid/radius math depends on.
@@ -988,6 +944,7 @@ final class CameraManager {
             await MainActor.run {
                 self?.focusAssist = result
                 self?.recognizedObjects = matches
+                self?.liveWCS = wcs
                 self?.focusAssistTask = nil
                 if let hfd {
                     self?.focusTracker.record(medianHFD: hfd, at: Date())
@@ -1009,14 +966,11 @@ final class CameraManager {
 
         defer { isCapturingExposure = false }
 
-        if camera.cameraID < 0 {
-            // Simulated camera: no hardware exposure to wait on, just synthesize a frame.
-            try? await Task.sleep(for: .seconds(min(seconds, 2))) // still feels like "capturing"
-            let isColor = camera.isColorCamera
-            let raw = isColor
-                ? TestPatternGenerator.bayerRAW8(width: camera.maxWidth, height: camera.maxHeight)
-                : TestPatternGenerator.mono8(width: camera.maxWidth, height: camera.maxHeight)
-            currentFrame = applyDarkSubtraction(raw)
+        if camera.cameraID == -2 {
+            // Webcam: no controllable hardware exposure — `frameConsumerTask?.cancel()` above
+            // already stopped the live feed, so `currentFrame` is simply whatever the last
+            // incoming frame was (already real, already through `ingest`). "Capturing" here just
+            // means freezing on it; `resumeLiveView()` re-subscribes to keep streaming.
             frameID &+= 1
             refreshCurrentImage()
             return
@@ -1040,17 +994,15 @@ final class CameraManager {
 
     /// Returns to continuous video streaming after `captureSingleExposure`.
     func resumeLiveView() {
-        guard let camera = connectedCamera, let engine = captureEngine, camera.cameraID >= 0 else {
-            isLiveViewActive = true
-            return
-        }
         isLiveViewActive = true
-        Task { await startPreview(using: engine, imageType: selectedImageType) }
+        if let engine = webcamEngine {
+            consumeWebcamFrames(engine.frames())
+        } else if let camera = connectedCamera, let engine = captureEngine, camera.cameraID >= 0 {
+            Task { await startPreview(using: engine, imageType: selectedImageType) }
+        }
     }
 
     func disconnect() {
-        simulationTask?.cancel()
-        simulationTask = nil
         frameConsumerTask?.cancel()
         frameConsumerTask = nil
         focusAssistTask?.cancel()
@@ -1065,7 +1017,7 @@ final class CameraManager {
         gpuHistogramCounts = nil
         catalogFetchTask?.cancel()
         catalogFetchTask = nil
-        demoWCS = nil
+        liveWCS = nil
         webcamEngine?.stop()
         webcamEngine = nil
         isLiveViewActive = true

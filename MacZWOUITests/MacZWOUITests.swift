@@ -16,14 +16,6 @@ final class MacZWOUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Cameras"].waitForExistence(timeout: 10))
     }
 
-    func testSimulateMonoButtonAppearsWithNoHardware() throws {
-        let app = XCUIApplication()
-        app.launch()
-
-        XCTAssertTrue(app.buttons["Simulate Mono"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Simulate Color"].exists)
-    }
-
     func testToolbarRendererToggleExists() throws {
         let app = XCUIApplication()
         app.launch()
@@ -34,14 +26,4 @@ final class MacZWOUITests: XCTestCase {
             || app.buttons["RenderPathToggle"].waitForExistence(timeout: 1))
     }
 
-    func testSimulatingAPatternShowsStreamingStatus() throws {
-        let app = XCUIApplication()
-        app.launch()
-
-        let simulateButton = app.buttons["Simulate Mono"]
-        XCTAssertTrue(simulateButton.waitForExistence(timeout: 10))
-        simulateButton.click()
-
-        XCTAssertTrue(app.staticTexts["Streaming"].waitForExistence(timeout: 10))
-    }
 }

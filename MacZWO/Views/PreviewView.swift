@@ -188,12 +188,12 @@ struct PreviewView: View {
         }
     }
 
-    /// Catalog object badges/labels (spec/MacZWO_Catalog_HUD_Spec.md) — only ever shown when a
-    /// `WCSFrame` is available, which today means a `.starField`/`.deepSky` demo target is active
-    /// (see `CameraManager.demoWCS`'s doc comment for why real camera streaming has none).
+    /// Catalog object badges/labels (spec/MacZWO_Catalog_HUD_Spec.md) — shown once
+    /// `CameraManager.liveWCS` has a real solve from identified stars (Focus Assist -> Recognize
+    /// Stars needs to be on, and enough confidently-matched stars in frame).
     @ViewBuilder
     private var skyHUDOverlay: some View {
-        if let wcs = cameraManager.demoWCS {
+        if let wcs = cameraManager.liveWCS {
             SkyHUDView(wcs: wcs, visibleObjects: cameraManager.visibleSkyObjects)
         }
     }

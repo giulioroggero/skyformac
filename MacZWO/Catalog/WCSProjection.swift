@@ -1,14 +1,13 @@
 import CoreGraphics
 import Foundation
 
-/// A solved (or, for demo mode, ground-truth-synthesized — see `CameraManager.demoWCS`)
-/// astrometric calibration for a single frame: field center, pixel scale, and field rotation.
-/// Per spec/MacZWO_Catalog_HUD_Spec.md section 4, this is what `SkyHUDView` needs to map any
-/// catalog object's (RA, Dec) onto the pixel it falls on in that specific frame.
+/// A solved astrometric calibration for a single frame: field center, pixel scale, and field
+/// rotation. Per spec/MacZWO_Catalog_HUD_Spec.md section 4, this is what `SkyHUDView` needs to
+/// map any catalog object's (RA, Dec) onto the pixel it falls on in that specific frame.
 ///
-/// - Important: This app has no blind plate solver (see `StarPatternRecognizer`'s doc comment —
-///   it identifies stars by pattern, but doesn't establish a WCS). A `WCSFrame` here comes only
-///   from demo mode, where the simulated target's true pointing/FOV is known by construction.
+/// - Important: `LiveWCSSolver` fits this from `StarPatternRecognizer.correspondences` — a small-
+///   angle least-squares similarity-transform fit, not a full blind plate solver (no distortion
+///   model, accuracy narrows to the star match's own confidence). See its doc comment.
 struct WCSFrame: Sendable, Equatable {
     let centerRADeg: Double
     let centerDecDeg: Double

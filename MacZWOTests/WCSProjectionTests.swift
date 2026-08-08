@@ -23,10 +23,9 @@ struct WCSProjectionTests {
         #expect(abs(pixel.y - 240) < 0.001)
     }
 
-    /// At `rotationRadians: .pi`, +RA should move right and +Dec should move up — the same
-    /// sign convention `DemoTargetGenerator.project` uses (see `DemoTarget.groundTruthWCS`'s
-    /// doc comment for why the two must agree).
-    @Test func matchesDemoTargetGeneratorSignConvention() throws {
+    /// At `rotationRadians: .pi`, +RA should move right and +Dec should move up — the sign
+    /// convention `LiveWCSSolver` must also produce, since it's solving for the same `WCSFrame`.
+    @Test func matchesLiveWCSSignConvention() throws {
         let wcs = makeFrame(fovDegrees: 10, rotation: .pi)
         let east = try #require(wcs.projectToPixel(raDeg: 180.5, decDeg: 0))
         #expect(east.x > 320) // +RA -> +x

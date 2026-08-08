@@ -9,7 +9,13 @@ struct ImageExporterTests {
     }
 
     private func makeTestImage() -> CGImage {
-        let frame = TestPatternGenerator.mono8(width: 16, height: 16)
+        let width = 16, height = 16
+        var data = Data(count: width * height)
+        data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+            for i in 0..<(width * height) { base[i] = UInt8(i % 256) }
+        }
+        let frame = CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: data)
         return CGImageRenderer.makeDisplayImage(
             from: frame,
             isColorCamera: false,

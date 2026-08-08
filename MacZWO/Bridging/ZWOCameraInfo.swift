@@ -55,12 +55,12 @@ struct ZWOCameraInfo: Identifiable, Hashable, Sendable {
         hasher.combine(cameraID)
     }
 
-    /// Synthetic camera info for the non-ZWO-SDK connection paths — the "Simulate Test Pattern"
-    /// debug targets (`cameraID: -1`) and real `WebcamCaptureEngine` sources (`cameraID: -2`,
-    /// Continuity Camera/USB webcam) — so both can flow through the exact same `CameraManager`/
-    /// `CGImageRenderer`/histogram pipeline a real ASI camera does, without an `ASI_CAMERA_INFO`
-    /// to back them. The two negative `cameraID`s are distinguished by `CameraManager.isSimulating`
-    /// vs. `isExternalWebcam` and can never collide with a real device (ZWO IDs are always >= 0).
+    /// Synthetic camera info for the non-ZWO-SDK connection path — real `WebcamCaptureEngine`
+    /// sources (`cameraID: -2`, Continuity Camera/USB webcam) — so it can flow through the exact
+    /// same `CameraManager`/`CGImageRenderer`/histogram pipeline a real ASI camera does, without
+    /// an `ASI_CAMERA_INFO` to back it. `cameraID: -2` is distinguished by
+    /// `CameraManager.isExternalWebcam` and can never collide with a real device (ZWO IDs are
+    /// always >= 0).
     private init(
         simulatedName name: String,
         cameraID: Int32,
@@ -88,32 +88,6 @@ struct ZWOCameraInfo: Identifiable, Hashable, Sendable {
         self.electronsPerADU = 1.0
         self.bitDepth = bitDepth
         self.isTriggerCamera = false
-    }
-
-    static func simulatedMono(width: Int = 640, height: Int = 480) -> ZWOCameraInfo {
-        ZWOCameraInfo(
-            simulatedName: "Simulated Mono Camera",
-            cameraID: -1,
-            isColorCamera: false,
-            bayerPattern: ASI_BAYER_RG,
-            maxWidth: width,
-            maxHeight: height,
-            bitDepth: 8,
-            supportedVideoFormats: [ASI_IMG_RAW8, ASI_IMG_RAW16]
-        )
-    }
-
-    static func simulatedColor(width: Int = 640, height: Int = 480) -> ZWOCameraInfo {
-        ZWOCameraInfo(
-            simulatedName: "Simulated Color Camera",
-            cameraID: -1,
-            isColorCamera: true,
-            bayerPattern: ASI_BAYER_RG,
-            maxWidth: width,
-            maxHeight: height,
-            bitDepth: 8,
-            supportedVideoFormats: [ASI_IMG_RAW8, ASI_IMG_RAW16]
-        )
     }
 
     /// An iPhone/iPad (Continuity Camera, wired or wireless) or other AVFoundation webcam,

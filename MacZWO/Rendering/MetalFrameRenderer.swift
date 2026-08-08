@@ -10,6 +10,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let stretchPipeline: MTLComputePipelineState
+    private let stretchRGB24Pipeline: MTLComputePipelineState
+    private let histogramReduceRGB24Pipeline: MTLComputePipelineState
     private let debayerPipeline: MTLComputePipelineState
     private let renderPipeline: MTLRenderPipelineState
     private let histogramPipeline: MTLComputePipelineState
@@ -31,6 +33,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private var sourceWidth = 0
     private var sourceHeight = 0
     private var sourcePixelFormat: MTLPixelFormat = .r8Unorm
+    /// Raw packed-RGB24 upload buffer for `processRGB24` — a buffer rather than a texture, since
+    /// RGB24 (3 bytes/pixel) isn't a valid Metal texture pixel format.
+    private var rgbSourceBuffer: MTLBuffer?
 
     /// GPU-side live-stack running-sum texture (`r32Float`) and its frame count. Independent of
     /// `LiveStacker` (the CPU accumulator used by the `CGImage` render path) — when the Metal
@@ -61,6 +66,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         guard let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
               let stretchFn = library.makeFunction(name: "stretchMono"),
+              let stretchRGB24Fn = library.makeFunction(name: "stretchRGB24"),
+              let histogramRGB24Fn = library.makeFunction(name: "histogramReduceRGB24"),
               let debayerFn = library.makeFunction(name: "debayerAndStretch"),
               let histogramFn = library.makeFunction(name: "histogramReduce"),
               let accumulateFn = library.makeFunction(name: "accumulateMono"),
@@ -81,6 +88,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
         do {
             self.stretchPipeline = try device.makeComputePipelineState(function: stretchFn)
+            self.stretchRGB24Pipeline = try device.makeComputePipelineState(function: stretchRGB24Fn)
+            self.histogramReduceRGB24Pipeline = try device.makeComputePipelineState(function: histogramRGB24Fn)
             self.debayerPipeline = try device.makeComputePipelineState(function: debayerFn)
             self.histogramPipeline = try device.makeComputePipelineState(function: histogramFn)
             self.accumulatePipeline = try device.makeComputePipelineState(function: accumulateFn)
@@ -134,6 +143,75 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         waveletOutputTexture = makeScratch()
     }
 
+    /// Just the display-sized `outputTexture`, for `processRGB24` — RGB24 has no mono
+    /// `sourceTexture`/scratch textures to keep in sync (see `ensureTextures`), so this is
+    /// deliberately narrower than that.
+    private func ensureOutputTexture(width: Int, height: Int) {
+        guard outputTexture == nil || outputTexture?.width != width || outputTexture?.height != height else { return }
+        let outputDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm, width: width, height: height, mipmapped: false
+        )
+        outputDescriptor.usage = [.shaderWrite, .shaderRead]
+        outputTexture = device.makeTexture(descriptor: outputDescriptor)
+    }
+
+    private func ensureRGBSourceBuffer(byteCount: Int) {
+        guard rgbSourceBuffer == nil || rgbSourceBuffer!.length < byteCount else { return }
+        rgbSourceBuffer = device.makeBuffer(length: byteCount, options: .storageModeShared)
+    }
+
+    /// Stretch + display (no debayer) for webcam/iPhone RGB24 frames, entirely on the GPU —
+    /// see `stretchRGB24`'s doc comment for why this reads from a buffer, not a texture.
+    private func processRGB24(frame: CapturedFrame, stretch: DisplayStretch) {
+        ensureOutputTexture(width: frame.width, height: frame.height)
+        let byteCount = frame.width * frame.height * 3
+        ensureRGBSourceBuffer(byteCount: byteCount)
+        guard let outputTexture, let rgbSourceBuffer,
+              let commandBuffer = commandQueue.makeCommandBuffer(),
+              let encoder = commandBuffer.makeComputeCommandEncoder()
+        else { return }
+
+        frame.data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            memcpy(rgbSourceBuffer.contents(), base, min(byteCount, frame.data.count))
+        }
+
+        var width = UInt32(frame.width)
+        var height = UInt32(frame.height)
+        var stretchParams = (Float(stretch.blackPoint), Float(stretch.whitePoint), Float(1.0))
+        let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroups = MTLSize(width: (frame.width + 15) / 16, height: (frame.height + 15) / 16, depth: 1)
+
+        encoder.setComputePipelineState(stretchRGB24Pipeline)
+        encoder.setBuffer(rgbSourceBuffer, offset: 0, index: 0)
+        encoder.setBytes(&width, length: MemoryLayout<UInt32>.size, index: 1)
+        encoder.setBytes(&stretchParams, length: MemoryLayout.size(ofValue: stretchParams), index: 2)
+        encoder.setTexture(outputTexture, index: 0)
+        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+        encoder.endEncoding()
+
+        if onHistogramUpdate != nil, let histogramEncoder = commandBuffer.makeComputeCommandEncoder() {
+            memset(histogramBuffer.contents(), 0, histogramBuffer.length)
+            histogramEncoder.setComputePipelineState(histogramReduceRGB24Pipeline)
+            histogramEncoder.setBuffer(rgbSourceBuffer, offset: 0, index: 0)
+            histogramEncoder.setBytes(&width, length: MemoryLayout<UInt32>.size, index: 1)
+            histogramEncoder.setBytes(&height, length: MemoryLayout<UInt32>.size, index: 2)
+            histogramEncoder.setBuffer(histogramBuffer, offset: 0, index: 3)
+            histogramEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<UInt32>.size, index: 0)
+            histogramEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+            histogramEncoder.endEncoding()
+
+            commandBuffer.addCompletedHandler { [weak self] _ in
+                guard let self else { return }
+                let counts = self.histogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
+                let snapshot = (0..<256).map { Int(counts[$0]) }
+                self.onHistogramUpdate?(snapshot)
+            }
+        }
+
+        commandBuffer.commit()
+    }
+
     /// Resets the GPU live-stack accumulator (new session, format change, or user-requested reset).
     func resetLiveStack() {
         accumulatedFrameCount = 0
@@ -183,10 +261,20 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         isWaveletSharpeningEnabled: Bool,
         sharpenAmount: Float
     ) {
+        if frame.imageType == ASI_IMG_RGB24 {
+            // Webcam/iPhone frames: already color-processed by the device's own ISP, so no
+            // debayering — just stretch and display. Denoise/wavelet-sharpen/live-stacking are
+            // mono-only kernels today (see their textures' `r8Unorm`/`r16Unorm`/`r32Float`
+            // formats) and aren't wired up for this path; the CPU (`CGImageRenderer`) path has
+            // the same gap. Only affects webcam sources — ZWO cameras never produce RGB24.
+            processRGB24(frame: frame, stretch: stretch)
+            return
+        }
+
         let pixelFormat: MTLPixelFormat = frame.imageType == ASI_IMG_RAW16 ? .r16Unorm : .r8Unorm
         let bytesPerPixel = frame.imageType == ASI_IMG_RAW16 ? 2 : 1
         guard frame.imageType == ASI_IMG_RAW8 || frame.imageType == ASI_IMG_RAW16 else {
-            // RGB24/Y8 straight-to-Metal path isn't wired up yet; CGImageRenderer covers it.
+            // Y8 straight-to-Metal path isn't wired up yet; CGImageRenderer covers it.
             return
         }
 

@@ -2,9 +2,8 @@ import Foundation
 
 /// One entry from a bundled catalog derived from real astronomical data (the Messier subset of
 /// Stellarium's DSO catalog — `nebulae/default/catalog.txt` in the `stellarium` repo — plus a
-/// small hand-curated bright-star list of public J2000 coordinates/magnitudes). Used by demo
-/// mode to synthesize realistic-position/brightness targets, and by `StarPatternRecognizer` to
-/// identify what a captured star field is actually pointed at.
+/// small hand-curated bright-star list of public J2000 coordinates/magnitudes). Used by
+/// `StarPatternRecognizer` to identify what a captured star field is actually pointed at.
 struct SkyCatalogObject: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let commonName: String?

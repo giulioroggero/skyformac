@@ -52,6 +52,58 @@ kernel void stretchMono(
     destination.write(float4(display, display, display, 1.0), gid);
 }
 
+/// Stretches a packed RGB24 buffer (webcam/iPhone frames — already color-processed by the
+/// device's own ISP, so no debayering needed) into an RGBA8 display texture. RGB24 (3
+/// bytes/pixel) isn't a valid Metal texture pixel format, unlike the mono RAW8/RAW16 paths above,
+/// so this reads from a raw byte buffer instead of a texture.
+kernel void stretchRGB24(
+    device const uchar *source [[buffer(0)]],
+    constant uint &sourceWidth [[buffer(1)]],
+    constant StretchParams &stretch [[buffer(2)]],
+    texture2d<float, access::write> destination [[texture(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= destination.get_width() || gid.y >= destination.get_height()) { return; }
+    uint index = (gid.y * sourceWidth + gid.x) * 3;
+    float r = applyStretch(float(source[index + 0]) / 255.0, stretch);
+    float g = applyStretch(float(source[index + 1]) / 255.0, stretch);
+    float b = applyStretch(float(source[index + 2]) / 255.0, stretch);
+    destination.write(float4(r, g, b, 1.0), gid);
+}
+
+/// Histogram over a packed RGB24 buffer, mirroring `histogramReduce` below but reading a byte
+/// buffer instead of a texture (see `stretchRGB24`). Uses the same luma approximation as
+/// `HistogramComputer`'s RGB24 case ((3R+4G+B)/8) so the CPU and GPU render paths agree.
+kernel void histogramReduceRGB24(
+    device const uchar *source [[buffer(0)]],
+    constant uint &sourceWidth [[buffer(1)]],
+    constant uint &sourceHeight [[buffer(2)]],
+    device atomic_uint *buckets [[buffer(3)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    threadgroup atomic_uint *localBuckets [[threadgroup(0)]]
+) {
+    uint localIndex = tid.y * 16 + tid.x;
+    if (localIndex < 256) {
+        atomic_store_explicit(&localBuckets[localIndex], 0, memory_order_relaxed);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (gid.x < sourceWidth && gid.y < sourceHeight) {
+        uint index = (gid.y * sourceWidth + gid.x) * 3;
+        uint luma = (uint(source[index]) * 3 + uint(source[index + 1]) * 4 + uint(source[index + 2])) / 8;
+        atomic_fetch_add_explicit(&localBuckets[min(luma, 255u)], 1, memory_order_relaxed);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localIndex < 256) {
+        uint count = atomic_load_explicit(&localBuckets[localIndex], memory_order_relaxed);
+        if (count > 0) {
+            atomic_fetch_add_explicit(&buckets[localIndex], count, memory_order_relaxed);
+        }
+    }
+}
+
 /// Adds `source`'s per-pixel value into `accumulator` in place — the GPU running-sum step
 /// behind Metal-accelerated live stacking. `accumulator` is `r32Float` for headroom well beyond
 /// what hundreds of stacked 16-bit frames could sum to.

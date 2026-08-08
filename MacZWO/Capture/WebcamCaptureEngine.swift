@@ -28,8 +28,6 @@ import Foundation
 final class WebcamCaptureEngine: @unchecked Sendable {
     let device: AVCaptureDevice
 
-    /// Fired on the main actor with each converted frame.
-    var onFrame: (@MainActor (CapturedFrame) -> Void)?
     /// Fired if the session stops unexpectedly (device unplugged, runtime error).
     var onDisconnect: (@MainActor () -> Void)?
 
@@ -41,14 +39,37 @@ final class WebcamCaptureEngine: @unchecked Sendable {
     /// `AVCaptureDevice` aren't `Sendable`, so this class opts out of automatic checking
     /// (`@unchecked Sendable`) and enforces single-queue access by hand instead.
     private let sessionQueue = DispatchQueue(label: "com.maczwo.webcam.session")
+    /// Only ever set/cleared on `sessionQueue` (see `frames()`/`stop()`); `yield`/`finish` on the
+    /// continuation itself are documented safe to call concurrently, but the optional wrapping it
+    /// is a plain (non-atomic) property, so writes are confined to one queue by hand.
+    private var continuation: AsyncStream<CapturedFrame>.Continuation?
 
     init(device: AVCaptureDevice) {
         self.device = device
         sampleBufferHandler.onFrame = { [weak self] frame in
-            Task { @MainActor in self?.onFrame?(frame) }
+            self?.continuation?.yield(frame)
         }
         sampleBufferHandler.onDisconnect = { [weak self] in
             Task { @MainActor in self?.onDisconnect?() }
+        }
+    }
+
+    /// Live frame stream for the connected webcam. Buffers only the newest frame: if the consumer
+    /// (the main-actor `CameraManager.ingest` pipeline, forced onto the slow CPU render path for
+    /// webcam frames — see `connectToWebcam`) hasn't picked up the previous frame yet, an
+    /// incoming one replaces it instead of queuing behind it.
+    ///
+    /// This is deliberately unlike the old design, which handed each frame to the main actor via
+    /// its own unstructured `Task`. A `.high`-preset webcam delivers frames (30-60fps) far faster
+    /// than that CPU path can render them, so those Tasks piled up faster than they drained —
+    /// each holding a full converted frame's `Data` — and both memory and CPU grew without bound
+    /// until the app stopped responding entirely, including to Cmd-Q, because the main actor
+    /// never got a chance to drain the backlog. `bufferingNewest(1)` here gives the same
+    /// single-consumer, pull-based shape `CaptureEngine.frames()` already uses for real ZWO
+    /// cameras, so a slow renderer just sees the source's effective frame rate drop instead.
+    func frames() -> AsyncStream<CapturedFrame> {
+        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            sessionQueue.async { [self] in self.continuation = continuation }
         }
     }
 
@@ -123,6 +144,8 @@ final class WebcamCaptureEngine: @unchecked Sendable {
     func stop() {
         NotificationCenter.default.removeObserver(sampleBufferHandler)
         sessionQueue.async { [self] in
+            continuation?.finish()
+            continuation = nil
             guard session.isRunning else { return }
             session.stopRunning()
             for input in session.inputs { session.removeInput(input) }
