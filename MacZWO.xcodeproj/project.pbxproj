@@ -87,6 +87,12 @@
 		F8EDAF15E7158B69B54E7510 /* LiveStacker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7273CF82E64D50E81D2A3A99 /* LiveStacker.swift */; };
 		F98B5FC37370F6ABA12AF277 /* Debayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E60DE976E78E63EEC051F93 /* Debayer.swift */; };
 		FB3BD40FDA78F5C5D1F44AED /* PolarAlignmentSolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BE7F71EFFEA8087964D1C9 /* PolarAlignmentSolver.swift */; };
+		37A64BE1A4544856BD8BC4A5 /* WCSProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390BD552FE334BDBA04A7447 /* WCSProjection.swift */; };
+		EF109FFB0C5449ACAE62F6D3 /* CatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3643F2E7B1D449F1B5C4A2A1 /* CatalogRepository.swift */; };
+		62FDFFA0A3724251AAC9D828 /* SkyHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B1FC7C82CE4B2EBFA7C295 /* SkyHUDView.swift */; };
+		6E7AEC0C260D4688ABF71497 /* astro_catalog.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = CECA47B0DA774F678B906942 /* astro_catalog.sqlite */; };
+		2E8D9BBC01554726AD73296D /* WCSProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3300E705A6AD404B91F04E5A /* WCSProjectionTests.swift */; };
+		4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -205,6 +211,12 @@
 		FB59E4D2F2C11CC773741644 /* ControlsPanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ControlsPanelView.swift; sourceTree = "<group>"; };
 		FCB566CFCF9887C6E0E09CC3 /* bright_stars.json */ = {isa = PBXFileReference; includeInIndex = 1; path = bright_stars.json; sourceTree = "<group>"; };
 		FF58D85B9F8A4D2487C38AB6 /* ZWOCameraInfo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ZWOCameraInfo.swift; sourceTree = "<group>"; };
+		390BD552FE334BDBA04A7447 /* WCSProjection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WCSProjection.swift; sourceTree = "<group>"; };
+		3643F2E7B1D449F1B5C4A2A1 /* CatalogRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CatalogRepository.swift; sourceTree = "<group>"; };
+		D9B1FC7C82CE4B2EBFA7C295 /* SkyHUDView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyHUDView.swift; sourceTree = "<group>"; };
+		CECA47B0DA774F678B906942 /* astro_catalog.sqlite */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = astro_catalog.sqlite; sourceTree = "<group>"; };
+		3300E705A6AD404B91F04E5A /* WCSProjectionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WCSProjectionTests.swift; sourceTree = "<group>"; };
+		0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CatalogRepositoryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -236,6 +248,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3E19814DA5194EAB8C39DD5B /* AstroCatalog */ = {
+			isa = PBXGroup;
+			children = (
+				CECA47B0DA774F678B906942 /* astro_catalog.sqlite */,
+			);
+			name = AstroCatalog;
+			path = AstroCatalog;
+			sourceTree = "<group>";
+		};
+		060654094E86409BAB7E5842 /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				390BD552FE334BDBA04A7447 /* WCSProjection.swift */,
+				3643F2E7B1D449F1B5C4A2A1 /* CatalogRepository.swift */,
+			);
+			name = Catalog;
+			path = Catalog;
+			sourceTree = "<group>";
+		};
 		1326AD7822E89B2BA5A16638 = {
 			isa = PBXGroup;
 			children = (
@@ -254,6 +285,7 @@
 				3A132C5B7BFD6343D6E262F7 /* App */,
 				B86AC9F9E7B145E36E2C8334 /* Bridging */,
 				E1448426A192927641665057 /* Capture */,
+				060654094E86409BAB7E5842 /* Catalog */,
 				7715B9BE9102829B7DA3AB4B /* CameraManagement */,
 				F686233B66886BE49FFDED53 /* Rendering */,
 				95BE520F0A0C515EC3EFE9EB /* Views */,
@@ -317,6 +349,8 @@
 				22C8D5AD1211A30927A071B6 /* ImageEnhancerTests.swift */,
 				BAC872B515085B7D11644CA5 /* AllSkyAnalyzerTests.swift */,
 				93F59753779FC35A72F9CDAE /* DiskSpaceCheckerTests.swift */,
+				3300E705A6AD404B91F04E5A /* WCSProjectionTests.swift */,
+				0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */,
 			);
 			name = MacZWOTests;
 			path = MacZWOTests;
@@ -368,6 +402,7 @@
 				45347BEB6CA354F563145EEF /* MacZWO.entitlements */,
 				677FF3C30B5127A43DE05797 /* Assets.xcassets */,
 				71EA5D50903AA8F57A1DD320 /* SkyCatalog */,
+				3E19814DA5194EAB8C39DD5B /* AstroCatalog */,
 			);
 			name = Resources;
 			path = Resources;
@@ -382,6 +417,7 @@
 				0C438170FE21AEABA0E72DB0 /* PreviewView.swift */,
 				A7718EB70AC68699C4078062 /* HistogramView.swift */,
 				EC6E0E0C0F50079C03C013D8 /* AllSkyMonitorView.swift */,
+				D9B1FC7C82CE4B2EBFA7C295 /* SkyHUDView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -595,6 +631,7 @@
 				80FB01718DDE0139958F9400 /* Assets.xcassets in Resources */,
 				824562588A54967510B43C37 /* messier.json in Resources */,
 				43490D1033FA607BFEF52E50 /* bright_stars.json in Resources */,
+				6E7AEC0C260D4688ABF71497 /* astro_catalog.sqlite in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -653,6 +690,9 @@
 				099973C00C3E99A41739F432 /* AllSkyAnalyzer.swift in Sources */,
 				E27273C1437161A8B073027E /* DiskSpaceChecker.swift in Sources */,
 				056885C6201C1236C8D50051 /* MacZWOCommands.swift in Sources */,
+				37A64BE1A4544856BD8BC4A5 /* WCSProjection.swift in Sources */,
+				EF109FFB0C5449ACAE62F6D3 /* CatalogRepository.swift in Sources */,
+				62FDFFA0A3724251AAC9D828 /* SkyHUDView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -683,6 +723,8 @@
 				BBB9C41C2DE5B4082E3CB9D1 /* ImageEnhancerTests.swift in Sources */,
 				EFAF0C344FB8B01609BE7397 /* AllSkyAnalyzerTests.swift in Sources */,
 				F3FC65FA9FFF187050939ED1 /* DiskSpaceCheckerTests.swift in Sources */,
+				2E8D9BBC01554726AD73296D /* WCSProjectionTests.swift in Sources */,
+				4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

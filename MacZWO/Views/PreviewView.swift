@@ -41,6 +41,25 @@ struct PreviewView: View {
         .aspectRatio(4.0 / 3.0, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(alignment: .bottomLeading) { zoomBadge }
+        .overlay(alignment: .topTrailing) { renderPathBadge }
+    }
+
+    /// Direct, on-screen evidence of which render path is actually live — the toolbar toggle
+    /// state alone isn't visible while looking at the preview itself.
+    @ViewBuilder
+    private var renderPathBadge: some View {
+        if cameraManager.connectedCamera != nil {
+            Label(useMetalRenderer ? "GPU" : "CPU", systemImage: useMetalRenderer ? "bolt.fill" : "cpu")
+                .font(.caption2.bold())
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background((useMetalRenderer ? Color.green : Color.gray).opacity(0.85), in: Capsule())
+                .foregroundStyle(.white)
+                .padding(10)
+                .help(useMetalRenderer
+                    ? "Rendering on GPU (Metal compute shaders)"
+                    : "Rendering on CPU (CGImage)")
+        }
     }
 
     @ViewBuilder
@@ -60,6 +79,7 @@ struct PreviewView: View {
                 .overlay { focusAssistOverlay }
                 .overlay { planetROIOverlay }
                 .overlay { polarAlignmentOverlay }
+                .overlay { skyHUDOverlay }
         } else if let cgImage = cameraManager.currentImage {
             Image(decorative: cgImage, scale: 1.0)
                 .resizable()
@@ -67,6 +87,7 @@ struct PreviewView: View {
                 .overlay { focusAssistOverlay }
                 .overlay { planetROIOverlay }
                 .overlay { polarAlignmentOverlay }
+                .overlay { skyHUDOverlay }
         }
     }
 
@@ -164,6 +185,16 @@ struct PreviewView: View {
                     .frame(width: rect.width, height: rect.height)
                     .position(x: rect.midX, y: rect.midY)
             }
+        }
+    }
+
+    /// Catalog object badges/labels (spec/MacZWO_Catalog_HUD_Spec.md) — only ever shown when a
+    /// `WCSFrame` is available, which today means a `.starField`/`.deepSky` demo target is active
+    /// (see `CameraManager.demoWCS`'s doc comment for why real camera streaming has none).
+    @ViewBuilder
+    private var skyHUDOverlay: some View {
+        if let wcs = cameraManager.demoWCS {
+            SkyHUDView(wcs: wcs, visibleObjects: cameraManager.visibleSkyObjects)
         }
     }
 

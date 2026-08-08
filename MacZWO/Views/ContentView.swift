@@ -22,7 +22,7 @@ struct ContentView: View {
                     HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
                 }
                 ControlsPanelView(cameraManager: cameraManager)
-                    .frame(minWidth: 260, idealWidth: 300)
+                    .frame(minWidth: 320, idealWidth: 340)
             }
         }
         // Night mode: preserves dark adaptation by rendering the whole content area in red only
@@ -35,11 +35,20 @@ struct ContentView: View {
                 imageTypePicker
             }
             ToolbarItem {
-                Toggle("Metal Renderer", systemImage: "cpu", isOn: Binding(
+                Toggle(isOn: Binding(
                     get: { cameraManager.useMetalRenderer },
                     set: { cameraManager.useMetalRenderer = $0 }
-                ))
-                    .help("Switch the live preview between the CPU (CGImage) and GPU (Metal) rendering paths")
+                )) {
+                    Label(
+                        cameraManager.useMetalRenderer ? "GPU" : "CPU",
+                        systemImage: cameraManager.useMetalRenderer ? "bolt.fill" : "cpu"
+                    )
+                    .foregroundStyle(cameraManager.useMetalRenderer ? .green : .primary)
+                }
+                .help(cameraManager.useMetalRenderer
+                    ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
+                    : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
+                .accessibilityIdentifier("RenderPathToggle")
             }
             ToolbarItem {
                 Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(
@@ -54,6 +63,14 @@ struct ContentView: View {
                     set: { cameraManager.isAllSkyMonitorVisible = $0 }
                 ))
                     .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
+            }
+            ToolbarItem {
+                if cameraManager.isSimulating {
+                    Button("Exit Demo Mode", systemImage: "xmark.circle") {
+                        cameraManager.disconnect()
+                    }
+                    .help("Stop the simulated camera and return to the disconnected state")
+                }
             }
             ToolbarItem(placement: .status) {
                 statusText

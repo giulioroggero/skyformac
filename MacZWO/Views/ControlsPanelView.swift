@@ -69,6 +69,7 @@ struct ControlsPanelView: View {
                         ForEach(ControlMode.allCases) { Text($0.rawValue).tag($0) }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                     .help("Filters which tool sections below are shown — nothing is ever disabled, \"All Tools\" always shows everything.")
                     Divider()
 

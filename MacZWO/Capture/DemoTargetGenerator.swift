@@ -41,6 +41,39 @@ enum DemoTarget: Hashable, Identifiable {
             .sorted { ids.firstIndex(of: $0.id)! < ids.firstIndex(of: $1.id)! }
             .map { .deepSky($0) }
     }
+
+    /// The true pointing/FOV of the field this target renders into, for `SkyHUDView`
+    /// (spec/MacZWO_Catalog_HUD_Spec.md) — this app has no blind plate solver (see
+    /// `StarPatternRecognizer`'s doc comment), so a `WCSFrame` only exists where the ground truth
+    /// is known by construction: demo targets pinned to real sky coordinates. Planets are
+    /// procedural, not sky-positioned (see `DemoTargetGenerator`'s doc comment), so they have none.
+    ///
+    /// `rotationRadians: .pi` reproduces `DemoTargetGenerator.project`'s own sign convention
+    /// (+RA → +x, +Dec → -y) exactly: at θ=π, the spec's projection matrix reduces to
+    /// `x = Xc + ξ/s, y = Yc - η/s`, which is that same mapping.
+    func groundTruthWCS(width: Int, height: Int) -> WCSFrame? {
+        switch self {
+        case .jupiter, .saturn, .mars:
+            return nil
+        case .starField:
+            // Mirrors `DemoTargetGenerator.starField`'s own centerRA/centerDec/fovDegrees.
+            let fovRadians = 25.0 * .pi / 180
+            return WCSFrame(
+                centerRADeg: 30.0, centerDecDeg: 80.0,
+                radiansPerPixel: fovRadians / Double(width),
+                rotationRadians: .pi, imageWidth: width, imageHeight: height
+            )
+        case .deepSky(let object):
+            // Mirrors `DemoTargetGenerator.deepSky`'s own assumedFOVArcmin, and its choice to
+            // always center the frame exactly on the target object.
+            let assumedFOVRadians = (60.0 / 60.0) * .pi / 180
+            return WCSFrame(
+                centerRADeg: object.raDegrees, centerDecDeg: object.decDegrees,
+                radiansPerPixel: assumedFOVRadians / Double(min(width, height)),
+                rotationRadians: .pi, imageWidth: width, imageHeight: height
+            )
+        }
+    }
 }
 
 /// Renders `DemoTarget`s as synthetic `CapturedFrame`s. Planets are procedural (banding,
@@ -208,7 +241,10 @@ enum DemoTargetGenerator {
     // MARK: - Shared helpers
 
     /// Small-angle tangent-plane projection, adequate for a demo field of view — not a
-    /// precision astrometric projection (no attempt at true gnomonic distortion).
+    /// precision astrometric projection (no attempt at true gnomonic distortion). Both axes are
+    /// scaled by `width` (not `height` for `dDec`) so the pixel scale is isotropic — matching
+    /// `WCSFrame`'s single-scalar `radiansPerPixel` (`DemoTarget.groundTruthWCS`), which is what
+    /// lets `SkyHUDView`'s catalog badges land exactly on the real stars drawn here.
     private static func project(
         raDegrees: Double, decDegrees: Double,
         centerRA: Double, centerDec: Double, fovDegrees: Double,
@@ -218,7 +254,7 @@ enum DemoTargetGenerator {
         let dDec = decDegrees - centerDec
         guard abs(dRA) < fovDegrees / 2, abs(dDec) < fovDegrees / 2 else { return nil }
         let x = Double(width) / 2 + (dRA / fovDegrees) * Double(width)
-        let y = Double(height) / 2 - (dDec / fovDegrees) * Double(height)
+        let y = Double(height) / 2 - (dDec / fovDegrees) * Double(width)
         return (x, y)
     }
 

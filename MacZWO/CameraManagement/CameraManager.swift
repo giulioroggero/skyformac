@@ -39,6 +39,11 @@ enum CameraConnectionState: Equatable {
 final class CameraManager {
     private(set) var availableCameras: [ZWOCameraInfo] = []
     private(set) var connectedCamera: ZWOCameraInfo?
+    /// `true` while a synthetic camera from `simulateTestPattern`/`simulateDemoTarget` is active
+    /// (see `ZWOCameraInfo`'s `cameraID: -1` doc comment) — lets the UI offer a way back to the
+    /// real "no camera connected" state, since simulated cameras never show up in
+    /// `availableCameras` for `CameraListView`'s per-row Disconnect button to attach to.
+    var isSimulating: Bool { connectedCamera?.cameraID == -1 }
     private(set) var controls: [ZWOControlCaps] = []
     private(set) var controlValues: [Int32: ZWOControlValue] = [:]
     private(set) var connectionState: CameraConnectionState = .disconnected
@@ -103,6 +108,36 @@ final class CameraManager {
     }
     private(set) var planetROI: CGRect?
     private var planetTrackingTask: Task<Void, Never>?
+
+    /// Ground-truth astrometric calibration for the current demo target, per
+    /// spec/MacZWO_Catalog_HUD_Spec.md — see `DemoTarget.groundTruthWCS`'s doc comment for why
+    /// this is demo-only (no blind plate solver exists). `nil` for real camera streaming, planet
+    /// demos, and the plain test patterns; `PreviewView` only shows `SkyHUDView` when non-nil.
+    private(set) var demoWCS: WCSFrame? {
+        didSet { refreshVisibleSkyObjects() }
+    }
+    private(set) var visibleSkyObjects: [SkyObject] = []
+    private var catalogFetchTask: Task<Void, Never>?
+
+    /// Re-queries `CatalogRepository` for whatever falls inside `demoWCS`'s field of view.
+    /// Cancels any in-flight fetch first (spec section 6.3) — moot today since `demoWCS` is
+    /// static for the lifetime of a demo session, but keeps this correct if a future WCS source
+    /// (e.g. a real plate solver) starts updating it continuously.
+    private func refreshVisibleSkyObjects() {
+        catalogFetchTask?.cancel()
+        guard let demoWCS else {
+            visibleSkyObjects = []
+            return
+        }
+        let bounds = demoWCS.boundingBox()
+        let fov = demoWCS.fieldOfViewDegrees
+        let maxMagnitude = CatalogRepository.magnitudeLimit(forFOVDegrees: max(fov.width, fov.height))
+        catalogFetchTask = Task { [weak self] in
+            let objects = await CatalogRepository.shared.fetchObjects(in: bounds, maxMagnitude: maxMagnitude)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.visibleSkyObjects = objects }
+        }
+    }
 
     /// Populated by `MetalPreviewView`'s renderer callback (GPU histogram compute kernel) when
     /// the Metal preview is active; `HistogramView` prefers this over its own CPU pass when
@@ -188,7 +223,7 @@ final class CameraManager {
     /// Step 1: capture the current live frame as the "near the pole, before rotation" reference.
     /// Detects stars via Vision (`StarDetector`) and stores their pixel positions.
     func capturePolarAlignmentReferenceFrame() async {
-        guard let image = currentImage, let frame = currentFrame else { return }
+        guard let image = currentDisplayImage(), let frame = currentFrame else { return }
         guard let result = try? StarDetector.detectStars(in: image), result.stars.count >= 2 else {
             lastErrorMessage = "Not enough stars detected — point at a star-rich field near the pole."
             return
@@ -203,7 +238,7 @@ final class CameraManager {
     /// mount's actual mechanical rotation center.
     func solvePolarAlignment() async {
         guard let beforeStars = polarAlignmentFirstFrameStars,
-              let image = currentImage, let frame = currentFrame
+              let image = currentDisplayImage(), let frame = currentFrame
         else { return }
         guard let result = try? StarDetector.detectStars(in: image), result.stars.count >= 2 else {
             lastErrorMessage = "Not enough stars detected in the second frame."
@@ -449,6 +484,7 @@ final class CameraManager {
         controlValues = [:]
         connectionState = .streaming
         lastErrorMessage = nil
+        demoWCS = target.groundTruthWCS(width: camera.maxWidth, height: camera.maxHeight)
 
         simulationTask = Task { [weak self] in
             var phase = 0.0
@@ -729,10 +765,10 @@ final class CameraManager {
                 guard let frame = currentFrame else { return }
                 try FITSWriter.write(frame: frame, instrumentName: connectedCamera?.name ?? "MacZWO", to: url)
             case .png:
-                guard let image = currentImage else { return }
+                guard let image = currentDisplayImage() else { return }
                 try ImageExporter.writePNG(image, to: url)
             case .tiff:
-                guard let image = currentImage else { return }
+                guard let image = currentDisplayImage() else { return }
                 try ImageExporter.writeTIFF(image, to: url)
             }
         } catch {
@@ -742,14 +778,35 @@ final class CameraManager {
 
     private func refreshCurrentImage() {
         guard let frame = currentFrame, let camera = connectedCamera else { return }
-        currentImage = CGImageRenderer.makeDisplayImage(
+        // On the Metal path, `PreviewView` shows `MetalPreviewView` and never reads
+        // `currentImage` — so only pay for the CPU debayer/stretch pass here when focus assist
+        // needs a CGImage for Vision star detection. Otherwise it'd be a full CPU render wasted
+        // every frame on top of the GPU pipeline already doing the same work. (Export and polar
+        // alignment are rare, user-initiated actions that render on demand instead — see
+        // `renderedCurrentImage()`.)
+        if !useMetalRenderer || isFocusAssistEnabled {
+            currentImage = renderedCurrentImage(frame: frame, camera: camera)
+        }
+        scheduleFocusAssistIfNeeded()
+        scheduleCPUEnhancementIfNeeded(frame: frame, camera: camera)
+    }
+
+    private func renderedCurrentImage(frame: CapturedFrame, camera: ZWOCameraInfo) -> CGImage? {
+        CGImageRenderer.makeDisplayImage(
             from: frame,
             isColorCamera: camera.isColorCamera,
             bayerPattern: camera.bayerPattern,
             stretch: stretch
         )
-        scheduleFocusAssistIfNeeded()
-        scheduleCPUEnhancementIfNeeded(frame: frame, camera: camera)
+    }
+
+    /// `currentImage` is already fresh in CPU mode (and in GPU mode when focus assist keeps it
+    /// updated); this only pays for a fresh render for the rare, user-initiated actions (export,
+    /// polar alignment) that need one in GPU mode without focus assist enabled.
+    private func currentDisplayImage() -> CGImage? {
+        if let currentImage { return currentImage }
+        guard let frame = currentFrame, let camera = connectedCamera else { return nil }
+        return renderedCurrentImage(frame: frame, camera: camera)
     }
 
     /// Denoise/wavelet-sharpen are display-only enhancements (exactly like their Metal
@@ -932,6 +989,9 @@ final class CameraManager {
         planetTracker.reset()
         planetROI = nil
         gpuHistogramCounts = nil
+        catalogFetchTask?.cancel()
+        catalogFetchTask = nil
+        demoWCS = nil
         isLiveViewActive = true
         isCapturingExposure = false
         currentImage = nil

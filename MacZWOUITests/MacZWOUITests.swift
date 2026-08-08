@@ -28,8 +28,10 @@ final class MacZWOUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.checkBoxes["Metal Renderer"].waitForExistence(timeout: 10)
-            || app.buttons["Metal Renderer"].waitForExistence(timeout: 1))
+        // Label reads "GPU"/"CPU" depending on the current render path, so the test targets the
+        // stable accessibility identifier rather than the (state-dependent) display text.
+        XCTAssertTrue(app.checkBoxes["RenderPathToggle"].waitForExistence(timeout: 10)
+            || app.buttons["RenderPathToggle"].waitForExistence(timeout: 1))
     }
 
     func testSimulatingAPatternShowsStreamingStatus() throws {
