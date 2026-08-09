@@ -421,6 +421,7 @@ final class CameraManager {
     private var frameConsumerTask: Task<Void, Never>?
     private var focusAssistTask: Task<Void, Never>?
     private var enhancementTask: Task<Void, Never>?
+    private var qualityScoreTask: Task<Void, Never>?
 
     init() {
         refreshCameraList()
@@ -480,6 +481,10 @@ final class CameraManager {
         controlValues = [:]
         isLiveViewActive = true
         connectionState = .streaming
+        // Same leftover-`stretch`-from-a-previous-session concern as `connect(to:)`'s doc
+        // comment (a real ZWO camera's 16-bit RAW black/white point carrying over onto this
+        // 8-bit RGB24 feed, or vice versa on the next connect, is equally wrong either way).
+        stretch = .identity
         consumeWebcamFrames(stream)
     }
 
@@ -518,21 +523,34 @@ final class CameraManager {
     func connect(to camera: ZWOCameraInfo) async {
         connectionState = .connecting
         lastErrorMessage = nil
+        let engine = CaptureEngine(camera: camera)
         do {
-            try ZWOSDK.open(camera.cameraID)
-            try ZWOSDK.initCamera(camera.cameraID)
-            let caps = try ZWOSDK.allControlCaps(cameraID: camera.cameraID)
-            var values: [Int32: ZWOControlValue] = [:]
-            for cap in caps {
-                values[cap.id] = try? ZWOSDK.getControlValue(
-                    cameraID: camera.cameraID,
-                    controlType: cap.controlType
-                )
+            // `openAndEnumerateControls()` runs entirely on `CaptureEngine`'s actor executor, off
+            // `@MainActor` — see its doc comment for why this used to hang the whole app's UI.
+            let (caps, initialValues) = try await engine.openAndEnumerateControls()
+            var values = initialValues
+
+            // `stretch` and `gpuControls` are plain in-memory session state, not reset on
+            // disconnect/reconnect — so whatever a previous webcam/iPhone session (8-bit RGB24,
+            // typically indoor/well-lit) last left them at otherwise carries straight over onto a
+            // real ZWO sensor's very different (16-bit RAW, often much dimmer/night-sky) signal,
+            // rendering as solid white or solid black depending on which side of the leftover
+            // black/white point the real data happens to fall on. Reset both to a sane starting
+            // point on every fresh ZWO connection. Gain defaults to whatever the camera's own
+            // `ASI_CONTROL_CAPS.DefaultValue` says, which is frequently near the top of its range
+            // (tuned by ZWO for bright test conditions) — 5 is a much safer starting point for a
+            // real night-sky target than that default.
+            stretch = .identity
+            gpuControls.isEnabled = false
+            if let gainCap = caps.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+                let gain = min(max(5, gainCap.minValue), gainCap.maxValue)
+                try? await engine.setControlValue(ASI_GAIN, value: gain)
+                values[gainCap.id] = ZWOControlValue(value: gain, isAuto: false)
             }
+
             connectedCamera = camera
             controls = caps
             controlValues = values
-            let engine = CaptureEngine(camera: camera)
             captureEngine = engine
             connectionState = .connected
             await startPreview(using: engine)
@@ -560,6 +578,12 @@ final class CameraManager {
             selectedImageType = imageType
             connectionState = .streaming
         } catch {
+            // `isLiveViewActive` was optimistically set to `true` above (before we knew
+            // `startStreaming` would actually succeed) so `frameConsumerTask`'s `for await` loop
+            // could be wired up first — but leaving it `true` on failure hid the "Resume Live
+            // View" button (only shown when `!isLiveViewActive`) behind a live view that wasn't
+            // actually live, with no way to retry short of disconnecting/reconnecting.
+            isLiveViewActive = false
             lastErrorMessage = String(describing: error)
             connectionState = .error(String(describing: error))
         }
@@ -638,17 +662,32 @@ final class CameraManager {
     /// during an active burst; running it on *every* frame just for a live readout even when no
     /// burst is active would double that cost for everyone, for a number that only needs to
     /// update a few times a second to read as "live".
+    ///
+    /// - Important: This ran *inline*, synchronously, directly on `@MainActor` in its first
+    ///   version — unlike every other per-frame AI Suite feature here, it has no enable/disable
+    ///   toggle gating it, so it was unconditionally scoring every 5th frame of a *real* ZWO
+    ///   camera's (much higher-resolution, higher-frame-rate than the webcam this was mostly
+    ///   tested against) live feed on the main thread, stuttering the whole UI. Moved to
+    ///   `Task.detached`, matching `enhancementTask`'s existing fix shape for the same mistake.
     private func scheduleQualityScoreIfNeeded(_ frame: CapturedFrame) {
-        guard let camera = connectedCamera else { return }
+        guard let camera = connectedCamera, qualityScoreTask == nil else { return }
         qualityScoreFrameCounter += 1
         guard qualityScoreFrameCounter % 5 == 0 else { return }
-        let raw = SharpnessScorer.score(for: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
-        // Laplacian variance has no fixed theoretical ceiling, so "out of 100" here is relative to
-        // the sharpest frame *this session has actually seen* — a genuinely meaningful "how good
-        // is this frame compared to the best seeing we've had" readout, not a fabricated absolute
-        // scale. Matches the spirit of Lucky Imaging itself: relative ranking, not calibrated units.
-        maxObservedSharpness = max(maxObservedSharpness, raw)
-        currentFrameQualityScore = maxObservedSharpness > 0 ? min(raw / maxObservedSharpness * 100, 100) : 0
+        qualityScoreTask = Task.detached(priority: .utility) { [weak self] in
+            let raw = SharpnessScorer.score(for: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
+            await MainActor.run {
+                guard let self else { return }
+                // Laplacian variance has no fixed theoretical ceiling, so "out of 100" here is
+                // relative to the sharpest frame *this session has actually seen* — a genuinely
+                // meaningful "how good is this frame compared to the best seeing we've had"
+                // readout, not a fabricated absolute scale. Matches the spirit of Lucky Imaging
+                // itself: relative ranking, not calibrated units.
+                self.maxObservedSharpness = max(self.maxObservedSharpness, raw)
+                self.currentFrameQualityScore = self.maxObservedSharpness > 0
+                    ? min(raw / self.maxObservedSharpness * 100, 100) : 0
+                self.qualityScoreTask = nil
+            }
+        }
     }
 
     /// Runs every ~10th ingested frame — see `scheduleFocusAssistIfNeeded`'s doc comment for the
@@ -690,7 +729,8 @@ final class CameraManager {
         else { return }
         let width = frame.width
         let height = frame.height
-        streakDetectionTask = Task { [weak self] in
+        // Same `Task` (inherits `@MainActor`) -> `Task.detached` fix as `scheduleFocusAssistIfNeeded`.
+        streakDetectionTask = Task.detached(priority: .utility) { [weak self] in
             let streaks = (try? StreakDetector.detectStreaks(in: image)) ?? []
             try? await Task.sleep(for: .milliseconds(250)) // simple rate limit, mirrors focus assist
             await MainActor.run {
@@ -1013,11 +1053,23 @@ final class CameraManager {
     /// already be cropped to the previous ROI.
     private func schedulePlanetTrackingIfNeeded(fullFrame: CapturedFrame) {
         guard isPlanetaryTrackingEnabled, planetTrackingTask == nil, let camera = connectedCamera else { return }
-        guard let image = CGImageRenderer.makeDisplayImage(
-            from: fullFrame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern, stretch: stretch
-        ) else { return }
+        let isColorCamera = camera.isColorCamera
+        let bayerPattern = camera.bayerPattern
+        let currentStretch = stretch
 
-        planetTrackingTask = Task { [weak self] in
+        // Both the debayer/stretch render (real CPU work over the full frame) and
+        // `PlanetDetector`'s Vision contour pass used to run synchronously on `@MainActor` — the
+        // render happened inline before this function even got to `Task { }`, and that `Task`
+        // wasn't `.detached`, so it inherited `@MainActor` too. Same mistake as
+        // `scheduleFocusAssistIfNeeded`; both the render and the detection now happen inside the
+        // detached task, off the main thread entirely.
+        planetTrackingTask = Task.detached(priority: .utility) { [weak self] in
+            guard let image = CGImageRenderer.makeDisplayImage(
+                from: fullFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
+            ) else {
+                await MainActor.run { self?.planetTrackingTask = nil }
+                return
+            }
             let detection = try? PlanetDetector.detectDisk(in: image)
             try? await Task.sleep(for: .milliseconds(200))
             await MainActor.run {
@@ -1055,7 +1107,11 @@ final class CameraManager {
         let width = frame.width
         let height = frame.height
         let recognizeStars = isStarRecognitionEnabled
-        focusAssistTask = Task { [weak self] in
+        // `Task { }` (not `.detached`) inherits the caller's actor — since this is `@MainActor`
+        // code, that meant `StarDetector.detectStars` (a real, potentially slow Vision contour
+        // pass) ran synchronously on the main thread inside what looked like a background task,
+        // same mistake `enhancementTask`'s doc comment already documents fixing elsewhere.
+        focusAssistTask = Task.detached(priority: .utility) { [weak self] in
             let result = try? StarDetector.detectStars(in: image)
             let matches = (recognizeStars ? result?.stars : nil).map {
                 StarPatternRecognizer.recognize(detectedStars: $0, imageWidth: width, imageHeight: height)
@@ -1167,15 +1223,17 @@ final class CameraManager {
         streakDetectionTask?.cancel()
         streakDetectionTask = nil
         currentStreakMask = nil
+        qualityScoreTask?.cancel()
+        qualityScoreTask = nil
         currentFrameQualityScore = nil
         maxObservedSharpness = 0
         // Deliberately NOT clearing darkFrame/isDarkSubtractionEnabled — a captured dark frame
         // is reusable across a reconnect of the same camera/settings.
-        if let camera = connectedCamera, camera.cameraID >= 0 {
+        if connectedCamera?.cameraID ?? -1 >= 0 {
             let engine = captureEngine
             Task {
                 await engine?.stop()
-                try? ZWOSDK.close(camera.cameraID)
+                await engine?.close()
             }
         }
         captureEngine = nil

@@ -121,12 +121,32 @@ actor CaptureEngine {
         // Poll status at a cadence proportional to the exposure length, capped at 4x/second,
         // so a 30-minute exposure doesn't get hammered with pointless status queries.
         let pollIntervalNanoseconds = UInt64(min(max(exposureMicroseconds / 20, 50_000), 250_000)) * 1000
+        // Real hardware can fail to ever report `ASI_EXP_SUCCESS`/`ASI_EXP_FAILED` (a firmware
+        // hiccup, a bad USB link, etc.) — the poll loop's first version had no upper bound on how
+        // long it would wait, so that hung forever. Because `CaptureEngine` is a single actor,
+        // every other call routed through it (including `resumeLiveView()`'s restart of video
+        // streaming) queues behind this one and *also* hangs forever, which is why "the app
+        // hangs" and "live view never comes back" were really the same bug, not two. Bounding the
+        // wait — generous enough for any real exposure (1.5x the requested length plus a flat
+        // 5s of readout/overhead margin) — turns an infinite hang into a normal thrown error, and
+        // `ASIStopExposure` puts the camera back in a state `resumeLiveView()` can actually
+        // restart from.
+        let timeoutNanoseconds = UInt64(Double(max(exposureMicroseconds, 0)) * 1_000 * 1.5) + 5_000_000_000
+        var elapsedNanoseconds: UInt64 = 0
         while true {
             try Task.checkCancellation()
             let status = try ZWOSDK.exposureStatus(cameraID: camera.cameraID)
             if status == ASI_EXP_SUCCESS { break }
-            if status == ASI_EXP_FAILED { throw ZWOError.generalError }
+            if status == ASI_EXP_FAILED {
+                try? ZWOSDK.stopExposure(cameraID: camera.cameraID)
+                throw ZWOError.generalError
+            }
+            guard elapsedNanoseconds < timeoutNanoseconds else {
+                try? ZWOSDK.stopExposure(cameraID: camera.cameraID)
+                throw ZWOError.timeout
+            }
             try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+            elapsedNanoseconds += pollIntervalNanoseconds
         }
 
         guard let buffer = frameBuffer else { throw ZWOError.generalError }
@@ -146,6 +166,41 @@ actor CaptureEngine {
         continuation?.finish()
         continuation = nil
         try? ZWOSDK.stopVideoCapture(cameraID: camera.cameraID)
+    }
+
+    /// Opens and initializes the camera, then enumerates its control caps/current values.
+    /// `ASIOpenCamera`/`ASIInitCamera` do a real USB handshake with the camera's firmware and can
+    /// block for a user-perceptible amount of time (worse the more control types the camera
+    /// reports, since each one is its own blocking `ASIGetControlValue` round-trip) — like every
+    /// other `ZWOSDK` call this actor makes, this must never run on `@MainActor`. Previously
+    /// `CameraManager.connect(to:)` called `ZWOSDK.open`/`initCamera`/`allControlCaps` directly
+    /// on `@MainActor` before this actor (or its `CaptureEngine`) even existed yet, hanging the
+    /// whole app's UI for however long that handshake actually took.
+    func openAndEnumerateControls() throws -> (caps: [ZWOControlCaps], values: [Int32: ZWOControlValue]) {
+        try ZWOSDK.open(camera.cameraID)
+        try ZWOSDK.initCamera(camera.cameraID)
+        let caps = try ZWOSDK.allControlCaps(cameraID: camera.cameraID)
+        var values: [Int32: ZWOControlValue] = [:]
+        for cap in caps {
+            values[cap.id] = try? ZWOSDK.getControlValue(cameraID: camera.cameraID, controlType: cap.controlType)
+        }
+        return (caps, values)
+    }
+
+    /// Closes the camera — mirrors `openAndEnumerateControls()`'s off-`@MainActor` requirement.
+    func close() {
+        try? ZWOSDK.close(camera.cameraID)
+    }
+
+    /// Used for the handful of control writes `CameraManager` needs to make itself outside a
+    /// per-frame UI binding (e.g. forcing a sane default `ASI_GAIN` right after connecting) —
+    /// `CameraManager.setControlValue(_:value:isAuto:)` stays a direct, synchronous `ZWOSDK` call
+    /// on `@MainActor` for the live slider/toggle bindings themselves, since `ASISetControlValue`
+    /// is a single fast register write (not a firmware handshake like `ASIOpenCamera`/
+    /// `ASIInitCamera`) and routing every drag tick through an actor hop would just add latency
+    /// for no responsiveness benefit.
+    func setControlValue(_ controlType: ASI_CONTROL_TYPE, value: Int, isAuto: Bool = false) throws {
+        try ZWOSDK.setControlValue(cameraID: camera.cameraID, controlType: controlType, value: value, isAuto: isAuto)
     }
 
     private func pollLoop() async {

@@ -18,6 +18,78 @@ made along the way.
   `skyformacTests/DebayerTests.swift`).
 - **Deployment target is 14.0.** `@Observable` (used for `CameraManager`)
   requires macOS 14.
+- **Connecting a real ZWO camera hung the whole app.** `CameraManager.connect(to:)` is
+  `@MainActor` (the whole class is), and its first version called `ZWOSDK.open`/`initCamera`/
+  `allControlCaps`/`getControlValue` directly — real, blocking `ASIOpenCamera`/`ASIInitCamera`
+  USB firmware handshakes, plus one blocking round-trip per reported control type — straight on
+  the main thread, before `CaptureEngine` (the `actor` that's supposed to be the *only* place
+  these calls are allowed to happen, per its own doc comment) was even constructed. A webcam
+  connection never hit this because `WebcamCaptureEngine` goes through AVFoundation instead.
+  Fixed by moving `open`/`initCamera`/`allControlCaps`/`getControlValue` into a new
+  `CaptureEngine.openAndEnumerateControls()`, called via `await` on the actor *before*
+  `CameraManager` touches any of its own state — same fix shape as `resumeLiveView()`'s and
+  `WebcamCaptureEngine`'s earlier hangs, another instance of "a blocking SDK call reached
+  `@MainActor` by skipping the actor boundary that exists specifically to prevent that."
+  `disconnect()`'s `ZWOSDK.close` had the same problem (called directly on `@MainActor` inside a
+  plain `Task { }`, which inherits the caller's actor) — moved to a `CaptureEngine.close()` for
+  the same reason.
+- **`stretch` (the base black/white-point display stretch) and `gpuControls` are plain in-memory
+  session state on `CameraManager` — nothing resets them across a disconnect/reconnect, even to a
+  completely different camera.** Connecting a real ZWO camera (16-bit RAW, often a dim night-sky
+  target) right after a webcam/iPhone session (8-bit RGB24, typically bright/indoor) inherits
+  whatever black/white point that session left `stretch` at, which on a totally different signal
+  scale renders as solid white or solid black with no usable live view — not a camera/SDK problem,
+  a leftover-UI-state problem. `connect(to:)` and `connectToWebcam` now reset `stretch = .identity`
+  on every fresh connection; `connect(to:)` additionally forces `gpuControls.isEnabled = false`
+  (the three-stage GPU pipeline's own tuning is just as session-specific) and sets `ASI_GAIN` to a
+  fixed, conservative `5` rather than trusting `ASI_CONTROL_CAPS.DefaultValue` (frequently near the
+  top of the camera's range — tuned by ZWO for bright test/demo conditions, not a real night sky).
+- **Some `ASI_CONTROL_TYPE`s aren't freely-draggable ranges — `ASICamera2.h` defines them as
+  fixed small sets of values, and the generic slider row didn't know that.** `ASI_HARDWARE_BIN`,
+  `ASI_HIGH_SPEED_MODE`, and `ASI_MONO_BIN` are plain 0/1 booleans (now `toggleRow`, joining
+  `ASI_COOLER_ON`/`ASI_FAN_ON`/`ASI_ANTI_DEW_HEATER`); `ASI_FLIP` is a 4-way mode
+  (`ASI_FLIP_NONE`/`HORIZ`/`VERT`/`BOTH`, values 0...3 — now a segmented `Picker`, not a boolean
+  and not a free-drag range either).
+- **The per-camera `ASI_EXPOSURE` control (live-view video exposure) and the "Single Exposure"
+  section (one-shot `ASIStartExposure` still capture) are two different things that used to look
+  like the same "Exposure" control shown twice** — because the per-camera one used a plain linear
+  `Slider` over the camera's raw microsecond range, the same "can't cover µs-to-seconds at any
+  usable resolution" problem already documented above for the Single Exposure field, and had no
+  label distinguishing it. Now labeled "Live Exposure" and reuses the same log-scale
+  `ExposureField`.
+- **`Task { }` (not `.detached`) inherits the isolation of the actor-isolated code that creates
+  it — so a plain `Task { }` written inside `@MainActor` code stays on `@MainActor` for its whole
+  synchronous portion, including calls that look like they're "in a background task."** This bit
+  four different per-frame AI Suite/tracking features:
+  - `scheduleQualityScoreIfNeeded` (Lucky Imaging's live score) had no `Task` at all — it ran
+    `SharpnessScorer.score`'s full per-pixel Laplacian-variance pass (debayering first) *inline*,
+    synchronously, in `ingest()` itself, unconditionally for every 5th frame of *any* connected
+    camera — no enable/disable toggle gating it, unlike every other feature in this list. This was
+    the single biggest cause of "the app is really slow / the pointer keeps going into wait mode
+    with a camera connected" — a real ZWO camera's higher resolution and sustained frame rate (vs.
+    the webcam this was mostly developed against) turned an always-on cost that was easy to miss
+    into main-thread stutter on every 5th frame, indefinitely.
+  - `scheduleFocusAssistIfNeeded` (`StarDetector`/`StarPatternRecognizer`/`LiveWCSSolver`),
+    `schedulePlanetTrackingIfNeeded` (`PlanetDetector`, plus a `CGImageRenderer.makeDisplayImage`
+    debayer/stretch call that ran fully inline *before* even reaching its `Task`), and
+    `scheduleStreakDetectionIfNeeded` (`StreakDetector`'s Vision pass) all used plain `Task { }`,
+    silently running their real Vision/CPU work on `@MainActor` instead of in the background the
+    code visually suggested — only a problem when their respective toggles are on, but each one
+    is a settings toggle that persists across app relaunches, so "off in this session" doesn't
+    mean "off in general."
+  All four now use `Task.detached`, matching `enhancementTask`'s existing (correct) pattern — the
+  actual Vision/scoring/render work happens off the main actor, with only the final state
+  assignment hopping back via `await MainActor.run`.
+- **The Improvements/Advanced "Disable All" checkboxes are one-way, not a stored master switch.**
+  `ControlsPanelView`'s `allImprovementsDisabled`/`allAdvancedDisabled` bindings' `get` returns
+  `true` only when every underlying toggle in that tab already happens to be off, and `set`
+  ignores `false` entirely — checking the box forces everything off, but unchecking it does
+  nothing (no "restore what was on before" state is kept). This was a deliberate simplification:
+  a real master switch would need to snapshot which individual features were on before the mass
+  disable, and only some of those (e.g. "Live Stack") have meaningful side effects to preserve
+  (accumulated frames) vs. others that don't (a boolean toggle). Turning things back on one at a
+  time, deliberately, avoids ever silently restoring a feature the user didn't explicitly ask
+  for.
 - **Verify against real APIs and real data — mistakes in this shape keep
   happening.** The ZWO SDK has no per-gain read-noise API (`ASIGetGainOffset`
   returns a recommended *gain setting*, not read noise in electrons) —
@@ -167,18 +239,39 @@ made along the way.
   scan) rather than adding a second real-time analysis path. "Pause capture"
   on alert is `stopRecording()`; there's no separate concept of pausing vs.
   stopping elsewhere in the capture pipeline to hook into instead.
-- **A control that's the first view inside a sidebar `ScrollView`, directly under the window's
-  toolbar, can be permanently unclickable regardless of which control it is.**
-  `ControlsPanelView`'s "Mode" selector was reported to never open on click — first a
-  `Picker(selection:)` with `.pickerStyle(.menu)` (an `NSPopUpButton`), then (after swapping
-  controls to test whether it was `NSPopUpButton`-specific) a `Menu` (an `NSMenu` off a plain
-  button) — while `SkyformacCommands`'s menu-bar "Mode" menu, bound to the exact same
-  `@AppStorage("controlMode")` key, always worked. Ruling out both the state/binding and the
-  specific control type left *screen position* as the common factor: the very first pixel row of
-  this pane's `ScrollView`. Fixed by moving the Mode selector out of the `ScrollView` entirely,
-  into its own fixed header `HStack` above it (see `ControlsPanelView.body`) — it's no longer the
-  scroll content's first row, and it now stays visible while the tool list below it scrolls. The
-  menu-bar path stays too, as an independent mouse-free way to reach the same state.
+- **A control sitting in `ControlsPanelView`'s topmost screen position — directly under the
+  window's toolbar — was reliably unclickable, independent of the control type *and* independent
+  of whether it was inside or outside the `ScrollView`.** What's now the sidebar tab picker went
+  through three placements chasing this: a `Picker(selection:)` with `.pickerStyle(.menu)` (an
+  `NSPopUpButton`) as the `ScrollView` content's first row; then a `Menu` (an `NSMenu` off a plain
+  button) in the same spot; then a segmented `Picker` pulled *out* of the `ScrollView` entirely
+  into its own fixed header `HStack` above it. All three were unclickable — only
+  `SkyformacCommands`'s menu-bar equivalent (bound to the same `@AppStorage` key) ever worked,
+  which ruled out the state/binding and the specific control type, and the fixed-header attempt
+  ruled out "it's specifically the `ScrollView`'s first row" too. What's left in common is the
+  literal screen position: that strip directly under the window's native toolbar, regardless of
+  which SwiftUI container puts a view there. Never fully root-caused (a toolbar-hit-testing
+  overlap is the leading theory, but unconfirmed) — worked around by keeping the tab picker as
+  ordinary content inside the `ScrollView`'s normal scroll flow, several rows away from that
+  strip, at the cost of it scrolling away with everything else instead of staying pinned. The
+  menu-bar path (`SkyformacCommands`, ⌘1-⌘3) remains the reliable way to switch tabs regardless.
+- **A single actor serializes *everything* routed through it — a call that hangs blocks every
+  other call waiting on that actor forever, not just its own caller.** `CaptureEngine`'s
+  `captureSingleExposure` polled `ASIGetExpStatus` in a `while true` loop with no upper bound on
+  how long to wait for `ASI_EXP_SUCCESS`/`ASI_EXP_FAILED` — on real hardware, a firmware hiccup or
+  bad USB link can mean that never arrives, so the loop (and the `await` on it) never returns.
+  Because `CaptureEngine` is a single `actor`, every *other* call made through it — including
+  `resumeLiveView()`'s `engine.startStreaming(...)` to restart video after the capture — queues
+  behind the stuck call and never runs either. What looked like two symptoms ("Capture hangs" and
+  "Live view never comes back") was one bug. Fixed by bounding the poll loop (1.5x the requested
+  exposure length plus a flat 5s overhead margin — generous for any real exposure, but finite) and
+  calling `ASIStopExposure` before throwing `ZWOError.timeout`, so the camera lands back in a
+  state a subsequent `resumeLiveView()` can actually restart from instead of hanging too.
+  Uncovered a second, compounding bug in the same path: `startPreview` set `isLiveViewActive =
+  true` *optimistically*, before `engine.startStreaming(...)` had actually succeeded, so a
+  restart failure left `isLiveViewActive` stuck `true` — which hides the "Resume Live View" button
+  (only shown when it's `false`), removing the only way to retry short of disconnecting and
+  reconnecting the camera entirely. Fixed by only leaving it `true` on the success path.
 - **No custom Bluetooth video-streaming companion app.** Bluetooth (classic or
   BLE) doesn't have the throughput for live video — Apple's own Continuity
   Camera deliberately uses Wi-Fi/peer-to-peer for the video itself and only

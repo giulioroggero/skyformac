@@ -106,10 +106,16 @@ the spec's five features are declined rather than faked)
   pipeline, with its own brightness/motion-alert analysis and an "Add iPhone"
   affordance documenting Continuity Camera's real pairing prerequisites.
 - **Night mode** — red-only UI for dark adaptation.
-- **Controls panel mode picker** — General/Planetary/Deep Sky/All Tools,
-  filtering which tool sections show. Also reachable from the menu bar
-  (Mode menu, ⌘1-⌘4) — a fully independent path to the same
-  `@AppStorage("controlMode")` state, not just a shortcut to the same button.
+- **Controls panel tabs** — a vertical icon tab strip (Camera / Improve /
+  Advanced) on the sidebar's trailing edge, grouping
+  the sidebar's ~15 sections by role: raw per-camera hardware controls, opt-in
+  visual enhancements (denoise/sharpen/GPU pipeline/AI Suite), and imaging
+  workflows (focus/tracking/stacking/calibration/recording). The
+  Improvements and Advanced tabs each have a single "Disable All" checkbox to
+  instantly fall back to the camera's own unmodified output. Also reachable
+  from the menu bar (Sidebar Tab menu, ⌘1-⌘3) — a fully independent path to
+  the same `@AppStorage("sidebarTab")` state, not just a shortcut to the same
+  button.
 - **Menu bar commands** — export (⌘E/⌘⇧E), camera rescan/connect (⌘R/⌘K), and
   toolbar toggles (⌘M, ⌘⇧N, ⌘⇧A), all with keyboard shortcuts.
 - **Settings persistence** — renderer choice, enhancement toggles, and which

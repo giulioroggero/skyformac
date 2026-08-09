@@ -6,11 +6,11 @@ import SwiftUI
 struct SkyformacCommands: Commands {
     var cameraManager: CameraManager
 
-    // Same `@AppStorage` key `ControlsPanelView`'s own Mode picker reads/writes — this menu is a
-    // second, independent path to the exact same state, not a separate concept. Added as a
-    // mouse-free (and click-target-independent) fallback after the in-panel dropdown was reported
-    // unresponsive to clicks; see `docs/design-notes.md`.
-    @AppStorage("controlMode") private var mode: ControlMode = .general
+    // Same `@AppStorage` key `ControlsPanelView`'s own sidebar tab picker reads/writes — this
+    // menu is a second, independent path to the exact same state, not a separate concept. Added
+    // as a mouse-free (and click-target-independent) fallback after the in-panel dropdown was
+    // reported unresponsive to clicks; see `docs/design-notes.md`.
+    @AppStorage("sidebarTab") private var tab: SidebarTab = .cameraControls
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
@@ -42,11 +42,10 @@ struct SkyformacCommands: Commands {
             }
         }
 
-        CommandMenu("Mode") {
-            modeButton(.general, shortcut: "1")
-            modeButton(.planetary, shortcut: "2")
-            modeButton(.deepSky, shortcut: "3")
-            modeButton(.all, shortcut: "4")
+        CommandMenu("Sidebar Tab") {
+            tabButton(.cameraControls, shortcut: "1")
+            tabButton(.improvements, shortcut: "2")
+            tabButton(.advanced, shortcut: "3")
         }
 
         CommandGroup(after: .toolbar) {
@@ -71,11 +70,11 @@ struct SkyformacCommands: Commands {
     }
 
     @ViewBuilder
-    private func modeButton(_ candidate: ControlMode, shortcut: KeyEquivalent) -> some View {
+    private func tabButton(_ candidate: SidebarTab, shortcut: KeyEquivalent) -> some View {
         Button {
-            mode = candidate
+            tab = candidate
         } label: {
-            if mode == candidate {
+            if tab == candidate {
                 Label(candidate.rawValue, systemImage: "checkmark")
             } else {
                 Text(candidate.rawValue)

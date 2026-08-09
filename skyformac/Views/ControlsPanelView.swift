@@ -1,29 +1,41 @@
 import AppKit
 import SwiftUI
 
-/// Which tool sections `ControlsPanelView` shows for a given `ControlMode` — a light filter over
-/// an otherwise-flat list of ~15 `DisclosureGroup`s, so a planetary imaging session isn't stuck
-/// scrolling past live-stacking/polar-alignment controls it'll never touch, and vice versa.
-/// `.all` is the escape hatch: nothing is ever actually removed, just organized by default.
-enum ControlMode: String, CaseIterable, Identifiable {
-    case general = "General"
-    case planetary = "Planetary"
-    case deepSky = "Deep Sky"
-    case all = "All Tools"
+/// Which of the sidebar's three tabs is showing — replaces the old `ControlMode` filter
+/// (General/Planetary/Deep Sky/All Tools), which grouped the same flat list of ~15 sections by
+/// imaging genre. This groups them by *role* instead:
+/// - `.cameraControls`: the raw per-camera hardware controls (gain, exposure, flip, cooler, ...)
+///   plus Single Exposure and Export — nothing here alters the image, only what the sensor does.
+/// - `.improvements`: opt-in things that change what you *see* without touching the sensor
+///   (Image Enhancement, Live GPU Enhancement Controls, the AI Suite) — exactly the category of
+///   state that caused the "full white/black, no live view" bug in `docs/design-notes.md` when
+///   left on from a previous session.
+/// - `.advanced`: imaging *workflows* (focus/tracking/stacking/calibration/recording).
+///
+/// The latter two tabs each get a single "Disable All" checkbox, so ruling out "one of these
+/// is doing this" — or just falling back to the camera's own unmodified output — is one click
+/// instead of hunting down a dozen individual toggles.
+enum SidebarTab: String, CaseIterable, Identifiable {
+    case cameraControls = "Camera Controls"
+    case improvements = "Improvements"
+    case advanced = "Advanced"
 
     var id: String { rawValue }
-}
 
-enum ToolSection: CaseIterable {
-    case focusAssist, smartExposure, planetary, polarAlignment, enhancement
-    case darkFrame, liveStack, luckyImaging, recording, liveGPU, aiSuite
+    /// Short enough to sit under an icon in the vertical tab strip's ~60pt width without wrapping.
+    var shortLabel: String {
+        switch self {
+        case .cameraControls: return "Camera"
+        case .improvements: return "Improve"
+        case .advanced: return "Advanced"
+        }
+    }
 
-    func isVisible(in mode: ControlMode) -> Bool {
-        switch mode {
-        case .all: return true
-        case .general: return [.focusAssist, .smartExposure, .darkFrame, .liveGPU, .aiSuite].contains(self)
-        case .planetary: return [.planetary, .enhancement, .luckyImaging, .recording].contains(self)
-        case .deepSky: return [.focusAssist, .smartExposure, .darkFrame, .liveStack, .polarAlignment, .liveGPU, .aiSuite].contains(self)
+    var icon: String {
+        switch self {
+        case .cameraControls: return "camera"
+        case .improvements: return "wand.and.stars"
+        case .advanced: return "gearshape.2"
         }
     }
 }
@@ -36,12 +48,11 @@ enum ToolSection: CaseIterable {
 /// Also hosts the capture-tools stack built on top of the raw capture pipeline: dark-frame
 /// subtraction, live stacking, lucky imaging, and export — all documented inline with the
 /// scoping caveats that apply (no geometric alignment in stacking/lucky-imaging, FITS carries
-/// raw sensor data rather than the debayered preview, etc). "Single Exposure", "Export", and the
-/// dynamic per-camera controls always show, regardless of `ControlMode` — everything else is
-/// filtered by `ToolSection.isVisible(in:)`.
+/// raw sensor data rather than the debayered preview, etc). Which sections show is decided
+/// entirely by `tab` (`SidebarTab`) — see its doc comment for the three-way split.
 struct ControlsPanelView: View {
     var cameraManager: CameraManager
-    @AppStorage("controlMode") private var mode: ControlMode = .general
+    @AppStorage("sidebarTab") private var tab: SidebarTab = .cameraControls
 
     @AppStorage("exposureSeconds") private var exposureSeconds: Double = 1.0
     @AppStorage("darkFrameSeconds") private var darkFrameSeconds: Double = 1.0
@@ -64,140 +75,211 @@ struct ControlsPanelView: View {
     @State private var showAISuiteSection = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if cameraManager.connectedCamera != nil {
-                // This used to be the first row *inside* the `ScrollView` below — first a
-                // `Picker(selection:)` with `.pickerStyle(.menu)` (an `NSPopUpButton`), then a
-                // `Menu`, both reported to reliably fail to open (no menu, on any click count)
-                // specifically there, while an identical menu-bar `Picker`/`Button` set bound to
-                // the same `@AppStorage("controlMode")` key (`SkyformacCommands`'s Mode menu)
-                // always worked — ruling out the state/binding and pointing at *that screen
-                // position* (the very first view inside this pane's `ScrollView`, directly under
-                // the window's toolbar) rather than either control itself. Moved out of the
-                // `ScrollView` entirely, into its own fixed header row above it, so it's not the
-                // scroll content's first pixel anymore — also better UX, since the mode stays
-                // visible and clickable while the tool list below it scrolls.
-                HStack {
-                    Text("Mode")
-                    Spacer()
-                    Menu(mode.rawValue) {
-                        ForEach(ControlMode.allCases) { candidate in
-                            Button {
-                                mode = candidate
-                            } label: {
-                                if candidate == mode {
-                                    Label(candidate.rawValue, systemImage: "checkmark")
-                                } else {
-                                    Text(candidate.rawValue)
-                                }
-                            }
-                        }
-                    }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                }
-                .help("Filters which tool sections below are shown — nothing is ever disabled, \"All Tools\" always shows everything.")
-                .padding(.horizontal)
-                .padding(.vertical, 10)
-                Divider()
-            }
-
+        HStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if cameraManager.connectedCamera != nil {
-                        singleExposureSection
-                        Divider()
-
-                        if ToolSection.focusAssist.isVisible(in: mode) {
-                            DisclosureGroup("Focus Assist", isExpanded: $showFocusAssistSection) {
-                                focusAssistSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.smartExposure.isVisible(in: mode) {
-                            DisclosureGroup("Smart Exposure", isExpanded: $showSmartExposureSection) {
-                                smartExposureSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.planetary.isVisible(in: mode) {
-                            DisclosureGroup("Planetary Auto-Center", isExpanded: $showPlanetarySection) {
-                                planetarySection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.polarAlignment.isVisible(in: mode) {
-                            DisclosureGroup("Polar Alignment", isExpanded: $showPolarAlignmentSection) {
-                                polarAlignmentSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.enhancement.isVisible(in: mode) {
-                            DisclosureGroup("Image Enhancement", isExpanded: $showEnhancementSection) {
-                                enhancementSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.liveGPU.isVisible(in: mode) {
-                            DisclosureGroup("Live GPU Enhancement Controls", isExpanded: $showLiveGPUSection) {
-                                liveGPUControlsSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.aiSuite.isVisible(in: mode) {
-                            DisclosureGroup("AI & Machine Learning Suite", isExpanded: $showAISuiteSection) {
-                                aiSuiteSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.darkFrame.isVisible(in: mode) {
-                            DisclosureGroup("Calibration (Dark/Flat)", isExpanded: $showDarkFrameSection) {
-                                darkFrameSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.liveStack.isVisible(in: mode) {
-                            DisclosureGroup("Live Stack", isExpanded: $showLiveStackSection) {
-                                liveStackSection
-                            }
-                            Divider()
-                        }
-                        if ToolSection.luckyImaging.isVisible(in: mode) {
-                            DisclosureGroup("Lucky Imaging", isExpanded: $showLuckyImagingSection) {
-                                luckyImagingSection
-                            }
-                            Divider()
-                        }
-
-                        DisclosureGroup("Export", isExpanded: $showExportSection) {
-                            exportSection
-                        }
-                        Divider()
-
-                        if ToolSection.recording.isVisible(in: mode) {
-                            DisclosureGroup("Record to Disk (GPU sharpness gate)", isExpanded: $showRecordingSection) {
-                                recordingSection
-                            }
-                            Divider()
-                        }
-                    }
-
-                    Text("Controls").font(.headline)
-
-                    if cameraManager.controls.isEmpty {
-                        Text("Connect a camera to see its controls.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(cameraManager.controls) { cap in
-                            controlRow(cap)
-                            Divider()
-                        }
+                    switch tab {
+                    case .cameraControls:
+                        cameraControlsTabContent
+                    case .improvements:
+                        improvementsTabContent
+                    case .advanced:
+                        advancedTabContent
                     }
                 }
                 .padding()
             }
+
+            if cameraManager.connectedCamera != nil {
+                Divider()
+                verticalTabStrip
+            }
         }
+    }
+
+    /// Vertical tab strip on the sidebar's trailing edge, rather than a horizontal picker above
+    /// the content — both a `Picker(.menu)` and later a `Menu`/segmented `Picker` placed at the
+    /// top of this pane (inside or outside the `ScrollView`) were reliably unclickable; see
+    /// `docs/design-notes.md`. The top button here starts well below that strip (`.padding(.top,
+    /// 40)`) specifically to stay clear of whatever's wrong with that exact screen position.
+    @ViewBuilder
+    private var verticalTabStrip: some View {
+        VStack(spacing: 6) {
+            ForEach(SidebarTab.allCases) { candidate in
+                Button {
+                    tab = candidate
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: candidate.icon)
+                            .font(.system(size: 16))
+                        Text(candidate.shortLabel)
+                            .font(.caption2)
+                    }
+                    .frame(width: 56)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(tab == candidate ? Color.accentColor.opacity(0.2) : Color.clear)
+                    )
+                    .foregroundStyle(tab == candidate ? Color.accentColor : Color.primary)
+                }
+                .buttonStyle(.plain)
+                .help(candidate.rawValue)
+            }
+            Spacer()
+        }
+        .padding(.top, 40)
+        .padding(.horizontal, 6)
+        .frame(width: 68)
+    }
+
+    // MARK: - Tab contents
+
+    @ViewBuilder
+    private var cameraControlsTabContent: some View {
+        Text("Controls").font(.headline)
+
+        if cameraManager.controls.isEmpty {
+            Text("Connect a camera to see its controls.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            ForEach(cameraManager.controls) { cap in
+                controlRow(cap)
+                Divider()
+            }
+        }
+
+        if cameraManager.connectedCamera != nil {
+            singleExposureSection
+            Divider()
+
+            DisclosureGroup("Export", isExpanded: $showExportSection) {
+                exportSection
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var improvementsTabContent: some View {
+        if cameraManager.connectedCamera == nil {
+            Text("Connect a camera to see improvement controls.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            Toggle("Disable All Improvements", isOn: allImprovementsDisabled)
+                .toggleStyle(.checkbox)
+                .help("Turns off Image Enhancement, Live GPU Enhancement Controls, and the AI Suite's streak masking/cloud sentinel in one click — for ruling out a visual side effect from one of them, or just to see exactly what the camera itself is producing.")
+            Divider()
+
+            DisclosureGroup("Image Enhancement", isExpanded: $showEnhancementSection) {
+                enhancementSection
+            }
+            Divider()
+            DisclosureGroup("Live GPU Enhancement Controls", isExpanded: $showLiveGPUSection) {
+                liveGPUControlsSection
+            }
+            Divider()
+            DisclosureGroup("AI & Machine Learning Suite", isExpanded: $showAISuiteSection) {
+                aiSuiteSection
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var advancedTabContent: some View {
+        if cameraManager.connectedCamera == nil {
+            Text("Connect a camera to see advanced imaging tools.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            Toggle("Disable All Advanced Features", isOn: allAdvancedDisabled)
+                .toggleStyle(.checkbox)
+                .help("Turns off Focus Assist, Planetary tracking/crop, Live Stacking, and Dark/Flat calibration, and stops any active disk recording — for ruling one of these out, or to fall back to a plain, unmodified live view.")
+            Divider()
+
+            DisclosureGroup("Focus Assist", isExpanded: $showFocusAssistSection) {
+                focusAssistSection
+            }
+            Divider()
+            DisclosureGroup("Smart Exposure", isExpanded: $showSmartExposureSection) {
+                smartExposureSection
+            }
+            Divider()
+            DisclosureGroup("Planetary Auto-Center", isExpanded: $showPlanetarySection) {
+                planetarySection
+            }
+            Divider()
+            DisclosureGroup("Polar Alignment", isExpanded: $showPolarAlignmentSection) {
+                polarAlignmentSection
+            }
+            Divider()
+            DisclosureGroup("Calibration (Dark/Flat)", isExpanded: $showDarkFrameSection) {
+                darkFrameSection
+            }
+            Divider()
+            DisclosureGroup("Live Stack", isExpanded: $showLiveStackSection) {
+                liveStackSection
+            }
+            Divider()
+            DisclosureGroup("Lucky Imaging", isExpanded: $showLuckyImagingSection) {
+                luckyImagingSection
+            }
+            Divider()
+            DisclosureGroup("Record to Disk (GPU sharpness gate)", isExpanded: $showRecordingSection) {
+                recordingSection
+            }
+        }
+    }
+
+    /// `true` only when every "Improvements" toggle is already off — checking it forces them all
+    /// off in one click; unchecking it is a no-op (turning individual features back on is each
+    /// feature's own toggle, not this checkbox's job — it summarizes "all off", it doesn't
+    /// remember "what was on before").
+    private var allImprovementsDisabled: Binding<Bool> {
+        Binding(
+            get: {
+                !cameraManager.isDenoisingEnabled
+                    && !cameraManager.isWaveletSharpeningEnabled
+                    && !cameraManager.gpuControls.isEnabled
+                    && !cameraManager.isStreakMaskingEnabled
+                    && !cameraManager.isCloudSentinelEnabled
+            },
+            set: { disableAll in
+                guard disableAll else { return }
+                cameraManager.isDenoisingEnabled = false
+                cameraManager.isWaveletSharpeningEnabled = false
+                cameraManager.gpuControls.isEnabled = false
+                cameraManager.isStreakMaskingEnabled = false
+                cameraManager.isCloudSentinelEnabled = false
+            }
+        )
+    }
+
+    /// Same "summarizes all-off, doesn't restore previous state" shape as
+    /// `allImprovementsDisabled` above.
+    private var allAdvancedDisabled: Binding<Bool> {
+        Binding(
+            get: {
+                !cameraManager.isFocusAssistEnabled
+                    && !cameraManager.isPlanetaryTrackingEnabled
+                    && !cameraManager.isPlanetaryCropEnabled
+                    && !cameraManager.isLiveStackingEnabled
+                    && !cameraManager.isDarkSubtractionEnabled
+                    && !cameraManager.isFlatCorrectionEnabled
+                    && !cameraManager.isRecordingToDisk
+            },
+            set: { disableAll in
+                guard disableAll else { return }
+                cameraManager.isFocusAssistEnabled = false
+                cameraManager.isPlanetaryTrackingEnabled = false
+                cameraManager.isPlanetaryCropEnabled = false
+                cameraManager.isLiveStackingEnabled = false
+                cameraManager.isDarkSubtractionEnabled = false
+                cameraManager.isFlatCorrectionEnabled = false
+                if cameraManager.isRecordingToDisk { cameraManager.stopRecording() }
+            }
+        )
     }
 
     // MARK: - Single exposure
@@ -800,10 +882,14 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private func controlRow(_ cap: ZWOControlCaps) -> some View {
         switch cap.controlType {
-        case ASI_COOLER_ON, ASI_FAN_ON, ASI_ANTI_DEW_HEATER:
+        case ASI_COOLER_ON, ASI_FAN_ON, ASI_ANTI_DEW_HEATER, ASI_HARDWARE_BIN, ASI_HIGH_SPEED_MODE, ASI_MONO_BIN:
+            // Real on/off controls per `ASICamera2.h` (0 or 1, not a range) — a generic slider
+            // would let you drag to any integer, most of which aren't meaningful values.
             toggleRow(cap)
         case ASI_EXPOSURE:
             exposureRow(cap)
+        case ASI_FLIP:
+            flipRow(cap)
         case ASI_TEMPERATURE:
             temperatureReadoutRow(cap)
         default:
@@ -854,28 +940,50 @@ struct ControlsPanelView: View {
         .help(cap.controlDescription)
     }
 
+    /// The camera's own `ASI_EXPOSURE` control — governs the *continuous live-view video* poll
+    /// loop's exposure, a different thing from the "Single Exposure" section above (which
+    /// triggers one `ASIStartExposure`/`ASIGetDataAfterExp` still capture via
+    /// `captureSingleExposure`). They used to look like duplicates of the same "Exposure"
+    /// control because this one used a plain linear `Slider` over the camera's raw µs range —
+    /// unusable at the low end (a real ASI sensor's range spans µs to tens of seconds, the same
+    /// "linear slider can't cover that" problem `docs/design-notes.md` already documents for the
+    /// Single Exposure field) and visually indistinguishable from it. Labeled "Live Exposure" and
+    /// reuses the same log-scale `ExposureField` now, so it actually covers 1 µs-to-seconds usably
+    /// and reads as the different control it is.
     @ViewBuilder
     private func exposureRow(_ cap: ZWOControlCaps) -> some View {
         let currentMicroseconds = currentValue(for: cap)
-        let seconds = Double(currentMicroseconds) / 1_000_000.0
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Exposure")
-                Spacer()
-                Text(String(format: "%.3f s", seconds))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
+            Text("Live Exposure")
             if cap.isWritable, cap.minValue < cap.maxValue {
-                Slider(
-                    value: Binding(
-                        get: { Double(currentMicroseconds) },
-                        set: { cameraManager.setControlValue(cap.controlType, value: Int($0)) }
+                ExposureField(
+                    seconds: Binding(
+                        get: { Double(currentMicroseconds) / 1_000_000.0 },
+                        set: { cameraManager.setControlValue(cap.controlType, value: Int($0 * 1_000_000)) }
                     ),
-                    in: Double(cap.minValue)...Double(cap.maxValue)
+                    minSeconds: max(Double(cap.minValue) / 1_000_000.0, 0.000_001),
+                    maxSeconds: max(Double(cap.maxValue) / 1_000_000.0, 0.000_002)
                 )
             }
         }
+        .help("Continuous live-view exposure — different from \"Single Exposure\" above, which captures one still frame. \(cap.controlDescription)")
+    }
+
+    /// `ASI_FLIP`: `ASI_FLIP_NONE`/`ASI_FLIP_HORIZ`/`ASI_FLIP_VERT`/`ASI_FLIP_BOTH` (0...3, per
+    /// `ASICamera2.h`) — a 4-way mode selector, not a boolean or a freely-draggable range.
+    @ViewBuilder
+    private func flipRow(_ cap: ZWOControlCaps) -> some View {
+        let current = currentValue(for: cap)
+        Picker("Flip", selection: Binding(
+            get: { current },
+            set: { cameraManager.setControlValue(cap.controlType, value: $0) }
+        )) {
+            Text("None").tag(Int(ASI_FLIP_NONE.rawValue))
+            Text("Horizontal").tag(Int(ASI_FLIP_HORIZ.rawValue))
+            Text("Vertical").tag(Int(ASI_FLIP_VERT.rawValue))
+            Text("Both").tag(Int(ASI_FLIP_BOTH.rawValue))
+        }
+        .disabled(!cap.isWritable)
         .help(cap.controlDescription)
     }
 
