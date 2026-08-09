@@ -66,6 +66,12 @@ struct SkyformacCommands: Commands {
                 set: { cameraManager.isAllSkyMonitorVisible = $0 }
             ))
             .keyboardShortcut("a", modifiers: [.command, .shift])
+
+            Toggle("Full Screen Preview", isOn: Binding(
+                get: { cameraManager.isPreviewFullScreenEnabled },
+                set: { cameraManager.isPreviewFullScreenEnabled = $0 }
+            ))
+            .keyboardShortcut("f", modifiers: [.command, .shift])
         }
     }
 

@@ -4,13 +4,44 @@ struct ContentView: View {
     @Environment(CameraManager.self) private var cameraManager
 
     var body: some View {
+        Group {
+            if cameraManager.isPreviewFullScreenEnabled {
+                fullScreenPreview
+            } else {
+                mainContent
+            }
+        }
+    }
+
+    /// The live video alone, filling the entire window with its own overlay controls (zoom
+    /// slider, Exit) — no sidebar, camera list, or histogram competing for attention, for
+    /// actually seeing faint stars rather than just previewing framing. Reuses `PreviewView`
+    /// itself rather than a separate view, so there's no second rendering path (CPU/GPU, all the
+    /// Vision overlays) to keep in sync with the embedded one — see its `onExitFullScreen` doc
+    /// comment for exactly what changes between the two presentations.
+    private var fullScreenPreview: some View {
+        PreviewView(
+            cameraManager: cameraManager,
+            useMetalRenderer: cameraManager.useMetalRenderer,
+            onExitFullScreen: { cameraManager.isPreviewFullScreenEnabled = false }
+        )
+        .ignoresSafeArea()
+        .background(Color.black)
+        .colorMultiply(cameraManager.isNightModeEnabled ? .red : .white)
+    }
+
+    private var mainContent: some View {
         NavigationSplitView {
             CameraListView(cameraManager: cameraManager)
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
             HSplitView {
                 VStack(spacing: 0) {
-                    PreviewView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
+                    PreviewView(
+                        cameraManager: cameraManager,
+                        useMetalRenderer: cameraManager.useMetalRenderer,
+                        onEnterFullScreen: { cameraManager.isPreviewFullScreenEnabled = true }
+                    )
                         .frame(minWidth: 480, minHeight: 300)
                         .overlay(alignment: .bottomTrailing) {
                             if cameraManager.isAllSkyMonitorVisible {

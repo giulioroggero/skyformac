@@ -26,6 +26,14 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   usable resolution).
 - Pinch-to-zoom (1×–8×) and drag-to-pan on the live preview, on both render
   paths.
+- **Fullscreen live preview** — fills the whole window with just the video
+  and its overlays (focus assist, Catalog HUD, etc.), plus an explicit zoom
+  slider for precise control when pinch-to-zoom isn't precise/discoverable
+  enough — for seeing faint stars without sidebar/histogram clutter.
+  Reachable three ways (View menu ⌘⇧F, the sidebar's vertical tab strip's
+  "Full Screen" button, or the preview's own overlay button), all driving
+  the same `CameraManager.isPreviewFullScreenEnabled`. Esc, ⌘⇧F again, or
+  the overlay's close button returns to the normal layout.
 
 **Calibration & stacking**
 - **Dark-frame and flat-frame calibration**, any number of named frames per

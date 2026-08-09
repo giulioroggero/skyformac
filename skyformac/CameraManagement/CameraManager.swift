@@ -68,6 +68,13 @@ final class CameraManager {
     var stretch = DisplayStretch.identity {
         didSet { refreshCurrentImage() }
     }
+    /// Set on a fresh ZWO connection (see `connect(to:)`) — `.identity` is a safe *interim* value
+    /// (better than inheriting an unrelated previous session's black/white point), but it's a bad
+    /// permanent default for a real linear sensor: real signal only occupies a small fraction of
+    /// the full digital range, so `.identity` alone renders as solid black at any reasonable
+    /// gain. `ingest()` consumes this exactly once, auto-stretching from the first real frame's
+    /// own histogram (`DisplayStretch.autoStretch`) as soon as one arrives.
+    private var pendingAutoStretch = false
 
     /// `true` while continuously polling video frames; `false` while showing a still frame
     /// from `captureSingleExposure`.
@@ -163,6 +170,12 @@ final class CameraManager {
         didSet { AppSettings.isNightModeEnabled = isNightModeEnabled }
     }
     var isAllSkyMonitorVisible = false
+    /// Same "lifted up" reasoning as `isNightModeEnabled` above — the preview's own overlay
+    /// button for this was reported unclickable (same screen-position issue as the sidebar tab
+    /// picker; see `docs/design-notes.md`), so the menu bar (`SkyformacCommands`) and the
+    /// sidebar's vertical tab strip (`ControlsPanelView`) both need to drive this too, not just
+    /// the overlay button.
+    var isPreviewFullScreenEnabled = false
 
     // MARK: - Real-time denoise & wavelet sharpening
     //
@@ -536,11 +549,15 @@ final class CameraManager {
             // real ZWO sensor's very different (16-bit RAW, often much dimmer/night-sky) signal,
             // rendering as solid white or solid black depending on which side of the leftover
             // black/white point the real data happens to fall on. Reset both to a sane starting
-            // point on every fresh ZWO connection. Gain defaults to whatever the camera's own
-            // `ASI_CONTROL_CAPS.DefaultValue` says, which is frequently near the top of its range
-            // (tuned by ZWO for bright test conditions) — 5 is a much safer starting point for a
-            // real night-sky target than that default.
+            // point on every fresh ZWO connection — `.identity` only as a placeholder until the
+            // first frame arrives and `pendingAutoStretch` replaces it with something that
+            // actually shows this camera's real signal (see its doc comment: `.identity` itself
+            // renders real 16-bit sensor data as solid black). Gain defaults to whatever the
+            // camera's own `ASI_CONTROL_CAPS.DefaultValue` says, which is frequently near the top
+            // of its range (tuned by ZWO for bright test conditions) — 5 is a much safer starting
+            // point for a real night-sky target than that default.
             stretch = .identity
+            pendingAutoStretch = true
             gpuControls.isEnabled = false
             if let gainCap = caps.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
                 let gain = min(max(5, gainCap.minValue), gainCap.maxValue)
@@ -611,6 +628,13 @@ final class CameraManager {
     /// stretches whatever `currentFrame` ends up being for on-screen display.
     private func ingest(_ rawFrame: CapturedFrame) {
         var processed = applyDarkSubtraction(rawFrame)
+
+        if pendingAutoStretch {
+            pendingAutoStretch = false
+            if let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: processed)) {
+                stretch = auto
+            }
+        }
 
         // Tracking always runs against the full, uncropped sensor frame — if it ran against an
         // already-cropped previous frame instead, the ROI's pixel coordinates would need

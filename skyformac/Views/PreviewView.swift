@@ -13,6 +13,28 @@ struct PreviewView: View {
     var cameraManager: CameraManager
     var useMetalRenderer: Bool
 
+    /// Fullscreen presentation of this exact same view (see `ContentView.fullScreenPreview`) —
+    /// no separate view/rendering path to keep in sync, just a few extra overlay affordances and
+    /// modifiers that only make sense once this view *is* the whole window: an explicit zoom
+    /// slider (pinch-to-zoom still works, but isn't discoverable/precise enough to be the only
+    /// way to zoom in on a dim star field when the whole point is seeing detail better), an Exit
+    /// button + Escape key, and no fixed aspect ratio/rounded corners (those exist so the preview
+    /// looks right embedded next to the sidebar, not filling a whole window).
+    var onEnterFullScreen: (() -> Void)?
+    var onExitFullScreen: (() -> Void)?
+
+    init(
+        cameraManager: CameraManager,
+        useMetalRenderer: Bool,
+        onEnterFullScreen: (() -> Void)? = nil,
+        onExitFullScreen: (() -> Void)? = nil
+    ) {
+        self.cameraManager = cameraManager
+        self.useMetalRenderer = useMetalRenderer
+        self.onEnterFullScreen = onEnterFullScreen
+        self.onExitFullScreen = onExitFullScreen
+    }
+
     @State private var zoom: CGFloat = 1
     @State private var panOffset: CGSize = .zero
     @GestureState private var magnifyDelta: CGFloat = 1
@@ -20,6 +42,8 @@ struct PreviewView: View {
 
     private let minZoom: CGFloat = 1
     private let maxZoom: CGFloat = 8
+
+    private var isFullScreenPresentation: Bool { onExitFullScreen != nil }
 
     var body: some View {
         ZStack {
@@ -38,27 +62,92 @@ struct PreviewView: View {
                     .foregroundStyle(.white)
             }
         }
-        .aspectRatio(4.0 / 3.0, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .aspectRatio(isFullScreenPresentation ? nil : 4.0 / 3.0, contentMode: .fit)
+        .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
         .overlay(alignment: .bottomLeading) { zoomBadge }
-        .overlay(alignment: .topTrailing) { renderPathBadge }
+        .overlay(alignment: .topTrailing) { cornerControls }
+        .overlay(alignment: .bottom) { zoomControlBar }
+        .onExitCommand { onExitFullScreen?() }
     }
 
-    /// Direct, on-screen evidence of which render path is actually live — the toolbar toggle
-    /// state alone isn't visible while looking at the preview itself.
+    /// Direct, on-screen evidence of which render path is actually live (the toolbar toggle
+    /// state alone isn't visible while looking at the preview itself), plus the fullscreen
+    /// enter/exit button — combined into one corner group so they share a single padding inset.
     @ViewBuilder
-    private var renderPathBadge: some View {
-        if cameraManager.connectedCamera != nil {
-            Label(useMetalRenderer ? "GPU" : "CPU", systemImage: useMetalRenderer ? "bolt.fill" : "cpu")
-                .font(.caption2.bold())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background((useMetalRenderer ? Color.green : Color.gray).opacity(0.85), in: Capsule())
-                .foregroundStyle(.white)
-                .padding(10)
-                .help(useMetalRenderer
-                    ? "Rendering on GPU (Metal compute shaders)"
-                    : "Rendering on CPU (CGImage)")
+    private var cornerControls: some View {
+        HStack(spacing: 8) {
+            if cameraManager.connectedCamera != nil {
+                Label(useMetalRenderer ? "GPU" : "CPU", systemImage: useMetalRenderer ? "bolt.fill" : "cpu")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background((useMetalRenderer ? Color.green : Color.gray).opacity(0.85), in: Capsule())
+                    .foregroundStyle(.white)
+                    .help(useMetalRenderer
+                        ? "Rendering on GPU (Metal compute shaders)"
+                        : "Rendering on CPU (CGImage)")
+            }
+            if let onEnterFullScreen {
+                Button(action: onEnterFullScreen) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.caption.bold())
+                        .padding(8)
+                        .background(.black.opacity(0.55), in: Circle())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .help("Fill the window with the live video and an overlay zoom control — for seeing faint stars without sidebar clutter.")
+            }
+            if let onExitFullScreen {
+                Button(action: onExitFullScreen) {
+                    Image(systemName: "xmark")
+                        .font(.caption.bold())
+                        .padding(8)
+                        .background(.black.opacity(0.55), in: Circle())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .help("Exit fullscreen (Esc)")
+            }
+        }
+        .padding(10)
+    }
+
+    /// Only shown in fullscreen (`isFullScreenPresentation`) — pinch-to-zoom (`magnifyGesture`)
+    /// still works here too, but isn't precise or discoverable enough to be the *only* way to
+    /// zoom in when the whole point of fullscreen is seeing faint detail (stars) better.
+    @ViewBuilder
+    private var zoomControlBar: some View {
+        if isFullScreenPresentation, cameraManager.connectedCamera != nil {
+            HStack(spacing: 10) {
+                Image(systemName: "minus.magnifyingglass").font(.caption)
+                Slider(
+                    value: Binding(
+                        get: { zoom },
+                        set: {
+                            zoom = clampedZoom($0)
+                            panOffset = clampedOffset(panOffset)
+                        }
+                    ),
+                    in: minZoom...maxZoom
+                )
+                .frame(width: 220)
+                Image(systemName: "plus.magnifyingglass").font(.caption)
+                Text(String(format: "%.1f×", zoom))
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 36, alignment: .leading)
+                if zoom > 1.001 {
+                    Button("Reset", action: resetZoom)
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.cyan)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.black.opacity(0.55), in: Capsule())
+            .foregroundStyle(.white)
+            .padding(.bottom, 24)
         }
     }
 

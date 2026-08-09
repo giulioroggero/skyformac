@@ -57,6 +57,13 @@ made along the way.
   usable resolution" problem already documented above for the Single Exposure field, and had no
   label distinguishing it. Now labeled "Live Exposure" and reuses the same log-scale
   `ExposureField`.
+- **`ASI_GAIN`'s full range (often 0...500+) on a plain linear `Slider` gives unusably coarse
+  control right at the low, conservative end (0...20) this app actually defaults into and
+  recommends** (`ASI_GAIN = 5` on connect, see above) — one pixel of slider drag jumps several
+  real gain steps there. `GainField` devotes 70% of the slider's width to `minValue...20` and the
+  rest to `20...maxValue`, a piecewise-linear remap (not logarithmic like `ExposureField` — gain
+  doesn't have exposure's natural spread across decades, it just needed one deliberate breakpoint
+  at the range that matters).
 - **`Task { }` (not `.detached`) inherits the isolation of the actor-isolated code that creates
   it — so a plain `Task { }` written inside `@MainActor` code stays on `@MainActor` for its whole
   synchronous portion, including calls that look like they're "in a background task."** This bit
@@ -255,23 +262,76 @@ made along the way.
   ordinary content inside the `ScrollView`'s normal scroll flow, several rows away from that
   strip, at the cost of it scrolling away with everything else instead of staying pinned. The
   menu-bar path (`SkyformacCommands`, ⌘1-⌘3) remains the reliable way to switch tabs regardless.
-- **A single actor serializes *everything* routed through it — a call that hangs blocks every
-  other call waiting on that actor forever, not just its own caller.** `CaptureEngine`'s
-  `captureSingleExposure` polled `ASIGetExpStatus` in a `while true` loop with no upper bound on
-  how long to wait for `ASI_EXP_SUCCESS`/`ASI_EXP_FAILED` — on real hardware, a firmware hiccup or
-  bad USB link can mean that never arrives, so the loop (and the `await` on it) never returns.
-  Because `CaptureEngine` is a single `actor`, every *other* call made through it — including
-  `resumeLiveView()`'s `engine.startStreaming(...)` to restart video after the capture — queues
-  behind the stuck call and never runs either. What looked like two symptoms ("Capture hangs" and
-  "Live view never comes back") was one bug. Fixed by bounding the poll loop (1.5x the requested
-  exposure length plus a flat 5s overhead margin — generous for any real exposure, but finite) and
-  calling `ASIStopExposure` before throwing `ZWOError.timeout`, so the camera lands back in a
-  state a subsequent `resumeLiveView()` can actually restart from instead of hanging too.
-  Uncovered a second, compounding bug in the same path: `startPreview` set `isLiveViewActive =
-  true` *optimistically*, before `engine.startStreaming(...)` had actually succeeded, so a
-  restart failure left `isLiveViewActive` stuck `true` — which hides the "Resume Live View" button
-  (only shown when it's `false`), removing the only way to retry short of disconnecting and
-  reconnecting the camera entirely. Fixed by only leaving it `true` on the success path.
+- **A single actor serializes *everything* routed through it — one call that never suspends
+  monopolizes the actor forever, blocking every other call waiting on it too, not just its own
+  caller.** Real root cause of "pressing Capture while live view is streaming hangs, and live view
+  never comes back afterward": `CaptureEngine.pollLoop()` (the live-view frame loop, running for
+  as long as streaming is active) called the blocking `ASIGetVideoData` *directly, inline*, inside
+  a `while` loop with no `await` anywhere in its body. An `actor` only ever runs one call at a
+  time and only switches to another queued call at an `await` suspension point — a loop with none
+  never gives the actor back, so `captureSingleExposure` (routed through the same actor) couldn't
+  so much as *start* running for as long as `pollLoop` kept looping, i.e. for as long as live view
+  was on. Not a slow-hardware problem — it would hang on any camera, every time, as soon as a
+  frame was actively streaming when Capture was pressed (which is the normal case). Fixed by
+  wrapping the blocking call in `fetchVideoData`, which runs it on a background
+  `DispatchQueue` and resumes via a `CheckedContinuation` — a genuine suspension point, so the
+  actor can interleave `captureSingleExposure`, `stop()`, or anything else between poll
+  iterations, the way any other actor is expected to behave. `UnsafeMutableRawBufferPointer` isn't
+  `Sendable`, so crossing that continuation boundary needed an `@unchecked Sendable` wrapper
+  (`UnsafeSendableBuffer`) — safe specifically because `pollLoop` awaits each call before starting
+  the next, and `stop()` (see below) now waits for the poll task to fully exit before anything
+  reallocates the buffer it was writing into.
+  - `stop()` itself had to become `async`, awaiting `pollTask?.value` after cancelling it — every
+    call site already used `await engine.stop()`/`await engine?.stop()` (an actor method call is
+    always `await`-prefixed regardless), so this needed no caller changes, but it closes a real
+    use-after-free window: `captureSingleExposure` calls `stop()` then immediately reuses/
+    reallocates `frameBuffer` (`FrameBuffer.ensureCapacity` deallocates the old pointer outright)
+    — without waiting for the last in-flight background `fetchVideoData` call to actually finish
+    writing into that same buffer first, that reallocation could race it.
+  - Once `pollLoop` could no longer starve the actor, a second, previously-unreachable bug
+    surfaced: `captureSingleExposure`'s own `ASIGetExpStatus` poll loop had no upper bound either,
+    so a real hardware hiccup (camera never reports `ASI_EXP_SUCCESS`/`ASI_EXP_FAILED`) could still
+    hang indefinitely once the call *did* get to start running. Bounded to 1.5x the requested
+    exposure length plus a flat 5s overhead margin, calling `ASIStopExposure` before throwing
+    `ZWOError.timeout` so the camera lands back in a state `resumeLiveView()` can actually restart
+    from.
+  - Also uncovered a third, compounding bug in the same path: `startPreview` set
+    `isLiveViewActive = true` *optimistically*, before `engine.startStreaming(...)` had actually
+    succeeded, so a restart failure left `isLiveViewActive` stuck `true` — which hides the "Resume
+    Live View" button (only shown when it's `false`), removing the only way to retry short of
+    disconnecting and reconnecting the camera entirely. Fixed by only leaving it `true` on the
+    success path.
+- **`.identity` (`blackPoint: 0, whitePoint: 1`) as the post-connect display stretch renders solid
+  black on real ZWO sensor data — it's a bad default, not just a neutral one.** A real linear
+  sensor's actual signal (sky background + stars, especially at a conservative gain like the `5`
+  `connect(to:)` now defaults to) typically occupies a small fraction of its full digital range;
+  stretching the *entire* range across the visible 0...255 output means that small fraction rounds
+  down to black. This was a self-inflicted regression: `.identity` was chosen specifically to stop
+  a *previous* webcam session's leftover black/white point from carrying over onto a freshly
+  connected real camera (see the `stretch`/`gpuControls` entry above) — but swapped one bad
+  default for another, since `.identity` itself doesn't fit real sensor data either. Fixed with
+  `DisplayStretch.autoStretch(histogram:)` — the same 1st/99th-percentile approach
+  `GPUControlSettings.autoStretch` already uses for its own independent stretch — computed once
+  from the very first live frame's own histogram after a ZWO connect (`CameraManager
+  .pendingAutoStretch`, consumed in `ingest()`), rather than guessed at connect time before any
+  frame data exists to guess from.
+- **`captureSingleExposure` writes a (typically much longer) exposure length into `ASI_EXPOSURE` —
+  the same shared hardware register live-view video streaming reads every frame — and never
+  restored it.** After a single-exposure capture, `resumeLiveView()` would restart video streaming
+  still set to that capture's exposure length; a live view updating once every few seconds (or
+  longer) is visually indistinguishable from a frozen black screen. Fixed by reading the previous
+  `ASI_EXPOSURE` value before overwriting it and restoring it in a function-scope `defer` in
+  `CaptureEngine.captureSingleExposure`, so it's restored on every exit path (success, thrown
+  error, or cancellation) — not nested inside the `if exposureCaps != nil` block that sets it,
+  which would have made the `defer` fire at the end of *that* block instead of the function.
+- **Fullscreen preview's own overlay button was reported unclickable — same screen-position
+  pattern as the sidebar tab picker** (top-right corner of the preview, near the window's
+  toolbar; see the entry above). Rather than chase the exact mechanism again, added two more
+  independent paths to the same `CameraManager.isPreviewFullScreenEnabled` state: a "Full Screen
+  Preview" menu bar item (`SkyformacCommands`, ⌘⇧F) and a "Full Screen" button in the sidebar's
+  vertical tab strip (`ControlsPanelView`) — the same "when a screen position won't take clicks,
+  add a path that doesn't depend on that position" approach already used for the sidebar tab
+  picker.
 - **No custom Bluetooth video-streaming companion app.** Bluetooth (classic or
   BLE) doesn't have the throughput for live video — Apple's own Continuity
   Camera deliberately uses Wi-Fi/peer-to-peer for the video itself and only

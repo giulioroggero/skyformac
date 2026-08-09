@@ -126,6 +126,31 @@ struct ControlsPanelView: View {
                 .buttonStyle(.plain)
                 .help(candidate.rawValue)
             }
+
+            Divider().padding(.vertical, 4)
+
+            // The live preview's own overlay button for this was reported unclickable too (same
+            // screen-position issue) — this and the "Full Screen Preview" menu bar item
+            // (`SkyformacCommands`) are both independent paths to the same
+            // `cameraManager.isPreviewFullScreenEnabled` state. This whole sidebar (and this
+            // button with it) disappears once fullscreen is entered — ⌘⇧F or Esc are what get
+            // the user back out again, not this button a second time.
+            Button {
+                cameraManager.isPreviewFullScreenEnabled = true
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 16))
+                    Text("Full Screen")
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(width: 56)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+            .help("Full screen live preview with a zoom overlay (⌘⇧F)")
+
             Spacer()
         }
         .padding(.top, 40)
@@ -888,6 +913,8 @@ struct ControlsPanelView: View {
             toggleRow(cap)
         case ASI_EXPOSURE:
             exposureRow(cap)
+        case ASI_GAIN:
+            gainRow(cap)
         case ASI_FLIP:
             flipRow(cap)
         case ASI_TEMPERATURE:
@@ -969,6 +996,34 @@ struct ControlsPanelView: View {
         .help("Continuous live-view exposure — different from \"Single Exposure\" above, which captures one still frame. \(cap.controlDescription)")
     }
 
+    /// `ASI_GAIN` — a plain linear `Slider` over the camera's full range (often 0...500+) gives
+    /// unusably coarse control right where it matters most: the low, conservative end (0...20)
+    /// this app's own default (`ASI_GAIN = 5`, see `CameraManager.connect(to:)`) sits in, since
+    /// dragging one pixel of slider width jumps several real gain steps there. `GainField` gives
+    /// most of the slider's width to that 0...20 sub-range instead.
+    @ViewBuilder
+    private func gainRow(_ cap: ZWOControlCaps) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Gain")
+            if cap.isWritable, cap.minValue < cap.maxValue {
+                GainField(
+                    value: Binding(
+                        get: { currentValue(for: cap) },
+                        set: { cameraManager.setControlValue(cap.controlType, value: $0) }
+                    ),
+                    minValue: cap.minValue,
+                    maxValue: cap.maxValue,
+                    fineBreakpoint: min(20, cap.maxValue)
+                )
+            } else {
+                Text(cap.isWritable ? "Fixed value" : "Read-only")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .help(cap.controlDescription)
+    }
+
     /// `ASI_FLIP`: `ASI_FLIP_NONE`/`ASI_FLIP_HORIZ`/`ASI_FLIP_VERT`/`ASI_FLIP_BOTH` (0...3, per
     /// `ASICamera2.h`) — a 4-way mode selector, not a boolean or a freely-draggable range.
     @ViewBuilder
@@ -1040,6 +1095,64 @@ private struct ExposureField: View {
             return String(format: "%.1f ms", seconds * 1_000)
         } else {
             return String(format: "%.2f s", seconds)
+        }
+    }
+}
+
+/// `ASI_GAIN` control: devotes most (`fineFraction`) of the slider's width to the
+/// `minValue...fineBreakpoint` sub-range and the rest to `fineBreakpoint...maxValue` — a
+/// piecewise-linear remap of the same shape as `ExposureField`'s log10 mapping, just linear
+/// instead of logarithmic (gain doesn't have exposure's natural log distribution across decades;
+/// it just needs one deliberate breakpoint at the range that actually matters).
+private struct GainField: View {
+    @Binding var value: Int
+    var minValue: Int
+    var maxValue: Int
+    var fineBreakpoint: Int
+    var fineFraction: Double = 0.7
+
+    /// Slider position in `0...1`, split at `fineFraction` between the two sub-ranges.
+    private var position: Binding<Double> {
+        Binding(
+            get: { Self.toPosition(value, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction) },
+            set: { value = Self.fromPosition($0, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction) }
+        )
+    }
+
+    /// `fineBreakpoint` must sit strictly between `minValue` and `maxValue` for the piecewise
+    /// split to be meaningful — clamped rather than asserted, since a camera's actual gain range
+    /// could in principle be narrower than the requested 0...20 fine zone.
+    private var clampedBreakpoint: Int {
+        min(max(fineBreakpoint, minValue + 1), maxValue - 1)
+    }
+
+    var body: some View {
+        HStack {
+            Text("\(value)")
+                .font(.caption.monospacedDigit())
+                .frame(width: 36, alignment: .leading)
+            Slider(value: position, in: 0...1)
+        }
+    }
+
+    private static func toPosition(_ value: Int, minValue: Int, maxValue: Int, breakpoint: Int, fineFraction: Double) -> Double {
+        let clamped = min(max(value, minValue), maxValue)
+        if clamped <= breakpoint {
+            let fraction = Double(clamped - minValue) / Double(breakpoint - minValue)
+            return fraction * fineFraction
+        } else {
+            let fraction = Double(clamped - breakpoint) / Double(maxValue - breakpoint)
+            return fineFraction + fraction * (1 - fineFraction)
+        }
+    }
+
+    private static func fromPosition(_ position: Double, minValue: Int, maxValue: Int, breakpoint: Int, fineFraction: Double) -> Int {
+        if position <= fineFraction {
+            let fraction = position / fineFraction
+            return minValue + Int((fraction * Double(breakpoint - minValue)).rounded())
+        } else {
+            let fraction = (position - fineFraction) / (1 - fineFraction)
+            return breakpoint + Int((fraction * Double(maxValue - breakpoint)).rounded())
         }
     }
 }

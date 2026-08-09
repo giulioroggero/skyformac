@@ -34,4 +34,31 @@ struct DisplayStretchTests {
         #expect(lut[0] == 0)
         #expect(lut[255] == 255)
     }
+
+    @Test func autoStretchIsNilOnEmptyHistogram() {
+        #expect(DisplayStretch.autoStretch(histogram: Array(repeating: 0, count: 256)) == nil)
+    }
+
+    @Test func autoStretchFindsPercentilesOfANarrowDistribution() throws {
+        // All pixel weight sits in buckets 100...150 — a real ASI sensor's actual signal
+        // typically occupies a narrow slice of the full digital range like this, which is exactly
+        // why `.identity` (0...1 of the *full* range) renders that signal as solid black.
+        var histogram = Array(repeating: 0, count: 256)
+        for bucket in 100...150 { histogram[bucket] = 1000 }
+
+        let stretch = try #require(DisplayStretch.autoStretch(histogram: histogram))
+
+        #expect(stretch.blackPoint > 0.3 && stretch.blackPoint < 0.45)
+        #expect(stretch.whitePoint > 0.45 && stretch.whitePoint < 0.65)
+        #expect(stretch.whitePoint >= stretch.blackPoint + 0.05)
+    }
+
+    @Test func autoStretchOnFullRangeHistogramStaysWide() throws {
+        // Uniform histogram across the whole range: 1st/99th percentile should sit near the
+        // extremes, unlike the narrow-distribution case above.
+        let histogram = Array(repeating: 100, count: 256)
+        let stretch = try #require(DisplayStretch.autoStretch(histogram: histogram))
+        #expect(stretch.blackPoint < 0.1)
+        #expect(stretch.whitePoint > 0.9)
+    }
 }

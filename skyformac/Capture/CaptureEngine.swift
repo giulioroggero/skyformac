@@ -13,6 +13,16 @@ struct CapturedFrame: Sendable {
     let data: Data
 }
 
+/// `UnsafeMutableRawBufferPointer` isn't `Sendable` — raw pointers can alias arbitrary shared
+/// mutable memory in general, so the compiler can't verify sending one across an `async` call
+/// boundary is safe. This wrapper asserts it *is* safe here specifically: `pollLoop` awaits each
+/// `fetchVideoData` call before starting the next one, and `CaptureEngine.stop()` awaits the poll
+/// task's actual completion before anything reallocates/deallocates the buffer being pointed to
+/// (see `stop()`'s doc comment) — so exactly one reader/writer ever touches it at a time.
+private struct UnsafeSendableBuffer: @unchecked Sendable {
+    let pointer: UnsafeMutableRawBufferPointer
+}
+
 /// Owns the ZWO video-capture polling loop for one connected camera.
 ///
 /// This is a Swift `actor` so that every blocking `ZWOSDK` call it makes (`ASIStartVideoCapture`,
@@ -85,7 +95,7 @@ actor CaptureEngine {
         exposureMicroseconds: Int,
         isDark: Bool = false
     ) async throws -> CapturedFrame {
-        if isRunning { stop() }
+        if isRunning { await stop() }
 
         let width = camera.maxWidth
         let height = camera.maxHeight
@@ -100,6 +110,27 @@ actor CaptureEngine {
 
         let exposureCaps = try ZWOSDK.allControlCaps(cameraID: camera.cameraID)
             .first { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }
+        // `ASI_EXPOSURE` is a single shared hardware register — also the one live-view video
+        // streaming reads every frame. Setting it below for a (typically much longer) single
+        // still capture and never restoring it left live view, after `resumeLiveView()`, silently
+        // running at *this* exposure length instead of whatever it was streaming at before — a
+        // multi-second-per-frame live view looks indistinguishable from a frozen black screen.
+        // Captured and restored here, at function scope, so the `defer` fires on *every* exit
+        // path (success, thrown error, or cancellation), not just falling off the end of the
+        // `if exposureCaps != nil` block below.
+        let previousExposure = exposureCaps != nil
+            ? try? ZWOSDK.getControlValue(cameraID: camera.cameraID, controlType: ASI_EXPOSURE)
+            : nil
+        defer {
+            if let previousExposure {
+                try? ZWOSDK.setControlValue(
+                    cameraID: camera.cameraID,
+                    controlType: ASI_EXPOSURE,
+                    value: previousExposure.value,
+                    isAuto: previousExposure.isAuto
+                )
+            }
+        }
         if exposureCaps != nil {
             try ZWOSDK.setControlValue(
                 cameraID: camera.cameraID,
@@ -159,12 +190,20 @@ actor CaptureEngine {
         )
     }
 
-    func stop() {
+    /// `async` specifically so this can `await pollTask?.value` — without that, a caller (like
+    /// `captureSingleExposure`, which reuses/reallocates `frameBuffer` right after calling this)
+    /// could start touching that buffer while `pollLoop`'s last in-flight `ASIGetVideoData` call
+    /// (up to 500ms, per `pollLoop`'s own doc comment) is still writing into it on a background
+    /// queue — `FrameBuffer.ensureCapacity` deallocates the old pointer outright, so that race
+    /// is a real use-after-free, not just a torn frame.
+    func stop() async {
         isRunning = false
-        pollTask?.cancel()
+        let task = pollTask
         pollTask = nil
         continuation?.finish()
         continuation = nil
+        task?.cancel()
+        await task?.value
         try? ZWOSDK.stopVideoCapture(cameraID: camera.cameraID)
     }
 
@@ -203,13 +242,24 @@ actor CaptureEngine {
         try ZWOSDK.setControlValue(cameraID: camera.cameraID, controlType: controlType, value: value, isAuto: isAuto)
     }
 
+    /// - Important: Every iteration's blocking `ASIGetVideoData` call (up to 500ms, per its
+    ///   `waitMilliseconds`) runs via `fetchVideoData`'s continuation, on a background queue —
+    ///   *not* inline on the actor. `CaptureEngine` is a single actor: an `await`-free `while`
+    ///   loop calling a blocking function directly would run to completion (or until `isRunning`
+    ///   goes false) without ever hitting a suspension point, meaning the actor could never
+    ///   schedule any *other* call routed through it — `captureSingleExposure`, `stop()`,
+    ///   anything — for as long as this loop kept looping, i.e. for as long as live view was
+    ///   streaming. That's exactly what made "press Capture while live view is running" hang
+    ///   forever: the call to `captureSingleExposure` genuinely never got to start. Routing the
+    ///   blocking call through a real suspension point lets the actor interleave other work
+    ///   between iterations, the same way any other actor is expected to behave.
     private func pollLoop() async {
         while isRunning, !Task.isCancelled {
             guard let buffer = frameBuffer, let format = currentFormat else { break }
             do {
-                try ZWOSDK.getVideoData(
+                try await Self.fetchVideoData(
                     cameraID: camera.cameraID,
-                    buffer: buffer.pointer,
+                    buffer: UnsafeSendableBuffer(pointer: buffer.pointer),
                     waitMilliseconds: 500
                 )
                 let frame = CapturedFrame(
@@ -233,6 +283,26 @@ actor CaptureEngine {
             }
         }
         continuation?.finish()
+    }
+
+    /// Runs the blocking `ASIGetVideoData` call on a background queue and resumes via a
+    /// continuation — a real `await` suspension point for `pollLoop`'s caller (the actor), unlike
+    /// calling the blocking SDK function directly inline. `static`/`nonisolated` on purpose: it
+    /// must not touch actor-isolated state itself, since the whole point is that it runs *while*
+    /// the actor is free to do other work.
+    private static func fetchVideoData(
+        cameraID: Int32, buffer: UnsafeSendableBuffer, waitMilliseconds: Int32
+    ) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try ZWOSDK.getVideoData(cameraID: cameraID, buffer: buffer.pointer, waitMilliseconds: waitMilliseconds)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     private func bytesPerPixel(for imageType: ASI_IMG_TYPE) -> Int {
