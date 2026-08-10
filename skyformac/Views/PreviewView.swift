@@ -45,8 +45,43 @@ struct PreviewView: View {
 
     private var isFullScreenPresentation: Bool { onExitFullScreen != nil }
 
+    /// The real camera/frame's own width:height ratio — `currentFrame` (rather than the
+    /// connected camera's fixed sensor dimensions) so a planetary auto-crop ROI, which changes
+    /// the displayed frame's own dimensions, is reflected immediately too. This used to be a
+    /// hardcoded `4.0 / 3.0` regardless of the actual source: unnoticeable for many ZWO sensors,
+    /// which happen to be close to that ratio, but visibly wrong for a webcam/iPhone frame
+    /// (typically 16:9). `nil` (no `.aspectRatio` constraint at all) before any frame/camera
+    /// info exists yet, so the placeholder states just fill whatever space they're given.
+    private var actualAspectRatio: CGFloat? {
+        if let frame = cameraManager.currentFrame, frame.height > 0 {
+            return CGFloat(frame.width) / CGFloat(frame.height)
+        }
+        if let camera = cameraManager.connectedCamera, camera.maxHeight > 0 {
+            return CGFloat(camera.maxWidth) / CGFloat(camera.maxHeight)
+        }
+        return nil
+    }
+
     var body: some View {
-        ZStack {
+        preview
+            .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
+            .overlay(alignment: .bottomLeading) { zoomBadge }
+            .overlay(alignment: .topTrailing) { cornerControls }
+            .overlay(alignment: .bottom) { zoomControlBar }
+            .onExitCommand { onExitFullScreen?() }
+    }
+
+    /// Split out of `body` because `.aspectRatio(nil, contentMode: .fit)` is *not* the "no
+    /// constraint" no-op it looks like — passing `nil` still makes the modifier size this whole
+    /// `ZStack` (background fill included) to its own intrinsic aspect ratio, then fit *that*
+    /// into the fullscreen window, leaving the entire preview — not just the video image, the
+    /// black background and the zoom/pan content too — confined to a centered box smaller than
+    /// the actual window. The fix is to not apply the modifier at all in fullscreen, not to pass
+    /// it `nil`; individual images/`MetalPreviewView` still keep their own aspect-correct fit
+    /// inside that now-full-window box, so nothing gets stretched.
+    @ViewBuilder
+    private var preview: some View {
+        let stack = ZStack {
             Rectangle().fill(.black)
             if cameraManager.connectedCamera == nil {
                 ContentUnavailableView(
@@ -62,12 +97,11 @@ struct PreviewView: View {
                     .foregroundStyle(.white)
             }
         }
-        .aspectRatio(isFullScreenPresentation ? nil : 4.0 / 3.0, contentMode: .fit)
-        .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
-        .overlay(alignment: .bottomLeading) { zoomBadge }
-        .overlay(alignment: .topTrailing) { cornerControls }
-        .overlay(alignment: .bottom) { zoomControlBar }
-        .onExitCommand { onExitFullScreen?() }
+        if isFullScreenPresentation {
+            stack
+        } else {
+            stack.aspectRatio(actualAspectRatio, contentMode: .fit)
+        }
     }
 
     /// Direct, on-screen evidence of which render path is actually live (the toolbar toggle
@@ -100,10 +134,11 @@ struct PreviewView: View {
             }
             if let onExitFullScreen {
                 Button(action: onExitFullScreen) {
-                    Image(systemName: "xmark")
-                        .font(.caption.bold())
-                        .padding(8)
-                        .background(.black.opacity(0.55), in: Circle())
+                    Label("Exit Full Screen", systemImage: "arrow.down.right.and.arrow.up.left")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.55), in: Capsule())
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)

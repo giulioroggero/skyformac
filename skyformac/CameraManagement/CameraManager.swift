@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import CoreGraphics
 import Foundation
+import Metal
 import Observation
 import UniformTypeIdentifiers
 import UserNotifications
@@ -50,6 +51,92 @@ final class CameraManager {
     /// show up in `availableCameras` for `CameraListView`'s per-row Disconnect button to attach
     /// to (see `ZWOCameraInfo.external`'s cameraID doc comment).
     var isExternalWebcam: Bool { connectedCamera?.cameraID == -2 }
+
+    // MARK: - iPhone/webcam focus lock
+
+    /// Mirrors whatever `WebcamCaptureEngine.setFocusLocked` last actually applied — not written
+    /// optimistically before that call succeeds, same reasoning as `startPreview`'s
+    /// `isLiveViewActive` fix (see `docs/design-notes.md`).
+    private(set) var isWebcamFocusLocked = false
+
+    /// A webcam/Continuity Camera device's continuous autofocus actively fights afocal
+    /// projection — it keeps hunting for a "normal" subject distance and refocuses away from
+    /// the telescope's actual focal plane. Locking freezes focus at whatever position it
+    /// currently sits at; unlocking returns to continuous autofocus.
+    func setWebcamFocusLocked(_ locked: Bool) {
+        guard let engine = webcamEngine else { return }
+        Task {
+            do {
+                try await engine.setFocusLocked(locked)
+                isWebcamFocusLocked = locked
+            } catch {
+                lastErrorMessage = String(describing: error)
+            }
+        }
+    }
+
+    // MARK: - iPhone/webcam Night Mode (frame-stacked simulated long exposure)
+
+    private var nightModeAccumulator: LiveStacker?
+    private var nightModeTask: Task<Void, Never>?
+    private(set) var isCapturingNightMode = false
+    private(set) var nightModeTotalSeconds: Double = 0
+    private(set) var nightModeRemainingSeconds: Double = 0
+
+    /// "Night Mode" for the iPhone/webcam path — there's no controllable hardware exposure to
+    /// speak of (see `captureSingleExposure`'s `cameraID == -2` branch, which just freezes the
+    /// current live frame), so a literal single 10-60-second sensor exposure isn't a real thing
+    /// a live video pipeline can do — an individual video frame can't be tens of seconds long
+    /// and still be a video frame. Instead this accumulates that many seconds of live frames via
+    /// the same running-average `LiveStacker` "Live Stack" already uses, then freezes on the
+    /// result — the same computational multi-frame-stacking mechanism Apple's own iPhone Night
+    /// Mode actually uses internally, not a fabricated stand-in for it. Uses its own
+    /// `LiveStacker` instance rather than `liveStacker` so this doesn't interact with the user's
+    /// own independent Live Stack toggle/state.
+    func startIPhoneNightModeCapture(seconds: Double) {
+        guard isExternalWebcam, !isCapturingNightMode else { return }
+        nightModeAccumulator = LiveStacker()
+        isCapturingNightMode = true
+        nightModeTotalSeconds = seconds
+        nightModeRemainingSeconds = seconds
+
+        nightModeTask = Task { [weak self] in
+            let tickNanoseconds: UInt64 = 200_000_000
+            var elapsed = 0.0
+            while elapsed < seconds {
+                try? await Task.sleep(nanoseconds: tickNanoseconds)
+                if Task.isCancelled { return }
+                elapsed += Double(tickNanoseconds) / 1_000_000_000
+                await MainActor.run { self?.nightModeRemainingSeconds = max(seconds - elapsed, 0) }
+            }
+            await MainActor.run { self?.finishIPhoneNightModeCapture() }
+        }
+    }
+
+    /// Discards whatever's accumulated so far and returns to a normal live view — unlike
+    /// finishing normally, a cancelled capture has no usable "result" to freeze on (an
+    /// average of only a fraction of a second's worth of frames isn't a meaningful long exposure).
+    func cancelIPhoneNightModeCapture() {
+        nightModeTask?.cancel()
+        nightModeTask = nil
+        nightModeAccumulator = nil
+        isCapturingNightMode = false
+        nightModeRemainingSeconds = 0
+    }
+
+    private func finishIPhoneNightModeCapture() {
+        if let result = nightModeAccumulator?.currentAverage() {
+            currentFrame = result
+            frameID &+= 1
+            refreshCurrentImage()
+            isLiveViewActive = false
+        }
+        nightModeAccumulator = nil
+        isCapturingNightMode = false
+        nightModeRemainingSeconds = 0
+        nightModeTask = nil
+    }
+
     private(set) var controls: [ZWOControlCaps] = []
     private(set) var controlValues: [Int32: ZWOControlValue] = [:]
     private(set) var connectionState: CameraConnectionState = .disconnected
@@ -176,6 +263,36 @@ final class CameraManager {
     /// sidebar's vertical tab strip (`ControlsPanelView`) both need to drive this too, not just
     /// the overlay button.
     var isPreviewFullScreenEnabled = false
+    /// Drives the Help `.sheet` on `ContentView` — the app is deliberately single-window (see
+    /// `SkyformacApp`), so Help lives as a sheet on the one main window rather than its own
+    /// `Window` scene.
+    var isHelpPresented = false
+    /// Set by `showHelp(topicID:sectionID:)` — read once by `HelpView`'s `init` when
+    /// `ContentView`'s sheet constructs it, to open directly to a specific setting's explanation
+    /// instead of always landing on the first topic. `sectionID` matches a `HelpSection.id` in
+    /// `HelpContent` (the `HelpLinkButton` next to each setting in `ControlsPanelView` passes the
+    /// matching one).
+    private(set) var helpAnchorTopicID: String?
+    private(set) var helpAnchorSectionID: String?
+
+    /// Opens Help scrolled directly to one setting's explanation — every "?" `HelpLinkButton`
+    /// next to a control in `ControlsPanelView` calls this instead of just `isHelpPresented =
+    /// true`, so "what does this actually do" is one click away from the control itself rather
+    /// than a manual hunt through the Help topic list (search helps too, but a direct link is
+    /// still faster when you already know which control you're looking at).
+    func showHelp(topicID: String, sectionID: String? = nil) {
+        helpAnchorTopicID = topicID
+        helpAnchorSectionID = sectionID
+        isHelpPresented = true
+    }
+    /// Drives `NavigationSplitView`'s `columnVisibility` in `ContentView` — lifted up (same
+    /// reasoning as the properties above) specifically because the native sidebar-toggle button
+    /// was reported to have no way back once the sidebar was collapsed: with no binding of our
+    /// own, that toggle button was the *only* path to `columnVisibility`, and whatever went
+    /// wrong with it left no fallback. This gives the menu bar (`SkyformacCommands`) an
+    /// independent path to the same state, the same "when a click path is unreliable, add one
+    /// that doesn't depend on it" fix already used for the sidebar tab picker and Full Screen.
+    var isCameraListSidebarVisible = true
 
     // MARK: - Real-time denoise & wavelet sharpening
     //
@@ -237,6 +354,29 @@ final class CameraManager {
     }
     private var streakDetectionTask: Task<Void, Never>?
     private(set) var currentStreakMask: StreakMask?
+
+    /// Shared by `scheduleFocusAssistIfNeeded`/`scheduleStreakDetectionIfNeeded` in place of the
+    /// CPU `CGImageRenderer.makeDisplayImage` — a debayer+stretch is real GPU-shaped work
+    /// (`Debayer`'s bilinear demosaic plus a per-pixel LUT loop), so running it via the same
+    /// Metal kernels `MetalFrameRenderer` uses for live display is meaningfully cheaper than the
+    /// CPU path, even though that CPU path already runs off `@MainActor`. `nil` (falls back to
+    /// the CPU renderer below) only when the machine has no usable Metal device/library, which
+    /// shouldn't happen on any Mac this app targets. An `actor`, so it's safe to share between
+    /// the two independent background tasks without them racing on its mutable textures.
+    @ObservationIgnored private lazy var gpuStillImageRenderer: GPUStillImageRenderer? = {
+        guard let device = MTLCreateSystemDefaultDevice() else { return nil }
+        return GPUStillImageRenderer(device: device)
+    }()
+
+    /// Used by `applyDarkSubtraction` in place of `FrameArithmetic.subtract`/
+    /// `FlatFieldCorrector.correct` when the Metal renderer is enabled — see
+    /// `GPUFrameCalibrator`'s doc comment for why this still reads a result back to CPU-resident
+    /// `Data` rather than staying GPU-resident (planetary tracking/lucky imaging/FITS recording
+    /// all need the calibrated frame on the CPU side too, not just the live preview).
+    @ObservationIgnored private lazy var gpuFrameCalibrator: GPUFrameCalibrator? = {
+        guard let device = MTLCreateSystemDefaultDevice() else { return nil }
+        return GPUFrameCalibrator(device: device)
+    }()
 
     /// Live "Lucky Imaging" frame quality (0...100, Laplacian-variance sharpness normalized the
     /// same way `SharpnessScorer`'s existing consumers already do) — `nil` until at least one
@@ -510,7 +650,7 @@ final class CameraManager {
         frameConsumerTask = Task { [weak self] in
             for await frame in stream {
                 guard let self else { return }
-                self.ingest(frame)
+                await self.ingest(frame)
             }
         }
     }
@@ -587,7 +727,7 @@ final class CameraManager {
         frameConsumerTask = Task { [weak self] in
             for await frame in stream {
                 guard let self else { return }
-                self.ingest(frame)
+                await self.ingest(frame)
             }
         }
         do {
@@ -626,8 +766,8 @@ final class CameraManager {
     /// display pipeline: dark subtraction, then lucky-imaging burst collection, then live
     /// stacking — all operating on raw sensor data, before `refreshCurrentImage` debayers and
     /// stretches whatever `currentFrame` ends up being for on-screen display.
-    private func ingest(_ rawFrame: CapturedFrame) {
-        var processed = applyDarkSubtraction(rawFrame)
+    private func ingest(_ rawFrame: CapturedFrame) async {
+        var processed = await applyDarkSubtraction(rawFrame)
 
         if pendingAutoStretch {
             pendingAutoStretch = false
@@ -635,6 +775,10 @@ final class CameraManager {
                 stretch = auto
             }
         }
+
+        // Unconditional — independent of the user's own Live Stack toggle, see
+        // `startIPhoneNightModeCapture`'s doc comment.
+        nightModeAccumulator?.add(processed)
 
         // Tracking always runs against the full, uncropped sensor frame — if it ran against an
         // already-cropped previous frame instead, the ROI's pixel coordinates would need
@@ -744,17 +888,32 @@ final class CameraManager {
     }
 
     /// Runs Vision streak detection at most a few times a second (same throttling shape as
-    /// `scheduleFocusAssistIfNeeded`) against `currentImage` — called from `refreshCurrentImage()`
-    /// once that's been (re)rendered for this frame, not from `ingest()` directly, since building
-    /// a `CGImage` is exactly what Vision needs and `ingest()` doesn't have one yet.
+    /// `scheduleFocusAssistIfNeeded`) — called from `refreshCurrentImage()`, not `ingest()`
+    /// directly, just to key off the same "a new frame arrived" signal; it renders its own
+    /// CGImage from the raw frame inside the detached task below rather than depending on
+    /// `currentImage` having already been rendered synchronously for it (see
+    /// `refreshCurrentImage`'s doc comment for why that used to matter and doesn't anymore).
     private func scheduleStreakDetectionIfNeeded() {
         guard isStreakMaskingEnabled, isLiveStackingEnabled, streakDetectionTask == nil,
-              let image = currentImage, let frame = currentFrame
+              let frame = currentFrame, let camera = connectedCamera
         else { return }
         let width = frame.width
         let height = frame.height
+        let isColorCamera = camera.isColorCamera
+        let bayerPattern = camera.bayerPattern
+        let currentStretch = stretch
+        let gpuRenderer = gpuStillImageRenderer
         // Same `Task` (inherits `@MainActor`) -> `Task.detached` fix as `scheduleFocusAssistIfNeeded`.
         streakDetectionTask = Task.detached(priority: .utility) { [weak self] in
+            let gpuImage = await gpuRenderer?.makeDisplayImage(
+                from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
+            )
+            guard let image = gpuImage ?? CGImageRenderer.makeDisplayImage(
+                from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
+            ) else {
+                await MainActor.run { self?.streakDetectionTask = nil }
+                return
+            }
             let streaks = (try? StreakDetector.detectStreaks(in: image)) ?? []
             try? await Task.sleep(for: .milliseconds(250)) // simple rate limit, mirrors focus assist
             await MainActor.run {
@@ -767,14 +926,33 @@ final class CameraManager {
     /// Applies whichever of dark subtraction / flat correction are enabled and have an active
     /// calibration frame — dark first (removes fixed-pattern noise/hot pixels), then flat
     /// (corrects vignetting/dust shadows), matching the standard real-world calibration order.
-    private func applyDarkSubtraction(_ frame: CapturedFrame) -> CapturedFrame {
+    ///
+    /// Prefers `GPUFrameCalibrator` (one combined GPU dispatch) over the CPU
+    /// `FrameArithmetic`/`FlatFieldCorrector` scalar loops when the Metal renderer is enabled —
+    /// see that type's doc comment for why the result still comes back as CPU-resident `Data`
+    /// either way (planetary tracking, lucky imaging, and FITS recording all need the calibrated
+    /// frame on the CPU side, not just the live preview, so this can't just stay GPU-resident the
+    /// way debayer/stretch does). Falls back to the CPU path if GPU calibration isn't available
+    /// or declines the frame (dimension/type mismatch, no Metal device).
+    private func applyDarkSubtraction(_ frame: CapturedFrame) async -> CapturedFrame {
+        let dark = isDarkSubtractionEnabled ? darkFrame : nil
+        let activeFlat = isFlatCorrectionEnabled ? calibrationLibrary.activeFlat : nil
+        guard dark != nil || activeFlat != nil else { return frame }
+
+        if useMetalRenderer, let gpuCalibrator = gpuFrameCalibrator,
+           let calibrated = await gpuCalibrator.calibrate(
+               light: frame, dark: dark, flat: activeFlat?.frame, flatMean: activeFlat?.meanBrightness
+           ) {
+            return calibrated
+        }
+
         var result = frame
-        if isDarkSubtractionEnabled, let dark = darkFrame,
-           let subtracted = FrameArithmetic.subtract(light: result, dark: dark) {
+        if let dark, let subtracted = FrameArithmetic.subtract(light: result, dark: dark) {
             result = subtracted
         }
-        if isFlatCorrectionEnabled, let flat = flatFrame,
-           let corrected = FlatFieldCorrector.correct(light: result, flat: flat) {
+        if let activeFlat, let corrected = FlatFieldCorrector.correct(
+            light: result, flat: activeFlat.frame, precomputedFlatMean: activeFlat.meanBrightness
+        ) {
             result = corrected
         }
         return result
@@ -993,18 +1171,22 @@ final class CameraManager {
     private func refreshCurrentImage() {
         guard let frame = currentFrame, let camera = connectedCamera else { return }
         // On the Metal path, `PreviewView` shows `MetalPreviewView` and never reads
-        // `currentImage` — so only pay for the CPU debayer/stretch pass here when focus assist or
-        // streak detection needs a CGImage for a Vision request. Otherwise it'd be a full CPU
-        // render wasted every frame on top of the GPU pipeline already doing the same work.
-        // (Export and polar alignment are rare, user-initiated actions that render on demand
-        // instead — see `renderedCurrentImage()`.)
-        let needsStreakDetectionImage = isStreakMaskingEnabled && isLiveStackingEnabled
-        if !useMetalRenderer || isFocusAssistEnabled || needsStreakDetectionImage {
+        // `currentImage` at all — so this synchronous render is only actually needed for the CPU
+        // display path. It used to *also* run whenever Focus Assist (hence Recognize Stars) or
+        // streak detection was on, regardless of the GPU/CPU toggle, to have a CGImage ready for
+        // their Vision requests — a full CPU debayer+stretch pass, synchronously, on
+        // `@MainActor`, every single incoming frame. That unconditional per-frame cost was the
+        // actual cause of "the app isn't responsive when Recognize Stars is on": both of those
+        // features now render their own CGImage inside their own background task instead (see
+        // `scheduleFocusAssistIfNeeded`/`scheduleStreakDetectionIfNeeded`), the same way
+        // `schedulePlanetTrackingIfNeeded` already did. Export and polar alignment (rare,
+        // user-initiated actions) still render on demand via `currentDisplayImage()`'s fallback.
+        if !useMetalRenderer {
             currentImage = renderedCurrentImage(frame: frame, camera: camera)
         }
         scheduleFocusAssistIfNeeded()
         scheduleCPUEnhancementIfNeeded(frame: frame, camera: camera)
-        if needsStreakDetectionImage {
+        if isStreakMaskingEnabled && isLiveStackingEnabled {
             scheduleStreakDetectionIfNeeded()
         }
     }
@@ -1018,9 +1200,11 @@ final class CameraManager {
         )
     }
 
-    /// `currentImage` is already fresh in CPU mode (and in GPU mode when focus assist keeps it
-    /// updated); this only pays for a fresh render for the rare, user-initiated actions (export,
-    /// polar alignment) that need one in GPU mode without focus assist enabled.
+    /// `currentImage` is already fresh in CPU mode. In GPU mode it's `nil` (Focus Assist/streak
+    /// detection each render their own CGImage in their own background task now, rather than
+    /// keeping this one around — see `refreshCurrentImage`'s doc comment), so this always falls
+    /// through to a fresh on-demand render there — fine for the rare, user-initiated actions
+    /// (export, polar alignment) that call this, unlike doing the same render every frame.
     private func currentDisplayImage() -> CGImage? {
         if let currentImage { return currentImage }
         guard let frame = currentFrame, let camera = connectedCamera else { return nil }
@@ -1127,15 +1311,35 @@ final class CameraManager {
     /// Vision contour pass every single incoming frame would be wasteful, especially at video
     /// frame rates. Skips scheduling if a detection pass is already in flight.
     private func scheduleFocusAssistIfNeeded() {
-        guard isFocusAssistEnabled, focusAssistTask == nil, let image = currentImage, let frame = currentFrame else { return }
+        guard isFocusAssistEnabled, focusAssistTask == nil,
+              let frame = currentFrame, let camera = connectedCamera
+        else { return }
         let width = frame.width
         let height = frame.height
         let recognizeStars = isStarRecognitionEnabled
+        let isColorCamera = camera.isColorCamera
+        let bayerPattern = camera.bayerPattern
+        let currentStretch = stretch
+        let gpuRenderer = gpuStillImageRenderer
         // `Task { }` (not `.detached`) inherits the caller's actor — since this is `@MainActor`
         // code, that meant `StarDetector.detectStars` (a real, potentially slow Vision contour
         // pass) ran synchronously on the main thread inside what looked like a background task,
-        // same mistake `enhancementTask`'s doc comment already documents fixing elsewhere.
+        // same mistake `enhancementTask`'s doc comment already documents fixing elsewhere. Also
+        // renders its own CGImage from the raw frame here (rather than reading the `currentImage`
+        // a caller used to render synchronously just for this) — see `refreshCurrentImage`'s doc
+        // comment for why that was actually the main-thread-blocking part. Prefers the GPU
+        // (`GPUStillImageRenderer`) over the CPU `CGImageRenderer` for this render — see that
+        // type's doc comment for why the debayer+stretch itself is worth moving to Metal.
         focusAssistTask = Task.detached(priority: .utility) { [weak self] in
+            let gpuImage = await gpuRenderer?.makeDisplayImage(
+                from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
+            )
+            guard let image = gpuImage ?? CGImageRenderer.makeDisplayImage(
+                from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
+            ) else {
+                await MainActor.run { self?.focusAssistTask = nil }
+                return
+            }
             let result = try? StarDetector.detectStars(in: image)
             let matches = (recognizeStars ? result?.stars : nil).map {
                 StarPatternRecognizer.recognize(detectedStars: $0, imageWidth: width, imageHeight: height)
@@ -1195,7 +1399,7 @@ final class CameraManager {
                 imageType: selectedImageType,
                 exposureMicroseconds: Int(seconds * 1_000_000)
             )
-            currentFrame = applyDarkSubtraction(frame)
+            currentFrame = await applyDarkSubtraction(frame)
             frameID &+= 1
             refreshCurrentImage()
             connectionState = .connected
@@ -1218,6 +1422,8 @@ final class CameraManager {
     func disconnect() {
         frameConsumerTask?.cancel()
         frameConsumerTask = nil
+        cancelIPhoneNightModeCapture()
+        isWebcamFocusLocked = false
         focusAssistTask?.cancel()
         focusAssistTask = nil
         focusAssist = nil

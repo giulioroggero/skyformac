@@ -97,6 +97,14 @@ made along the way.
   (accumulated frames) vs. others that don't (a boolean toggle). Turning things back on one at a
   time, deliberately, avoids ever silently restoring a feature the user didn't explicitly ask
   for.
+- **The "Disable All" checkboxes were unclickable after the sidebar tab picker moved out to the
+  vertical trailing strip — a regression, not a new instance of the same old mystery.** Once the
+  horizontal tab picker left the `ScrollView` entirely (see the vertical-tab-strip entry above),
+  each checkbox became the literal first row of `improvementsTabContent`/`advancedTabContent` —
+  exactly the screen position already established to be unreliable for clicks, regardless of
+  which control sits there. Fixed by moving both checkboxes to the *end* of their tab's list
+  (after every `DisclosureGroup`, not before) — still one click to disable everything in the tab,
+  just no longer the pane's first rendered row.
 - **Verify against real APIs and real data — mistakes in this shape keep
   happening.** The ZWO SDK has no per-gain read-noise API (`ASIGetGainOffset`
   returns a recommended *gain setting*, not read noise in electrons) —
@@ -332,6 +340,201 @@ made along the way.
   vertical tab strip (`ControlsPanelView`) — the same "when a screen position won't take clicks,
   add a path that doesn't depend on that position" approach already used for the sidebar tab
   picker.
+- **"iPhone Night Mode (10s/60s)" can't be a literal single long sensor exposure — a live video
+  pipeline has no such thing.** `AVCaptureVideoDataOutput` delivers a continuous stream of
+  individual frames at a real frame rate; there's no operation that produces one frame tens of
+  seconds long, unlike `CaptureEngine.captureSingleExposure`'s real `ASIStartExposure` for ZWO
+  cameras. `CameraManager.startIPhoneNightModeCapture` instead accumulates that many seconds of
+  live frames into their own `LiveStacker` instance (kept separate from `liveStacker` so it
+  doesn't interact with the user's own Live Stack toggle) and freezes on the running average once
+  the timer elapses — this is not a fabricated stand-in for Apple's Night Mode, it's the same
+  computational multi-frame-stacking approach Apple's own iPhone Night Mode actually uses
+  internally, just triggered from here instead of the iPhone's own Camera app.
+- **A webcam/Continuity Camera device's continuous autofocus actively fights afocal projection.**
+  It's designed to refocus on whatever looks like a normal subject, so pointed at a telescope
+  eyepiece it keeps hunting and drifting away from the actual focal plane. `AVCaptureDevice
+  .focusMode = .locked` (real, documented API — set with no explicit lens position, it freezes at
+  whatever position autofocus currently sits at) fixes this directly; exposed as
+  `WebcamCaptureEngine.setFocusLocked`, dispatched on `sessionQueue` like every other touch of
+  `device`, since `lockForConfiguration()` is documented as a hardware-property lock other capture
+  sessions sharing the device should only hold briefly.
+- **The standard macOS "About" panel already covers app name, version, author, and license — no
+  custom About UI needed.** SwiftUI's default `CommandGroup(.appInfo)` reads `CFBundleDisplayName`
+  (app name — set to "Sky for Mac", distinct from the actual product/target/bundle-ID name
+  `skyformac`, which stays unchanged: `PRODUCT_NAME`/`CFBundleName` still says `skyformac`, only
+  the user-visible display name differs, the same split many apps use between a technical and a
+  marketing name), `CFBundleShortVersionString` (`MARKETING_VERSION`, already dynamic per build),
+  and `NSHumanReadableCopyright` (set to the actual copyright + GPLv3 notice) automatically. The
+  in-app Help's License & Credits page covers everything in more depth (the GPLv3 §7 exception
+  text, the ZWO SDK notice, a GitHub link) for anyone who wants it, but the native About panel
+  didn't need its own bespoke implementation to say the load-bearing facts correctly.
+- **The app icon (`AppIcon.appiconset`) is rasterized from one hand-authored SVG
+  (`skyformac/Resources/Branding/skyformac-logo.svg`), not drawn separately at each size.**
+  `qlmanage -t -s <N>` (macOS's built-in QuickLook thumbnailer, which already knows how to render
+  SVG) is a genuinely available rasterizer without installing anything — no `rsvg-convert`/
+  `cairosvg`/Inkscape was present on this machine — piped through `sips -z` to force exact target
+  pixel dimensions (QuickLook's own output is close but not always exact). Generated once at each
+  of the 7 sizes `Contents.json` actually needs (16/32/64/128/256/512/1024), not re-derived at
+  build time — regenerate all of them by hand (same two-command pipeline) if the SVG changes.
+- **The window's own toolbar overlaps `ControlsPanelView`'s content area by more than 40pt — a
+  real, mechanical overlap, not the unexplained mystery earlier entries here treated it as.**
+  Every "control at the top of the sidebar is unclickable" report (the old Mode picker, both
+  "Disable All" checkboxes after the vertical-tab-strip redesign) was this one thing. First fixed
+  with `.padding(.top, 40)`, which turned out to still leave the "Disable All" checkbox
+  unclickable — the actual overlap is closer to 70pt. `body`'s `ScrollView` content and
+  `verticalTabStrip` both use `.padding(.top, 70)` now, kept in sync with each other — with real
+  clearance in place, a "Disable All" master switch can safely go back to being the first row
+  in its tab, which is where `improvementsTabContent`/`advancedTabContent` put it originally, so
+  it's back there now.
+- **A custom SwiftUI `Button` label's tappable area is the tight bounding box of its own content
+  (glyphs/text), not the frame/background applied around it, unless told otherwise.**
+  `verticalTabStrip`'s tab buttons build their label from an `Image` + `Text` inside a
+  `.frame(width: 56)` with a `RoundedRectangle` background — visually a full 56pt-wide button, but
+  without `.contentShape(Rectangle())` the actual click target was only the icon/text pixels
+  themselves, so clicking the visible background around them (most of the button) did nothing.
+  Added `.contentShape(Rectangle())` after the frame/background to make the whole visual button
+  responsive, not just the "ink" inside it.
+- **`LiveStacker.add`'s `switch frame.imageType` had no `ASI_IMG_RGB24` case.** Webcam/iPhone
+  frames are always this format (see `WebcamCaptureEngine`'s doc comment), so every webcam frame
+  silently hit `default: return` — `frameCount` never advanced, `currentAverage()` always came
+  back `nil`. This is what made "iPhone Night Mode" (built directly on this accumulator) do
+  nothing, and it silently broke plain "Live Stack" for webcam/iPhone sources the exact same way
+  from well before Night Mode existed — nobody had reported it because nothing else exercised
+  `LiveStacker` with RGB24 data until Night Mode did. Fixed by adding a real `ASI_IMG_RGB24` case
+  (`sums` now sized 3x — one slot per channel, not per pixel, for this case only) to both `add`
+  and `currentAverage`.
+- **Focus lock (`WebcamCaptureEngine.setFocusLocked`) reportedly still doesn't visibly change
+  anything on an iPhone/Continuity Camera source.** Unlike the Night Mode bug above, no code-level
+  bug was found here — `isFocusModeSupported(.locked)`/`focusMode = .locked` are real, correctly-
+  called APIs (see the function's own doc comment), and if `isFocusModeSupported` genuinely
+  returns `false` for this device, the call now surfaces a clear, described error instead of
+  `WebcamCaptureError`'s previous bare enum-case-name message. It's a real, open possibility that
+  Continuity Camera's bridge doesn't forward manual focus control to the iPhone's own camera
+  hardware at all — Apple designed it as a webcam substitute, not a full remote-manual-control
+  API — in which case this would report `isFocusModeSupported(.locked) == true` and set the mode
+  successfully while the physical iPhone's autofocus keeps running anyway. Unconfirmed either way
+  without testing against real Continuity Camera hardware.
+- **The Cameras sidebar, once collapsed via the native `NavigationSplitView` toggle button, had no
+  way back — that button was reported to have no effect the second time.** `NavigationSplitView`
+  was used with no `columnVisibility` binding of its own, so that toggle button was the *only*
+  path to that state; whatever went wrong with it left no fallback. Fixed by giving `ContentView`
+  an explicit binding (`CameraManager.isCameraListSidebarVisible` — `true` maps to
+  `.all`, `false` to `.detailOnly`) and a "Camera List Sidebar" menu item (⌃⌘S) driving the same
+  state — the same "independent path that doesn't depend on whatever's wrong with the click
+  target" fix already used for the sidebar tab picker, Full Screen, and Help.
+- **`PreviewView`'s `.onExitCommand` (Esc, in fullscreen) only fires while it or a descendant is
+  actually first responder — not guaranteed for a view that just became the whole window's
+  content with nothing in particular focused.** `ContentView.fullScreenPreview` now also carries a
+  hidden `Button` with an explicit `.keyboardShortcut(.escape, modifiers: [])` — a real menu-
+  command-equivalent shortcut, not tied to first-responder status — as a second, more reliable
+  path to the same exit action.
+- **iPhone/webcam live view specifically (never a ZWO camera) wasn't fluid — a real per-frame CPU
+  cost unique to that path, not a general app slowness issue.** `WebcamSampleBufferForwarder
+  .captureOutput` converted every incoming frame from the camera's native BGRA to this app's
+  RGB24 with a hand-written scalar Swift loop — one bounds-checked array read/write per pixel,
+  per channel. For a Continuity Camera `.high`-preset frame (1920x1080 ≈ 2.07 million pixels),
+  that's real, measurable per-frame work competing with everything else on `sessionQueue`, at
+  whatever frame rate the camera delivers. A ZWO camera never hits this: `ZWOSDK.getVideoData`
+  hands over already-packed RAW8/RAW16 with no such conversion step. Fixed by replacing the
+  scalar loop with `vImageConvert_BGRA8888toRGB888` (Accelerate/vImage) — a real, existing
+  function for exactly this conversion (BGRA source -> packed R,G,B destination, dropping alpha),
+  vectorized rather than one scalar iteration per pixel.
+- **The GPU render path had no aspect-ratio-preserving logic at all — it stretched every frame to
+  fill whatever shape the view happened to be, unconditionally.** `MetalFrameRenderer.draw(in:)`
+  drew a full-screen triangle covering the entire drawable with no viewport adjustment, so
+  `outputTexture` (in its own real width:height ratio) got stretched to match the view's shape
+  regardless of whether that matched the actual image. Compounded by `PreviewView`'s SwiftUI-side
+  container being hardcoded to a fixed `4.0 / 3.0` regardless of the real camera/frame dimensions.
+  Neither was obviously broken for most ZWO cameras, whose sensors happen to be close enough to
+  4:3 to hide both problems — a webcam/iPhone frame (typically 16:9) made the distortion obvious.
+  Fixed two ways: `PreviewView.actualAspectRatio` now reads the real `currentFrame`'s (or, before
+  one exists, the connected camera's) actual width:height ratio instead of a hardcoded constant
+  (and updates live if a planetary auto-crop ROI changes the displayed frame's own dimensions);
+  and `MetalFrameRenderer.letterboxViewport` computes an explicit `MTLViewport` — the GPU
+  equivalent of SwiftUI's `contentMode: .fit` — so the GPU path preserves the image's real aspect
+  ratio the same way the CPU path already did for free from `Image(...).aspectRatio(contentMode:
+  .fit)`. Bars fill the rest via the `MTKView`'s own black `clearColor`.
+- **`refreshCurrentImage()` forced a synchronous full CPU debayer+stretch render on `@MainActor`,
+  every single incoming frame, whenever Focus Assist (hence "Recognize Stars") was enabled —
+  regardless of whether the GPU or CPU render path was actually active.** The previous fixes to
+  `scheduleFocusAssistIfNeeded`/`scheduleStreakDetectionIfNeeded` (moving the actual Vision
+  detection work onto `Task.detached`) didn't touch this: both still depended on `currentImage`
+  already being rendered, so their caller kept doing that render inline, synchronously, before
+  ever reaching the part that was already off the main actor. A full CPU debayer+stretch pass is
+  real, measurable per-frame work (the same category of cost `ImageEnhancer`'s "measured at 10+
+  seconds" entry above documents) — this is what actually made the app unresponsive with
+  Recognize Stars on, not the Vision detection itself. Fixed by having each of those two features
+  render its own `CGImage` from the raw frame *inside* its own `Task.detached`, the same pattern
+  `schedulePlanetTrackingIfNeeded` already used — `refreshCurrentImage()` now only renders
+  `currentImage` synchronously when the CPU display path actually needs it
+  (`!useMetalRenderer`), not as a side effect of some other feature being on.
+- **Focus Assist/streak detection's own CGImage render (moved off `@MainActor` in the fix above)
+  still ran on the CPU — `CGImageRenderer.makeDisplayImage` does `Debayer`'s bilinear demosaic
+  plus a per-pixel Swift LUT stretch, real work regardless of which thread it runs on.** Since
+  the app already has a full Metal debayer+stretch pipeline (`MetalFrameRenderer`, used for the
+  live GPU preview), the natural fix is to run that same category of work on the GPU here too —
+  but reusing `MetalFrameRenderer` itself directly wasn't safe: it's tightly coupled to the live
+  display loop's own accumulation state (live-stack averaging, temporal denoise, wavelet-sharpen
+  textures), and calling into it from an independent, differently-timed background task risked
+  corrupting that state (e.g. double-advancing a frame counter). Added `GPUStillImageRenderer`
+  instead — a small, standalone Metal pipeline with its own `sourceTexture`/`outputTexture`/
+  `rgbSourceBuffer`, built from the same three kernels (`stretchMono`, `stretchRGB24`,
+  `debayerAndStretch` in `Shaders.metal`) but with none of the live-display extras, that just
+  debayers+stretches one frame and reads the result back into a `CGImage`. It's an `actor` (not a
+  plain class) because `CameraManager` shares one instance between `scheduleFocusAssistIfNeeded`
+  and `scheduleStreakDetectionIfNeeded`, whose two `Task.detached` calls can genuinely run
+  concurrently — without actor isolation, both could mutate the same texture/buffer at once, a
+  real data race, not just wasted GPU contention. `CameraManager` falls back to the CPU
+  `CGImageRenderer` if the GPU renderer failed to initialize (no Metal device) or the frame is
+  `ASI_IMG_Y8` (not wired up in either GPU renderer yet).
+- **Audit: is GPU actually used everywhere it reasonably can be?** Walked every per-frame CPU
+  processing path in `CameraManager` to check for cases where Metal rendering is enabled
+  (`useMetalRenderer == true`) but some step still silently runs on the CPU anyway. Findings:
+  denoise/wavelet-sharpen (`ImageEnhancer`) and histogram (`HistogramComputer`) are both already
+  correctly gated to the CPU render path only (`scheduleCPUEnhancementIfNeeded`'s `!
+  useMetalRenderer` guard; `HistogramView`'s `useMetalRenderer ? gpuHistogramCounts : ...`) — when
+  GPU rendering is on, both instead use `MetalFrameRenderer`/`Shaders.metal`'s own denoise, wavelet
+  sharpen, and `histogramReduce` kernels, so there's no gap there. `LiveStacker` (the CPU
+  accumulator) is likewise only live when `isLiveStackingEnabled && !useMetalRenderer` — GPU mode
+  does its own accumulation via `MetalFrameRenderer`'s temporal-accumulator kernel. The one
+  genuine gap found: **dark/flat calibration (`applyDarkSubtraction`, `FrameArithmetic.subtract`,
+  `FlatFieldCorrector.correct`) runs on the CPU unconditionally, regardless of the Metal
+  toggle.** This isn't actually a bug to "move to GPU", though — `ingest()`'s calibrated
+  `processed` frame feeds several other CPU-side consumers besides the live preview (planetary
+  tracking, lucky imaging, FITS recording), so the corrected pixel data has to exist as CPU-
+  resident `Data` either way; round-tripping it through the GPU and back just for the preview
+  would add a texture upload/readback for no benefit. What *was* a real, avoidable cost:
+  `FlatFieldCorrector.correct` recomputed `mean(flat)` — a full extra pass over the flat frame's
+  pixels — from scratch on *every single incoming video frame* for as long as flat correction
+  stayed enabled, even though the active flat frame is static until the user recaptures or
+  switches it. Fixed by computing it once, in `CalibrationFrame.init` (`CalibrationLibrary.swift`)
+  when the flat is captured, and threading that precomputed `meanBrightness` through
+  `FlatFieldCorrector.correct(light:flat:precomputedFlatMean:)` — `applyDarkSubtraction` now reads
+  `calibrationLibrary.activeFlat?.meanBrightness` instead of asking `FlatFieldCorrector` to
+  re-derive it every frame. `precomputedFlatMean` defaults to `nil` (falls back to the old
+  from-scratch computation) so existing test call sites that only have a bare `CapturedFrame`
+  keep working unchanged.
+- **Follow-up: dark/flat calibration moved to the GPU after all.** The entry above argued
+  calibration should stay CPU-only since `applyDarkSubtraction`'s output feeds several CPU-side
+  consumers (planetary tracking, lucky imaging, FITS recording) besides the live preview — true,
+  but that's an argument against calibration staying GPU-*resident*, not against computing it
+  *on* the GPU and reading the result back. Reconsidered: added `GPUFrameCalibrator`, a small
+  Metal actor combining dark-subtract and flat-divide into one dispatch (`calibrateRaw8`/
+  `calibrateRaw16` in `Shaders.metal`) over the same raw sensor buffer `FrameArithmetic.subtract`/
+  `FlatFieldCorrector.correct` operate on, then reads the result back into CPU-resident `Data` so
+  every downstream consumer still gets a normal `CapturedFrame`, unchanged. `applyDarkSubtraction`
+  now tries this first when `useMetalRenderer` is on, and only falls back to the CPU scalar loops
+  if the GPU path is unavailable or declines the frame (dimension/type mismatch, no Metal device).
+  Since Metal requires a bound resource at every buffer index a kernel references even along an
+  untaken branch, `hasDark`/`hasFlat` flags let one kernel invocation cover dark-only, flat-only,
+  or both, with a shared 1-byte placeholder buffer bound wherever a stage is skipped. Making this
+  possible required `ingest()` (and `applyDarkSubtraction` itself) to become `async` — both of its
+  call sites were already inside a `Task { for await frame in stream { ... } }` loop, so this was
+  just adding `await`, not restructuring the frame-consumption flow. Verified via
+  `GPUFrameCalibratorTests` (new), which asserts the GPU kernels produce byte-for-byte identical
+  output to the CPU reference implementations across dark-only/flat-only/combined RAW8/RAW16
+  cases, not just "doesn't crash" — a numerically wrong calibration would be a much worse
+  regression than a slow one for an imaging app.
 - **No custom Bluetooth video-streaming companion app.** Bluetooth (classic or
   BLE) doesn't have the throughput for live video — Apple's own Continuity
   Camera deliberately uses Wi-Fi/peer-to-peer for the video itself and only

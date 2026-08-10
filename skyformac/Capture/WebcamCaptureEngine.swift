@@ -1,3 +1,4 @@
+import Accelerate
 import AVFoundation
 import CoreVideo
 import Foundation
@@ -148,6 +149,42 @@ final class WebcamCaptureEngine: @unchecked Sendable {
         session.startRunning() // blocking (per Apple's docs), but off the main actor/thread now
     }
 
+    /// Locks focus at whatever lens position autofocus currently sits at (`.locked` with no
+    /// explicit lens position keeps the current one — real, documented `AVCaptureDevice`
+    /// behavior, not a guess), or returns to continuous autofocus. Exists specifically because a
+    /// webcam/Continuity Camera device's own continuous autofocus actively fights afocal
+    /// projection (phone held to an eyepiece): it keeps hunting for a "normal" subject distance
+    /// and refocuses away from the telescope's actual focal plane. Runs on `sessionQueue`, like
+    /// every other touch of `device` — `lockForConfiguration()` is explicitly documented as a
+    /// hardware-property lock, not something to call from an arbitrary thread.
+    func setFocusLocked(_ locked: Bool) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async { [self] in
+                do {
+                    try device.lockForConfiguration()
+                    defer { device.unlockForConfiguration() }
+                    if locked {
+                        guard device.isFocusModeSupported(.locked) else {
+                            continuation.resume(throwing: WebcamCaptureError.controlUnsupported)
+                            return
+                        }
+                        device.focusMode = .locked
+                    } else if device.isFocusModeSupported(.continuousAutoFocus) {
+                        device.focusMode = .continuousAutoFocus
+                    } else if device.isFocusModeSupported(.autoFocus) {
+                        device.focusMode = .autoFocus
+                    } else {
+                        continuation.resume(throwing: WebcamCaptureError.controlUnsupported)
+                        return
+                    }
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
     /// Fire-and-forget teardown on `sessionQueue` — callers (`CameraManager.disconnect()`) don't
     /// need to wait for it, and `disconnect()` itself is synchronous.
     func stop() {
@@ -165,8 +202,23 @@ final class WebcamCaptureEngine: @unchecked Sendable {
     }
 }
 
-enum WebcamCaptureError: Error {
+enum WebcamCaptureError: Error, CustomStringConvertible {
     case deviceUnavailable
+    case controlUnsupported
+
+    var description: String {
+        switch self {
+        case .deviceUnavailable:
+            return "This camera is no longer available — it may have been unplugged or claimed by another app."
+        case .controlUnsupported:
+            // Genuinely possible for a Continuity Camera device specifically: Apple's bridge
+            // exposes it as a webcam-shaped `AVCaptureDevice`, but that doesn't guarantee every
+            // manual control a built-in camera supports is actually forwarded to the iPhone's
+            // own camera hardware. If this fires here, it's `isFocusModeSupported` genuinely
+            // reporting `false` for this device, not a bug in how it's called.
+            return "This camera doesn't support this control."
+        }
+    }
 }
 
 /// `AVCaptureVideoDataOutputSampleBufferDelegate` runs on an arbitrary (non-main-actor) queue —
@@ -190,22 +242,30 @@ private final class WebcamSampleBufferForwarder: NSObject, AVCaptureVideoDataOut
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-        let source = base.assumingMemoryBound(to: UInt8.self)
 
+        // `vImageConvert_BGRA8888toRGB888` — a real Accelerate/vImage function that does exactly
+        // this conversion (BGRA source -> packed R,G,B destination, dropping alpha), vectorized.
+        // The first version of this did the same conversion with a hand-written scalar Swift
+        // loop over every pixel (bounds-checked array subscripts, one iteration per pixel) — for
+        // a Continuity Camera `.high`-preset frame (1920x1080 = ~2.07M pixels), that's a real,
+        // measurable amount of per-frame CPU work competing with everything else on
+        // `sessionQueue`, and the reason iPhone/webcam live view specifically (never a ZWO
+        // camera, which hands over already-packed RAW8/RAW16 with no such conversion needed)
+        // wasn't fluid.
         var rgb = [UInt8](repeating: 0, count: width * height * 3)
-        rgb.withUnsafeMutableBufferPointer { dest in
-            for y in 0..<height {
-                let rowStart = y * bytesPerRow
-                var destOffset = y * width * 3
-                for x in 0..<width {
-                    let pixelOffset = rowStart + x * 4 // BGRA
-                    dest[destOffset] = source[pixelOffset + 2]     // R
-                    dest[destOffset + 1] = source[pixelOffset + 1] // G
-                    dest[destOffset + 2] = source[pixelOffset]     // B
-                    destOffset += 3
-                }
-            }
+        var srcBuffer = vImage_Buffer(
+            data: base, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: bytesPerRow
+        )
+        let conversionError = rgb.withUnsafeMutableBytes { destBytes -> vImage_Error in
+            var destBuffer = vImage_Buffer(
+                data: destBytes.baseAddress,
+                height: vImagePixelCount(height),
+                width: vImagePixelCount(width),
+                rowBytes: width * 3
+            )
+            return vImageConvert_BGRA8888toRGB888(&srcBuffer, &destBuffer, vImage_Flags(kvImageNoFlags))
         }
+        guard conversionError == kvImageNoError else { return }
 
         onFrame?(CapturedFrame(width: width, height: height, imageType: ASI_IMG_RGB24, data: Data(rgb)))
     }

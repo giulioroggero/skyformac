@@ -55,6 +55,26 @@ final class LiveStacker {
                     counts[i] += 1
                 }
             }
+        case ASI_IMG_RGB24:
+            // Webcam/iPhone frames are always this format (see `WebcamCaptureEngine`'s doc
+            // comment) — this case was missing entirely, so `add` silently hit `default: return`
+            // for every single webcam frame, `frameCount` never advanced, and `currentAverage()`
+            // always came back `nil`. That's the actual reason "iPhone Night Mode" (built
+            // directly on this accumulator) did nothing, and it silently broke plain "Live
+            // Stack" for webcam/iPhone sources the same way, from before Night Mode ever existed.
+            // `sums` is sized 3x (one slot per channel) for this case — see `reset`.
+            guard frame.data.count >= count * 3 else { return }
+            frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                for i in 0..<count {
+                    guard mask?.isKept(flatIndex: i) ?? true else { continue }
+                    let o = i * 3
+                    sums[o] += UInt64(base[o])
+                    sums[o + 1] += UInt64(base[o + 1])
+                    sums[o + 2] += UInt64(base[o + 2])
+                    counts[i] += 1
+                }
+            }
         default:
             return
         }
@@ -89,6 +109,25 @@ final class LiveStacker {
                 }
             }
             return CapturedFrame(width: width, height: height, imageType: imageType, data: output)
+        case ASI_IMG_RGB24:
+            var output = Data(count: count * 3)
+            output.withUnsafeMutableBytes { (o: UnsafeMutableRawBufferPointer) in
+                guard let op = o.bindMemory(to: UInt8.self).baseAddress else { return }
+                for i in 0..<count {
+                    let c = counts[i]
+                    let off = i * 3
+                    if c > 0 {
+                        op[off] = UInt8(sums[off] / UInt64(c))
+                        op[off + 1] = UInt8(sums[off + 1] / UInt64(c))
+                        op[off + 2] = UInt8(sums[off + 2] / UInt64(c))
+                    } else {
+                        op[off] = 0
+                        op[off + 1] = 0
+                        op[off + 2] = 0
+                    }
+                }
+            }
+            return CapturedFrame(width: width, height: height, imageType: imageType, data: output)
         default:
             return nil
         }
@@ -96,7 +135,8 @@ final class LiveStacker {
 
     func reset() {
         frameCount = 0
-        sums = [UInt64](repeating: 0, count: width * height)
+        let channels = imageType.map(Self.channelCount) ?? 1
+        sums = [UInt64](repeating: 0, count: width * height * channels)
         counts = [UInt32](repeating: 0, count: width * height)
     }
 
@@ -105,7 +145,14 @@ final class LiveStacker {
         self.height = height
         self.imageType = imageType
         self.frameCount = 0
-        self.sums = [UInt64](repeating: 0, count: width * height)
+        self.sums = [UInt64](repeating: 0, count: width * height * Self.channelCount(for: imageType))
         self.counts = [UInt32](repeating: 0, count: width * height)
+    }
+
+    /// `sums` needs one slot per *channel*, not per pixel — 3 for RGB24, 1 for the mono formats.
+    /// `counts` always stays one slot per pixel regardless (a mask excludes/includes a whole
+    /// pixel, all its channels together, never one channel alone).
+    private static func channelCount(for imageType: ASI_IMG_TYPE) -> Int {
+        imageType.rawValue == ASI_IMG_RGB24.rawValue ? 3 : 1
     }
 }

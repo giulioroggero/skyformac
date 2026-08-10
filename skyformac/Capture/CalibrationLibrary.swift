@@ -12,6 +12,47 @@ struct CalibrationFrame: Identifiable, Sendable {
     let frame: CapturedFrame
     let capturedAt: Date
     let exposureMicroseconds: Int
+
+    /// Mean pixel value of `frame`, computed once here rather than by `FlatFieldCorrector` on
+    /// every single live frame — a flat frame is static once captured, so recomputing its mean
+    /// per incoming video frame (a full extra pass over the flat's pixels, every frame, for the
+    /// entire time flat correction stays enabled) was pure waste. Only meaningful for flats, but
+    /// harmless (and cheap, since this only runs once per captured calibration frame) to compute
+    /// for darks too rather than making it optional.
+    let meanBrightness: Double
+
+    init(name: String, frame: CapturedFrame, capturedAt: Date, exposureMicroseconds: Int) {
+        self.name = name
+        self.frame = frame
+        self.capturedAt = capturedAt
+        self.exposureMicroseconds = exposureMicroseconds
+        self.meanBrightness = CalibrationFrame.computeMeanBrightness(of: frame)
+    }
+
+    private static func computeMeanBrightness(of frame: CapturedFrame) -> Double {
+        let count = frame.width * frame.height
+        guard count > 0 else { return 0 }
+        switch frame.imageType {
+        case ASI_IMG_RAW8, ASI_IMG_Y8:
+            guard frame.data.count >= count else { return 0 }
+            var sum = 0.0
+            frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                for i in 0..<count { sum += Double(base[i]) }
+            }
+            return sum / Double(count)
+        case ASI_IMG_RAW16:
+            guard frame.data.count >= count * 2 else { return 0 }
+            var sum = 0.0
+            frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: UInt16.self).baseAddress else { return }
+                for i in 0..<count { sum += Double(base[i]) }
+            }
+            return sum / Double(count)
+        default:
+            return 0
+        }
+    }
 }
 
 /// Holds multiple named dark and flat frames — not just one of each — so a session can switch

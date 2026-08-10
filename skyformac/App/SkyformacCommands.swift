@@ -13,6 +13,20 @@ struct SkyformacCommands: Commands {
     @AppStorage("sidebarTab") private var tab: SidebarTab = .cameraControls
 
     var body: some Commands {
+        // Replaces the default (otherwise inert, since this app ships no Apple Help Book)
+        // "skyformac Help" menu item with one that actually opens something — a `.sheet` on
+        // `ContentView`, not a second `Window` scene, since this app is deliberately
+        // single-window (see `SkyformacApp`).
+        CommandGroup(replacing: .help) {
+            Button("skyformac Help") { cameraManager.isHelpPresented = true }
+                .keyboardShortcut("?", modifiers: .command)
+        }
+
+        // Removes the default "New Window" (⌘N) item — `WindowGroup` provides one automatically,
+        // but this app is deliberately single-window (see `SkyformacApp`'s doc comment); a
+        // second window of the same scene is exactly what that's trying to prevent.
+        CommandGroup(replacing: .newItem) {}
+
         CommandGroup(after: .newItem) {
             Divider()
             Button("Export as FITS…") { cameraManager.exportCurrentFrame(as: .fits) }
@@ -72,6 +86,17 @@ struct SkyformacCommands: Commands {
                 set: { cameraManager.isPreviewFullScreenEnabled = $0 }
             ))
             .keyboardShortcut("f", modifiers: [.command, .shift])
+
+            // The native sidebar-toggle button was reported to have no way back once the
+            // Cameras sidebar was collapsed — this is an independent path to the exact same
+            // `NavigationSplitView` `columnVisibility` state (see `CameraManager
+            // .isCameraListSidebarVisible`'s doc comment), so there's always a way back
+            // regardless of whatever's wrong with that button.
+            Toggle("Camera List Sidebar", isOn: Binding(
+                get: { cameraManager.isCameraListSidebarVisible },
+                set: { cameraManager.isCameraListSidebarVisible = $0 }
+            ))
+            .keyboardShortcut("s", modifiers: [.command, .control])
         }
     }
 

@@ -1,5 +1,7 @@
 # Skyformac
 
+Repository: [github.com/giulioroggero/skyformac](https://github.com/giulioroggero/skyformac)
+
 Skyformac is a native macOS astrophotography capture app for ZWO ASI cameras —
 built directly on the ZWO ASI Camera SDK, no ASCOM/INDI bridging layer. Think of
 it as a SharpCap-style capture tool for the Mac: connect a camera, get a live
@@ -10,6 +12,42 @@ bursts, straight to FITS/PNG/TIFF.
 If you don't have a ZWO camera to hand, an iPhone (via Continuity Camera) or any
 other USB webcam works as a live source too — handy for afocal eyepiece
 projection on the Moon and bright planets.
+
+## Why a native Mac app?
+
+Most software that can drive a ZWO ASI camera — SharpCap, FireCapture, and
+others — is Windows-native or Java-based, running on a Mac only through
+Wine/Parallels or a JVM, neither of which was built with this hardware or this
+OS in mind. Skyformac is a ground-up SwiftUI/AppKit app instead, which is what
+makes a few things possible that a ported or cross-platform tool generally
+can't do as directly:
+
+- **Real GPU acceleration, not a CPU fallback.** Debayering, the display
+  stretch, denoise, wavelet sharpening, histogram computation, and
+  live-stacking all run as actual Metal compute shaders (`Shaders.metal`) on
+  Apple Silicon's GPU — a cross-platform tool's fast path is typically
+  DirectX-only, leaving macOS on a slower CPU-only code path even when it
+  runs at all.
+- **An iPhone as a capture source, natively.** Continuity Camera — using a
+  paired iPhone as a live afocal-projection camera, with real focus-lock and
+  frame-stacked Night Mode support — is an Apple-ecosystem capability tied to
+  macOS/iOS; it isn't something a cross-platform or Windows-native tool can
+  offer at all, on any OS.
+- **Apple's Vision framework for real detection**, not a bundled third-party
+  computer-vision library — star/streak/planet detection and the live WCS
+  solve all go through the same system framework macOS itself uses for
+  on-device vision tasks.
+- **Swift's actor model enforces the hardware-threading rules other apps
+  only document.** Every blocking ZWO SDK call is structurally isolated onto
+  `CaptureEngine`'s own actor — not just a convention to remember, but
+  something the compiler checks — which is what keeps a multi-second USB
+  handshake or a long exposure from ever freezing the UI (see
+  [`docs/design-notes.md`](docs/design-notes.md) for the real hangs this
+  caught and fixed during development).
+- **Runs entirely locally.** No telemetry, no cloud account, no network
+  dependency for anything the camera itself doesn't need — and the source is
+  open (GPLv3, see [License](#license) below), so any of this is
+  independently verifiable rather than taken on faith.
 
 ## Requirements
 
@@ -122,5 +160,10 @@ New non-trivial features go through spec-driven development — see
 
 ## License
 
-MIT — see [`LICENSE.md`](LICENSE.md). The vendored ZWO ASI Camera SDK under
-`Vendor/ZWO/` is third-party software under ZWO's own SDK license terms.
+GPLv3 — see [`LICENSE.md`](LICENSE.md), including the additional permission
+(GPLv3 §7) that specifically allows linking this GPLv3 code against
+closed-source camera driver SDKs. The vendored ZWO ASI Camera SDK under
+`Vendor/ZWO/` (`ASICamera2.h`, `libASICamera2.dylib`) is proprietary
+third-party software, © ZWO Co., Ltd., under its own SDK terms, used here
+under that permission — see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+for the full notice.

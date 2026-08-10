@@ -7,7 +7,7 @@
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundleDisplayName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Sky for Mac</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -19,7 +19,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright. All rights reserved.</string>
+	<string>Copyright © 2026 Giulio Roggero. Licensed under the GNU General Public License v3.0 (GPLv3).</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>LSApplicationCategoryType</key>

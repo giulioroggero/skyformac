@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Sky for Mac</title>
+  <defs>
+    <!-- Night-sky background: deep indigo up top fading to near-black at the bottom. -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B2350"/>
+      <stop offset="45%" stop-color="#0E1230"/>
+      <stop offset="100%" stop-color="#03040D"/>
+    </linearGradient>
+    <!-- Soft glow behind the moon. -->
+    <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F6EFD8" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#F6EFD8" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Warm crescent moon body. -->
+    <linearGradient id="moonBody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF8E7"/>
+      <stop offset="100%" stop-color="#F3D9A3"/>
+    </linearGradient>
+    <!-- Telescope tube: dark metal with a cool rim-light. -->
+    <linearGradient id="tubeBody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3A4356"/>
+      <stop offset="55%" stop-color="#202636"/>
+      <stop offset="100%" stop-color="#0E111C"/>
+    </linearGradient>
+    <linearGradient id="tripodBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2A3145"/>
+      <stop offset="100%" stop-color="#12151F"/>
+    </linearGradient>
+    <!-- Cyan accent, the app's "GPU/Metal" color thread. -->
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6FE3FF"/>
+      <stop offset="100%" stop-color="#3B8CFF"/>
+    </linearGradient>
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="1024" height="1024" rx="180" ry="180"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#squircle)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#sky)"/>
+
+    <!-- Stars scattered across the upper sky. -->
+    <g fill="#F5F7FF">
+      <circle cx="150" cy="150" r="5" opacity="0.9"/>
+      <circle cx="230" cy="260" r="3" opacity="0.6"/>
+      <circle cx="120" cy="340" r="4" opacity="0.75"/>
+      <circle cx="330" cy="140" r="3" opacity="0.55"/>
+      <circle cx="430" cy="220" r="4.5" opacity="0.8"/>
+      <circle cx="560" cy="120" r="3" opacity="0.5"/>
+      <circle cx="205" cy="440" r="3.5" opacity="0.65"/>
+      <circle cx="90" cy="230" r="2.5" opacity="0.5"/>
+      <circle cx="480" cy="330" r="2.5" opacity="0.45"/>
+      <circle cx="620" cy="230" r="3" opacity="0.55"/>
+    </g>
+
+    <!-- A couple of brighter four-point sparkle stars for visual interest. -->
+    <g fill="#FFFFFF">
+      <path d="M 268 190 L 274 214 L 298 220 L 274 226 L 268 250 L 262 226 L 238 220 L 262 214 Z" opacity="0.9"/>
+      <path d="M 560 300 L 564 316 L 580 320 L 564 324 L 560 340 L 556 324 L 540 320 L 556 316 Z" opacity="0.8"/>
+    </g>
+
+    <!-- Crescent moon, upper right. -->
+    <g>
+      <circle cx="760" cy="230" r="150" fill="url(#moonGlow)"/>
+      <path d="
+        M 760 110
+        A 120 120 0 1 0 760 350
+        A 150 150 0 0 1 760 110
+        Z" fill="url(#moonBody)"/>
+    </g>
+
+    <!-- Telescope: reflector tube on a simple fork/tripod mount, angled toward the sky. -->
+    <g transform="translate(512 700) rotate(-38)">
+      <!-- tube -->
+      <rect x="-260" y="-58" width="420" height="116" rx="26" fill="url(#tubeBody)"/>
+      <rect x="-260" y="-58" width="420" height="116" rx="26" fill="none" stroke="url(#accent)" stroke-width="5" opacity="0.85"/>
+      <!-- objective ring (front aperture, glinting cyan) -->
+      <circle cx="160" cy="0" r="58" fill="#0A0E18"/>
+      <circle cx="160" cy="0" r="58" fill="none" stroke="url(#accent)" stroke-width="10"/>
+      <circle cx="160" cy="0" r="30" fill="#141A28"/>
+      <!-- focuser knob -->
+      <rect x="-40" y="46" width="70" height="34" rx="10" fill="#171C2A"/>
+    </g>
+
+    <!-- Fork mount / base -->
+    <g fill="url(#tripodBody)">
+      <path d="M 512 760 L 430 940 L 480 940 L 540 800 Z"/>
+      <path d="M 512 760 L 610 940 L 560 940 L 500 800 Z"/>
+      <rect x="440" y="920" width="144" height="34" rx="10"/>
+    </g>
+  </g>
+
+  <!-- Squircle edge highlight, for definition against light or dark app backgrounds. -->
+  <rect x="4" y="4" width="1016" height="1016" rx="176" ry="176" fill="none" stroke="#000000" stroke-opacity="0.25" stroke-width="2"/>
+</svg>

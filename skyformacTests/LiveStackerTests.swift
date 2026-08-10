@@ -15,6 +15,23 @@ struct LiveStackerTests {
         #expect(Array(result.data) == [20, 184])
     }
 
+    /// Regression test: `add`'s `switch frame.imageType` had no `ASI_IMG_RGB24` case at all —
+    /// webcam/iPhone frames are always this format (see `WebcamCaptureEngine`'s doc comment), so
+    /// every webcam frame silently hit `default: return`, `frameCount` never advanced, and
+    /// `currentAverage()` always came back `nil`. That's what made "iPhone Night Mode" (built
+    /// directly on this accumulator) do nothing, and it silently broke plain "Live Stack" for
+    /// webcam/iPhone sources the same way even before Night Mode existed.
+    @Test func averagesRGB24Frames() throws {
+        let stacker = LiveStacker()
+        // 1x1 RGB24 frame: three bytes, R/G/B.
+        stacker.add(CapturedFrame(width: 1, height: 1, imageType: ASI_IMG_RGB24, data: Data([10, 20, 30])))
+        stacker.add(CapturedFrame(width: 1, height: 1, imageType: ASI_IMG_RGB24, data: Data([30, 40, 50])))
+
+        #expect(stacker.frameCount == 2)
+        let result = try #require(stacker.currentAverage())
+        #expect(Array(result.data) == [20, 30, 40])
+    }
+
     @Test func emptyStackerReturnsNil() {
         let stacker = LiveStacker()
         #expect(stacker.currentAverage() == nil)

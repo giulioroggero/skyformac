@@ -566,10 +566,53 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
         encoder.setRenderPipelineState(renderPipeline)
         encoder.setFragmentTexture(outputTexture, index: 0)
+        // Without an explicit viewport, this full-screen-triangle draw covers the *entire*
+        // drawable — `outputTexture` (in its own real width:height ratio) gets stretched to
+        // whatever shape the view happens to be, unconditionally. `PreviewView`'s SwiftUI-side
+        // `.aspectRatio` shapes its *container* using the actual camera/frame ratio, but this GPU
+        // path draws into whatever it's given with no matching correction of its own — the only
+        // reason this wasn't obviously broken for most ZWO cameras is that many of their sensors
+        // are close enough to 4:3 (this view's old hardcoded fallback shape) to hide it. A
+        // webcam/iPhone frame (typically 16:9) made the stretch obvious. `letterboxViewport`
+        // computes the same "fit, preserve aspect ratio, pillarbox/letterbox the rest" the CPU
+        // path already gets for free from `Image(...).aspectRatio(contentMode: .fit)`.
+        encoder.setViewport(Self.letterboxViewport(
+            textureWidth: outputTexture.width, textureHeight: outputTexture.height, drawableSize: view.drawableSize
+        ))
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    /// The largest `textureWidth:textureHeight`-ratio rectangle that fits inside `drawableSize`,
+    /// centered — i.e. exactly what `contentMode: .fit` means, expressed as a GPU viewport
+    /// instead of a SwiftUI layout. Bars (drawn as the `MTKView`'s own black `clearColor`, never
+    /// touched by this viewport) fill whatever space is left on the short axis.
+    static func letterboxViewport(textureWidth: Int, textureHeight: Int, drawableSize: CGSize) -> MTLViewport {
+        guard textureWidth > 0, textureHeight > 0, drawableSize.width > 0, drawableSize.height > 0 else {
+            return MTLViewport(
+                originX: 0, originY: 0, width: drawableSize.width, height: drawableSize.height, znear: 0, zfar: 1
+            )
+        }
+        let textureAspect = Double(textureWidth) / Double(textureHeight)
+        let drawableAspect = drawableSize.width / drawableSize.height
+
+        if drawableAspect > textureAspect {
+            // Drawable is relatively wider than the image -> pillarbox (bars on left/right).
+            let width = drawableSize.height * textureAspect
+            return MTLViewport(
+                originX: (drawableSize.width - width) / 2, originY: 0,
+                width: width, height: drawableSize.height, znear: 0, zfar: 1
+            )
+        } else {
+            // Drawable is relatively taller than the image -> letterbox (bars on top/bottom).
+            let height = drawableSize.width / textureAspect
+            return MTLViewport(
+                originX: 0, originY: (drawableSize.height - height) / 2,
+                width: drawableSize.width, height: height, znear: 0, zfar: 1
+            )
+        }
     }
 }
 

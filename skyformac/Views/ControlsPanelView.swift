@@ -1,6 +1,45 @@
 import AppKit
 import SwiftUI
 
+/// Small "?" button next to a setting's label that opens Help scrolled directly to that
+/// setting's own explanation (`CameraManager.showHelp(topicID:sectionID:)`) — every `sectionID`
+/// used below matches a `HelpSection.id` in `HelpContent.configurationReference` (or, for the
+/// iPhone/webcam controls, `HelpContent.usingIPhone`). Search in Help covers the same content
+/// too; this is the "I'm already looking at the control, just tell me what it does" shortcut.
+private struct HelpLinkButton: View {
+    var cameraManager: CameraManager
+    var topicID: String
+    var sectionID: String?
+
+    var body: some View {
+        Button {
+            cameraManager.showHelp(topicID: topicID, sectionID: sectionID)
+        } label: {
+            Image(systemName: "questionmark.circle")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("What does this do? (opens Help)")
+    }
+}
+
+/// A `DisclosureGroup` title row with a trailing `HelpLinkButton` — used for every section below
+/// whose entire content maps to one `HelpContent` anchor (as opposed to a section covering
+/// several distinct settings, each with its own anchor, which instead places a `HelpLinkButton`
+/// next to each setting individually inside the section body).
+private struct HelpLinkedDisclosureLabel: View {
+    var title: String
+    var cameraManager: CameraManager
+    var sectionID: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: sectionID)
+        }
+    }
+}
+
 /// Which of the sidebar's three tabs is showing — replaces the old `ControlMode` filter
 /// (General/Planetary/Deep Sky/All Tools), which grouped the same flat list of ~15 sections by
 /// imaging genre. This groups them by *role* instead:
@@ -73,6 +112,8 @@ struct ControlsPanelView: View {
     @State private var showEnhancementSection = false
     @State private var showLiveGPUSection = false
     @State private var showAISuiteSection = false
+    @State private var showIPhoneWebcamSection = false
+    @AppStorage("nightModeSeconds") private var nightModeSeconds: Double = 10
 
     var body: some View {
         HStack(spacing: 0) {
@@ -87,7 +128,16 @@ struct ControlsPanelView: View {
                         advancedTabContent
                     }
                 }
-                .padding()
+                // The window's own toolbar (GPU/CPU, Night Mode, All-Sky Monitor) overlaps this
+                // pane's content area by more than the first estimate (40pt) accounted for — the
+                // "Disable All" checkbox was still unclickable at that clearance, so this is
+                // 70pt now. Not a SwiftUI-side mystery, an actual toolbar hit-testing overlap:
+                // every "unclickable at the top of the sidebar" report so far (the old Mode
+                // picker, both "Disable All" checkboxes) was this. `verticalTabStrip` uses the
+                // same value.
+                .padding(.horizontal)
+                .padding(.bottom)
+                .padding(.top, 70)
             }
 
             if cameraManager.connectedCamera != nil {
@@ -98,10 +148,10 @@ struct ControlsPanelView: View {
     }
 
     /// Vertical tab strip on the sidebar's trailing edge, rather than a horizontal picker above
-    /// the content — both a `Picker(.menu)` and later a `Menu`/segmented `Picker` placed at the
-    /// top of this pane (inside or outside the `ScrollView`) were reliably unclickable; see
-    /// `docs/design-notes.md`. The top button here starts well below that strip (`.padding(.top,
-    /// 40)`) specifically to stay clear of whatever's wrong with that exact screen position.
+    /// the content — the window's own toolbar (GPU/CPU, Night Mode, All-Sky Monitor) overlaps
+    /// this pane by more than first estimated, which is what made every control that's ever sat
+    /// there unclickable (see `docs/design-notes.md`). `.padding(.top, 70)` below clears it —
+    /// kept in sync with `body`'s `ScrollView` content, which needed the same bump.
     @ViewBuilder
     private var verticalTabStrip: some View {
         VStack(spacing: 6) {
@@ -122,6 +172,12 @@ struct ControlsPanelView: View {
                             .fill(tab == candidate ? Color.accentColor.opacity(0.2) : Color.clear)
                     )
                     .foregroundStyle(tab == candidate ? Color.accentColor : Color.primary)
+                    // Without this, the button's tappable area is just the tight bounding box of
+                    // its actual glyphs (the icon's drawn strokes and the text) — clicking
+                    // anywhere else in the visible rounded-rect background (most of its area)
+                    // did nothing. This makes the whole frame+background react, not just the
+                    // "ink" inside it.
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(candidate.rawValue)
@@ -147,13 +203,14 @@ struct ControlsPanelView: View {
                 }
                 .frame(width: 56)
                 .padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Full screen live preview with a zoom overlay (⌘⇧F)")
 
             Spacer()
         }
-        .padding(.top, 40)
+        .padding(.top, 70)
         .padding(.horizontal, 6)
         .frame(width: 68)
     }
@@ -179,8 +236,73 @@ struct ControlsPanelView: View {
             singleExposureSection
             Divider()
 
+            if cameraManager.isExternalWebcam {
+                DisclosureGroup("iPhone / Webcam", isExpanded: $showIPhoneWebcamSection) {
+                    iPhoneWebcamSection
+                }
+                Divider()
+            }
+
             DisclosureGroup("Export", isExpanded: $showExportSection) {
                 exportSection
+            }
+        }
+    }
+
+    // MARK: - iPhone / webcam: focus lock + Night Mode
+
+    @ViewBuilder
+    private var iPhoneWebcamSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Focus").font(.caption.bold())
+                    HelpLinkButton(cameraManager: cameraManager, topicID: "using-iphone", sectionID: "setting.lockFocus")
+                }
+                Text("A webcam's own continuous autofocus actively fights afocal projection (phone held to an eyepiece) — it keeps hunting for a \"normal\" subject distance and refocuses away from the telescope's actual focal plane. Lock it once focus looks right.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Toggle("Lock Focus", isOn: Binding(
+                    get: { cameraManager.isWebcamFocusLocked },
+                    set: { cameraManager.setWebcamFocusLocked($0) }
+                ))
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Night Mode").font(.caption.bold())
+                    HelpLinkButton(cameraManager: cameraManager, topicID: "using-iphone", sectionID: "setting.iphoneNightMode")
+                }
+                Text("No hardware exposure to set here — this instead accumulates that many seconds of live frames (the same computational multi-frame stacking Apple's own iPhone Night Mode uses internally) and freezes on the brighter result.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                Picker("Duration", selection: $nightModeSeconds) {
+                    Text("10 sec").tag(10.0)
+                    Text("60 sec").tag(60.0)
+                }
+                .pickerStyle(.segmented)
+                .disabled(cameraManager.isCapturingNightMode)
+
+                if cameraManager.isCapturingNightMode {
+                    ProgressView(
+                        value: cameraManager.nightModeTotalSeconds - cameraManager.nightModeRemainingSeconds,
+                        total: max(cameraManager.nightModeTotalSeconds, 0.001)
+                    ) {
+                        Text(String(format: "Capturing… %.0fs left", cameraManager.nightModeRemainingSeconds))
+                            .font(.caption)
+                    }
+                    Button("Cancel", role: .destructive) { cameraManager.cancelIPhoneNightModeCapture() }
+                } else {
+                    Button("Start Night Mode Capture") {
+                        cameraManager.startIPhoneNightModeCapture(seconds: nightModeSeconds)
+                    }
+                    if !cameraManager.isLiveViewActive {
+                        Button("Resume Live View") { cameraManager.resumeLiveView() }
+                    }
+                }
             }
         }
     }
@@ -192,21 +314,34 @@ struct ControlsPanelView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            Toggle("Disable All Improvements", isOn: allImprovementsDisabled)
-                .toggleStyle(.checkbox)
-                .help("Turns off Image Enhancement, Live GPU Enhancement Controls, and the AI Suite's streak masking/cloud sentinel in one click — for ruling out a visual side effect from one of them, or just to see exactly what the camera itself is producing.")
+            // Back at the top on purpose — the pane's first row is only unclickable without the
+            // `.padding(.top, 70)` clearing the window toolbar's overlap (see `body`'s doc
+            // comment); with that in place, a master switch reads naturally as the first thing
+            // in its tab.
+            HStack {
+                Toggle("Disable All Improvements", isOn: allImprovementsDisabled)
+                    .toggleStyle(.checkbox)
+                    .help("Turns off Image Enhancement, Live GPU Enhancement Controls, and the AI Suite's streak masking/cloud sentinel in one click — for ruling out a visual side effect from one of them, or just to see exactly what the camera itself is producing.")
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.disableImprovements")
+            }
             Divider()
 
-            DisclosureGroup("Image Enhancement", isExpanded: $showEnhancementSection) {
+            DisclosureGroup(isExpanded: $showEnhancementSection) {
                 enhancementSection
+            } label: {
+                Text("Image Enhancement")
             }
             Divider()
-            DisclosureGroup("Live GPU Enhancement Controls", isExpanded: $showLiveGPUSection) {
+            DisclosureGroup(isExpanded: $showLiveGPUSection) {
                 liveGPUControlsSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Live GPU Enhancement Controls", cameraManager: cameraManager, sectionID: "setting.liveGPU")
             }
             Divider()
-            DisclosureGroup("AI & Machine Learning Suite", isExpanded: $showAISuiteSection) {
+            DisclosureGroup(isExpanded: $showAISuiteSection) {
                 aiSuiteSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "AI & Machine Learning Suite", cameraManager: cameraManager, sectionID: "setting.aiSuite")
             }
         }
     }
@@ -218,41 +353,60 @@ struct ControlsPanelView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            Toggle("Disable All Advanced Features", isOn: allAdvancedDisabled)
-                .toggleStyle(.checkbox)
-                .help("Turns off Focus Assist, Planetary tracking/crop, Live Stacking, and Dark/Flat calibration, and stops any active disk recording — for ruling one of these out, or to fall back to a plain, unmodified live view.")
+            HStack {
+                Toggle("Disable All Advanced Features", isOn: allAdvancedDisabled)
+                    .toggleStyle(.checkbox)
+                    .help("Turns off Focus Assist, Planetary tracking/crop, Live Stacking, and Dark/Flat calibration, and stops any active disk recording — for ruling one of these out, or to fall back to a plain, unmodified live view.")
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.disableAdvanced")
+            }
             Divider()
 
-            DisclosureGroup("Focus Assist", isExpanded: $showFocusAssistSection) {
+            DisclosureGroup(isExpanded: $showFocusAssistSection) {
                 focusAssistSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Focus Assist", cameraManager: cameraManager, sectionID: "setting.focusAssist")
             }
             Divider()
-            DisclosureGroup("Smart Exposure", isExpanded: $showSmartExposureSection) {
+            DisclosureGroup(isExpanded: $showSmartExposureSection) {
                 smartExposureSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Smart Exposure", cameraManager: cameraManager, sectionID: "setting.smartExposure")
             }
             Divider()
-            DisclosureGroup("Planetary Auto-Center", isExpanded: $showPlanetarySection) {
+            DisclosureGroup(isExpanded: $showPlanetarySection) {
                 planetarySection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Planetary Auto-Center", cameraManager: cameraManager, sectionID: "setting.planetaryAutoCenter")
             }
             Divider()
-            DisclosureGroup("Polar Alignment", isExpanded: $showPolarAlignmentSection) {
+            DisclosureGroup(isExpanded: $showPolarAlignmentSection) {
                 polarAlignmentSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Polar Alignment", cameraManager: cameraManager, sectionID: "setting.polarAlignment")
             }
             Divider()
-            DisclosureGroup("Calibration (Dark/Flat)", isExpanded: $showDarkFrameSection) {
+            DisclosureGroup(isExpanded: $showDarkFrameSection) {
                 darkFrameSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Calibration (Dark/Flat)", cameraManager: cameraManager, sectionID: "setting.calibration")
             }
             Divider()
-            DisclosureGroup("Live Stack", isExpanded: $showLiveStackSection) {
+            DisclosureGroup(isExpanded: $showLiveStackSection) {
                 liveStackSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Live Stack", cameraManager: cameraManager, sectionID: "setting.liveStack")
             }
             Divider()
-            DisclosureGroup("Lucky Imaging", isExpanded: $showLuckyImagingSection) {
+            DisclosureGroup(isExpanded: $showLuckyImagingSection) {
                 luckyImagingSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Lucky Imaging", cameraManager: cameraManager, sectionID: "setting.luckyImaging")
             }
             Divider()
-            DisclosureGroup("Record to Disk (GPU sharpness gate)", isExpanded: $showRecordingSection) {
+            DisclosureGroup(isExpanded: $showRecordingSection) {
                 recordingSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Record to Disk (GPU sharpness gate)", cameraManager: cameraManager, sectionID: "setting.recordToDisk")
             }
         }
     }
@@ -312,7 +466,10 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private var singleExposureSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Single Exposure").font(.headline)
+            HStack {
+                Text("Single Exposure").font(.headline)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.singleExposure")
+            }
             // Safety guardrail (specs/skyformac_GPU_Live_Controls_Spec.md section 6.2): a webcam
             // has no real controllable exposure (see `CameraManager.captureSingleExposure`'s
             // `cameraID == -2` branch — it freezes the current frame regardless of this value),
@@ -540,14 +697,20 @@ struct ControlsPanelView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Toggle("Denoise", isOn: Binding(
-                get: { cameraManager.isDenoisingEnabled },
-                set: { cameraManager.isDenoisingEnabled = $0 }
-            ))
-            Toggle("Wavelet Sharpening", isOn: Binding(
-                get: { cameraManager.isWaveletSharpeningEnabled },
-                set: { cameraManager.isWaveletSharpeningEnabled = $0 }
-            ))
+            HStack {
+                Toggle("Denoise", isOn: Binding(
+                    get: { cameraManager.isDenoisingEnabled },
+                    set: { cameraManager.isDenoisingEnabled = $0 }
+                ))
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.denoise")
+            }
+            HStack {
+                Toggle("Wavelet Sharpening", isOn: Binding(
+                    get: { cameraManager.isWaveletSharpeningEnabled },
+                    set: { cameraManager.isWaveletSharpeningEnabled = $0 }
+                ))
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.waveletSharpening")
+            }
             if cameraManager.isWaveletSharpeningEnabled {
                 HStack {
                     Text("Amount").font(.caption)
@@ -934,6 +1097,7 @@ struct ControlsPanelView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(cap.name)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.genericControl")
                 Spacer()
                 Text("\(current)")
                     .font(.caption.monospacedDigit())
@@ -959,12 +1123,28 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private func toggleRow(_ cap: ZWOControlCaps) -> some View {
         let isOn = currentValue(for: cap) != 0
-        Toggle(cap.name, isOn: Binding(
-            get: { isOn },
-            set: { cameraManager.setControlValue(cap.controlType, value: $0 ? 1 : 0) }
-        ))
-        .disabled(!cap.isWritable)
-        .help(cap.controlDescription)
+        HStack {
+            Toggle(cap.name, isOn: Binding(
+                get: { isOn },
+                set: { cameraManager.setControlValue(cap.controlType, value: $0 ? 1 : 0) }
+            ))
+            .disabled(!cap.isWritable)
+            .help(cap.controlDescription)
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: toggleRowSectionID(cap))
+        }
+    }
+
+    /// Maps this group of on/off hardware toggles to the two `config-reference` anchors that
+    /// actually cover them — `ASI_COOLER_ON`/`ASI_FAN_ON`/`ASI_ANTI_DEW_HEATER` are all
+    /// cooling-related, everything else in this switch (`controlRow`'s first case) is a
+    /// binning/speed mode.
+    private func toggleRowSectionID(_ cap: ZWOControlCaps) -> String {
+        switch cap.controlType {
+        case ASI_COOLER_ON, ASI_FAN_ON, ASI_ANTI_DEW_HEATER:
+            return "setting.cooler"
+        default:
+            return "setting.binningModes"
+        }
     }
 
     /// The camera's own `ASI_EXPOSURE` control — governs the *continuous live-view video* poll
@@ -981,7 +1161,10 @@ struct ControlsPanelView: View {
     private func exposureRow(_ cap: ZWOControlCaps) -> some View {
         let currentMicroseconds = currentValue(for: cap)
         VStack(alignment: .leading, spacing: 4) {
-            Text("Live Exposure")
+            HStack {
+                Text("Live Exposure")
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.liveExposure")
+            }
             if cap.isWritable, cap.minValue < cap.maxValue {
                 ExposureField(
                     seconds: Binding(
@@ -1004,7 +1187,10 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private func gainRow(_ cap: ZWOControlCaps) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Gain")
+            HStack {
+                Text("Gain")
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.gain")
+            }
             if cap.isWritable, cap.minValue < cap.maxValue {
                 GainField(
                     value: Binding(
@@ -1029,17 +1215,20 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private func flipRow(_ cap: ZWOControlCaps) -> some View {
         let current = currentValue(for: cap)
-        Picker("Flip", selection: Binding(
-            get: { current },
-            set: { cameraManager.setControlValue(cap.controlType, value: $0) }
-        )) {
-            Text("None").tag(Int(ASI_FLIP_NONE.rawValue))
-            Text("Horizontal").tag(Int(ASI_FLIP_HORIZ.rawValue))
-            Text("Vertical").tag(Int(ASI_FLIP_VERT.rawValue))
-            Text("Both").tag(Int(ASI_FLIP_BOTH.rawValue))
+        HStack {
+            Picker("Flip", selection: Binding(
+                get: { current },
+                set: { cameraManager.setControlValue(cap.controlType, value: $0) }
+            )) {
+                Text("None").tag(Int(ASI_FLIP_NONE.rawValue))
+                Text("Horizontal").tag(Int(ASI_FLIP_HORIZ.rawValue))
+                Text("Vertical").tag(Int(ASI_FLIP_VERT.rawValue))
+                Text("Both").tag(Int(ASI_FLIP_BOTH.rawValue))
+            }
+            .disabled(!cap.isWritable)
+            .help(cap.controlDescription)
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.flip")
         }
-        .disabled(!cap.isWritable)
-        .help(cap.controlDescription)
     }
 
     @ViewBuilder
@@ -1048,6 +1237,7 @@ struct ControlsPanelView: View {
         let celsius = Double(currentValue(for: cap)) / 10.0
         HStack {
             Label("Sensor Temperature", systemImage: "thermometer.medium")
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.cooler")
             Spacer()
             Text(String(format: "%.1f °C", celsius))
                 .font(.callout.monospacedDigit())

@@ -11,6 +11,14 @@ struct ContentView: View {
                 mainContent
             }
         }
+        // A `.sheet` on the app's one window, not a second `Window` scene — see
+        // `SkyformacApp`'s doc comment for why this app is deliberately single-window.
+        .sheet(isPresented: Binding(
+            get: { cameraManager.isHelpPresented },
+            set: { cameraManager.isHelpPresented = $0 }
+        )) {
+            HelpView(initialTopicID: cameraManager.helpAnchorTopicID, initialSectionID: cameraManager.helpAnchorSectionID)
+        }
     }
 
     /// The live video alone, filling the entire window with its own overlay controls (zoom
@@ -28,12 +36,25 @@ struct ContentView: View {
         .ignoresSafeArea()
         .background(Color.black)
         .colorMultiply(cameraManager.isNightModeEnabled ? .red : .white)
+        // `PreviewView`'s own `.onExitCommand` only fires while it (or a descendant) is actually
+        // first responder — not guaranteed here, since nothing in this fullscreen presentation
+        // necessarily holds keyboard focus. A hidden button with an explicit `.keyboardShortcut`
+        // is a real menu-command-equivalent shortcut, not tied to first-responder status, so Esc
+        // reliably exits regardless of what currently has focus.
+        .background {
+            Button("") { cameraManager.isPreviewFullScreenEnabled = false }
+                .keyboardShortcut(.escape, modifiers: [])
+                .hidden()
+        }
     }
 
     private var mainContent: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: Binding(
+            get: { cameraManager.isCameraListSidebarVisible ? .all : .detailOnly },
+            set: { cameraManager.isCameraListSidebarVisible = $0 != .detailOnly }
+        )) {
             CameraListView(cameraManager: cameraManager)
-                .navigationSplitViewColumnWidth(min: 260, ideal: 300)
+                .navigationSplitViewColumnWidth(min: 130, ideal: 150)
         } detail: {
             HSplitView {
                 VStack(spacing: 0) {

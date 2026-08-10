@@ -369,6 +369,58 @@ kernel void sharpnessPartialSums(
     }
 }
 
+/// Dark-subtract + flat-divide calibration on raw (pre-debayer) sensor buffers — the GPU
+/// equivalent of `FrameArithmetic.subtract`/`FlatFieldCorrector.correct`, combined into a single
+/// dispatch. Operates on a flat buffer rather than a texture (mirrors `stretchRGB24`'s approach)
+/// since this is a straight per-pixel op with no neighbor sampling. `hasDark`/`hasFlat` let one
+/// kernel cover dark-only, flat-only, or both — Metal requires *some* valid buffer bound at every
+/// index the kernel references, even along an untaken branch, so callers bind a 1-byte
+/// placeholder to `dark`/`flat` when that stage is disabled rather than leaving the index unbound.
+struct CalibrationParams {
+    float flatMean;
+    uint hasDark;
+    uint hasFlat;
+    float maxValue; // 255 for RAW8/Y8, 65535 for RAW16 — clamp ceiling after dark/flat math.
+};
+
+kernel void calibrateRaw8(
+    device const uchar *light [[buffer(0)]],
+    device const uchar *dark [[buffer(1)]],
+    device const uchar *flat [[buffer(2)]],
+    device uchar *output [[buffer(3)]],
+    constant CalibrationParams &params [[buffer(4)]],
+    uint id [[thread_position_in_grid]]
+) {
+    float value = float(light[id]);
+    if (params.hasDark != 0) {
+        value -= float(dark[id]);
+    }
+    if (params.hasFlat != 0) {
+        float flatValue = max(float(flat[id]), 1.0);
+        value = value * params.flatMean / flatValue;
+    }
+    output[id] = uchar(clamp(value, 0.0, params.maxValue) + 0.5);
+}
+
+kernel void calibrateRaw16(
+    device const ushort *light [[buffer(0)]],
+    device const ushort *dark [[buffer(1)]],
+    device const ushort *flat [[buffer(2)]],
+    device ushort *output [[buffer(3)]],
+    constant CalibrationParams &params [[buffer(4)]],
+    uint id [[thread_position_in_grid]]
+) {
+    float value = float(light[id]);
+    if (params.hasDark != 0) {
+        value -= float(dark[id]);
+    }
+    if (params.hasFlat != 0) {
+        float flatValue = max(float(flat[id]), 1.0);
+        value = value * params.flatMean / flatValue;
+    }
+    output[id] = ushort(clamp(value, 0.0, params.maxValue) + 0.5);
+}
+
 /// Parallel histogram: each threadgroup accumulates into threadgroup memory, then atomically
 /// adds into the 256-bucket device buffer. Replaces `HistogramComputer`'s CPU pass.
 kernel void histogramReduce(

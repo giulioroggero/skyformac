@@ -7,31 +7,41 @@ import Foundation
 enum FlatFieldCorrector {
     /// `corrected[p] = light[p] * mean(flat) / flat[p]`, clamped back into the original bit
     /// depth. `nil` if dimensions/image types don't match, or the flat is degenerate (all zero).
-    static func correct(light: CapturedFrame, flat: CapturedFrame) -> CapturedFrame? {
+    ///
+    /// `precomputedFlatMean`: pass `CalibrationFrame.meanBrightness` here when it's available
+    /// (the flat frame is static once captured, so its mean shouldn't be recomputed from scratch
+    /// on every live video frame this runs against) — `nil` falls back to computing it here, kept
+    /// for callers (tests, one-off usages) that only have a bare `CapturedFrame`.
+    static func correct(light: CapturedFrame, flat: CapturedFrame, precomputedFlatMean: Double? = nil) -> CapturedFrame? {
         guard light.imageType.rawValue == flat.imageType.rawValue,
               light.width == flat.width, light.height == flat.height
         else { return nil }
 
         switch light.imageType {
         case ASI_IMG_RAW8, ASI_IMG_Y8:
-            return correct8(light: light, flat: flat)
+            return correct8(light: light, flat: flat, precomputedFlatMean: precomputedFlatMean)
         case ASI_IMG_RAW16:
-            return correct16(light: light, flat: flat)
+            return correct16(light: light, flat: flat, precomputedFlatMean: precomputedFlatMean)
         default:
             return nil
         }
     }
 
-    private static func correct8(light: CapturedFrame, flat: CapturedFrame) -> CapturedFrame? {
+    private static func correct8(light: CapturedFrame, flat: CapturedFrame, precomputedFlatMean: Double?) -> CapturedFrame? {
         let count = light.width * light.height
         guard light.data.count >= count, flat.data.count >= count else { return nil }
 
-        var meanFlat = 0.0
-        flat.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
-            for i in 0..<count { meanFlat += Double(base[i]) }
+        var meanFlat: Double
+        if let precomputedFlatMean {
+            meanFlat = precomputedFlatMean
+        } else {
+            meanFlat = 0.0
+            flat.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                for i in 0..<count { meanFlat += Double(base[i]) }
+            }
+            meanFlat /= Double(count)
         }
-        meanFlat /= Double(count)
         guard meanFlat > 0 else { return nil }
 
         var output = Data(count: count)
@@ -53,16 +63,21 @@ enum FlatFieldCorrector {
         return CapturedFrame(width: light.width, height: light.height, imageType: light.imageType, data: output)
     }
 
-    private static func correct16(light: CapturedFrame, flat: CapturedFrame) -> CapturedFrame? {
+    private static func correct16(light: CapturedFrame, flat: CapturedFrame, precomputedFlatMean: Double?) -> CapturedFrame? {
         let count = light.width * light.height
         guard light.data.count >= count * 2, flat.data.count >= count * 2 else { return nil }
 
-        var meanFlat = 0.0
-        flat.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-            guard let base = raw.bindMemory(to: UInt16.self).baseAddress else { return }
-            for i in 0..<count { meanFlat += Double(base[i]) }
+        var meanFlat: Double
+        if let precomputedFlatMean {
+            meanFlat = precomputedFlatMean
+        } else {
+            meanFlat = 0.0
+            flat.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: UInt16.self).baseAddress else { return }
+                for i in 0..<count { meanFlat += Double(base[i]) }
+            }
+            meanFlat /= Double(count)
         }
-        meanFlat /= Double(count)
         guard meanFlat > 0 else { return nil }
 
         var output = Data(count: count * 2)

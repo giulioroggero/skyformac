@@ -14,6 +14,15 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   pipeline as a ZWO camera; single-exposure "capture" freezes on the current
   live frame rather than pretending to expose, since a webcam has no
   controllable hardware exposure.
+- **iPhone/webcam focus lock** — freezes `AVCaptureDevice`'s continuous
+  autofocus at its current position, since it otherwise actively fights
+  afocal projection (it keeps hunting for a "normal" subject distance and
+  refocuses away from the telescope's focal plane).
+- **iPhone/webcam Night Mode (10s / 60s)** — accumulates that many seconds of
+  live frames via the same running-average technique Live Stack uses, then
+  freezes on the brighter result. Not a literal single long sensor exposure
+  (a webcam has no such thing) — the same computational multi-frame-stacking
+  mechanism Apple's own iPhone Night Mode uses internally.
 
 **Rendering**
 - **GPU render pass** — `Shaders.metal` compute kernels for RAW8/RAW16
@@ -131,8 +140,18 @@ the spec's five features are declined rather than faked)
   live-stack accumulation, in-progress polar alignment) intentionally starts
   fresh every time.
 
+**Help**
+- **In-app Help** (Help menu, ⌘?) — a sheet on the app's one window (this app
+  is deliberately single-window, no separate Help `Window` scene) covering
+  5-minute quick starts for both capture sources, how-to guides for
+  iPhone/ZWO, a full configuration reference (what every control does, with
+  example values), deep-sky and planetary observation workflows,
+  troubleshooting, Q&A, and license/credits (with a link to the GitHub
+  repository). Plain structured content (`HelpContent.swift`) rendered with
+  real SwiftUI typography, not a bundled webpage.
+
 **Testing**
-- `skyformacTests` — 134 unit tests (Swift Testing) across 31 suites, covering
+- `skyformacTests` — 137 unit tests (Swift Testing) across 31 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.
