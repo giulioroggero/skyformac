@@ -543,3 +543,16 @@ made along the way.
   iPhone" UI instead: a sheet documenting the actual (system-level) pairing
   prerequisites, live discovery feedback, and a picker that separates
   "iPhone (Continuity Camera)" from other webcams.
+- **iPhone Night Mode froze `currentFrame` on the averaged result but never actually stopped the
+  live webcam stream, so the result vanished (almost) as soon as it appeared.** `finishIPhone
+  NightModeCapture` set `currentFrame = result` directly, but `frameConsumerTask` (the `for await
+  frame in stream` loop over the webcam's `AsyncStream`) kept running — its very next frame,
+  arriving within a video frame interval (~33ms), overwrote `currentFrame` right back to a single
+  unstacked live frame via the normal `ingest()` path, before the UI could meaningfully show it or
+  before Export's FITS/PNG/TIFF buttons (gated on `currentFrame != nil`, not on any Night-Mode-
+  specific state) could be clicked against the *stacked* result rather than whatever live frame
+  happened to land a moment later. `captureSingleExposure` already gets this right — it cancels
+  `frameConsumerTask` before freezing on its captured frame — `finishIPhoneNightModeCapture` just
+  never copied that step. Fixed by cancelling `frameConsumerTask` there too, matching
+  `captureSingleExposure`'s pattern; "Resume Live View" (already shown whenever `!isLiveViewActive`)
+  re-subscribes via the existing `resumeLiveView()` path unchanged.

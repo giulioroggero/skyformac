@@ -126,6 +126,15 @@ final class CameraManager {
 
     private func finishIPhoneNightModeCapture() {
         if let result = nightModeAccumulator?.currentAverage() {
+            // Without this, the still-running `frameConsumerTask` (the webcam's `for await frame
+            // in stream` loop never actually stopped for Night Mode the way it does for
+            // `captureSingleExposure`) would deliver its next live frame within ~33ms and
+            // overwrite `currentFrame` right back to a single unstacked frame — the averaged
+            // result would flash for one render pass, if that, before vanishing. Same
+            // stream-must-actually-stop-to-freeze-a-result fix `captureSingleExposure` already
+            // applies for the same reason.
+            frameConsumerTask?.cancel()
+            frameConsumerTask = nil
             currentFrame = result
             frameID &+= 1
             refreshCurrentImage()
