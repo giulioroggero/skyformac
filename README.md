@@ -142,6 +142,33 @@ Security — keep the camera connected when you grant it. Using a webcam/iPhone
 source, or the optional All-Sky Monitor, requests separate camera access the
 first time each is used; declining either leaves the rest of the app unaffected.
 
+## Examples
+
+First real first-light test session — August 10, 2026, from a not-so-dark
+suburban sky, on a Maksutov 125/1500mm on an alt-azimuth mount, with a ZWO ASI
+678MC. No dark/flat calibration, no stacking beyond the app's own live GPU
+enhancement pipeline — straight off the live view.
+
+**Arcturus** — an initial bright-star test to confirm focus and framing before
+hunting anything fainter. High gain (402) and a not-so-dark sky show up as
+real sensor/sky noise here, which is expected and exactly what this shot was
+for:
+
+![Arcturus live view](examples/arcturus-first-test-picture.png)
+
+[▶ Watch the live-view recording](https://github.com/giulioroggero/skyformac/releases/download/v0.1.12/arcturus-first-test.mov) (94s, 3018×1902)
+
+**M13 (Hercules Globular Cluster)** — individual stars resolved live, with
+Live GPU Enhancement Controls (temporal + spatial denoise, non-linear
+contrast stretch) enabled, straight off the ASI678MC's live feed with no
+post-processing:
+
+![M13 live view with GPU enhancement](examples/m13-test-picture.png)
+
+[▶ Watch the live-view recording](https://github.com/giulioroggero/skyformac/releases/download/v0.1.12/m13-test.mov) (49s, 3018×1902)
+
+The two `.mov` recordings above are hosted as [release assets](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12) rather than checked into the repository directly — they're well over GitHub's 100MB per-file limit for a normal git push.
+
 ## Project documentation
 
 Technical details — project layout, rendering/threading architecture, and the

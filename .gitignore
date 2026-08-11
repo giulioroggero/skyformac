@@ -13,6 +13,9 @@ xcuserdata/
 *.ipa
 *.dSYM
 *.dSYM.zip
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
 
 # Xcode Playgrounds & timeline
 timeline.xctimeline
@@ -28,3 +31,8 @@ Carthage/Build/
 
 # macOS
 .DS_Store
+
+# Example demo videos — too large for a normal git push (GitHub hard-blocks files over
+# 100MB); hosted as assets on the GitHub release instead and linked from README.md. The
+# example screenshots (small PNGs) are still checked in normally.
+examples/*.mov
