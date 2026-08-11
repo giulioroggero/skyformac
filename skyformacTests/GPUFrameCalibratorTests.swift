@@ -9,7 +9,14 @@ import Testing
 struct GPUFrameCalibratorTests {
     private func makeCalibrator() throws -> GPUFrameCalibrator {
         let device = try #require(MTLCreateSystemDefaultDevice())
-        return try #require(GPUFrameCalibrator(device: device))
+        // Not `try #require(GPUFrameCalibrator(device: device))` directly — wrapping an actor's
+        // initializer call inline inside `#require`'s macro-generated autoclosure triggers
+        // "sending '$1' risks causing data races" under Xcode 16.4's Swift 6 checking (not
+        // reproduced on a newer local Xcode). Binding the result to a plain optional first, then
+        // `#require`-ing *that*, avoids the macro ever needing to embed the constructor call
+        // itself in its expansion.
+        let calibrator = GPUFrameCalibrator(device: device)
+        return try #require(calibrator)
     }
 
     @Test func darkSubtractionMatchesCPUForRAW8() async throws {
