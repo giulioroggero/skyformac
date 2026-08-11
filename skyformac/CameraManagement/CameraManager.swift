@@ -852,19 +852,28 @@ final class CameraManager {
         guard qualityScoreFrameCounter % 5 == 0 else { return }
         qualityScoreTask = Task.detached(priority: .utility) { [weak self] in
             let raw = SharpnessScorer.score(for: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
-            await MainActor.run {
-                guard let self else { return }
-                // Laplacian variance has no fixed theoretical ceiling, so "out of 100" here is
-                // relative to the sharpest frame *this session has actually seen* — a genuinely
-                // meaningful "how good is this frame compared to the best seeing we've had"
-                // readout, not a fabricated absolute scale. Matches the spirit of Lucky Imaging
-                // itself: relative ranking, not calibrated units.
-                self.maxObservedSharpness = max(self.maxObservedSharpness, raw)
-                self.currentFrameQualityScore = self.maxObservedSharpness > 0
-                    ? min(raw / self.maxObservedSharpness * 100, 100) : 0
-                self.qualityScoreTask = nil
-            }
+            await self?.applyQualityScore(raw)
         }
+    }
+
+    /// A plain `@MainActor` method (inherited from the class itself) called via `await self?
+    /// .method(...)` from inside `scheduleQualityScoreIfNeeded`'s detached task, rather than a
+    /// nested `await MainActor.run { ... }` closure — the latter makes Swift 6's strict
+    /// concurrency checker flag "sending 'self' risks causing data races" on some toolchains
+    /// (confirmed on Xcode 16.4/CI, not reproduced on a newer local Xcode) even though the
+    /// underlying access pattern (a `weak self` captured once, resolved once, touched only on
+    /// the actor it's isolated to) is safe; calling an isolated method directly avoids the
+    /// diagnostic entirely instead of arguing with it. Applies to every other `Task.detached` in
+    /// this file with the same shape, not just this one.
+    private func applyQualityScore(_ raw: Double) {
+        // Laplacian variance has no fixed theoretical ceiling, so "out of 100" here is relative
+        // to the sharpest frame *this session has actually seen* — a genuinely meaningful "how
+        // good is this frame compared to the best seeing we've had" readout, not a fabricated
+        // absolute scale. Matches the spirit of Lucky Imaging itself: relative ranking, not
+        // calibrated units.
+        maxObservedSharpness = max(maxObservedSharpness, raw)
+        currentFrameQualityScore = maxObservedSharpness > 0 ? min(raw / maxObservedSharpness * 100, 100) : 0
+        qualityScoreTask = nil
     }
 
     /// Runs every ~10th ingested frame — see `scheduleFocusAssistIfNeeded`'s doc comment for the
@@ -920,16 +929,22 @@ final class CameraManager {
             guard let image = gpuImage ?? CGImageRenderer.makeDisplayImage(
                 from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
             ) else {
-                await MainActor.run { self?.streakDetectionTask = nil }
+                await self?.clearStreakDetectionTask()
                 return
             }
             let streaks = (try? StreakDetector.detectStreaks(in: image)) ?? []
             try? await Task.sleep(for: .milliseconds(250)) // simple rate limit, mirrors focus assist
-            await MainActor.run {
-                self?.currentStreakMask = StreakMask(width: width, height: height, streaks: streaks)
-                self?.streakDetectionTask = nil
-            }
+            await self?.applyStreakDetection(width: width, height: height, streaks: streaks)
         }
+    }
+
+    private func clearStreakDetectionTask() {
+        streakDetectionTask = nil
+    }
+
+    private func applyStreakDetection(width: Int, height: Int, streaks: [DetectedStreak]) {
+        currentStreakMask = StreakMask(width: width, height: height, streaks: streaks)
+        streakDetectionTask = nil
     }
 
     /// Applies whichever of dark subtraction / flat correction are enabled and have an active
@@ -1252,16 +1267,17 @@ final class CameraManager {
             let image = CGImageRenderer.makeDisplayImage(
                 from: displayFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
             )
-            await MainActor.run {
-                guard let self else { return }
-                // Only apply if a newer frame hasn't already arrived — otherwise this stale,
-                // slow-to-compute enhanced image would visibly replace a fresher plain one.
-                if self.frameID == frameIDAtSchedule, let image {
-                    self.currentImage = image
-                }
-                self.enhancementTask = nil
-            }
+            await self?.applyEnhancedImage(image, ifStillOnFrame: frameIDAtSchedule)
         }
+    }
+
+    private func applyEnhancedImage(_ image: CGImage?, ifStillOnFrame frameIDAtSchedule: UInt64) {
+        // Only apply if a newer frame hasn't already arrived — otherwise this stale, slow-to-
+        // compute enhanced image would visibly replace a fresher plain one.
+        if frameID == frameIDAtSchedule, let image {
+            currentImage = image
+        }
+        enhancementTask = nil
     }
 
     /// Runs `PlanetDetector` (Vision contours, biggest-blob selection) at a throttled rate and
@@ -1284,17 +1300,22 @@ final class CameraManager {
             guard let image = CGImageRenderer.makeDisplayImage(
                 from: fullFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
             ) else {
-                await MainActor.run { self?.planetTrackingTask = nil }
+                await self?.clearPlanetTrackingTask()
                 return
             }
             let detection = try? PlanetDetector.detectDisk(in: image)
             try? await Task.sleep(for: .milliseconds(200))
-            await MainActor.run {
-                guard let self else { return }
-                self.planetROI = self.planetTracker.update(with: detection ?? nil)
-                self.planetTrackingTask = nil
-            }
+            await self?.applyPlanetTracking(detection: detection ?? nil)
         }
+    }
+
+    private func clearPlanetTrackingTask() {
+        planetTrackingTask = nil
+    }
+
+    private func applyPlanetTracking(detection: CGRect?) {
+        planetROI = planetTracker.update(with: detection)
+        planetTrackingTask = nil
     }
 
     /// Expands a normalized (Vision bottom-left-origin) ROI by 40% and converts it to a pixel
@@ -1346,7 +1367,7 @@ final class CameraManager {
             guard let image = gpuImage ?? CGImageRenderer.makeDisplayImage(
                 from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
             ) else {
-                await MainActor.run { self?.focusAssistTask = nil }
+                await self?.clearFocusAssistTask()
                 return
             }
             let result = try? StarDetector.detectStars(in: image)
@@ -1367,15 +1388,23 @@ final class CameraManager {
             // stretch would distort the flux ratios HFD's centroid/radius math depends on.
             let hfd = result.flatMap { HFDCalculator.medianHFD(frame: frame, stars: $0.stars) }
             try? await Task.sleep(for: .milliseconds(250)) // simple rate limit
-            await MainActor.run {
-                self?.focusAssist = result
-                self?.recognizedObjects = matches
-                self?.liveWCS = wcs
-                self?.focusAssistTask = nil
-                if let hfd {
-                    self?.focusTracker.record(medianHFD: hfd, at: Date())
-                }
-            }
+            await self?.applyFocusAssist(result: result, matches: matches, wcs: wcs, hfd: hfd)
+        }
+    }
+
+    private func clearFocusAssistTask() {
+        focusAssistTask = nil
+    }
+
+    private func applyFocusAssist(
+        result: FocusAssistResult?, matches: [StarPatternRecognizer.Match], wcs: WCSFrame?, hfd: Double?
+    ) {
+        focusAssist = result
+        recognizedObjects = matches
+        liveWCS = wcs
+        focusAssistTask = nil
+        if let hfd {
+            focusTracker.record(medianHFD: hfd, at: Date())
         }
     }
 
