@@ -111,11 +111,14 @@ struct ControlsPanelView: View {
     @State private var showSmartExposureSection = false
     @State private var showPlanetarySection = false
     @State private var showPolarAlignmentSection = false
+    @State private var showST4GuidingSection = false
+    @State private var st4GuideDurationMilliseconds: Double = 500
     @State private var showEnhancementSection = false
     @State private var showLiveGPUSection = false
     @State private var showAISuiteSection = false
     @State private var showIPhoneWebcamSection = false
     @AppStorage("nightModeSeconds") private var nightModeSeconds: Double = 10
+    @State private var showGainOffsetPresetsSection = false
     @State private var showPlanetaryPresetsSection = false
     @State private var showCaptureROISection = false
     @State private var customROIWidth: Int = 800
@@ -240,6 +243,26 @@ struct ControlsPanelView: View {
                 controlRow(cap)
                 Divider()
             }
+        }
+
+        if let dropped = cameraManager.droppedFrameCount {
+            HStack {
+                Label("\(dropped) dropped frames", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(dropped > 0 ? .orange : .secondary)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.droppedFrames")
+            }
+            .help("Frames the camera captured but this app failed to read off the USB connection in time — a rising count usually means Bandwidth (below, if your camera reports it) is set too high for your USB port/cable.")
+            Divider()
+        }
+
+        if cameraManager.gainOffsetPresets != nil || cameraManager.lmhGainOffsetPresets != nil {
+            DisclosureGroup(isExpanded: $showGainOffsetPresetsSection) {
+                gainOffsetPresetsSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Gain/Offset Presets", cameraManager: cameraManager, sectionID: "setting.gainOffsetPresets")
+            }
+            Divider()
         }
 
         if cameraManager.connectedCamera != nil {
@@ -429,6 +452,14 @@ struct ControlsPanelView: View {
                 HelpLinkedDisclosureLabel(title: "Polar Alignment", cameraManager: cameraManager, sectionID: "setting.polarAlignment")
             }
             Divider()
+            if cameraManager.connectedCamera?.hasST4Port == true {
+                DisclosureGroup(isExpanded: $showST4GuidingSection) {
+                    st4GuidingSection
+                } label: {
+                    HelpLinkedDisclosureLabel(title: "ST4 Guiding", cameraManager: cameraManager, sectionID: "setting.st4Guiding")
+                }
+                Divider()
+            }
             DisclosureGroup(isExpanded: $showDarkFrameSection) {
                 darkFrameSection
             } label: {
@@ -596,6 +627,56 @@ struct ControlsPanelView: View {
                 .buttonStyle(.plain)
                 .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
             }
+        }
+    }
+
+    // MARK: - Gain/Offset presets (ZWO's own recommended reference points)
+
+    @ViewBuilder
+    private var gainOffsetPresetsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("ZWO's own recommended Gain/Offset reference points for this camera model (the same numbers SharpCap's gain presets and ZWO's ASICap show) — one tap applies Gain and/or Offset above directly.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            if let presets = cameraManager.gainOffsetPresets {
+                gainOffsetPresetRow(
+                    title: "Highest Dynamic Range", detail: "Gain 0, Offset \(presets.offsetHighestDynamicRange)",
+                    action: { cameraManager.applyGainOffsetPreset(.highestDynamicRange) }
+                )
+                gainOffsetPresetRow(
+                    title: "Unity Gain", detail: "Offset \(presets.offsetUnityGain) (gain unchanged — not reported by the SDK)",
+                    action: { cameraManager.applyGainOffsetPreset(.unityGain) }
+                )
+                gainOffsetPresetRow(
+                    title: "Lowest Read Noise", detail: "Gain \(presets.gainLowestReadNoise), Offset \(presets.offsetLowestReadNoise)",
+                    action: { cameraManager.applyGainOffsetPreset(.lowestReadNoise) }
+                )
+            }
+
+            if let lmh = cameraManager.lmhGainOffsetPresets {
+                Divider()
+                Text("Frequently-used gain steps for this model:")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                gainOffsetPresetRow(title: "Low Gain", detail: "Gain \(lmh.lowGain)", action: { cameraManager.applyGainOffsetPreset(.lmhLow) })
+                gainOffsetPresetRow(title: "Middle Gain", detail: "Gain \(lmh.middleGain)", action: { cameraManager.applyGainOffsetPreset(.lmhMiddle) })
+                gainOffsetPresetRow(
+                    title: "High Gain (Lowest Read Noise)", detail: "Gain \(lmh.highGain), Offset \(lmh.highOffset)",
+                    action: { cameraManager.applyGainOffsetPreset(.lmhHigh) }
+                )
+            }
+        }
+    }
+
+    private func gainOffsetPresetRow(title: String, detail: String, action: @escaping () -> Void) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.caption)
+                Text(detail).font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Apply", action: action)
         }
     }
 
@@ -961,6 +1042,46 @@ struct ControlsPanelView: View {
                     .foregroundStyle(.secondary)
                 }
                 Button("Start Over") { cameraManager.resetPolarAlignment() }
+            }
+        }
+    }
+
+    // MARK: - ST4 guide port (pulse guiding)
+
+    private var st4GuidingSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Untested against real guiding hardware — verify with an actual mount/ST4 cable before relying on this for a real session.", systemImage: "exclamationmark.triangle")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+            Text("Sends a single pulse-guide correction (ASIPulseGuideOn, then off after the duration below) on the camera's ST4 port. The classic manual-guiding sanity check: pulse one direction a few times and confirm the mount actually nudges that way in your guiding software before trusting an automated routine on top of this.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            LabeledContent("Duration") {
+                HStack {
+                    Slider(value: $st4GuideDurationMilliseconds, in: 20...2000, step: 20)
+                    Text("\(Int(st4GuideDurationMilliseconds)) ms")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 60, alignment: .trailing)
+                }
+            }
+
+            Grid(horizontalSpacing: 8, verticalSpacing: 4) {
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    Button("North") { cameraManager.pulseGuide(direction: ASI_GUIDE_NORTH, durationMilliseconds: Int(st4GuideDurationMilliseconds)) }
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                }
+                GridRow {
+                    Button("West") { cameraManager.pulseGuide(direction: ASI_GUIDE_WEST, durationMilliseconds: Int(st4GuideDurationMilliseconds)) }
+                    Text("").frame(width: 1)
+                    Button("East") { cameraManager.pulseGuide(direction: ASI_GUIDE_EAST, durationMilliseconds: Int(st4GuideDurationMilliseconds)) }
+                }
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    Button("South") { cameraManager.pulseGuide(direction: ASI_GUIDE_SOUTH, durationMilliseconds: Int(st4GuideDurationMilliseconds)) }
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                }
             }
         }
     }

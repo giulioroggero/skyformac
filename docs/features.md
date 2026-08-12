@@ -7,7 +7,16 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
 - **ZWO ASI cameras** over USB, via the vendored SDK — full dynamic control
   set (gain, exposure, offset, cooler, whatever the connected camera reports),
   RAW8/RAW16 video streaming, and single long exposures via
-  `ASIStartExposure`/`ASIGetDataAfterExp`.
+  `ASIStartExposure`/`ASIGetDataAfterExp`. ZWO's own recommended Gain/Offset
+  reference points (Highest Dynamic Range/Unity Gain/Lowest Read Noise, plus
+  a Low/Middle/High shortcut on models that report it) are one tap away, a
+  dropped-frame counter refreshes live (useful for tuning Bandwidth against
+  your actual USB setup), and Sensor Temperature now actually keeps updating
+  instead of freezing at its connect-time reading. ST4 guide-port pulse
+  guiding (single manual N/S/E/W corrections) is wired up too, shown only for
+  cameras that report a real guide port — **unverified against real
+  hardware**, since this project has never had an actual ST4-cabled mount to
+  confirm against; see [`docs/design-notes.md`](design-notes.md).
 - **iPhone (Continuity Camera) or any other USB webcam** as a primary capture
   source — e.g. holding an iPhone to a telescope eyepiece (afocal projection)
   for lunar/planetary shots. Runs the same debayer/histogram/live-stacking

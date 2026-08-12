@@ -277,6 +277,28 @@ enum HelpContent {
                 ]
             ),
             HelpSection(
+                id: "setting.droppedFrames", heading: "Dropped Frames",
+                body: "ZWO cameras only. How many frames the camera captured but this app failed to read off the USB connection in time (`ASIGetDroppedFrames`), refreshed every couple of seconds while connected. A rising count during live view usually means Bandwidth (if your camera model reports it, under the generic sliders above) is set too high for your USB port/cable/hub — lowering it trades a little throughput for reliability."
+            ),
+            HelpSection(
+                id: "setting.gainOffsetPresets", heading: "Gain/Offset Presets",
+                body: "ZWO cameras only, and only shown for models the SDK reports these for. ZWO's own recommended Gain/Offset reference points for the specific connected camera — the same numbers SharpCap's gain presets and ZWO's own ASICap tool show — with a one-tap Apply that writes directly to the Gain/Offset controls above.",
+                bullets: [
+                    "Highest Dynamic Range is always Gain 0 by definition (dynamic range is best at the lowest gain) — only the recommended Offset for that setting varies by camera model.",
+                    "Unity Gain (where 1 ADU of the recorded image corresponds to 1 photoelectron captured) only reports a recommended Offset — the ZWO SDK doesn't separately report which Gain value that actually is for a given model, so Apply leaves Gain untouched rather than guessing at one.",
+                    "Lowest Read Noise reports both a Gain and an Offset — past this gain, further increases mostly amplify noise rather than meaningfully improving signal.",
+                    "\"Frequently-used gain steps,\" when shown, are a simpler Low/Middle/High gain shortcut some camera models (mainly ones with a dual-conversion-gain sensor) expose — High matches Lowest Read Noise's own Gain/Offset for cameras that report both.",
+                ]
+            ),
+            HelpSection(
+                id: "setting.st4Guiding", heading: "ST4 Guiding",
+                body: "ZWO cameras with a real ST4 guide port only (shown/hidden automatically based on what the connected camera reports) — sends a single pulse-guide correction in one of four directions for a set duration, then turns it back off, on the camera's own ST4 output.",
+                bullets: [
+                    "**Untested against real guiding hardware.** The underlying `ASIPulseGuideOn`/`ASIPulseGuideOff` calls are wired up exactly as the ZWO SDK documents, but this project has never had an actual ST4 cable connected to a real mount to confirm a correction actually happens end to end — treat this as plumbing ready for verification, not a proven feature, until checked against real hardware.",
+                    "This is a single manual pulse, not an autoguiding loop — there's no star-tracking feedback here deciding *when* or *how much* to correct, unlike PHD2 or similar dedicated guiding software. Useful as a wiring sanity check (\"does pressing North actually nudge the mount north\"), not a guiding system on its own.",
+                ]
+            ),
+            HelpSection(
                 id: "setting.serRecording", heading: "Record SER Video (planetary/lunar)",
                 body: "ZWO cameras only. Writes every incoming frame, undiscarded, into a single `.ser` video file for a set duration — the standard raw-video container AutoStakkert!3, PIPP, and similar dedicated stacking tools expect, so their own frame alignment and best-frame selection has the full, unfiltered video to work with.",
                 bullets: [

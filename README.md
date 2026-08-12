@@ -112,7 +112,11 @@ grouped by what each control actually affects, not by imaging genre:
 
 **Camera Controls** — raw hardware, nothing here is a display effect:
 - Dynamic per-camera controls (gain, offset, cooler, flip, binning, etc. —
-  whatever the connected ZWO camera actually reports).
+  whatever the connected ZWO camera actually reports), plus one-tap
+  **Gain/Offset Presets** (ZWO's own Highest Dynamic Range/Unity Gain/Lowest
+  Read Noise recommendations), a live dropped-frame counter, and (untested
+  against real hardware, since none has been available) **ST4 Guiding**
+  manual pulse-guide correction buttons.
 - **Single Exposure** — a log-scale slider spanning microseconds to tens of
   seconds (real ASI exposure ranges don't fit a linear slider).
 - **Planetary Presets** (ZWO only) — one tap sets RAW8, a small **Capture

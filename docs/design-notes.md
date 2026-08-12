@@ -995,3 +995,35 @@ made along the way.
   on-sensor center, typed directly. `CameraManager.captureROICenterX/Y` surface what's actually
   applied (mirroring the existing `captureROIWidth/Height`), and a "Center on Sensor" button
   resets to the default without needing to know the sensor's real dimensions.
+- **Surfaced three more genuine `ASICamera2.h` capabilities that were either unused dead code or
+  never wrapped at all**, in response to "are there hidden parameters I can fine-tune":
+  - **ZWO's own recommended Gain/Offset reference points** (`ASIGetGainOffset`/
+    `ASIGetLMHGainOffset`, wrapped as `ZWOSDK.GainOffsetPresets`/`LMHGainOffsetPresets`) — the
+    same "Highest Dynamic Range / Unity Gain / Lowest Read Noise" numbers SharpCap's gain presets
+    and ZWO's own ASICap show, fetched once at connect (`CameraManager.refreshGainOffsetPresets`,
+    a fixed camera-model characteristic, not something that changes mid-session) and one-tap
+    `applyGainOffsetPreset(_:)`-able onto `ASI_GAIN`/`ASI_OFFSET`. Not every camera model supports
+    the underlying call — a thrown error there is treated as "not available," not a hard failure,
+    and the whole UI section only appears when at least one of the two calls actually succeeded.
+    `ASIGetGainOffset` notably does *not* report a specific gain value for "Unity Gain" itself
+    (only its offset) — `GainOffsetPreset.unityGain` deliberately leaves `ASI_GAIN` untouched
+    rather than guessing at a number the SDK itself doesn't provide.
+  - **Dropped-frame count** (`ASIGetDroppedFrames`) — a `ZWOSDK` wrapper already existed
+    (`getDroppedFrames`) but nothing ever called it; genuinely dead code until now. Wired into a
+    new `CameraManager.diagnosticsPollTask`, a 2-second loop (started on connect, cancelled on
+    disconnect/camera-removed) that also re-reads `ASI_TEMPERATURE` — fixing a separate,
+    previously-unnoticed staleness bug where Sensor Temperature was only ever read once, at
+    connect time, and then silently froze at that value for the rest of the session, since nothing
+    else ever refreshed `controlValues[ASI_TEMPERATURE]` afterward.
+  - **ST4 guide-port pulse guiding** (`ASIPulseGuideOn`/`ASIPulseGuideOff`, wrapped as
+    `ZWOSDK.pulseGuideOn/Off`, called from `CameraManager.pulseGuide(direction:durationMilliseconds:)`)
+    — a manual single-pulse sanity-check UI (North/South/East/West buttons + a duration slider),
+    shown only when `ZWOCameraInfo.hasST4Port` is true. **Explicitly unverified against real
+    hardware** — this project has never had an ST4 cable wired to a real mount to confirm a pulse
+    actually produces a guide correction end to end; the SDK calls are wired up faithfully per the
+    header's own documented usage (`PulseGuideOn` then, after the requested duration,
+    `PulseGuideOff` for the same direction), but that's "plumbing believed correct," not "tested."
+    Explicitly requested even in this unverified state, rather than declined outright the way the
+    truly infeasible AI Denoise/Super-Resolution features were — the difference being this is
+    real, callable SDK surface with no missing dependency (no trained model, no unavailable
+    hardware *class*), just no specific unit available to verify it against in this environment.

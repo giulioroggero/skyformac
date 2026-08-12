@@ -249,6 +249,22 @@ final class CameraManager {
     private(set) var connectionState: CameraConnectionState = .disconnected
     private(set) var lastErrorMessage: String?
 
+    /// ZWO's own recommended gain/offset reference points for the connected camera model — see
+    /// `ZWOSDK.GainOffsetPresets`'s doc comment. `nil` when no camera's connected, or the
+    /// connected one doesn't support the underlying `ASIGetGainOffset`/`ASIGetLMHGainOffset`
+    /// calls (older/simpler sensor models) — either way, the UI should just not show them rather
+    /// than treat it as an error.
+    private(set) var gainOffsetPresets: ZWOSDK.GainOffsetPresets?
+    private(set) var lmhGainOffsetPresets: ZWOSDK.LMHGainOffsetPresets?
+
+    /// Refreshed periodically by `diagnosticsPollTask` while a ZWO camera is connected —
+    /// `nil` until the first successful poll. Sensor temperature used to only ever be read once,
+    /// at connect time (`ASI_TEMPERATURE`'s `controlRow` reads `controlValues`, which nothing
+    /// updated again afterward) — this same poll refreshes that too, so both actually track the
+    /// live camera instead of freezing at whatever they were on connect.
+    private(set) var droppedFrameCount: Int?
+    private var diagnosticsPollTask: Task<Void, Never>?
+
     private(set) var captureEngine: CaptureEngine?
     private var webcamEngine: WebcamCaptureEngine?
     private(set) var currentImage: CGImage?
@@ -928,10 +944,90 @@ final class CameraManager {
             controlValues = values
             captureEngine = engine
             connectionState = .connected
+            refreshGainOffsetPresets()
+            startDiagnosticsPolling()
             await startPreview(using: engine)
         } catch {
             connectionState = .error(String(describing: error))
             lastErrorMessage = String(describing: error)
+        }
+    }
+
+    /// One-time fetch (gain/offset presets are a fixed camera-model characteristic, not something
+    /// that changes during a session) of ZWO's own recommended gain/offset reference points —
+    /// see `gainOffsetPresets`'s doc comment. Direct `ZWOSDK` calls on `@MainActor`, not routed
+    /// through `CaptureEngine`'s actor, matching `setControlValue`'s own precedent: these are
+    /// single fast SDK reads, not a blocking multi-step handshake.
+    private func refreshGainOffsetPresets() {
+        guard let camera = connectedCamera, camera.cameraID >= 0 else {
+            gainOffsetPresets = nil
+            lmhGainOffsetPresets = nil
+            return
+        }
+        gainOffsetPresets = try? ZWOSDK.gainOffsetPresets(cameraID: camera.cameraID)
+        lmhGainOffsetPresets = try? ZWOSDK.lmhGainOffsetPresets(cameraID: camera.cameraID)
+    }
+
+    /// Applies one of ZWO's own recommended gain/offset reference points directly to
+    /// `ASI_GAIN`/`ASI_OFFSET` — a one-tap alternative to typing the numbers `gainOffsetPresets`
+    /// itself already surfaces into the generic sliders by hand.
+    enum GainOffsetPreset {
+        /// Gain 0 (dynamic range is always best at the lowest gain — see `ZWOSDK
+        /// .GainOffsetPresets.offsetHighestDynamicRange`'s doc comment), at the recommended offset.
+        case highestDynamicRange
+        /// Offset only — the SDK doesn't report a specific gain value for Unity Gain, so this
+        /// deliberately leaves gain untouched rather than guessing at one.
+        case unityGain
+        case lowestReadNoise
+        case lmhLow
+        case lmhMiddle
+        case lmhHigh
+    }
+
+    func applyGainOffsetPreset(_ preset: GainOffsetPreset) {
+        switch preset {
+        case .highestDynamicRange:
+            guard let presets = gainOffsetPresets else { return }
+            setControlValue(ASI_GAIN, value: 0)
+            setControlValue(ASI_OFFSET, value: presets.offsetHighestDynamicRange)
+        case .unityGain:
+            guard let presets = gainOffsetPresets else { return }
+            setControlValue(ASI_OFFSET, value: presets.offsetUnityGain)
+        case .lowestReadNoise:
+            guard let presets = gainOffsetPresets else { return }
+            setControlValue(ASI_GAIN, value: presets.gainLowestReadNoise)
+            setControlValue(ASI_OFFSET, value: presets.offsetLowestReadNoise)
+        case .lmhLow:
+            guard let lmh = lmhGainOffsetPresets else { return }
+            setControlValue(ASI_GAIN, value: lmh.lowGain)
+        case .lmhMiddle:
+            guard let lmh = lmhGainOffsetPresets else { return }
+            setControlValue(ASI_GAIN, value: lmh.middleGain)
+        case .lmhHigh:
+            guard let lmh = lmhGainOffsetPresets else { return }
+            setControlValue(ASI_GAIN, value: lmh.highGain)
+            setControlValue(ASI_OFFSET, value: lmh.highOffset)
+        }
+    }
+
+    /// Periodically re-reads sensor temperature and the dropped-frame count while a ZWO camera is
+    /// connected — both are otherwise frozen at whatever they were the moment `connect(to:)` ran.
+    /// Direct `ZWOSDK` calls on `@MainActor` (see `refreshGainOffsetPresets`'s doc comment for why
+    /// that's fine here); every 2 seconds is plenty for values that only matter as a slow trend,
+    /// not a live per-frame readout.
+    private func startDiagnosticsPolling() {
+        diagnosticsPollTask?.cancel()
+        guard let camera = connectedCamera, camera.cameraID >= 0 else { return }
+        let cameraID = camera.cameraID
+        diagnosticsPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                if let temperature = try? ZWOSDK.getControlValue(cameraID: cameraID, controlType: ASI_TEMPERATURE) {
+                    await MainActor.run { self?.controlValues[Int32(ASI_TEMPERATURE.rawValue)] = temperature }
+                }
+                let dropped = try? ZWOSDK.getDroppedFrames(cameraID: cameraID)
+                await MainActor.run { self?.droppedFrameCount = dropped }
+                try? await Task.sleep(for: .seconds(2))
+            }
         }
     }
 
@@ -1016,6 +1112,33 @@ final class CameraManager {
             await engine.stop()
             await engine.setROI(width: width, height: height, centerX: centerX, centerY: centerY)
             await startPreview(using: engine, imageType: selectedImageType)
+        }
+    }
+
+    // MARK: - ST4 guide port (pulse guiding)
+
+    /// Sends a single ST4 pulse-guide command in `direction` for `durationMilliseconds`, then
+    /// turns it back off — ZWO cameras with a real ST4 port wired to a mount only
+    /// (`connectedCamera?.hasST4Port`); a no-op otherwise, matching the SDK's own documented
+    /// behavior ("this function only work on the module which have ST4 port").
+    ///
+    /// - Important: **Untested against real guiding hardware.** Wired up faithfully per
+    ///   `ASICamera2.h`'s documented usage (`ASIPulseGuideOn` immediately followed, after the
+    ///   requested duration, by `ASIPulseGuideOff` for the same direction) — but this project has
+    ///   never had an actual ST4 cable/mount available to confirm a real guide correction happens.
+    ///   Treat this as plumbing ready for verification, not a proven feature, until confirmed
+    ///   against real hardware.
+    func pulseGuide(direction: ASI_GUIDE_DIRECTION, durationMilliseconds: Int) {
+        guard let camera = connectedCamera, camera.cameraID >= 0, camera.hasST4Port else { return }
+        let cameraID = camera.cameraID
+        Task { [weak self] in
+            do {
+                try ZWOSDK.pulseGuideOn(cameraID: cameraID, direction: direction)
+                try await Task.sleep(for: .milliseconds(durationMilliseconds))
+                try ZWOSDK.pulseGuideOff(cameraID: cameraID, direction: direction)
+            } catch {
+                await MainActor.run { self?.lastErrorMessage = String(describing: error) }
+            }
         }
     }
 
@@ -1838,6 +1961,11 @@ final class CameraManager {
         captureROIHeight = nil
         captureROICenterX = nil
         captureROICenterY = nil
+        diagnosticsPollTask?.cancel()
+        diagnosticsPollTask = nil
+        droppedFrameCount = nil
+        gainOffsetPresets = nil
+        lmhGainOffsetPresets = nil
         if isRecordingSERVideo { stopSERRecording() }
         cancelIPhoneNightModeCapture()
         isWebcamFocusLocked = false
@@ -1916,6 +2044,11 @@ final class CameraManager {
         connectedCamera = nil
         controls = []
         controlValues = [:]
+        diagnosticsPollTask?.cancel()
+        diagnosticsPollTask = nil
+        droppedFrameCount = nil
+        gainOffsetPresets = nil
+        lmhGainOffsetPresets = nil
         refreshCameraList()
     }
 }

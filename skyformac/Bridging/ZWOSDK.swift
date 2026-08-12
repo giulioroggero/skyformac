@@ -174,4 +174,68 @@ enum ZWOSDK {
         guard let cString = ASIGetSDKVersion() else { return "unknown" }
         return String(cString: cString)
     }
+
+    /// ZWO's own recommended gain/offset reference points for this specific camera model — the
+    /// same numbers SharpCap's "gain presets" and ZWO's own ASICap show. Not every camera model
+    /// supports this call (older/simpler sensors don't have separate dynamic-range/read-noise
+    /// tradeoffs worth calling out) — callers should treat a thrown error as "not available for
+    /// this camera," not a hard failure.
+    struct GainOffsetPresets {
+        /// Recommended offset at gain 0 — "Highest Dynamic Range" always means gain 0 by
+        /// definition (dynamic range is monotonically best at the lowest gain), so only the
+        /// offset for that setting is meaningful to report.
+        var offsetHighestDynamicRange: Int
+        /// Recommended offset at "Unity Gain" (where 1 ADU = 1 photoelectron) — the SDK doesn't
+        /// separately report *which* gain value that is; ZWO documents it per camera model.
+        var offsetUnityGain: Int
+        var gainLowestReadNoise: Int
+        var offsetLowestReadNoise: Int
+    }
+
+    static func gainOffsetPresets(cameraID: Int32) throws -> GainOffsetPresets {
+        var offsetHighestDR: Int32 = 0
+        var offsetUnityGain: Int32 = 0
+        var gainLowestRN: Int32 = 0
+        var offsetLowestRN: Int32 = 0
+        try ZWOError.check(ASIGetGainOffset(cameraID, &offsetHighestDR, &offsetUnityGain, &gainLowestRN, &offsetLowestRN))
+        return GainOffsetPresets(
+            offsetHighestDynamicRange: Int(offsetHighestDR),
+            offsetUnityGain: Int(offsetUnityGain),
+            gainLowestReadNoise: Int(gainLowestRN),
+            offsetLowestReadNoise: Int(offsetLowestRN)
+        )
+    }
+
+    /// The "frequently-used" Low/Middle/High gain presets some camera models (mainly those with
+    /// a dual-conversion-gain sensor) expose — `highGain`/`highOffset` is the lowest-read-noise
+    /// setting, matching `GainOffsetPresets.gainLowestReadNoise`/`offsetLowestReadNoise` for
+    /// cameras that support both calls.
+    struct LMHGainOffsetPresets {
+        var lowGain: Int
+        var middleGain: Int
+        var highGain: Int
+        var highOffset: Int
+    }
+
+    static func lmhGainOffsetPresets(cameraID: Int32) throws -> LMHGainOffsetPresets {
+        var lowGain: Int32 = 0
+        var middleGain: Int32 = 0
+        var highGain: Int32 = 0
+        var highOffset: Int32 = 0
+        try ZWOError.check(ASIGetLMHGainOffset(cameraID, &lowGain, &middleGain, &highGain, &highOffset))
+        return LMHGainOffsetPresets(
+            lowGain: Int(lowGain), middleGain: Int(middleGain), highGain: Int(highGain), highOffset: Int(highOffset)
+        )
+    }
+
+    /// ST4 guide-port pulse guiding — only meaningful for a camera with a real ST4 port wired to
+    /// a mount (`ZWOCameraInfo.hasST4Port`); a no-op-but-harmless call otherwise per the SDK's own
+    /// doc comment ("this function only work on the module which have ST4 port").
+    static func pulseGuideOn(cameraID: Int32, direction: ASI_GUIDE_DIRECTION) throws {
+        try ZWOError.check(ASIPulseGuideOn(cameraID, Int32(direction.rawValue)))
+    }
+
+    static func pulseGuideOff(cameraID: Int32, direction: ASI_GUIDE_DIRECTION) throws {
+        try ZWOError.check(ASIPulseGuideOff(cameraID, Int32(direction.rawValue)))
+    }
 }
