@@ -51,4 +51,31 @@ struct DriftAlignerTests {
     @Test func brightestPointReturnsNilForEmptyPartials() {
         #expect(DriftAligner.brightestPoint(partials: []) == nil)
     }
+
+    @Test func backgroundThresholdComputesMeanAndSigmaClippedThreshold() throws {
+        // Uniform background at 0.1 (zero variance): threshold collapses to exactly the mean,
+        // so any pixel strictly brighter than 0.1 (e.g. a star) clears it, but the flat
+        // background itself never does.
+        let result = try #require(DriftAligner.backgroundThreshold(sum: 100, sumOfSquares: 10, count: 1000))
+        #expect(abs(result.background - 0.1) < 0.0001)
+        #expect(abs(result.threshold - 0.1) < 0.0001)
+    }
+
+    @Test func backgroundThresholdRisesAboveMeanWithRealVariance() throws {
+        // Two-population region: 980 background pixels at 0.05, 20 star pixels at 0.9 — a
+        // realistic ROI-to-star-footprint ratio. Mean is well below the star's own value, and
+        // the threshold (mean + 3*stddev) must land somewhere above the background but below the
+        // star, so `centroidPartial` keeps the star's pixels and excludes the background's.
+        let count: Float = 1000
+        let sum: Float = 980 * 0.05 + 20 * 0.9
+        let sumSq: Float = 980 * 0.05 * 0.05 + 20 * 0.9 * 0.9
+        let result = try #require(DriftAligner.backgroundThreshold(sum: sum, sumOfSquares: sumSq, count: count))
+        #expect(result.threshold > result.background)
+        #expect(result.threshold < 0.9)
+        #expect(result.background < 0.9)
+    }
+
+    @Test func backgroundThresholdReturnsNilForEmptyRegion() {
+        #expect(DriftAligner.backgroundThreshold(sum: 0, sumOfSquares: 0, count: 0) == nil)
+    }
 }

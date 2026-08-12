@@ -192,9 +192,28 @@ kernel void findBrightestPartial(
     threadgroup float *localY [[threadgroup(2)]]
 ) {
     uint localFlatIndex = tid.y * 16 + tid.x;
+    // A real star's PSF spreads over several pixels (optics + seeing); an isolated hot/warm
+    // sensor pixel doesn't — its neighbors sit at plain background level. Scoring by a 3x3-average
+    // instead of the single texel value means a hot pixel scores roughly 1/9th of its raw value
+    // (mostly background, one bright texel) while a real star barely changes (its neighbors are
+    // bright too), so the search naturally prefers the star. Without this, drift reduction could
+    // lock onto a hot pixel — which sits at a fixed sensor location, so the "tracked" position
+    // never appears to drift even while the real stars do, making alignment silently a no-op.
     float value = -1;
     if (gid.x < source.get_width() && gid.y < source.get_height()) {
-        value = source.read(gid).r;
+        float sum = 0;
+        int sampleCount = 0;
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                int sx = int(gid.x) + dx;
+                int sy = int(gid.y) + dy;
+                if (sx >= 0 && sy >= 0 && sx < int(source.get_width()) && sy < int(source.get_height())) {
+                    sum += source.read(uint2(uint(sx), uint(sy))).r;
+                    sampleCount += 1;
+                }
+            }
+        }
+        value = sum / float(max(sampleCount, 1));
     }
     localValue[localFlatIndex] = value;
     localX[localFlatIndex] = float(gid.x);
@@ -217,25 +236,85 @@ kernel void findBrightestPartial(
     }
 }
 
-/// A small rectangular search window for `centroidPartial` below — `origin` may fall (partly)
-/// outside the source texture's bounds when the tracked star sits near an edge; out-of-bounds
-/// samples are simply excluded rather than clamped, so they don't pull the centroid toward the
-/// frame edge.
+/// A small rectangular search window for `roiStatsPartial`/`centroidPartial` below — `origin` may
+/// fall (partly) outside the source texture's bounds when the tracked star sits near an edge;
+/// out-of-bounds samples are simply excluded rather than clamped, so they don't pull the centroid
+/// toward the frame edge.
 struct CentroidROI {
     int originX;
     int originY;
     int size;
 };
 
+/// Per-threadgroup `(sum, sumOfSquares, count)` over `roi` — the first of `computeCentroid`'s two
+/// GPU passes, so the second pass (`centroidPartial`) can threshold against the ROI's own local
+/// sky-background level instead of weighting by raw pixel value. See `centroidPartial`'s doc
+/// comment for why that background subtraction is the actual fix, not an optional refinement.
+kernel void roiStatsPartial(
+    texture2d<float, access::read> source [[texture(0)]],
+    constant CentroidROI &roi [[buffer(0)]],
+    device float3 *partials [[buffer(1)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    uint2 groupId [[threadgroup_position_in_grid]],
+    uint2 groupsPerGrid [[threadgroups_per_grid]],
+    threadgroup float *localSum [[threadgroup(0)]],
+    threadgroup float *localSumSq [[threadgroup(1)]],
+    threadgroup float *localCount [[threadgroup(2)]]
+) {
+    uint localFlatIndex = tid.y * 16 + tid.x;
+    float sum = 0;
+    float sumSq = 0;
+    float count = 0;
+    int px = roi.originX + int(gid.x);
+    int py = roi.originY + int(gid.y);
+    if (int(gid.x) < roi.size && int(gid.y) < roi.size
+        && px >= 0 && py >= 0 && px < int(source.get_width()) && py < int(source.get_height())) {
+        float value = source.read(uint2(uint(px), uint(py))).r;
+        sum = value;
+        sumSq = value * value;
+        count = 1;
+    }
+    localSum[localFlatIndex] = sum;
+    localSumSq[localFlatIndex] = sumSq;
+    localCount[localFlatIndex] = count;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localFlatIndex == 0) {
+        float totalSum = 0;
+        float totalSumSq = 0;
+        float totalCount = 0;
+        for (uint i = 0; i < 256; i++) {
+            totalSum += localSum[i];
+            totalSumSq += localSumSq[i];
+            totalCount += localCount[i];
+        }
+        uint groupIndex = groupId.y * groupsPerGrid.x + groupId.x;
+        partials[groupIndex] = float3(totalSum, totalSumSq, totalCount);
+    }
+}
+
 /// Per-threadgroup weighted-intensity-centroid partial sums over `roi` — used every live-stack
 /// frame (once drift reduction has a lock-on point) to re-locate the tracked star, cheap because
 /// `roi` is small (`MetalFrameRenderer.driftROISize`) rather than the whole frame. Same
 /// sequential-scan-in-thread-0 reduction shape as `findBrightestPartial`, for the same reason —
 /// this ROI is small enough (a handful of threadgroups) that reduction cost is a non-issue.
+///
+/// Weights by `max(value - background, 0)` for pixels above `threshold`, not by raw pixel value —
+/// a plain intensity-weighted centroid over a whole ROI is dominated by the (much larger, by pixel
+/// count) sky-background area, not the star: with the sky at ~0.05 and a star peak at ~0.9 over a
+/// handful of pixels, the background's summed contribution across a 64x64 ROI can outweigh the
+/// star's by an order of magnitude, pulling the "centroid" toward the ROI's geometric center
+/// regardless of where the star actually is — which barely moves frame to frame, making drift
+/// reduction compute a near-zero shift even while the star visibly drifts. `background`/
+/// `threshold` (mean and mean + 3*stddev, from `roiStatsPartial`) exclude everything but the
+/// star's own signal from the weighted sum, the same sigma-clipped-background technique real
+/// source-extraction tools use.
 kernel void centroidPartial(
     texture2d<float, access::read> source [[texture(0)]],
     constant CentroidROI &roi [[buffer(0)]],
-    device float3 *partials [[buffer(1)]],
+    constant float2 &backgroundAndThreshold [[buffer(1)]],
+    device float3 *partials [[buffer(2)]],
     uint2 gid [[thread_position_in_grid]],
     uint2 tid [[thread_position_in_threadgroup]],
     uint2 groupId [[threadgroup_position_in_grid]],
@@ -245,6 +324,8 @@ kernel void centroidPartial(
     threadgroup float *localSumIy [[threadgroup(2)]]
 ) {
     uint localFlatIndex = tid.y * 16 + tid.x;
+    float background = backgroundAndThreshold.x;
+    float threshold = backgroundAndThreshold.y;
     float sumI = 0;
     float sumIx = 0;
     float sumIy = 0;
@@ -252,7 +333,8 @@ kernel void centroidPartial(
     int py = roi.originY + int(gid.y);
     if (int(gid.x) < roi.size && int(gid.y) < roi.size
         && px >= 0 && py >= 0 && px < int(source.get_width()) && py < int(source.get_height())) {
-        float value = source.read(uint2(uint(px), uint(py))).r;
+        float rawValue = source.read(uint2(uint(px), uint(py))).r;
+        float value = rawValue > threshold ? (rawValue - background) : 0.0;
         sumI = value;
         sumIx = value * float(px);
         sumIy = value * float(py);

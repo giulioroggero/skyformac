@@ -59,11 +59,17 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   [`docs/design-notes.md`](design-notes.md) for the "silently did nothing for
   webcam/iPhone" bug this replaced. Optional GPU drift reduction (single-star
   lock-on, sub-pixel aligned accumulation) for mounts that don't track
-  perfectly, e.g. alt-azimuth — ZWO cameras only, see
+  perfectly, e.g. alt-azimuth — ZWO cameras only. The lock-on centroid is
+  measured against the search window's own local sky background (sigma-
+  clipped, not raw pixel intensity), and the initial lock rejects isolated
+  hot/warm pixels by their lack of a spread-out point-spread footprint — see
   [`docs/design-notes.md`](design-notes.md) for exactly what it does and
-  doesn't correct for. Exporting FITS/PNG/TIFF while stacking is active
-  exports the actual stacked average on both render paths and both camera
-  types — not the latest raw single frame.
+  doesn't correct for, and the "centroid tracking was dominated by sky
+  background" bug this replaced. Exporting FITS/PNG/TIFF while stacking is
+  active exports the actual stacked average on both render paths and both
+  camera types — not the latest raw single frame; a "Save Stacked Image…"
+  button right in the Live Stack panel does the same as a one-click PNG
+  snapshot, without a trip to the Export section below.
 - **Lucky imaging** — burst capture, sharpness-ranked (Laplacian variance,
   CPU or GPU), keeping and stacking only the sharpest fraction. Works for a
   webcam/iPhone source too (`SharpnessScorer`/`FrameArithmetic` both have an

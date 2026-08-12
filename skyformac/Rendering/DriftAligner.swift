@@ -31,4 +31,27 @@ enum DriftAligner {
         guard let best = partials.max(by: { $0.x < $1.x }), best.x > 0 else { return nil }
         return SIMD2<Float>(best.y, best.z)
     }
+
+    /// Turns a region's raw `(sum, sumOfSquares, count)` (`roiStatsPartial`'s GPU reduction,
+    /// combined across threadgroups on the CPU side) into a sigma-clipped background level and
+    /// threshold — `centroidPartial` then only weights pixels brighter than `threshold`, by how
+    /// far above `background` they are. `nil` for an empty region (`count <= 0`), which the
+    /// caller should treat the same as "no usable signal" rather than divide by zero.
+    ///
+    /// - Important: This is the actual fix for drift reduction's centroid silently tracking
+    ///   nothing — a plain intensity-weighted centroid over a whole ROI is dominated by the sky
+    ///   background (far more pixels than the star occupies), not the star itself, so the
+    ///   "tracked" position barely moves frame to frame regardless of where the star actually is.
+    ///   Excluding everything but a few sigma above the local background before weighting is what
+    ///   makes the centroid track the star instead of the ROI's own geometric center.
+    static func backgroundThreshold(sum: Float, sumOfSquares: Float, count: Float, sigmaMultiplier: Float = 3.0) -> (background: Float, threshold: Float)? {
+        guard count > 0 else { return nil }
+        let mean = sum / count
+        // Population variance from the two raw moments (E[X^2] - E[X]^2); clamped at 0 since
+        // floating-point cancellation can otherwise nudge a near-uniform region's variance
+        // slightly negative.
+        let variance = max(sumOfSquares / count - mean * mean, 0)
+        let stddev = variance.squareRoot()
+        return (background: mean, threshold: mean + sigmaMultiplier * stddev)
+    }
 }

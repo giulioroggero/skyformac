@@ -1141,6 +1141,16 @@ struct ControlsPanelView: View {
                     Button("Reset") { cameraManager.resetLiveStack() }
                 }
             }
+
+            if cameraManager.isLiveStackingEnabled {
+                Button {
+                    cameraManager.exportCurrentFrame(as: .png)
+                } label: {
+                    Label("Save Stacked Image…", systemImage: "square.and.arrow.down")
+                }
+                .disabled(cameraManager.liveStackedFrameCount == 0)
+                .help("Saves the stacked average exactly as it looks right now (debayered/stretched, same as the live preview) as a PNG — a quick snapshot, not the raw sensor data FITS export below writes.")
+            }
         }
     }
 

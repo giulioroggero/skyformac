@@ -877,3 +877,37 @@ made along the way.
     `useMetalRenderer` was true; changed to check `!isExternalWebcam` too, so the readout tracks
     `liveStacker.frameCount` (the counter actually advancing) for a webcam/iPhone source on
     either render path.
+- **Reduce Drift's centroid tracking was dominated by sky background, not the star it was
+  supposed to track — reported as "the image is overlapped without the drift reduction," i.e.
+  visibly no better than plain unaligned stacking.** Two compounding bugs, both in
+  `MetalFrameRenderer`'s drift-reduction math (`computeCentroid`/`findBrightestPoint`, backed by
+  `DriftAligner`'s pure functions):
+  - `centroidPartial` weighted every pixel in the `driftROISize`×`driftROISize` (64×64) search
+    window by its *raw* intensity. A star occupies a handful of pixels near 0.9; the sky
+    background around it, typically ~0.05, covers the other ~4000+ pixels — summed across the
+    whole ROI, the background's total contribution can be an order of magnitude larger than the
+    star's, pulling the intensity-weighted centroid toward the ROI's own geometric center
+    regardless of where the star actually sits. Since that center barely changes frame to frame,
+    the computed "drift" was close to zero even while the real stars visibly smeared across the
+    stack — alignment was running, just computing shifts that didn't mean anything.
+  - `findBrightestPartial` (the one-time initial lock-on search) picked the single brightest
+    *texel* in the whole frame — on a real sensor, a hot or warm pixel can easily be brighter
+    than any star, and unlike a star it sits at a fixed sensor location. Locking onto one means
+    the "tracked" position never appears to drift at all (it's not part of the sky), reproducing
+    exactly the same "no visible alignment" symptom, permanently, for that entire session.
+  - **Fix**: `computeCentroid` is now a genuine two-GPU-pass measurement — a new `roiStatsPartial`
+    kernel first measures the ROI's own local background (mean + stddev via `DriftAligner
+    .backgroundThreshold`'s sigma-clipping arithmetic), then `centroidPartial` weights only pixels
+    more than 3σ above that background, by how far above the *mean* (not the raw value) they are.
+    Background contributes exactly zero instead of swamping the sum. `findBrightestPartial` now
+    scores each candidate by a 3×3-neighborhood average instead of the single texel — a real
+    star's PSF spreads over multiple pixels so its averaged score barely drops, while an isolated
+    hot pixel's drops by roughly 9×, so the search naturally prefers real stars. Both fixes are
+    pure-GPU-side except the background/threshold arithmetic itself, which is `DriftAligner
+    .backgroundThreshold` — a testable pure function (`DriftAlignerTests`) for the same "keep the
+    easy-to-get-wrong math outside the GPU dispatch plumbing" reason `DriftAligner`'s other
+    functions already are.
+- **Added a "Save Stacked Image…" button directly in the Live Stack panel** — calls the existing
+  `exportCurrentFrame(as: .png)`/`frameForExport()` machinery (already correct for both the GPU
+  and CPU accumulators, and for a webcam/iPhone source, per the fixes above), just surfaced right
+  next to the stack it's for instead of requiring a trip to the separate Export section below.

@@ -23,6 +23,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private let temporalAccumulatorPipeline: MTLComputePipelineState
     private let arcsinhStretchPipeline: MTLComputePipelineState
     private let findBrightestPipeline: MTLComputePipelineState
+    private let roiStatsPipeline: MTLComputePipelineState
     private let centroidPipeline: MTLComputePipelineState
     private let accumulateAlignedPipeline: MTLComputePipelineState
     /// RGB24 (webcam/iPhone) color analogs of `denoisePipeline`/`waveletBlurPipeline`/
@@ -152,6 +153,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let temporalAccumulatorFn = library.makeFunction(name: "temporalAccumulator"),
               let arcsinhStretchFn = library.makeFunction(name: "arcsinhStretch"),
               let findBrightestFn = library.makeFunction(name: "findBrightestPartial"),
+              let roiStatsFn = library.makeFunction(name: "roiStatsPartial"),
               let centroidFn = library.makeFunction(name: "centroidPartial"),
               let accumulateAlignedFn = library.makeFunction(name: "accumulateMonoAligned"),
               let denoiseRGBAFn = library.makeFunction(name: "bilateralDenoiseRGBA"),
@@ -184,6 +186,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             self.temporalAccumulatorPipeline = try device.makeComputePipelineState(function: temporalAccumulatorFn)
             self.arcsinhStretchPipeline = try device.makeComputePipelineState(function: arcsinhStretchFn)
             self.findBrightestPipeline = try device.makeComputePipelineState(function: findBrightestFn)
+            self.roiStatsPipeline = try device.makeComputePipelineState(function: roiStatsFn)
             self.centroidPipeline = try device.makeComputePipelineState(function: centroidFn)
             self.accumulateAlignedPipeline = try device.makeComputePipelineState(function: accumulateAlignedFn)
             self.denoiseRGBAPipeline = try device.makeComputePipelineState(function: denoiseRGBAFn)
@@ -538,6 +541,15 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
     /// Re-locates the tracked star within a `driftROISize`×`driftROISize` window centered on
     /// `center` (its last known position) — run every live-stack frame once a lock exists.
+    ///
+    /// Two GPU round trips, not one: `roiStatsPartial` first measures the ROI's own local
+    /// background level (mean + stddev), then `centroidPartial` weights only pixels a few sigma
+    /// above that background. A single-pass plain-intensity centroid over the *whole* ROI is
+    /// dominated by sky background (vastly more pixels than the star occupies) rather than the
+    /// star itself — seeded by `DriftAligner.backgroundThreshold`'s doc comment, this is the
+    /// actual fix for drift reduction computing a near-zero shift regardless of real star motion.
+    /// Both passes are on the same tiny ROI (`driftROISize`×`driftROISize`), so the extra round
+    /// trip is the same order of cost the single-pass version already was.
     private func computeCentroid(source: MTLTexture, center: SIMD2<Float>, width: Int, height: Int) -> SIMD2<Float>? {
         let roiSize = Self.driftROISize
         let originX = Int32(center.x) - Int32(roiSize / 2)
@@ -546,16 +558,45 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         let groupsPerAxis = (roiSize + 15) / 16
         let groupCount = groupsPerAxis * groupsPerAxis
         ensureDriftPartialsBuffer(minimumCount: groupCount)
-        guard let driftPartialsBuffer,
-              let commandBuffer = commandQueue.makeCommandBuffer(),
-              let encoder = commandBuffer.makeComputeCommandEncoder()
+        guard let driftPartialsBuffer else { return nil }
+        var roi = (originX, originY, Int32(roiSize))
+
+        guard let statsCommandBuffer = commandQueue.makeCommandBuffer(),
+              let statsEncoder = statsCommandBuffer.makeComputeCommandEncoder()
+        else { return nil }
+        statsEncoder.setComputePipelineState(roiStatsPipeline)
+        statsEncoder.setTexture(source, index: 0)
+        statsEncoder.setBytes(&roi, length: MemoryLayout.size(ofValue: roi), index: 0)
+        statsEncoder.setBuffer(driftPartialsBuffer, offset: 0, index: 1)
+        statsEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 0)
+        statsEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 1)
+        statsEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 2)
+        statsEncoder.dispatchThreadgroups(MTLSize(width: groupsPerAxis, height: groupsPerAxis, depth: 1), threadsPerThreadgroup: threadsPerGroup)
+        statsEncoder.endEncoding()
+        statsCommandBuffer.commit()
+        statsCommandBuffer.waitUntilCompleted()
+
+        let statsPartials = driftPartialsBuffer.contents().bindMemory(to: SIMD3<Float>.self, capacity: groupCount)
+        var sum: Float = 0
+        var sumSq: Float = 0
+        var count: Float = 0
+        for i in 0..<groupCount {
+            sum += statsPartials[i].x
+            sumSq += statsPartials[i].y
+            count += statsPartials[i].z
+        }
+        guard let (background, threshold) = DriftAligner.backgroundThreshold(sum: sum, sumOfSquares: sumSq, count: count)
         else { return nil }
 
-        var roi = (originX, originY, Int32(roiSize))
+        guard let commandBuffer = commandQueue.makeCommandBuffer(),
+              let encoder = commandBuffer.makeComputeCommandEncoder()
+        else { return nil }
+        var backgroundAndThreshold = SIMD2<Float>(background, threshold)
         encoder.setComputePipelineState(centroidPipeline)
         encoder.setTexture(source, index: 0)
         encoder.setBytes(&roi, length: MemoryLayout.size(ofValue: roi), index: 0)
-        encoder.setBuffer(driftPartialsBuffer, offset: 0, index: 1)
+        encoder.setBytes(&backgroundAndThreshold, length: MemoryLayout<SIMD2<Float>>.size, index: 1)
+        encoder.setBuffer(driftPartialsBuffer, offset: 0, index: 2)
         encoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 0)
         encoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 1)
         encoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 2)
