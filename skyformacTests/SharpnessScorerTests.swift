@@ -34,6 +34,36 @@ struct SharpnessScorerTests {
         let score = SharpnessScorer.score(for: flatField(width: 2, height: 2), isColorCamera: false, bayerPattern: ASI_BAYER_RG)
         #expect(score == 0)
     }
+
+    private func checkerboardRGB24(width: Int, height: Int) -> CapturedFrame {
+        var data = Data(count: width * height * 3)
+        data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+            for y in 0..<height {
+                for x in 0..<width {
+                    let value: UInt8 = (x + y) % 2 == 0 ? 255 : 0
+                    let o = (y * width + x) * 3
+                    base[o] = value
+                    base[o + 1] = value
+                    base[o + 2] = value
+                }
+            }
+        }
+        return CapturedFrame(width: width, height: height, imageType: ASI_IMG_RGB24, data: data)
+    }
+
+    private func flatFieldRGB24(width: Int, height: Int, value: UInt8 = 128) -> CapturedFrame {
+        CapturedFrame(width: width, height: height, imageType: ASI_IMG_RGB24, data: Data(repeating: value, count: width * height * 3))
+    }
+
+    // Webcam/iPhone (RGB24) frames were missing a case entirely — every frame scored 0
+    // regardless of actual sharpness, making Lucky Imaging's ranking meaningless for that source.
+    @Test func rgb24SharperImageScoresHigherThanFlatField() {
+        let sharp = SharpnessScorer.score(for: checkerboardRGB24(width: 32, height: 32), isColorCamera: false, bayerPattern: ASI_BAYER_RG)
+        let flat = SharpnessScorer.score(for: flatFieldRGB24(width: 32, height: 32), isColorCamera: false, bayerPattern: ASI_BAYER_RG)
+        #expect(sharp > flat)
+        #expect(flat == 0)
+    }
 }
 
 struct LuckyImagingSessionTests {

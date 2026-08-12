@@ -40,6 +40,13 @@ enum SharpnessScorer {
             } else {
                 mono = plane16(frame.data, count: frame.width * frame.height)
             }
+        case ASI_IMG_RGB24:
+            // Webcam/iPhone frames: already packed R,G,B triplets (see `WebcamCaptureEngine`'s
+            // doc comment), so no debayer step — straight into `luma8`, same as a debayered ZWO
+            // color frame. This case was missing entirely, so every burst frame from an
+            // iPhone/webcam source scored 0, making Lucky Imaging's "keep the sharpest fraction"
+            // ranking meaningless for that source (every frame tied at 0).
+            mono = luma8(frame.data, count: frame.width * frame.height)
         default:
             return nil
         }

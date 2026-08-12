@@ -339,7 +339,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.liveStack", heading: "Live Stack",
-                body: "A running average of incoming frames. By default no star alignment — this assumes a tracked, stationary mount, the same scoping SharpCap's basic live-stack mode uses. See **Reduce Drift** below for basic alignment. Exporting FITS/PNG/TIFF (Export, above) while this is on exports the actual stacked average, on both the GPU and CPU render paths — not just whatever the latest single frame happened to be."
+                body: "A running average of incoming frames. By default no star alignment — this assumes a tracked, stationary mount, the same scoping SharpCap's basic live-stack mode uses. See **Reduce Drift** below for basic alignment. Exporting FITS/PNG/TIFF (Export, above) while this is on exports the actual stacked average, on both the GPU and CPU render paths — not just whatever the latest single frame happened to be. Works for an iPhone/webcam source too — it always accumulates on the CPU running-average regardless of the GPU/CPU toggle above, since the GPU accumulator only supports a ZWO camera's mono sensor data; the live preview still renders on the GPU either way."
             ),
             HelpSection(
                 id: "setting.liveStackDriftReduction", heading: "Reduce Drift (align to a locked star)",
@@ -352,7 +352,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.luckyImaging", heading: "Lucky Imaging",
-                body: "Captures a burst, scores every frame's sharpness, and stacks only the sharpest fraction — the classic technique for beating atmospheric seeing on the Moon/planets."
+                body: "Captures a burst, scores every frame's sharpness, and stacks only the sharpest fraction — the classic technique for beating atmospheric seeing on the Moon/planets. Works with a ZWO camera or an iPhone/webcam source equally."
             ),
             HelpSection(
                 id: "setting.recordToDisk", heading: "Record to Disk",

@@ -26,9 +26,10 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
 
 **Rendering**
 - **GPU render pass** — `Shaders.metal` compute kernels for RAW8/RAW16
-  debayer/stretch and RGB24 (webcam) stretch, plus histogram, denoise,
-  wavelet-sharpen, and live-stacking kernels; toggle "GPU/CPU" in the toolbar
-  (⌘M). GPU is the default.
+  debayer/stretch, RGB24 (webcam) stretch, histogram, denoise (both mono and
+  RGB24), wavelet-sharpen (both mono and RGB24), and live-stack accumulation
+  (mono only — see "Live stacking" below for the webcam/iPhone fallback);
+  toggle "GPU/CPU" in the toolbar (⌘M). GPU is the default.
 - **Exposure control spans microseconds to hundreds of seconds** on a
   log-scale slider with adaptive µs/ms/s display, matching what a real ASI
   sensor actually supports (a linear slider can't cover that range at any
@@ -49,16 +50,24 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   type (`CalibrationLibrary`), independently toggleable subtraction/correction
   (`FlatFieldCorrector`).
 - **Live stacking** — CPU running-average, or a genuine GPU running-sum
-  compute kernel end to end when the Metal renderer is active. Optional GPU
-  drift reduction (single-star lock-on, sub-pixel aligned accumulation) for
-  mounts that don't track perfectly, e.g. alt-azimuth — see
+  compute kernel end to end when the Metal renderer is active, for a ZWO
+  camera's mono RAW8/RAW16 data. A webcam/iPhone (RGB24) source always
+  accumulates on the CPU running-average instead — the GPU accumulator is a
+  single-channel kernel with no RGB24 path — while the GPU renderer still
+  handles that source's own live stretch/denoise/sharpen, so the preview
+  stays GPU-accelerated either way; see
+  [`docs/design-notes.md`](design-notes.md) for the "silently did nothing for
+  webcam/iPhone" bug this replaced. Optional GPU drift reduction (single-star
+  lock-on, sub-pixel aligned accumulation) for mounts that don't track
+  perfectly, e.g. alt-azimuth — ZWO cameras only, see
   [`docs/design-notes.md`](design-notes.md) for exactly what it does and
   doesn't correct for. Exporting FITS/PNG/TIFF while stacking is active
-  exports the actual stacked average on both render paths (the GPU path's
-  accumulator is read back into a real frame for exactly this) — not the
-  latest raw single frame.
+  exports the actual stacked average on both render paths and both camera
+  types — not the latest raw single frame.
 - **Lucky imaging** — burst capture, sharpness-ranked (Laplacian variance,
-  CPU or GPU), keeping and stacking only the sharpest fraction.
+  CPU or GPU), keeping and stacking only the sharpest fraction. Works for a
+  webcam/iPhone source too (`SharpnessScorer`/`FrameArithmetic` both have an
+  RGB24 case — no debayer needed, the frame is already color).
 - **FITS/PNG/TIFF export**, for the current frame or a live stack. Color-camera
   FITS exports embed a `BAYERPAT` header card so downstream tools (and
   skyformac's own reader, below) know how to debayer them.

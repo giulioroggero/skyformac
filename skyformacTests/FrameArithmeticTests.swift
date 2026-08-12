@@ -57,4 +57,27 @@ struct FrameArithmeticTests {
     @Test func averageOfEmptyArrayReturnsNil() {
         #expect(FrameArithmetic.average(frames: []) == nil)
     }
+
+    // RGB24 (webcam/iPhone) frames had no case at all — `average` fell to `default: return nil`,
+    // so `LuckyImagingSession.stackBest` silently produced nothing for that source.
+    @Test func average24ComputesPerChannelMean() throws {
+        let frames = [
+            CapturedFrame(width: 2, height: 1, imageType: ASI_IMG_RGB24, data: Data([10, 20, 30, 100, 110, 120])),
+            CapturedFrame(width: 2, height: 1, imageType: ASI_IMG_RGB24, data: Data([20, 30, 40, 200, 210, 220])),
+            CapturedFrame(width: 2, height: 1, imageType: ASI_IMG_RGB24, data: Data([30, 40, 50, 254, 254, 254])),
+        ]
+        let result = try #require(FrameArithmetic.average(frames: frames))
+        #expect(result.imageType == ASI_IMG_RGB24)
+        // Pixel 0: (10+20+30)/3=20, (20+30+40)/3=30, (30+40+50)/3=40
+        // Pixel 1: (100+200+254)/3=184 (int div), (110+210+254)/3=191, (120+220+254)/3=198
+        #expect(Array(result.data) == [20, 30, 40, 184, 191, 198])
+    }
+
+    @Test func average24RejectsMismatchedDimensions() {
+        let frames = [
+            CapturedFrame(width: 2, height: 1, imageType: ASI_IMG_RGB24, data: Data(repeating: 1, count: 6)),
+            CapturedFrame(width: 1, height: 1, imageType: ASI_IMG_RGB24, data: Data(repeating: 1, count: 3)),
+        ]
+        #expect(FrameArithmetic.average(frames: frames) == nil)
+    }
 }

@@ -540,7 +540,11 @@ final class CameraManager {
         liveStackGeneration &+= 1
         gpuLiveStackFrameCount = 0
     }
-    var liveStackedFrameCount: Int { useMetalRenderer ? gpuLiveStackFrameCount : liveStacker.frameCount }
+    /// Webcam/iPhone sources always accumulate on the CPU `LiveStacker` even when the GPU render
+    /// path is active (see `ingest`'s `shouldAccumulateOnCPU`) — `gpuLiveStackFrameCount` never
+    /// advances for them, so reading it here would show a stuck-at-0 counter for a Live Stack
+    /// that's actually running.
+    var liveStackedFrameCount: Int { (useMetalRenderer && !isExternalWebcam) ? gpuLiveStackFrameCount : liveStacker.frameCount }
 
     /// GPU-only (see `MetalFrameRenderer`'s "Drift reduction" section) — locks onto the
     /// brightest star in the first stacked frame and shifts every subsequent frame back to that
@@ -1064,10 +1068,18 @@ final class CameraManager {
         scheduleQualityScoreIfNeeded(processed)
         scheduleCloudSentinelIfNeeded(processed)
 
-        if isLiveStackingEnabled && !useMetalRenderer {
-            // CPU accumulation for the CGImage render path. When the Metal renderer is active,
-            // `currentFrame` stays the raw per-frame data — `MetalFrameRenderer` does its own
-            // GPU-side running-sum accumulation on each raw frame instead (see `resetLiveStack`).
+        // GPU live-stack accumulation (`MetalFrameRenderer.accumulationTexture`) is mono-only —
+        // it never runs for RGB24 (webcam/iPhone) frames, see `MetalFrameRenderer.process`'s doc
+        // comment. Without this, enabling Live Stack for an iPhone/webcam source while the GPU
+        // render path was active (the default) did nothing at all: no CPU accumulation because
+        // `useMetalRenderer` was true, no GPU accumulation because RGB24 isn't supported there —
+        // `currentFrame` just stayed the latest raw frame every time. Falling back to the CPU
+        // `LiveStacker` specifically for RGB24 regardless of the render-path toggle fixes both the
+        // live preview (GPU still does its own stretch/denoise/sharpen of this already-averaged
+        // frame each time, via `processRGB24`) and export (`frameForExport` falls through to
+        // `currentFrame` once `gpuAccumulatedFrameProvider` comes back `nil` for RGB24).
+        let shouldAccumulateOnCPU = isLiveStackingEnabled && (!useMetalRenderer || processed.imageType == ASI_IMG_RGB24)
+        if shouldAccumulateOnCPU {
             // Streak masking (see `currentStreakMask`'s doc comment) only applies here — it's a
             // CPU-`LiveStacker`-only feature, disclosed as such in the Controls UI.
             let mask = isStreakMaskingEnabled ? currentStreakMask : nil

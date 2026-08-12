@@ -37,6 +37,8 @@ enum FrameArithmetic {
             return average8(frames: frames)
         case ASI_IMG_RAW16:
             return average16(frames: frames)
+        case ASI_IMG_RGB24:
+            return average24(frames: frames)
         default:
             return nil
         }
@@ -130,6 +132,36 @@ enum FrameArithmetic {
         output.withUnsafeMutableBytes { (o: UnsafeMutableRawBufferPointer) in
             guard let op = o.bindMemory(to: UInt16.self).baseAddress else { return }
             for i in 0..<count { op[i] = UInt16(sums[i] / divisor) }
+        }
+        return CapturedFrame(width: width, height: height, imageType: frames[0].imageType, data: output)
+    }
+
+    // MARK: - RGB24
+
+    /// Webcam/iPhone frames only (see `WebcamCaptureEngine`'s doc comment) — packed R,G,B
+    /// triplets, averaged per channel independently. This case was missing entirely, so
+    /// `LuckyImagingSession.stackBest` silently returned `nil` for every iPhone/webcam burst —
+    /// Lucky Imaging produced nothing at all for that source, on top of `SharpnessScorer` scoring
+    /// every frame in the burst as 0 (see its own doc comment for that half of the same gap).
+    private static func average24(frames: [CapturedFrame]) -> CapturedFrame? {
+        let width = frames[0].width
+        let height = frames[0].height
+        let count = width * height * 3
+        var sums = [UInt32](repeating: 0, count: count)
+
+        for frame in frames {
+            guard frame.data.count >= count else { return nil }
+            frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                for i in 0..<count { sums[i] += UInt32(base[i]) }
+            }
+        }
+
+        var output = Data(count: count)
+        let divisor = UInt32(frames.count)
+        output.withUnsafeMutableBytes { (o: UnsafeMutableRawBufferPointer) in
+            guard let op = o.bindMemory(to: UInt8.self).baseAddress else { return }
+            for i in 0..<count { op[i] = UInt8(sums[i] / divisor) }
         }
         return CapturedFrame(width: width, height: height, imageType: frames[0].imageType, data: output)
     }

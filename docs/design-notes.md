@@ -168,9 +168,15 @@ made along the way.
   `stretchRGB24`/`histogramReduceRGB24` (`Shaders.metal`) read the raw byte
   buffer directly via `device const uchar *` instead of a
   `texture2d<...>` binding, writing the stretched result into the same
-  `rgba8Unorm` output texture the mono path uses. Denoise/wavelet-sharpen/GPU
-  live-stacking are still mono-only kernels and aren't wired up for RGB24 —
-  same gap the CPU path already has.
+  `rgba8Unorm` output texture the mono path uses. Denoise/wavelet-sharpen have
+  since grown RGB24 color analogs (`bilateralDenoiseRGBA`/`waveletBlurRGBA`/
+  `waveletCombineRGBA`); GPU live-stack *accumulation* (`accumulateMono`)
+  remains genuinely mono-only (a single-channel `r32Float` running sum), but
+  `CameraManager.ingest` now falls back to the CPU `LiveStacker` specifically
+  for RGB24 frames even while the GPU render path is active, so Live Stack
+  still works end-to-end (preview and export) for a webcam/iPhone source —
+  see the "Live Stack and Lucky Imaging silently did nothing for webcam/
+  iPhone sources" entry below for the full bug this replaced.
 - **A linear exposure-time slider can't span a real camera's actual range.**
   ASI sensors expose microsecond-scale exposures (planetary/lucky imaging)
   through hundreds of seconds (deep sky) — a 0.1s-resolution linear slider
@@ -837,3 +843,37 @@ made along the way.
     Lucky Imaging's own result is arguably the more deliberate, more recent user action in that
     specific overlap; not resolved here since it's a narrow, rare combination rather than the
     common case this fix targets.
+- **Live Stack and Lucky Imaging both silently did nothing for a webcam/iPhone (RGB24) source —
+  found while checking "can I stack and lucky-image with an iPhone paired camera" against the
+  actual code path instead of assuming the answer was yes.** Three separate gaps, all in
+  code paths that only ever see RAW8/RAW16 mono data from a real ZWO camera and had simply never
+  been extended to RGB24:
+  - `SharpnessScorer.luminanceGrid`'s `switch` had no `ASI_IMG_RGB24` case (`default: return nil`
+    → `score(for:)` always `0`), so every frame in a Lucky Imaging burst from a webcam/iPhone
+    source tied at score `0` — "keep the sharpest fraction" had nothing real to rank.
+  - `FrameArithmetic.average`'s `switch` had the same gap (`default: return nil`), so
+    `LuckyImagingSession.stackBest` — which calls it directly — returned `nil` for every
+    webcam/iPhone burst. Lucky Imaging produced literally nothing for that source, independent
+    of the scoring gap above.
+  - `CameraManager.ingest`'s Live Stack branch was `isLiveStackingEnabled && !useMetalRenderer` —
+    meaning CPU accumulation (the only kind that supports RGB24, see `LiveStacker.add`'s own
+    RGB24 case) only ran with the GPU render path *off*. With the GPU path on (the app's
+    default), RGB24 frames hit `MetalFrameRenderer.process`'s early-return `processRGB24` branch,
+    which never accumulates at all — so `currentFrame` just stayed the latest raw frame, live
+    stack toggle or not.
+  - **Fix**: `SharpnessScorer` gained an `ASI_IMG_RGB24` case reusing the existing `luma8` helper
+    directly — webcam/iPhone frames are already packed R,G,B triplets (`WebcamCaptureEngine`'s
+    doc comment), the same layout `luma8` already expects for an already-debayered ZWO color
+    frame, so no new conversion code was needed, just wiring it up. `FrameArithmetic` gained
+    `average24`, the RGB24 analog of `average8`/`average16` (per-channel independent mean).
+    `ingest`'s condition became `isLiveStackingEnabled && (!useMetalRenderer || processed.imageType
+    == ASI_IMG_RGB24)` — RGB24 always accumulates on the CPU `LiveStacker` regardless of the
+    render-path toggle, since GPU accumulation for it doesn't exist and wouldn't be worth adding
+    (the CPU path is plenty fast at webcam/iPhone frame sizes); the GPU renderer still does its
+    own per-frame stretch/denoise/sharpen of whatever `currentFrame` holds, so the live preview
+    stays GPU-accelerated even though the *stacking* itself is CPU-side for this source.
+    `liveStackedFrameCount` (the Controls panel's live frame-count readout) had the matching gap
+    — it read `gpuLiveStackFrameCount`, which never advances for RGB24, whenever
+    `useMetalRenderer` was true; changed to check `!isExternalWebcam` too, so the readout tracks
+    `liveStacker.frameCount` (the counter actually advancing) for a webcam/iPhone source on
+    either render path.
