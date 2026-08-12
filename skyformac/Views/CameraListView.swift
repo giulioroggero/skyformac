@@ -32,12 +32,52 @@ struct CameraListView: View {
                 .listStyle(.inset)
             }
 
+            if cameraManager.connectedCamera != nil && !cameraManager.isExternalWebcam {
+                acquisitionSection
+            }
+
             Divider()
 
             webcamSection
         }
         .padding()
         .onAppear { cameraManager.refreshWebcams() }
+    }
+
+    /// Right next to the connected camera, not tucked away in the right-hand Controls panel —
+    /// these three work on whatever camera is connected regardless of which sidebar tab happens
+    /// to be showing, so they live where the camera itself is, not with any one tab's controls.
+    /// Save/Load work standalone, without opening the Wizard sheet at all — see
+    /// `CameraManager.saveCurrentSetupAsPreset`/`loadAndApplyAcquisitionPreset`'s doc comments.
+    @ViewBuilder
+    private var acquisitionSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Acquisition").font(.headline)
+            Button {
+                cameraManager.isAcquisitionWizardPresented = true
+            } label: {
+                Label("Wizard…", systemImage: "wand.and.rays")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .help("Pick a target (Moon, a planet, or a deep-sky object) and set up Live Stack/Lucky Imaging, ROI, gain, and exposure for it in one step. ⌘⇧W")
+            Button {
+                cameraManager.saveCurrentSetupAsPreset()
+            } label: {
+                Label("Save Preset…", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .help("Saves whatever's currently configured (gain, exposure, ROI, Live Stack/Reduce Drift/Smart Live Stack) as its own preset file. ⌘⇧S")
+            Button {
+                cameraManager.loadAndApplyAcquisitionPreset()
+            } label: {
+                Label("Load Preset…", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .help("Loads a saved preset file and applies it immediately. ⌘⇧L")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(.vertical, 4)
     }
 
     /// iPhone (Continuity Camera, wired over USB or wireless) or other AVFoundation webcam as a

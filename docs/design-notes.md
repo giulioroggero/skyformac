@@ -1141,3 +1141,25 @@ made along the way.
   Presets, the dropped-frame counter, ST4 Guiding, the sidebar tab split, and the live-view
   refresh throttle are all configuration/orchestration/UI — none of them touch pixel data at all,
   so there's no GPU work to move there; correctly CPU-only, not a gap.
+- **Save/Load Preset made standalone, not gated behind opening the Wizard sheet at all.** The
+  Wizard's own use case is "pick a target, get its recommendation" — but a returning user with a
+  setup they already like has no target to pick; they just want today's dialed-in settings saved,
+  or a known-good file reloaded, in one action. `CameraManager.currentAcquisitionPreset(name:)`
+  builds an `AcquisitionPreset` from *whatever's actually configured right now* (reads gain/
+  exposure straight from `controlValues`, not a target's table) rather than a target's
+  recommendation — `targetID` is left empty on purpose, matching nothing `AcquisitionTarget
+  .resolve(id:)` can find, since there's no single target this snapshot is "for." Its mode comes
+  from `AcquisitionMode.current(isLiveStackingEnabled:hasLuckyImagingSession:)`, a pure function
+  (`AcquisitionTargetTests`) factored out of the live-state reading around it for the same "keep
+  the actual decision testable, not just the plumbing that feeds it" reason `SmartLiveStackGate
+  .decide`/`DriftAligner`'s functions already are. `saveCurrentSetupAsPreset`/
+  `loadAndApplyAcquisitionPreset` wrap this and the existing save/load panels into one call each,
+  surfaced in two places besides the Wizard sheet itself: the **Camera** menu (⌘⇧S/⌘⇧L), and a new
+  "Acquisition" section in the left camera-list sidebar, directly under the connected camera —
+  deliberately not tucked into the right-hand Controls panel, since these three actions work
+  regardless of which Controls tab happens to be showing, and belong with the camera itself
+  instead of any one tab's tools.
+  - `luckyBurstCount`/`serDurationSeconds` come back `nil` from a "current settings" snapshot —
+    both live as `@AppStorage` inside `ControlsPanelView`, not `CameraManager`, so there's nothing
+    for this snapshot to read; loading such a preset back still restores everything this class
+    itself actually tracks, just without a burst-count/SER-duration recommendation riding along.

@@ -74,4 +74,17 @@ struct AcquisitionTargetTests {
         let decoded = try JSONDecoder().decode(AcquisitionPreset.self, from: data)
         #expect(decoded == original)
     }
+
+    @Test func currentModeIsLiveStackOnlyWhenNoLuckySession() {
+        #expect(AcquisitionMode.current(isLiveStackingEnabled: true, hasLuckyImagingSession: false) == .liveStack)
+    }
+
+    @Test func currentModeIsBothWhenLiveStackingAndLuckySessionActive() {
+        #expect(AcquisitionMode.current(isLiveStackingEnabled: true, hasLuckyImagingSession: true) == .both)
+    }
+
+    @Test func currentModeIsLuckyImagingWhenLiveStackingIsOff() {
+        #expect(AcquisitionMode.current(isLiveStackingEnabled: false, hasLuckyImagingSession: false) == .luckyImaging)
+        #expect(AcquisitionMode.current(isLiveStackingEnabled: false, hasLuckyImagingSession: true) == .luckyImaging)
+    }
 }

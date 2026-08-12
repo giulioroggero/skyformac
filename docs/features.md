@@ -149,6 +149,14 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   auto-start a Lucky Imaging burst or SER recording — framing/focus should
   be confirmed against the real target first. See
   [`docs/design-notes.md`](design-notes.md) for the full reasoning.
+- **Save/Load Preset, standalone** — saving or loading a preset doesn't need
+  the Wizard sheet open at all. "Save Preset…" snapshots *whatever's
+  currently configured* (not a target's recommendation) into its own file;
+  "Load Preset…" loads a file and applies it immediately. Available from
+  the **Camera** menu (⌘⇧S/⌘⇧L) and from a new "Acquisition" section in the
+  left camera-list sidebar, right under the connected camera — not tucked
+  into the right-hand Controls panel, since these work regardless of which
+  Controls tab happens to be showing.
 
 **Focus & tracking**
 - **Focus assist** — Vision `VNDetectContoursRequest` star detection overlay

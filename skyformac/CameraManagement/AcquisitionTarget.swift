@@ -18,6 +18,17 @@ enum AcquisitionMode: String, Codable, CaseIterable, Identifiable {
 
     var usesLiveStack: Bool { self == .liveStack || self == .both }
     var usesLuckyImaging: Bool { self == .luckyImaging || self == .both }
+
+    /// What `CameraManager.currentAcquisitionPreset` derives the mode of a "snapshot of whatever's
+    /// currently configured" preset from — a pure function of just these two flags, so the actual
+    /// decision (not the reading of live camera state feeding into it) is unit-testable.
+    static func current(isLiveStackingEnabled: Bool, hasLuckyImagingSession: Bool) -> AcquisitionMode {
+        switch (isLiveStackingEnabled, hasLuckyImagingSession) {
+        case (true, true): return .both
+        case (true, false): return .liveStack
+        case (false, _): return .luckyImaging
+        }
+    }
 }
 
 /// A small, curated "interesting deep-sky objects" list — deliberately not `SkyCatalog`'s full

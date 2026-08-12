@@ -88,7 +88,10 @@ and signed into the same Apple ID for wireless Continuity Camera); click
 the top of the sidebar to rescan either list.
 
 Once connected, the toolbar's status pill shows the connection state and ZWO SDK
-version, and the main pane starts streaming a live preview.
+version, and the main pane starts streaming a live preview. A connected ZWO
+camera also shows an **Acquisition** section right there in the sidebar —
+Wizard/Save Preset/Load Preset, so a target setup or a saved preset is one
+click away without hunting through the Controls panel's tabs.
 
 ### The live preview and toolbar
 
@@ -163,9 +166,11 @@ raw data:
   Saturn, or a curated deep-sky list: M13/M56/M31/M42/M45) and set up ROI,
   gain, exposure, and Live Stack/Reduce Drift/Smart Live Stack/Lucky Imaging
   for it in one step — the Moon uniquely turns on both Live Stack and Lucky
-  Imaging at once. Save/Load Preset round-trips a setup to its own JSON
-  file, one file per preset, for a favorite setup under a specific
-  telescope/camera pairing.
+  Imaging at once. **Save Preset…**/**Load Preset…** (⌘⇧S/⌘⇧L, Camera menu,
+  or the Cameras sidebar's own "Acquisition" section) round-trip a setup to
+  its own JSON file, one file per preset — and work standalone, without the
+  Wizard sheet open at all: Save snapshots whatever's currently configured,
+  Load applies a file immediately.
 - **Capture ROI** (ZWO only) — a smaller-than-full-sensor region increases
   achievable frame rate directly (less data read off the sensor per frame),
   the classic "small ROI, high FPS" planetary/lunar technique. Quick presets

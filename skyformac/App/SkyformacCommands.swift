@@ -59,6 +59,16 @@ struct SkyformacCommands: Commands {
 
             Button("Acquisition Wizard…") { cameraManager.isAcquisitionWizardPresented = true }
                 .keyboardShortcut("w", modifiers: [.command, .shift])
+
+            // Save/Load work standalone, without the Wizard sheet open at all — the Wizard is
+            // where you'd go to pick a *target*'s recommended setup; these two are for a setup
+            // you already have dialed in (or a preset file you already know you want).
+            Button("Save Current Setup as Preset…") { cameraManager.saveCurrentSetupAsPreset() }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(cameraManager.connectedCamera == nil || cameraManager.isExternalWebcam)
+            Button("Load Preset…") { cameraManager.loadAndApplyAcquisitionPreset() }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+                .disabled(cameraManager.connectedCamera == nil || cameraManager.isExternalWebcam)
         }
 
         CommandMenu("Sidebar Tab") {

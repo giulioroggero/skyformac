@@ -335,6 +335,14 @@ enum HelpContent {
                 ]
             ),
             HelpSection(
+                id: "setting.acquisitionPresetStandalone", heading: "Save/Load Preset (without the Wizard)",
+                body: "Saving or loading a preset doesn't need the Wizard sheet open at all — **Save Preset…** (⌘⇧S) snapshots *whatever's currently configured* (gain, exposure, ROI, Live Stack/Reduce Drift/Smart Live Stack — read straight from the live camera state, not a target's recommendation) into its own file; **Load Preset…** (⌘⇧L) loads a file and applies it immediately. Available from the **Camera** menu, and from an \"Acquisition\" section in the Cameras sidebar itself, right under the connected camera.",
+                bullets: [
+                    "A preset saved this way has no specific target — reopening it in the Wizard later shows it as an unrecognized target (settings still apply normally), since it's a snapshot of a moment, not a recommendation for a specific object.",
+                    "Doesn't carry a Lucky Imaging burst-count or SER-duration recommendation — those two live in the Controls panel's own state, not tracked at the level this snapshot reads from.",
+                ]
+            ),
+            HelpSection(
                 id: "setting.captureROI", heading: "Capture ROI (higher FPS)",
                 body: "ZWO cameras only. Requests a smaller-than-full-sensor region from the camera itself (`ASISetROIFormat`) rather than just cropping the display — less data has to be read off the sensor per frame, which directly increases the achievable frame rate. Restarts the live stream to take effect.",
                 bullets: [

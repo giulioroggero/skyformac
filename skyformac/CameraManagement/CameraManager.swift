@@ -1338,6 +1338,51 @@ final class CameraManager {
         }
     }
 
+    /// A snapshot of *whatever's currently configured* as an `AcquisitionPreset` — not a target's
+    /// recommendation, so this works without ever having opened the Wizard at all. `targetID` is
+    /// left empty (matches nothing `AcquisitionTarget.resolve(id:)` can find), since there's no
+    /// single target this snapshot is "for" — it's just today's actual live settings.
+    /// `luckyBurstCount`/`serDurationSeconds` are `nil`: both live as `@AppStorage` inside
+    /// `ControlsPanelView`, not here, so a preset saved this way doesn't carry a recommendation
+    /// for either — loading it back still restores everything this class itself tracks.
+    func currentAcquisitionPreset(name: String) -> AcquisitionPreset {
+        let gain = controls.first { $0.controlType.rawValue == ASI_GAIN.rawValue }
+            .flatMap { controlValues[$0.id]?.value }
+        let exposureMicroseconds = controls.first { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }
+            .flatMap { controlValues[$0.id]?.value }
+        let mode = AcquisitionMode.current(
+            isLiveStackingEnabled: isLiveStackingEnabled, hasLuckyImagingSession: luckyImagingSession != nil
+        )
+        return AcquisitionPreset(
+            name: name,
+            targetID: "",
+            mode: mode,
+            gain: gain,
+            exposureSeconds: exposureMicroseconds.map { Double($0) / 1_000_000 },
+            roiWidth: captureROIWidth,
+            roiHeight: captureROIHeight,
+            isDriftReductionEnabled: isLiveStackDriftReductionEnabled,
+            isSmartLiveStackEnabled: isSmartLiveStackEnabled,
+            luckyBurstCount: nil,
+            serDurationSeconds: nil
+        )
+    }
+
+    /// Saves whatever's currently configured, without needing the Wizard sheet open at all — the
+    /// save panel itself is where the user actually names it (pre-filled from `name` below, but
+    /// freely editable, same as `saveAcquisitionPreset`'s own file-naming already works).
+    func saveCurrentSetupAsPreset() {
+        saveAcquisitionPreset(currentAcquisitionPreset(name: "Custom Setup"))
+    }
+
+    /// Loads a preset and applies it immediately — the quick path for "I already know which
+    /// preset I want," without the Wizard's own review-then-Apply step in between.
+    func loadAndApplyAcquisitionPreset() {
+        loadAcquisitionPreset { [weak self] preset, _ in
+            self?.applyAcquisitionPreset(preset)
+        }
+    }
+
     /// The single place a freshly-captured raw frame (real camera or webcam) enters the
     /// display pipeline: dark subtraction, then lucky-imaging burst collection, then live
     /// stacking — all operating on raw sensor data, before `refreshCurrentImage` debayers and
