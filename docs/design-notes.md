@@ -1210,3 +1210,16 @@ made along the way.
   list (two sections, several rows, each with a secondary caption line) plus the preset editor's
   own field grid at once; now `minWidth: 900`/`minHeight: 640`, opening at `idealWidth: 1100`/
   `idealHeight: 760` by default rather than at the bare minimum.
+- **Two small dead-code cleanups, found by an audit for "other incomplete implementations":**
+  - `CameraManager.clearDarkFrame`/`clearFlatFrame` existed (bulk-remove-all-and-disable) but had
+    no UI call site — the Calibration section only ever wired per-frame removal. Wired up as a
+    "Clear All" button next to each list's own enable toggle in `calibrationSubsection`, rather
+    than deleting them — a real, useful action a per-frame trash icon doesn't replace.
+  - `ZWOSDK.getStartPos` (the read half of `ASISetStartPos`/`ASIGetStartPos`) had no call site
+    either — the app only ever *wrote* a ROI's position, never confirmed what the camera actually
+    applied. Added `CaptureEngine.currentStartPosition()` and `CameraManager
+    .captureROIAppliedStartX/Y`, read back right after every `changeCaptureROI` call and shown in
+    the Capture ROI section as an explicit confirmation (or a flagged mismatch, if the camera
+    clamped the request somewhere the app didn't expect) — the same "verify the fix actually took
+    effect" spirit that found the original always-top-left-corner `ASISetStartPos` bug in the
+    first place, now a standing check rather than a one-time investigation.

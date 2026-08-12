@@ -1185,6 +1185,13 @@ final class CameraManager {
     /// `captureROIHeight`; reset to `nil` whenever the ROI resets to the full sensor.
     private(set) var captureROICenterX: Int?
     private(set) var captureROICenterY: Int?
+    /// The ROI's top-left position the camera actually confirms it applied (`CaptureEngine
+    /// .currentStartPosition`, an `ASIGetStartPos` read-back) — `nil` for the full sensor, or if
+    /// the read-back itself failed. Distinct from `captureROICenterX/Y` above (what was
+    /// *requested*) so a discrepancy — the camera clamping the request somewhere the app didn't
+    /// expect — is actually visible instead of just trusted away.
+    private(set) var captureROIAppliedStartX: Int?
+    private(set) var captureROIAppliedStartY: Int?
 
     /// Requests a smaller-than-full-sensor capture region — ZWO cameras only (see `CaptureEngine
     /// .setROI`'s doc comment for why this is worth doing at all: a smaller ROI genuinely
@@ -1207,10 +1214,16 @@ final class CameraManager {
         captureROIHeight = height
         captureROICenterX = width != nil ? centerX : nil
         captureROICenterY = height != nil ? centerY : nil
+        captureROIAppliedStartX = nil
+        captureROIAppliedStartY = nil
         Task {
             await engine.stop()
             await engine.setROI(width: width, height: height, centerX: centerX, centerY: centerY)
             await startPreview(using: engine, imageType: selectedImageType)
+            if width != nil, height != nil, let applied = try? await engine.currentStartPosition() {
+                captureROIAppliedStartX = applied.x
+                captureROIAppliedStartY = applied.y
+            }
         }
     }
 
@@ -1741,11 +1754,14 @@ final class CameraManager {
         }
     }
 
+    /// "Clear All" for the Dark Frames list — `calibrationSubsection`'s per-frame trash button
+    /// already covers removing one at a time; this is the bulk equivalent, next to it.
     func clearDarkFrame() {
         calibrationLibrary.darkFrames.forEach { calibrationLibrary.removeDark(id: $0.id) }
         isDarkSubtractionEnabled = false
     }
 
+    /// "Clear All" for the Flat Frames list — see `clearDarkFrame`'s doc comment.
     func clearFlatFrame() {
         calibrationLibrary.flatFrames.forEach { calibrationLibrary.removeFlat(id: $0.id) }
         isFlatCorrectionEnabled = false
@@ -2243,6 +2259,8 @@ final class CameraManager {
         captureROIHeight = nil
         captureROICenterX = nil
         captureROICenterY = nil
+        captureROIAppliedStartX = nil
+        captureROIAppliedStartY = nil
         diagnosticsPollTask?.cancel()
         diagnosticsPollTask = nil
         droppedFrameCount = nil

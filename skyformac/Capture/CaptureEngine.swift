@@ -100,6 +100,16 @@ actor CaptureEngine {
         try ZWOSDK.setStartPos(cameraID: camera.cameraID, startX: start.x, startY: start.y)
     }
 
+    /// Reads back the top-left position `ASISetStartPos` actually applied — lets a caller confirm
+    /// the camera really did land where `applyStartPosition` last asked, rather than only trusting
+    /// that the SDK call didn't throw. Mainly useful for surfacing that confirmation in the UI
+    /// right after a Capture ROI change, the same "verify the fix actually took effect" spirit
+    /// that found the original always-top-left-corner bug this whole `centerX`/`centerY` machinery
+    /// exists to fix (see `ROIGeometry.startPosition`'s doc comment).
+    func currentStartPosition() throws -> (x: Int, y: Int) {
+        try ZWOSDK.getStartPos(cameraID: camera.cameraID)
+    }
+
     /// Live frame stream for the currently-connected camera. Consuming code (the renderer)
     /// should iterate this with `for await`; frames stop arriving once `stop()` is called.
     /// `onCameraRemoved` fires (off the actor) if a poll reports `ASI_ERROR_CAMERA_REMOVED`.

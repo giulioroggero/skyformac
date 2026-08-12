@@ -351,6 +351,7 @@ enum HelpContent {
                     "Persists across Single Exposure and dark/flat calibration captures too, not just live view, until reset back to Full Sensor.",
                     "\"Custom size & center\" lets you type any width/height and any center position on the sensor — not just the two quick presets. The ROI is genuinely centered there (`ASISetStartPos`), so a target framed anywhere in the full-sensor preview is still in-frame after cropping — \"Center on Sensor\" resets to the sensor's own middle.",
                     "The live preview's own refresh rate is capped independently (~30fps) so a very small, very-high-frame-rate ROI can't flood the display pipeline with more frames than it can keep up with — recording (SER/FITS) and Lucky Imaging still process every single real frame regardless, only the visible preview is rate-limited.",
+                    "The status line below the presets is a read-back confirmation from the camera itself (`ASIGetStartPos`), not just a repeat of what was requested — if the camera clamped the position somewhere unexpected (near the sensor's edge, for instance), that shows up here instead of being silently trusted.",
                 ]
             ),
             HelpSection(
@@ -389,7 +390,8 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.calibration", heading: "Calibration (Dark/Flat)",
-                body: "Capture and manage named dark frames (lens capped, removes fixed-pattern noise/hot pixels) and flat frames (even illumination, corrects vignetting/dust shadows), and toggle whether the active one is applied. ZWO cameras only."
+                body: "Capture and manage named dark frames (lens capped, removes fixed-pattern noise/hot pixels) and flat frames (even illumination, corrects vignetting/dust shadows), and toggle whether the active one is applied. ZWO cameras only.",
+                bullets: ["Each frame's own trash icon removes it individually; \"Clear All\" next to the enable toggle removes every dark (or every flat) and turns that correction off in one action."]
             ),
             HelpSection(
                 id: "setting.liveStack", heading: "Live Stack",

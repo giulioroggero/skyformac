@@ -828,6 +828,23 @@ struct ControlsPanelView: View {
                 Text("Streaming at \(width) × \(height), centered at (\(centerX), \(centerY)) on the sensor — expect noticeably faster live/SER frame rates than full sensor.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+
+                // A read-back confirmation, not just a repeat of what was requested above —
+                // `ASIGetStartPos` after `ASISetStartPos`, so a camera that clamped the position
+                // somewhere the app didn't expect is actually visible instead of silently trusted.
+                if let appliedX = cameraManager.captureROIAppliedStartX, let appliedY = cameraManager.captureROIAppliedStartY {
+                    let appliedCenterX = appliedX + width / 2
+                    let appliedCenterY = appliedY + height / 2
+                    if appliedCenterX == centerX && appliedCenterY == centerY {
+                        Text("Confirmed by the camera: centered exactly as requested.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Camera confirms it actually centered at (\(appliedCenterX), \(appliedCenterY)) instead — likely clamped near the sensor's edge.")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
 
             customCaptureROIFields
@@ -1322,6 +1339,7 @@ struct ControlsPanelView: View {
                 onCapture: { await cameraManager.captureDarkFrame(seconds: darkFrameSeconds) },
                 onSelect: { cameraManager.calibrationLibrary.activeDarkID = $0 },
                 onRemove: { cameraManager.calibrationLibrary.removeDark(id: $0) },
+                onClearAll: { cameraManager.clearDarkFrame() },
                 isEnabled: Binding(
                     get: { cameraManager.isDarkSubtractionEnabled },
                     set: { cameraManager.isDarkSubtractionEnabled = $0 }
@@ -1341,6 +1359,7 @@ struct ControlsPanelView: View {
                 onCapture: { await cameraManager.captureFlatFrame(seconds: flatFrameSeconds) },
                 onSelect: { cameraManager.calibrationLibrary.activeFlatID = $0 },
                 onRemove: { cameraManager.calibrationLibrary.removeFlat(id: $0) },
+                onClearAll: { cameraManager.clearFlatFrame() },
                 isEnabled: Binding(
                     get: { cameraManager.isFlatCorrectionEnabled },
                     set: { cameraManager.isFlatCorrectionEnabled = $0 }
@@ -1361,6 +1380,7 @@ struct ControlsPanelView: View {
         onCapture: @escaping () async -> Void,
         onSelect: @escaping (UUID) -> Void,
         onRemove: @escaping (UUID) -> Void,
+        onClearAll: @escaping () -> Void,
         isEnabled: Binding<Bool>,
         enabledLabel: String
     ) -> some View {
@@ -1390,8 +1410,13 @@ struct ControlsPanelView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Toggle(enabledLabel, isOn: isEnabled)
-                    .disabled(activeID == nil)
+                HStack {
+                    Toggle(enabledLabel, isOn: isEnabled)
+                        .disabled(activeID == nil)
+                    Spacer()
+                    Button("Clear All", role: .destructive) { onClearAll() }
+                        .font(.caption)
+                }
             }
         }
     }
