@@ -21,7 +21,13 @@ enum SharpnessScorer {
         return laplacianVariance(grid)
     }
 
-    private static func luminanceGrid(
+    /// `internal`, not `private` — reused by `MeshDriftField.measuredDisplacements` (the
+    /// "Experimental" mesh-based drift correction's per-vertex centroid tracking) for the exact
+    /// same reason it exists here: a bounded-resolution downsample keeps cost independent of the
+    /// camera's actual native resolution, the same lesson the `GPUSharpnessScorer` hang fix
+    /// applied to its own kernel (see design-notes) — measuring a mesh of trackers against the
+    /// *full* native frame every live-stack frame would reintroduce exactly that risk.
+    static func luminanceGrid(
         for frame: CapturedFrame,
         isColorCamera: Bool,
         bayerPattern: ASI_BAYER_PATTERN

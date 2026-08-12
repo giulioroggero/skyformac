@@ -416,6 +416,11 @@ final class CameraManager {
     /// sidebar's vertical tab strip (`ControlsPanelView`) both need to drive this too, not just
     /// the overlay button.
     var isPreviewFullScreenEnabled = false
+    /// Drives whether the Histogram/Curves tabs live inline (under the preview, the default) or
+    /// in a separate floating `NSPanel` (`HistogramCurvesPanelController`) — a real AppKit panel
+    /// the app opens/closes itself, not a second SwiftUI `Window` scene, so `SkyformacApp`'s
+    /// single-`Scene` constraint holds regardless of whether it's open.
+    var isHistogramPanelDetached = false
     /// Drives the Help `.sheet` on `ContentView` — the app is deliberately single-window (see
     /// `SkyformacApp`), so Help lives as a sheet on the one main window rather than its own
     /// `Window` scene.
@@ -702,6 +707,28 @@ final class CameraManager {
     /// trails across the stack. No effect on the CPU `LiveStacker` path; the UI disables this
     /// toggle whenever `useMetalRenderer` is off, rather than silently ignoring it.
     var isLiveStackDriftReductionEnabled = false
+
+    /// "Experimental" mesh-based drift correction — an alternative to the single-star lock above,
+    /// not a combination with it (`MetalFrameRenderer.process` picks one or the other when both
+    /// would otherwise apply, mesh taking priority). See `MeshDriftField`'s doc comment for the
+    /// full rationale: an NxN grid of independently-tracked points, blended with bilinear
+    /// interpolation, instead of one rigid shift for the whole frame — covers field rotation and
+    /// differential drift a single global shift can't, at the cost of a rougher (single-pass,
+    /// no background-subtraction) per-vertex measurement than the single-star lock's.
+    /// GPU-only, same as the single-star lock.
+    var isMeshDriftCorrectionEnabled = false
+    var meshDriftConfig = MeshDriftConfig.default
+    /// The mesh's current (already-blended) vertex displacements, as last reported by
+    /// `MetalFrameRenderer.onMeshDriftUpdate` — purely for `MeshDriftOverlayView`'s "see the
+    /// vector overlap" visualization on the live preview; rendering itself never reads this back,
+    /// it only ever flows the other direction (`CameraManager` → `MetalFrameRenderer`, via
+    /// `meshDriftConfig`). `nil` whenever mesh correction hasn't produced a result yet (just
+    /// turned on, or not currently live-stacking).
+    var meshDriftVisualization: [SIMD2<Float>]?
+    /// Drives `MeshDriftOverlayView` on the live preview — "see the vector overlap" made
+    /// concrete: each cell's search window and its current displacement arrow, drawn directly
+    /// over the frame it's actually measuring.
+    var isMeshDriftOverlayVisible = false
 
     // MARK: - Plate-solved polar alignment
 
@@ -2334,6 +2361,7 @@ final class CameraManager {
         planetROI = nil
         gpuHistogramCounts = nil
         gpuChannelHistogramCounts = nil
+        meshDriftVisualization = nil
         catalogFetchTask?.cancel()
         catalogFetchTask = nil
         liveWCS = nil

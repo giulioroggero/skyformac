@@ -454,6 +454,63 @@ kernel void accumulateMonoAligned(
     accumulator.write(float4(current + newValue, 0, 0, 0), gid);
 }
 
+/// Bilinear blend of a `gridSize x gridSize` mesh's vertex displacements at an arbitrary pixel —
+/// the GPU-side twin of `MeshDriftField.interpolatedDisplacement` (Swift), same math, evaluated
+/// per-pixel here instead of per-vertex there. See `accumulateMonoMeshAligned` below for how it's
+/// used.
+inline float2 meshInterpolatedDisplacement(
+    float2 pixel, uint gridSize, float2 frameSize, device const float2 *vertexDisplacements
+) {
+    if (gridSize == 0) { return float2(0, 0); }
+    if (gridSize == 1) { return vertexDisplacements[0]; }
+    float cellWidth = frameSize.x / float(gridSize);
+    float cellHeight = frameSize.y / float(gridSize);
+    // Vertex (col, row) sits at the CENTER of its cell — same half-cell offset as the Swift side.
+    float gx = clamp(pixel.x / cellWidth - 0.5, 0.0, float(gridSize - 1));
+    float gy = clamp(pixel.y / cellHeight - 0.5, 0.0, float(gridSize - 1));
+    uint col0 = uint(gx);
+    uint row0 = uint(gy);
+    uint col1 = min(col0 + 1, gridSize - 1);
+    uint row1 = min(row0 + 1, gridSize - 1);
+    float fx = gx - float(col0);
+    float fy = gy - float(row0);
+
+    float2 v00 = vertexDisplacements[row0 * gridSize + col0];
+    float2 v10 = vertexDisplacements[row0 * gridSize + col1];
+    float2 v01 = vertexDisplacements[row1 * gridSize + col0];
+    float2 v11 = vertexDisplacements[row1 * gridSize + col1];
+
+    float2 top = mix(v00, v10, fx);
+    float2 bottom = mix(v01, v11, fx);
+    return mix(top, bottom, fy);
+}
+
+/// Mesh-based counterpart to `accumulateMonoAligned` above — "Experimental" mesh-based drift
+/// correction (`MeshDriftField`/`CameraManager.meshDriftConfig`). Instead of one shift shared by
+/// the whole frame, each pixel gets its own displacement, bilinearly blended from the mesh's (up
+/// to 8x8) vertex displacements — covers field rotation and differential drift a single global
+/// shift can't. `access::sample` (not `access::read`) gives the actual sub-pixel bilinear texture
+/// read via the `filter::linear` sampler, exactly like `accumulateMonoAligned` already relies on
+/// for its own single shift — the mesh only changes *what* shift is looked up per pixel, not how
+/// the resulting sub-pixel sample itself is taken.
+kernel void accumulateMonoMeshAligned(
+    texture2d<float, access::sample> source [[texture(0)]],
+    texture2d<float, access::read_write> accumulator [[texture(1)]],
+    device const float2 *vertexDisplacements [[buffer(0)]],
+    constant uint &gridSize [[buffer(1)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= accumulator.get_width() || gid.y >= accumulator.get_height()) { return; }
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    float2 frameSize = float2(source.get_width(), source.get_height());
+    float2 pixel = float2(gid) + 0.5;
+    float2 shift = meshInterpolatedDisplacement(pixel, gridSize, frameSize, vertexDisplacements);
+    float2 uv = (pixel + shift) / frameSize;
+    float newValue = source.sample(s, uv).r;
+    float current = accumulator.read(gid).r;
+    accumulator.write(float4(current + newValue, 0, 0, 0), gid);
+}
+
 /// Bayer pattern identifiers, matching `ASI_BAYER_PATTERN` (RG=0, BG=1, GR=2, GB=3).
 inline bool isRedAt(uint2 p, uint pattern) {
     bool evenX = (p.x % 2) == 0;

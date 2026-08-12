@@ -1450,6 +1450,9 @@ struct ControlsPanelView: View {
             }
 
             Divider()
+            experimentalMeshDriftSection
+
+            Divider()
             smartLiveStackSection
 
             HStack {
@@ -1486,6 +1489,80 @@ struct ControlsPanelView: View {
                 .disabled(cameraManager.liveStackedFrameCount == 0)
                 .help("Saves the stacked average exactly as it looks right now (debayered/stretched, same as the live preview) as a PNG — a quick snapshot, not the raw sensor data FITS export below writes.")
             }
+        }
+    }
+
+    /// "Experimental" — see `MeshDriftField`'s doc comment for the full technique. Deliberately
+    /// labeled and styled (orange "Experimental" tag) to read as rougher than the Reduce Drift
+    /// toggle right above it: a rougher single-pass per-vertex measurement, not yet validated
+    /// against a real rig the way the single-star lock has been across this whole session.
+    @ViewBuilder
+    private var experimentalMeshDriftSection: some View {
+        HStack {
+            Toggle("Mesh-Based Drift Correction", isOn: Binding(
+                get: { cameraManager.isMeshDriftCorrectionEnabled },
+                set: { cameraManager.isMeshDriftCorrectionEnabled = $0 }
+            ))
+            .disabled(!cameraManager.useMetalRenderer)
+            Text("Experimental")
+                .font(.caption2.bold())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.orange.opacity(0.2))
+                .foregroundStyle(.orange)
+                .clipShape(Capsule())
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.meshDriftCorrection")
+        }
+        Text("Tracks a grid of points across the frame instead of one locked star, blending their individual drift with bilinear interpolation — corrects for field rotation and differential drift a single global shift can't. Takes priority over \"Reduce Drift\" above when both are on. GPU only.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+
+        if cameraManager.isMeshDriftCorrectionEnabled {
+            LabeledContent("Mesh Size") {
+                HStack {
+                    Slider(value: Binding(
+                        get: { Double(cameraManager.meshDriftConfig.gridSize) },
+                        set: { cameraManager.meshDriftConfig.gridSize = Int($0.rounded()) }
+                    ), in: Double(MeshDriftConfig.gridSizeRange.lowerBound)...Double(MeshDriftConfig.gridSizeRange.upperBound), step: 1)
+                    Text("\(cameraManager.meshDriftConfig.gridSize)×\(cameraManager.meshDriftConfig.gridSize)")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
+            .help("How many points across the frame are tracked independently, in each direction — a bigger mesh follows finer-grained differential drift, but each vertex's own search window shrinks correspondingly (see \"Vector Overlap\" below), needing a brighter/denser star field to stay locked.")
+
+            LabeledContent("Vector Overlap") {
+                HStack {
+                    Slider(value: Binding(
+                        get: { cameraManager.meshDriftConfig.overlap },
+                        set: { cameraManager.meshDriftConfig.overlap = $0 }
+                    ), in: 0...1)
+                    Text("\(Int(cameraManager.meshDriftConfig.overlap * 100))%")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
+            .help("How far each vertex's own search window extends beyond its own cell into its neighbors' — higher gives a vertex a better chance of actually containing a trackable star (useful for a sparse field), at the cost of neighboring vertices overlapping more (drifting less independently of each other). Visible as the overlapping squares in the preview overlay below.")
+
+            LabeledContent("Drift Sensitivity") {
+                HStack {
+                    Slider(value: Binding(
+                        get: { cameraManager.meshDriftConfig.sensitivity },
+                        set: { cameraManager.meshDriftConfig.sensitivity = $0 }
+                    ), in: 0...1)
+                    Text("\(Int(cameraManager.meshDriftConfig.sensitivity * 100))%")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
+            .help("How much of each newly-measured displacement blends into a vertex's smoothed value per frame. Lower is steadier (resists a single noisy/wrong measurement, reacts to real drift more slowly); higher reacts immediately, but more jitter shows through.")
+
+            Toggle("Show mesh & vectors on preview", isOn: Binding(
+                get: { cameraManager.isMeshDriftOverlayVisible },
+                set: { cameraManager.isMeshDriftOverlayVisible = $0 }
+            ))
+            .font(.caption)
+            .help("Overlays the tracked grid on the live preview — each cell's search window (showing the overlap set above) and an arrow for its current measured displacement, so you can actually see what this is doing before trusting it on a real session.")
         }
     }
 

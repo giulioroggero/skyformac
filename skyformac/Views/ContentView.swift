@@ -2,6 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(CameraManager.self) private var cameraManager
+    /// Owns the floating panel's lifetime while detached — `nil` whenever
+    /// `cameraManager.isHistogramPanelDetached` is `false`, created/torn down by the
+    /// `.onChange` below rather than left dangling once its window closes.
+    @State private var histogramPanelController: HistogramCurvesPanelController?
 
     var body: some View {
         Group {
@@ -86,6 +90,7 @@ struct ContentView: View {
                         onEnterFullScreen: { cameraManager.isPreviewFullScreenEnabled = true }
                     )
                         .frame(minWidth: 480, minHeight: 300)
+                        .layoutPriority(1)
                         .overlay(alignment: .bottomTrailing) {
                             if cameraManager.isAllSkyMonitorVisible {
                                 AllSkyMonitorView()
@@ -93,13 +98,46 @@ struct ContentView: View {
                                     .padding(12)
                             }
                         }
-                    TabView {
-                        HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
-                            .tabItem { Text("Histogram") }
-                        CurvesView(cameraManager: cameraManager)
-                            .tabItem { Text("Curves") }
+                    // No explicit `.frame(height:)` here on purpose — `.layoutPriority(1)` above
+                    // makes the preview claim any extra vertical space first, so this only ever
+                    // gets exactly what its currently-selected tab's own content actually needs
+                    // (a fixed height either wastes space below shorter content, like the plain
+                    // combined histogram, or clips taller content, like "By Channel" mode's extra
+                    // sliders — `HistogramView`'s own `ScrollView` is the fallback for that latter
+                    // case, not the normal case).
+                    if cameraManager.isHistogramPanelDetached {
+                        HStack {
+                            Text("Histogram & Curves are in a separate window.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Dock") { cameraManager.isHistogramPanelDetached = false }
+                                .controlSize(.small)
+                        }
+                        .padding(8)
+                    } else {
+                        VStack(spacing: 0) {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    cameraManager.isHistogramPanelDetached = true
+                                } label: {
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right.rectangle")
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Detach Histogram & Curves into their own floating window — it can overlap the main window, stay open while you work elsewhere, and be docked back with the same button (or by closing it).")
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.top, 4)
+                            TabView {
+                                HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
+                                    .tabItem { Text("Histogram") }
+                                CurvesView(cameraManager: cameraManager)
+                                    .tabItem { Text("Curves") }
+                            }
+                        }
+                        .frame(minHeight: 150, maxHeight: 260)
                     }
-                    .frame(minHeight: 280)
                 }
                 ControlsPanelView(cameraManager: cameraManager)
                     .frame(minWidth: 320, idealWidth: 340)
@@ -175,6 +213,23 @@ struct ContentView: View {
             guard let url = urls.first else { return false }
             cameraManager.openExportedFile(url)
             return true
+        }
+        // Owns the floating panel's actual open/close lifecycle — `isHistogramPanelDetached`
+        // itself is just a plain `Bool` on `CameraManager` (so the "Dock"/"Detach" buttons and
+        // the panel's own close button can all just flip it), this is the one place that reacts
+        // to it by actually creating/tearing down `HistogramCurvesPanelController`.
+        .onChange(of: cameraManager.isHistogramPanelDetached) { _, isDetached in
+            if isDetached {
+                guard histogramPanelController == nil else { return }
+                let controller = HistogramCurvesPanelController(cameraManager: cameraManager) {
+                    cameraManager.isHistogramPanelDetached = false
+                }
+                controller.showWindow(nil)
+                histogramPanelController = controller
+            } else {
+                histogramPanelController?.close()
+                histogramPanelController = nil
+            }
         }
     }
 

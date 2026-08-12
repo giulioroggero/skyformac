@@ -77,7 +77,17 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   session — see [`docs/design-notes.md`](design-notes.md) for exactly what
   it does and doesn't correct for (it's single-point translation lock-on
   built for real mount tracking error against a star field, not general
-  handheld-video stabilization), and the bugs these replaced. **Pause**
+  handheld-video stabilization), and the bugs these replaced. An
+  **"Experimental" mesh-based alternative** tracks an NxN grid of points
+  instead of one, blending their individual displacements with bilinear
+  interpolation (the same technique real-time rendering/games use to blend
+  control-point transforms across a mesh) — covers field rotation and
+  differential drift a single global shift can't, at the cost of a rougher
+  (single-pass, no background subtraction) per-point measurement. Mesh
+  size, search-window overlap, and reaction sensitivity are all
+  user-configurable, with a live preview overlay showing the actual tracked
+  grid and displacement vectors. Takes priority over the single-star lock
+  when both are on — they're alternatives, not combinable. **Pause**
   freezes a running stack exactly as it is (to actually look at it — focus,
   alignment) without discarding it the way **Reset** does. Exporting
   FITS/PNG/TIFF while stacking is active exports the actual stacked average

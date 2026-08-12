@@ -57,7 +57,7 @@ struct CurvesView: View {
             .help("\"RGB\" is a master curve applied to all three channels identically; Red/Green/Blue each layer their own independent curve on top of it.")
 
             curveCanvas
-                .frame(height: 200)
+                .frame(height: 110)
 
             HStack {
                 Button("Add Point") { addPoint() }

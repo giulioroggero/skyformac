@@ -410,6 +410,18 @@ enum HelpContent {
                 ]
             ),
             HelpSection(
+                id: "setting.meshDriftCorrection", heading: "Mesh-Based Drift Correction (Experimental)",
+                body: "GPU renderer only. An alternative to \"Reduce Drift\" above — instead of locking onto one star and shifting the whole frame by a single amount, this tracks an NxN grid of points spread across the frame, lets each one drift independently, then blends their individual displacements together (the same bilinear blending technique real-time rendering/games use to blend control-point transforms smoothly across a mesh) into a smooth, spatially-varying correction. Takes priority over \"Reduce Drift\" when both are on — they're two alternative techniques for the same job, not a combinable pair.",
+                bullets: [
+                    "Why this exists: the single-star lock corrects drift (the whole frame shifting) but not field rotation or differential drift across a wide field — real effects for an alt-az mount without a field rotator, imperfect polar alignment, or mirror flop. A mesh can follow those, since each point corrects independently instead of assuming the whole frame moved the same way.",
+                    "\"Mesh Size\" is how many points are tracked in each direction (NxN total) — bigger follows finer-grained differential drift, but each point's own search window shrinks correspondingly, needing a brighter/denser star field to stay locked everywhere.",
+                    "\"Vector Overlap\" is how far each point's search window extends beyond its own share of the frame into its neighbors' — higher gives a better chance of a point actually containing a trackable star (useful for a sparse field), at the cost of neighboring points overlapping more.",
+                    "\"Drift Sensitivity\" is how much of each frame's newly-measured displacement blends into a point's smoothed value — lower is steadier and slower to react; higher reacts immediately but shows more jitter.",
+                    "\"Show mesh & vectors on preview\" overlays the actual tracked grid and each point's current displacement arrow directly on the live preview — the \"vector overlap\" the setting above refers to, made visible rather than just described.",
+                    "Marked \"Experimental\" on purpose: each point's own measurement is a simpler single-pass weighted centroid, not the two-pass background-subtracted measurement the single-star lock above uses — good enough to judge whether this technique is worth it on a real rig, not yet as hardened as the single-star lock.",
+                ]
+            ),
+            HelpSection(
                 id: "setting.smartLiveStack", heading: "Smart Live Stack (Autopilot)",
                 body: "Turns Live Stack from a plain running average into a self-curating one: every incoming frame is scored for sharpness (the same GPU scorer Record to Disk's quality gate and Lucky Imaging use), and only folded into the stack if it's at least the \"Quality floor\" fraction as sharp as the best frame this session has seen, or discarded if Cloud Sentinel currently reports an alert. Turns Live Stack on automatically when enabled.",
                 bullets: [

@@ -26,6 +26,23 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private let roiStatsPipeline: MTLComputePipelineState
     private let centroidPipeline: MTLComputePipelineState
     private let accumulateAlignedPipeline: MTLComputePipelineState
+    /// "Experimental" mesh-based drift correction's accumulate stage — see `Shaders.metal`'s
+    /// `accumulateMonoMeshAligned` doc comment. `meshVertexDisplacementsBuffer` is sized once for
+    /// `MeshDriftConfig.gridSizeRange`'s upper bound (8x8 = 64 vertices) regardless of the
+    /// session's actual `gridSize`, so it never needs reallocating when the user changes the
+    /// slider mid-session.
+    private let accumulateMeshAlignedPipeline: MTLComputePipelineState
+    private let meshVertexDisplacementsBuffer: MTLBuffer
+    /// Per-vertex session state, mirroring `driftReferenceCentroid`/`driftTrackedCentroid` above
+    /// but for every mesh vertex instead of one star — `nil` until that vertex's first successful
+    /// measurement of the current session (fixed as its reference afterward); reset alongside the
+    /// rest of the live-stack session in `resetLiveStack()`. `meshSmoothedDisplacements` is what
+    /// actually gets uploaded to the GPU each frame — already blended by `MeshDriftConfig
+    /// .sensitivity`, so a vertex that loses its lock for a frame or two keeps using its last
+    /// smoothed value rather than snapping to zero.
+    private var meshReferenceCentroids: [SIMD2<Float>?] = []
+    private var meshSmoothedDisplacements: [SIMD2<Float>] = []
+    private var meshLastGridSize = 0
     /// RGB24 (webcam/iPhone) color analogs of `denoisePipeline`/`waveletBlurPipeline`/
     /// `waveletCombinePipeline` — those mono kernels can't run on already-color RGB24 frames.
     private let denoiseRGBAPipeline: MTLComputePipelineState
@@ -138,7 +155,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// Set by the owning view whenever a new frame should be (re)processed.
     var pendingUpdate: (
         frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
-        stretch: DisplayStretch, channelStretch: PerChannelStretch, isLiveStacking: Bool, isLiveStackPaused: Bool, isDriftReductionEnabled: Bool, streakMask: StreakMask?,
+        stretch: DisplayStretch, channelStretch: PerChannelStretch, isLiveStacking: Bool, isLiveStackPaused: Bool, isDriftReductionEnabled: Bool, meshDriftConfig: MeshDriftConfig?, streakMask: StreakMask?,
         isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
         liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?
     )?
@@ -159,6 +176,12 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// frame, so `CameraManager` can surface it in the UI the same way `LiveStacker.frameCount` does.
     var onLiveStackFrameCountUpdate: (@Sendable (Int) -> Void)?
 
+    /// Fired with the current (already-blended) mesh vertex displacements whenever "Experimental"
+    /// mesh-based drift correction actually ran this frame — purely for the preview overlay
+    /// visualization (`CameraManager.meshDriftVisualization`/`MeshDriftOverlayView`, "see the
+    /// vector overlap"), not consumed by rendering itself.
+    var onMeshDriftUpdate: (@Sendable ([SIMD2<Float>]) -> Void)?
+
     init?(device: MTLDevice) {
         guard let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
@@ -178,6 +201,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let roiStatsFn = library.makeFunction(name: "roiStatsPartial"),
               let centroidFn = library.makeFunction(name: "centroidPartial"),
               let accumulateAlignedFn = library.makeFunction(name: "accumulateMonoAligned"),
+              let accumulateMeshAlignedFn = library.makeFunction(name: "accumulateMonoMeshAligned"),
               let denoiseRGBAFn = library.makeFunction(name: "bilateralDenoiseRGBA"),
               let waveletBlurRGBAFn = library.makeFunction(name: "waveletBlurRGBA"),
               let waveletCombineRGBAFn = library.makeFunction(name: "waveletCombineRGBA"),
@@ -196,7 +220,11 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let blueHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared),
               let redCurveBuffer = device.makeBuffer(length: 256, options: .storageModeShared),
               let greenCurveBuffer = device.makeBuffer(length: 256, options: .storageModeShared),
-              let blueCurveBuffer = device.makeBuffer(length: 256, options: .storageModeShared)
+              let blueCurveBuffer = device.makeBuffer(length: 256, options: .storageModeShared),
+              let meshVertexDisplacementsBuffer = device.makeBuffer(
+                length: MeshDriftConfig.gridSizeRange.upperBound * MeshDriftConfig.gridSizeRange.upperBound * MemoryLayout<SIMD2<Float>>.stride,
+                options: .storageModeShared
+              )
         else { return nil }
 
         self.device = device
@@ -208,6 +236,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         self.redCurveBuffer = redCurveBuffer
         self.greenCurveBuffer = greenCurveBuffer
         self.blueCurveBuffer = blueCurveBuffer
+        self.meshVertexDisplacementsBuffer = meshVertexDisplacementsBuffer
 
         do {
             self.stretchPipeline = try device.makeComputePipelineState(function: stretchFn)
@@ -226,6 +255,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             self.roiStatsPipeline = try device.makeComputePipelineState(function: roiStatsFn)
             self.centroidPipeline = try device.makeComputePipelineState(function: centroidFn)
             self.accumulateAlignedPipeline = try device.makeComputePipelineState(function: accumulateAlignedFn)
+            self.accumulateMeshAlignedPipeline = try device.makeComputePipelineState(function: accumulateMeshAlignedFn)
             self.denoiseRGBAPipeline = try device.makeComputePipelineState(function: denoiseRGBAFn)
             self.waveletBlurRGBAPipeline = try device.makeComputePipelineState(function: waveletBlurRGBAFn)
             self.waveletCombineRGBAPipeline = try device.makeComputePipelineState(function: waveletCombineRGBAFn)
@@ -468,6 +498,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         accumulatedFrameCount = 0
         driftReferenceCentroid = nil
         driftTrackedCentroid = nil
+        meshReferenceCentroids = []
+        meshSmoothedDisplacements = []
+        meshLastGridSize = 0
         wasAccumulatingMasked = false
         guard let accumulationTexture, let commandBuffer = commandQueue.makeCommandBuffer(),
               let encoder = commandBuffer.makeComputeCommandEncoder()
@@ -742,6 +775,70 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
     }
 
+    private func dispatchMeshAlignedAccumulate(
+        encoder: MTLComputeCommandEncoder, source: MTLTexture, accumulator: MTLTexture,
+        vertexDisplacements: [SIMD2<Float>], gridSize: Int, width: Int, height: Int
+    ) {
+        vertexDisplacements.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            meshVertexDisplacementsBuffer.contents().copyMemory(from: base, byteCount: raw.count)
+        }
+        var gridSizeValue = UInt32(gridSize)
+        encoder.setComputePipelineState(accumulateMeshAlignedPipeline)
+        encoder.setTexture(source, index: 0)
+        encoder.setTexture(accumulator, index: 1)
+        encoder.setBuffer(meshVertexDisplacementsBuffer, offset: 0, index: 0)
+        encoder.setBytes(&gridSizeValue, length: MemoryLayout<UInt32>.size, index: 1)
+        let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroups = MTLSize(width: (width + 15) / 16, height: (height + 15) / 16, depth: 1)
+        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+    }
+
+    /// Measures this frame's per-vertex drift and returns the updated (already-blended)
+    /// displacement grid ready to feed `dispatchMeshAlignedAccumulate` — entirely CPU-side, from
+    /// `frame.data` directly, deliberately *not* a GPU round trip like the single-star lock's
+    /// `computeCentroid`/`reacquireLock`: `SharpnessScorer.luminanceGrid`'s bounded downsample
+    /// (≤512px on the longer edge) already keeps this cheap regardless of the camera's real
+    /// resolution — the same fix applied to `GPUSharpnessScorer`'s own hang, just reused here
+    /// instead of re-derived, since doing `gridSize * gridSize` GPU round trips every live-stack
+    /// frame (one per vertex, mirroring the single-star lock's two-pass measurement) would not
+    /// scale nearly as safely.
+    ///
+    /// A vertex whose window currently has no clear signal (`MeshDriftField.measuredCentroids`
+    /// returning `nil` for it) just keeps its last smoothed displacement rather than snapping to
+    /// zero — the same "hold the last known value through a brief loss" reasoning
+    /// `computeDriftShift`'s local-search fallback uses for the single star.
+    private func computeMeshDisplacements(
+        frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN, config: MeshDriftConfig
+    ) -> [SIMD2<Float>] {
+        let vertexCount = config.gridSize * config.gridSize
+        if meshLastGridSize != config.gridSize {
+            meshReferenceCentroids = Array(repeating: nil, count: vertexCount)
+            meshSmoothedDisplacements = Array(repeating: SIMD2<Float>.zero, count: vertexCount)
+            meshLastGridSize = config.gridSize
+        }
+        guard let grid = SharpnessScorer.luminanceGrid(for: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern)
+        else { return meshSmoothedDisplacements }
+
+        let measured = MeshDriftField.measuredCentroids(
+            luminance: grid.values, gridWidth: grid.width, gridHeight: grid.height,
+            gridSize: config.gridSize, overlap: config.overlap,
+            originalWidth: frame.width, originalHeight: frame.height
+        )
+        for index in 0..<vertexCount {
+            guard let centroid = measured[index] else { continue }
+            guard let reference = meshReferenceCentroids[index] else {
+                meshReferenceCentroids[index] = centroid
+                continue
+            }
+            let rawDisplacement = DriftAligner.shift(current: centroid, reference: reference)
+            meshSmoothedDisplacements[index] = MeshDriftField.blend(
+                previous: meshSmoothedDisplacements[index], measured: rawDisplacement, sensitivity: config.sensitivity
+            )
+        }
+        return meshSmoothedDisplacements
+    }
+
     /// Uploads `mask.keepBytes` (0 = keep, 1 = masked out) and dispatches `accumulateMonoMasked`
     /// — the GPU half of satellite/aircraft trail masking (see `Shaders.metal`'s
     /// `accumulateMonoMasked`/`normalizeMaskedAccumulator` for the full design).
@@ -896,6 +993,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         isLiveStacking: Bool,
         isLiveStackPaused: Bool,
         isDriftReductionEnabled: Bool,
+        meshDriftConfig: MeshDriftConfig?,
         streakMask: StreakMask?,
         isDenoisingEnabled: Bool,
         isWaveletSharpeningEnabled: Bool,
@@ -1071,6 +1169,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                     driftTrackedCentroid = nil
                 }
                 driftReductionWasEnabled = isDriftReductionEnabled
+                if meshDriftConfig == nil {
+                    meshLastGridSize = 0 // forces a fresh reference grid if mesh mode is re-enabled later
+                }
 
                 // Paused: freeze the stack exactly as it is — skip adding this frame (and the
                 // frame-count/drift-lock bookkeeping that comes with it) but still display
@@ -1096,6 +1197,19 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                         encoder.setTexture(accumulationTexture, index: 2)
                         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
                         divisor = 1.0 // already a true per-pixel average after normalization
+                    } else if let meshDriftConfig {
+                        // "Experimental" mesh-based drift correction takes priority over the
+                        // single-star lock when both would otherwise apply — they're two
+                        // alternate techniques for the same job, not a combinable pair.
+                        let displacements = computeMeshDisplacements(
+                            frame: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, config: meshDriftConfig
+                        )
+                        dispatchMeshAlignedAccumulate(
+                            encoder: encoder, source: workingTexture, accumulator: accumulationTexture,
+                            vertexDisplacements: displacements, gridSize: meshDriftConfig.gridSize,
+                            width: frame.width, height: frame.height
+                        )
+                        onMeshDriftUpdate?(displacements)
                     } else {
                         let shift = isDriftReductionEnabled
                             ? computeDriftShift(source: workingTexture, width: frame.width, height: frame.height)
@@ -1231,6 +1345,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 isLiveStacking: update.isLiveStacking,
                 isLiveStackPaused: update.isLiveStackPaused,
                 isDriftReductionEnabled: update.isDriftReductionEnabled,
+                meshDriftConfig: update.meshDriftConfig,
                 streakMask: update.streakMask,
                 isDenoisingEnabled: update.isDenoisingEnabled,
                 isWaveletSharpeningEnabled: update.isWaveletSharpeningEnabled,
@@ -1326,6 +1441,9 @@ struct MetalPreviewView: NSViewRepresentable {
             renderer?.onLiveStackFrameCountUpdate = { [weak cameraManager] count in
                 Task { @MainActor in cameraManager?.gpuLiveStackFrameCount = count }
             }
+            renderer?.onMeshDriftUpdate = { [weak cameraManager] displacements in
+                Task { @MainActor in cameraManager?.meshDriftVisualization = displacements }
+            }
             cameraManager.gpuAccumulatedFrameProvider = { [weak renderer] imageType in
                 renderer?.currentAccumulatedFrame(imageType: imageType)
             }
@@ -1359,6 +1477,7 @@ struct MetalPreviewView: NSViewRepresentable {
             isLiveStacking: cameraManager.isLiveStackingEnabled,
             isLiveStackPaused: cameraManager.effectiveLiveStackPaused,
             isDriftReductionEnabled: cameraManager.isLiveStackDriftReductionEnabled,
+            meshDriftConfig: cameraManager.isMeshDriftCorrectionEnabled ? cameraManager.meshDriftConfig : nil,
             streakMask: cameraManager.isStreakMaskingEnabled ? cameraManager.currentStreakMask : nil,
             isDenoisingEnabled: cameraManager.isDenoisingEnabled,
             isWaveletSharpeningEnabled: cameraManager.isWaveletSharpeningEnabled,

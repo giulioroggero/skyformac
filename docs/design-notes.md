@@ -1371,3 +1371,71 @@ made along the way.
     Removing a point is disabled below 2 remaining points — `ToneCurve.lookupTable()` falls back to
     a plain identity LUT for a degenerate (<2-point) curve rather than dividing by zero, but the UI
     never actually lets that state happen via its own controls.
+- **Histogram/Curves tab sizing, twice** — first pass gave the tab area a hardcoded
+  `.frame(height:)`, which either wasted visible space below shorter content (the plain combined
+  histogram) or clipped taller content ("By Channel" mode's extra sliders) depending on which tab
+  was open — a fixed number can't fit both. Fixed by giving the live preview `.layoutPriority(1)`
+  instead: it claims any extra vertical space first, so the tab area only ever gets exactly what
+  its currently-selected tab's content actually needs (with `HistogramView`'s own `ScrollView` as
+  the fallback for the one case that's still taller than a reasonable `maxHeight` cap, "By
+  Channel" mode's 6 sliders).
+- **Histogram/Curves panel, detachable.** `HistogramCurvesPanelController` is a plain `NSPanel`
+  (`.utilityWindow`, `.nonactivatingPanel`) the app opens/closes itself from a "Detach" button next
+  to the tabs — deliberately not a second SwiftUI `Window` scene, since `SkyformacApp`'s doc
+  comment is explicit that this app is single-`Scene` (no second Window-menu entry, no
+  window-tabbing surface); a panel the app manages itself doesn't add a scene at all, so that
+  constraint holds regardless of whether one happens to be open. Its content is a thin wrapper
+  view (`DetachedHistogramCurvesView`) that reads `cameraManager.useMetalRenderer` fresh inside its
+  own `body` rather than being handed a static value once — the same pattern `ContentView` already
+  uses, needed here too since `NSHostingView`'s `rootView` doesn't re-evaluate on its own unless
+  something inside it actually re-reads the `@Observable` state. Closing the panel (its own close
+  button, or `ContentView`'s "Dock" button once detached) re-docks the tabs inline via an
+  `onClose` callback — `ContentView`'s `.onChange(of: isHistogramPanelDetached)` owns the actual
+  create/destroy of the controller either direction.
+- **"Experimental" mesh-based drift correction** — an alternative to the existing single-star-lock
+  drift reduction (`DriftAligner`/`MetalFrameRenderer.computeDriftShift`), which tracks exactly one
+  star and applies one rigid `(dx, dy)` shift to the whole frame, so it can't correct for field
+  rotation or differential drift across a wide field (alt-az mounts without a rotator, imperfect
+  polar alignment, mirror flop). This tracks an NxN grid of points instead, each drifting
+  independently, blended with bilinear interpolation — the same "vertex skinning" technique used to
+  blend bone transforms smoothly across a mesh in real-time rendering/games — into a smooth,
+  spatially-varying correction instead of one global shift.
+  - **`MeshDriftField`** (`Rendering/MeshDriftField.swift`) is the pure model: `vertexPositions`
+    (cell centers), `roiHalfSize` (search-window size from `overlap`), `interpolatedDisplacement`
+    (the bilinear blend, Swift-side twin of `Shaders.metal`'s `meshInterpolatedDisplacement`),
+    `blend` (single-pole exponential smoothing by `sensitivity`), and `measuredCentroids` (the
+    actual per-vertex measurement).
+  - **Measurement is deliberately CPU-side, not `gridSize * gridSize` GPU round trips.** The
+    existing single-star lock already does 1-2 synchronous GPU round trips
+    (`commandBuffer.waitUntilCompleted()`) per frame for its own two-pass background-subtracted
+    centroid (`computeCentroid`) — replicating that per mesh vertex (up to 64 for an 8x8 grid)
+    would multiply that per-frame blocking cost by up to 64x, risking reintroducing exactly the
+    kind of unbounded-cost hang the `GPUSharpnessScorer` fix (see above) exists to prevent.
+    Instead, `measuredCentroids` operates on an already-downsampled luminance grid
+    (`SharpnessScorer.luminanceGrid`, made `internal` for this reuse — its existing ≤512px-longer-
+    edge cap is the same bounded-cost trick, reused rather than re-derived), computing a simple
+    single-pass weighted centroid (weight by how far a sample is above its own ROI's mean) per
+    vertex from that one shared downsample — one CPU pass over a bounded-size grid, regardless of
+    mesh size or the camera's real resolution.
+  - **Session state lives on `MetalFrameRenderer`** (`meshReferenceCentroids`/
+    `meshSmoothedDisplacements`), mirroring where `driftReferenceCentroid`/`driftTrackedCentroid`
+    already live — the GPU live-stack accumulator is already entirely self-contained there, and
+    this fits the same shape: `computeMeshDisplacements` measures, updates each vertex's reference
+    (fixed on its first successful measurement) and smoothed displacement (blended via
+    `MeshDriftField.blend`, holding its last value through a frame where that vertex's window has
+    no clear signal, the same "hold through a brief loss" reasoning the single-star lock's local-
+    search fallback already uses), and returns the grid ready to upload. Reset alongside the rest
+    of the live-stack session in `resetLiveStack()`.
+  - **Applying it**: `Shaders.metal`'s `accumulateMonoMeshAligned` mirrors `accumulateMonoAligned`
+    (the single-shift kernel) almost exactly — same `access::sample` + `filter::linear` sampler for
+    the actual sub-pixel bilinear texture read, just with a per-pixel `shift` computed by
+    `meshInterpolatedDisplacement` instead of one constant value. `MetalFrameRenderer.process`
+    picks mesh correction over the single-star lock when both would otherwise apply (two
+    alternative techniques for the same job, not a combinable pair) — see the `isDriftReductionEnabled`
+    block's `else if let meshDriftConfig` branch.
+  - **UI**: `ControlsPanelView`'s new "Experimental" section (Mesh Size/Vector Overlap/Drift
+    Sensitivity sliders, an orange "Experimental" capsule tag) plus `MeshDriftOverlayView` — a
+    `Canvas` overlay on the live preview drawing each vertex's actual search-window rectangle and
+    a displacement arrow (exaggerated 8x for visibility — real sub-pixel/few-pixel drift would
+    otherwise be an invisible sliver at typical preview zoom), so "Vector Overlap" is something
+    you can actually *see* change, not just a number.
