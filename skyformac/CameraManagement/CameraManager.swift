@@ -533,12 +533,22 @@ final class CameraManager {
             liveStacker.reset()
             liveStackGeneration &+= 1
             gpuLiveStackFrameCount = 0
+            isLiveStackPaused = false
         }
     }
+    /// Freezes the running stack — `ingest`/`MetalFrameRenderer.process` both keep displaying
+    /// whatever's already accumulated (and exporting it correctly, since `frameForExport` reads
+    /// the same frozen `currentFrame`/GPU accumulator either way) but stop folding in new frames,
+    /// so a session can be paused to actually look at the current result — check focus, judge
+    /// whether alignment is holding up, decide whether to keep going — without losing it the way
+    /// `resetLiveStack` would. Resuming just un-pauses; nothing about the accumulator itself
+    /// changes across a pause/resume, unlike toggling Live Stack itself off and back on.
+    var isLiveStackPaused = false
     func resetLiveStack() {
         liveStacker.reset()
         liveStackGeneration &+= 1
         gpuLiveStackFrameCount = 0
+        isLiveStackPaused = false
     }
     /// Webcam/iPhone sources always accumulate on the CPU `LiveStacker` even when the GPU render
     /// path is active (see `ingest`'s `shouldAccumulateOnCPU`) — `gpuLiveStackFrameCount` never
@@ -1078,13 +1088,17 @@ final class CameraManager {
         // live preview (GPU still does its own stretch/denoise/sharpen of this already-averaged
         // frame each time, via `processRGB24`) and export (`frameForExport` falls through to
         // `currentFrame` once `gpuAccumulatedFrameProvider` comes back `nil` for RGB24).
-        let shouldAccumulateOnCPU = isLiveStackingEnabled && (!useMetalRenderer || processed.imageType == ASI_IMG_RGB24)
-        if shouldAccumulateOnCPU {
-            // Streak masking (see `currentStreakMask`'s doc comment) only applies here — it's a
-            // CPU-`LiveStacker`-only feature, disclosed as such in the Controls UI.
-            let mask = isStreakMaskingEnabled ? currentStreakMask : nil
-            let maskToApply = (mask?.width == processed.width && mask?.height == processed.height) ? mask : nil
-            liveStacker.add(processed, mask: maskToApply)
+        let usesCPUStack = isLiveStackingEnabled && (!useMetalRenderer || processed.imageType == ASI_IMG_RGB24)
+        if usesCPUStack {
+            // Paused: skip folding this frame in (see `isLiveStackPaused`'s doc comment) but still
+            // display whatever `liveStacker` already has — a frozen, not reset, stack.
+            if !isLiveStackPaused {
+                // Streak masking (see `currentStreakMask`'s doc comment) only applies here — it's a
+                // CPU-`LiveStacker`-only feature, disclosed as such in the Controls UI.
+                let mask = isStreakMaskingEnabled ? currentStreakMask : nil
+                let maskToApply = (mask?.width == processed.width && mask?.height == processed.height) ? mask : nil
+                liveStacker.add(processed, mask: maskToApply)
+            }
             currentFrame = liveStacker.currentAverage() ?? processed
         } else {
             currentFrame = processed

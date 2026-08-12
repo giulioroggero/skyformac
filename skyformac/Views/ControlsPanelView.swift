@@ -1136,8 +1136,24 @@ struct ControlsPanelView: View {
             HStack {
                 Label("\(cameraManager.liveStackedFrameCount) frames stacked", systemImage: "square.stack.3d.up")
                     .font(.caption)
+                if cameraManager.isLiveStackingEnabled && cameraManager.isLiveStackPaused {
+                    Text("(paused)")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
                 Spacer()
                 if cameraManager.isLiveStackingEnabled {
+                    Button {
+                        cameraManager.isLiveStackPaused.toggle()
+                    } label: {
+                        Label(
+                            cameraManager.isLiveStackPaused ? "Resume" : "Pause",
+                            systemImage: cameraManager.isLiveStackPaused ? "play.fill" : "pause.fill"
+                        )
+                    }
+                    .help(cameraManager.isLiveStackPaused
+                        ? "Resumes folding new frames into the stack."
+                        : "Freezes the stack exactly as it is right now — new frames stop being added, without losing what's already stacked — so you can actually look at the current result (focus, alignment) before deciding to continue.")
                     Button("Reset") { cameraManager.resetLiveStack() }
                 }
             }

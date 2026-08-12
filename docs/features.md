@@ -61,14 +61,20 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   lock-on, sub-pixel aligned accumulation) for mounts that don't track
   perfectly, e.g. alt-azimuth — ZWO cameras only. The lock-on centroid is
   measured against the search window's own local sky background (sigma-
-  clipped, not raw pixel intensity), and the initial lock rejects isolated
-  hot/warm pixels by their lack of a spread-out point-spread footprint — see
-  [`docs/design-notes.md`](design-notes.md) for exactly what it does and
-  doesn't correct for, and the "centroid tracking was dominated by sky
-  background" bug this replaced. Exporting FITS/PNG/TIFF while stacking is
-  active exports the actual stacked average on both render paths and both
-  camera types — not the latest raw single frame; a "Save Stacked Image…"
-  button right in the Live Stack panel does the same as a one-click PNG
+  clipped, not raw pixel intensity), the initial lock rejects isolated
+  hot/warm pixels by their lack of a spread-out point-spread footprint, and
+  losing the lock (drift bigger than the search window can follow) re-scans
+  the whole frame to re-acquire instead of giving up for the rest of the
+  session — see [`docs/design-notes.md`](design-notes.md) for exactly what
+  it does and doesn't correct for (it's single-point translation lock-on
+  built for real mount tracking error against a star field, not general
+  handheld-video stabilization), and the bugs these replaced. **Pause**
+  freezes a running stack exactly as it is (to actually look at it — focus,
+  alignment) without discarding it the way **Reset** does. Exporting
+  FITS/PNG/TIFF while stacking is active exports the actual stacked average
+  on both render paths and both camera types — not the latest raw single
+  frame; a "Save Stacked Image…" button right in the Live Stack panel does
+  the same as a one-click PNG
   snapshot, without a trip to the Export section below.
 - **Lucky imaging** — burst capture, sharpness-ranked (Laplacian variance,
   CPU or GPU), keeping and stacking only the sharpest fraction. Works for a

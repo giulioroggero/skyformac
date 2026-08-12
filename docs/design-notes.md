@@ -911,3 +911,40 @@ made along the way.
   `exportCurrentFrame(as: .png)`/`frameForExport()` machinery (already correct for both the GPU
   and CPU accumulators, and for a webcam/iPhone source, per the fixes above), just surfaced right
   next to the stack it's for instead of requiring a trip to the separate Export section below.
+- **Added a Pause/Resume control for Live Stack, so a session can actually be looked at without
+  losing it.** Before this, the only way to stop a stack from changing while you examined it was
+  `Reset`, which discards it. `CameraManager.isLiveStackPaused` freezes accumulation on both
+  render paths — `ingest`'s CPU path skips `liveStacker.add(...)` but still displays
+  `liveStacker.currentAverage()`; `MetalFrameRenderer.process`'s GPU path skips the accumulate
+  dispatch and the frame-count/drift-lock bookkeeping but still reads back `accumulationTexture`
+  at its existing (unchanged) divisor — so a paused stack reads as "holding still," not as a
+  silent reset. Resuming just un-pauses; nothing about the accumulator changes across the pause.
+- **Reduce Drift still couldn't hold alignment against large or sustained drift — a real-world
+  test (a handheld camera panned across a room, tracking a chair) showed the same fully-smeared
+  result as with drift reduction off.** Root cause, on top of the background-subtraction fix
+  above: `computeDriftShift`'s local re-locate only ever searched a small (`driftROISize`, 64px)
+  window centered on the star's *last known* position. Once drift in a single frame exceeded half
+  that window — a real possibility for a poorly-tracking mount over a longer gap between frames,
+  and essentially guaranteed for anything panning fast — the tracked feature is no longer inside
+  the window at all, the local search finds nothing above background, and (before this fix)
+  `computeDriftShift` gave up for that frame *and every frame after it*, since the next frame's
+  search is still centered on the same now-wrong last-known position. From that point on, drift
+  reduction contributes nothing for the rest of the session — indistinguishable from being off.
+  **Fix**: when the local search finds nothing, `computeDriftShift` now falls back to
+  `reacquireLock` — the same whole-frame `findBrightestPoint` + background-subtracted-centroid
+  search the very first frame of a session already uses — instead of giving up permanently. The
+  re-acquired position is still measured against the session's original `driftReferenceCentroid`,
+  so frames aligned before the jump and frames re-acquired after it land in the same place.
+  - **Known remaining limitation, by design, not a bug**: this is still single-brightest-feature
+    lock-on translation alignment, built for the kind of drift a real telescope mount actually
+    produces (sub-pixel to a few pixels per frame from imperfect tracking) against a star field
+    (many small, genuinely point-like sources). A handheld pan across an ordinary room, tracking
+    an extended object like a chair with no real point source in frame at all, is a much harder
+    problem — full-scene image registration, not single-point centroid tracking — and re-scanning
+    for "the brightest thing in frame" after a big jump can just as easily lock onto a window or
+    a lamp as the chair itself. The re-acquisition fix genuinely helps a real astro session (a
+    star lost briefly to a bigger-than-expected drift, or a brief cloud, now recovers instead of
+    derailing for the rest of the session); it does not turn this into a general handheld-video
+    stabilizer, and testing it against night-sky drift (arcsec-scale, mount-tracking-error
+    magnitude) rather than a room-scale handheld pan is the realistic way to judge whether it's
+    working.

@@ -122,7 +122,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// Set by the owning view whenever a new frame should be (re)processed.
     var pendingUpdate: (
         frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
-        stretch: DisplayStretch, isLiveStacking: Bool, isDriftReductionEnabled: Bool, streakMask: StreakMask?,
+        stretch: DisplayStretch, isLiveStacking: Bool, isLiveStackPaused: Bool, isDriftReductionEnabled: Bool, streakMask: StreakMask?,
         isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
         liveGPUControls: GPULiveControlsSnapshot
     )?
@@ -492,22 +492,42 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// on it before returning, so the shift is ready to feed into the very same frame's
     /// accumulate dispatch. That's a real, deliberate GPU round-trip on the calling thread once
     /// per frame while drift reduction is on — acceptable because the dispatches themselves are
-    /// tiny (a `driftROISize`×`driftROISize` window every frame; a full-frame scan only once, to
-    /// find the initial lock-on point) — see `docs/design-notes.md` for the actual tradeoff.
+    /// tiny (a `driftROISize`×`driftROISize` window every frame; a full-frame scan only on the
+    /// first frame of a session, and again whenever the local search below loses the lock) — see
+    /// `docs/design-notes.md` for the actual tradeoff.
     private func computeDriftShift(source: MTLTexture, width: Int, height: Int) -> SIMD2<Float>? {
         guard let referenceCentroid = driftReferenceCentroid else {
-            guard let brightest = findBrightestPoint(source: source, width: width, height: height),
-                  let centroid = computeCentroid(source: source, center: brightest, width: width, height: height)
-            else { return nil }
-            driftReferenceCentroid = centroid
-            driftTrackedCentroid = centroid
+            guard let reacquired = reacquireLock(source: source, width: width, height: height) else { return nil }
+            driftReferenceCentroid = reacquired
+            driftTrackedCentroid = reacquired
             return SIMD2<Float>(repeating: 0)
         }
-        guard let lastTracked = driftTrackedCentroid,
-              let centroid = computeCentroid(source: source, center: lastTracked, width: width, height: height)
+        if let lastTracked = driftTrackedCentroid,
+           let centroid = computeCentroid(source: source, center: lastTracked, width: width, height: height) {
+            driftTrackedCentroid = centroid
+            return DriftAligner.shift(current: centroid, reference: referenceCentroid)
+        }
+        // The local `driftROISize`×`driftROISize` search around the last known position found
+        // nothing above background — not just a rare single-frame miss (a passing cloud), but
+        // drift larger than that window can follow at all (a poorly-tracking mount over a longer
+        // gap, or this frame's motion simply being bigger than the window). Falling back to
+        // unaligned accumulation forever after the first such jump would make drift reduction
+        // silently stop correcting for the rest of the session — instead, re-scan the whole frame
+        // (the same search the very first frame uses) to re-acquire, still measured against the
+        // session's original `referenceCentroid` so previously-aligned frames stay consistent.
+        guard let reacquired = reacquireLock(source: source, width: width, height: height) else { return nil }
+        driftTrackedCentroid = reacquired
+        return DriftAligner.shift(current: reacquired, reference: referenceCentroid)
+    }
+
+    /// Full-frame brightest-point search followed by a background-subtracted centroid at that
+    /// point — used both to establish the very first lock of a session and to re-acquire one that
+    /// `computeDriftShift`'s local search has lost.
+    private func reacquireLock(source: MTLTexture, width: Int, height: Int) -> SIMD2<Float>? {
+        guard let brightest = findBrightestPoint(source: source, width: width, height: height),
+              let centroid = computeCentroid(source: source, center: brightest, width: width, height: height)
         else { return nil }
-        driftTrackedCentroid = centroid
-        return DriftAligner.shift(current: centroid, reference: referenceCentroid)
+        return centroid
     }
 
     /// One-time (per stacking session) full-frame brightest-pixel search — the initial guess for
@@ -760,6 +780,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         bayerPattern: ASI_BAYER_PATTERN,
         stretch: DisplayStretch,
         isLiveStacking: Bool,
+        isLiveStackPaused: Bool,
         isDriftReductionEnabled: Bool,
         streakMask: StreakMask?,
         isDenoisingEnabled: Bool,
@@ -936,43 +957,51 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 }
                 driftReductionWasEnabled = isDriftReductionEnabled
 
-                if let usableMask, let maskedSumTexture, let maskedCountTexture {
-                    // Streak masking takes priority over drift-reduction alignment when both are
-                    // enabled at once — combining per-pixel masking with sub-pixel shift-sampling
-                    // would need a third kernel variant, for a combination that's rare in
-                    // practice (satellite trails vs. mount-tracking precision are largely
-                    // orthogonal concerns); masking a deep-sky stack against passing satellites
-                    // is the more common ask of the two.
-                    dispatchMaskedAccumulate(
-                        encoder: encoder, source: workingTexture, sum: maskedSumTexture, counts: maskedCountTexture,
-                        mask: usableMask, width: frame.width, height: frame.height
-                    )
-                    let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
-                    let threadgroups = MTLSize(width: (frame.width + 15) / 16, height: (frame.height + 15) / 16, depth: 1)
-                    encoder.setComputePipelineState(normalizeMaskedAccumulatorPipeline)
-                    encoder.setTexture(maskedSumTexture, index: 0)
-                    encoder.setTexture(maskedCountTexture, index: 1)
-                    encoder.setTexture(accumulationTexture, index: 2)
-                    encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
-                    divisor = 1.0 // already a true per-pixel average after normalization
-                } else {
-                    let shift = isDriftReductionEnabled
-                        ? computeDriftShift(source: workingTexture, width: frame.width, height: frame.height)
-                        : nil
-                    if let shift {
-                        dispatchAlignedAccumulate(
-                            encoder: encoder, source: workingTexture, accumulator: accumulationTexture,
-                            shift: shift, width: frame.width, height: frame.height
+                // Paused: freeze the stack exactly as it is — skip adding this frame (and the
+                // frame-count/drift-lock bookkeeping that comes with it) but still display
+                // whatever `accumulationTexture` already holds, at its existing divisor, so a
+                // paused stack reads as "holding still to look at," not as if it reset.
+                if !isLiveStackPaused {
+                    if let usableMask, let maskedSumTexture, let maskedCountTexture {
+                        // Streak masking takes priority over drift-reduction alignment when both are
+                        // enabled at once — combining per-pixel masking with sub-pixel shift-sampling
+                        // would need a third kernel variant, for a combination that's rare in
+                        // practice (satellite trails vs. mount-tracking precision are largely
+                        // orthogonal concerns); masking a deep-sky stack against passing satellites
+                        // is the more common ask of the two.
+                        dispatchMaskedAccumulate(
+                            encoder: encoder, source: workingTexture, sum: maskedSumTexture, counts: maskedCountTexture,
+                            mask: usableMask, width: frame.width, height: frame.height
                         )
+                        let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
+                        let threadgroups = MTLSize(width: (frame.width + 15) / 16, height: (frame.height + 15) / 16, depth: 1)
+                        encoder.setComputePipelineState(normalizeMaskedAccumulatorPipeline)
+                        encoder.setTexture(maskedSumTexture, index: 0)
+                        encoder.setTexture(maskedCountTexture, index: 1)
+                        encoder.setTexture(accumulationTexture, index: 2)
+                        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+                        divisor = 1.0 // already a true per-pixel average after normalization
                     } else {
-                        dispatch(accumulatePipeline, encoder: encoder, texture0: workingTexture, texture1: accumulationTexture,
-                                 width: frame.width, height: frame.height)
+                        let shift = isDriftReductionEnabled
+                            ? computeDriftShift(source: workingTexture, width: frame.width, height: frame.height)
+                            : nil
+                        if let shift {
+                            dispatchAlignedAccumulate(
+                                encoder: encoder, source: workingTexture, accumulator: accumulationTexture,
+                                shift: shift, width: frame.width, height: frame.height
+                            )
+                        } else {
+                            dispatch(accumulatePipeline, encoder: encoder, texture0: workingTexture, texture1: accumulationTexture,
+                                     width: frame.width, height: frame.height)
+                        }
+                        divisor = Float(accumulatedFrameCount + 1)
                     }
-                    divisor = Float(accumulatedFrameCount + 1)
+                    accumulatedFrameCount += 1
+                    onLiveStackFrameCountUpdate?(accumulatedFrameCount)
+                } else {
+                    divisor = wasAccumulatingMasked ? 1.0 : Float(max(accumulatedFrameCount, 1))
                 }
-                accumulatedFrameCount += 1
                 readSource = accumulationTexture
-                onLiveStackFrameCountUpdate?(accumulatedFrameCount)
             }
         }
 
@@ -1042,6 +1071,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 bayerPattern: update.bayerPattern,
                 stretch: update.stretch,
                 isLiveStacking: update.isLiveStacking,
+                isLiveStackPaused: update.isLiveStackPaused,
                 isDriftReductionEnabled: update.isDriftReductionEnabled,
                 streakMask: update.streakMask,
                 isDenoisingEnabled: update.isDenoisingEnabled,
@@ -1164,6 +1194,7 @@ struct MetalPreviewView: NSViewRepresentable {
             bayerPattern: camera.bayerPattern,
             stretch: cameraManager.stretch,
             isLiveStacking: cameraManager.isLiveStackingEnabled,
+            isLiveStackPaused: cameraManager.isLiveStackPaused,
             isDriftReductionEnabled: cameraManager.isLiveStackDriftReductionEnabled,
             streakMask: cameraManager.isStreakMaskingEnabled ? cameraManager.currentStreakMask : nil,
             isDenoisingEnabled: cameraManager.isDenoisingEnabled,

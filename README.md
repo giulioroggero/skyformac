@@ -169,9 +169,10 @@ raw data:
   matching the active render path).
 - **Live Stack** — running-average stacking of the live feed, with an
   optional GPU-only **Reduce Drift** (single-star lock-on alignment,
-  background-subtracted centroid tracking) for mounts that don't track
-  perfectly, e.g. alt-azimuth, plus a one-click **Save Stacked Image…** PNG
-  snapshot.
+  background-subtracted centroid tracking, re-acquires on a lost lock) for
+  mounts that don't track perfectly, e.g. alt-azimuth, a **Pause**/Resume to
+  freeze and actually look at a running stack without discarding it, and a
+  one-click **Save Stacked Image…** PNG snapshot.
 - **Lucky Imaging** — burst capture, keeping only the sharpest fraction,
   stacked.
 - **Record to Disk** — continuous recording with a GPU sharpness gate (only
