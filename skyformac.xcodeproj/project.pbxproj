@@ -27,6 +27,7 @@
 		7649C405BE01EB99C5A51847 /* MetalFrameRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */; };
 		8E8362BFEC2F249B164B418F /* GPUFrameCalibratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A8BA528FBB8FF8C513CEFCD /* GPUFrameCalibratorTests.swift */; };
 		FEC34A5F447185B40BABFF08 /* DriftAlignerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72B4D2D0F26762D2120F696 /* DriftAlignerTests.swift */; };
+		78733D802357DFA200870A5B /* ROIGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204615FC1E3E16A7A9F5D622 /* ROIGeometryTests.swift */; };
 		4D06715FBD7B11463C7D3E01 /* FocusTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA24301D1DACD820F9B31382 /* FocusTrackerTests.swift */; };
 		59012F0493E0A68CC0C0C8A2 /* FrameBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE7DA51F7B4CABA4250F23B /* FrameBuffer.swift */; };
 		5A96263746F17899DF2DAAA6 /* StarPatternRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36AD0E9120D1B73D98FDCCC /* StarPatternRecognizer.swift */; };
@@ -54,6 +55,7 @@
 		8FDDC506D9425875B5C2074D /* ImageExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 323B04EDD5766E5A3ABF06C6 /* ImageExporterTests.swift */; };
 		920A02D52247C67CA9F38FFD /* DebayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E88B8B8C918FC041B56CE39 /* DebayerTests.swift */; };
 		92A6440058F11756D35C2280 /* CaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F15C305509B9D238A0F6D8 /* CaptureEngine.swift */; };
+		FAB1461117306ECFF247FCDB /* ROIGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9617675220EF3F556AAD3D /* ROIGeometry.swift */; };
 		9497154EAB38892C7CED26D4 /* DisplayStretch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D45AD55387D14B1CD7F1C11 /* DisplayStretch.swift */; };
 		95B06475761DE1F50E280FB1 /* PreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C438170FE21AEABA0E72DB0 /* PreviewView.swift */; };
 		C67D30FB1206977D3F0B67D9 /* HelpContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F70DB4F88F8011F407D7B23 /* HelpContent.swift */; };
@@ -227,6 +229,7 @@
 		A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetalFrameRendererTests.swift; sourceTree = "<group>"; };
 		8A8BA528FBB8FF8C513CEFCD /* GPUFrameCalibratorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUFrameCalibratorTests.swift; sourceTree = "<group>"; };
 		E72B4D2D0F26762D2120F696 /* DriftAlignerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DriftAlignerTests.swift; sourceTree = "<group>"; };
+		204615FC1E3E16A7A9F5D622 /* ROIGeometryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ROIGeometryTests.swift; sourceTree = "<group>"; };
 		BFECDB2BCC9D0B85F291E1BD /* MetalFrameRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetalFrameRenderer.swift; sourceTree = "<group>"; };
 		06F8D95B0E15A88F43623D77 /* GPUStillImageRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUStillImageRenderer.swift; sourceTree = "<group>"; };
 		07FC5B1CEF8AFC0FB0AE411E /* GPUFrameCalibrator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUFrameCalibrator.swift; sourceTree = "<group>"; };
@@ -245,6 +248,7 @@
 		E14B676FB83C3E9370D129CF /* FocusTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FocusTracker.swift; sourceTree = "<group>"; };
 		E5C69107B802A8A5079E910F /* PlanetDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetDetectorTests.swift; sourceTree = "<group>"; };
 		E8F15C305509B9D238A0F6D8 /* CaptureEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureEngine.swift; sourceTree = "<group>"; };
+		CC9617675220EF3F556AAD3D /* ROIGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ROIGeometry.swift; sourceTree = "<group>"; };
 		EA47EE4DF4E6417DBF9D6036 /* GPUSharpnessScorer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUSharpnessScorer.swift; sourceTree = "<group>"; };
 		EC6E0E0C0F50079C03C013D8 /* AllSkyMonitorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AllSkyMonitorView.swift; sourceTree = "<group>"; };
 		EFD51D5A6E4252634C1B4B1A /* FrameArithmetic.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrameArithmetic.swift; sourceTree = "<group>"; };
@@ -385,6 +389,7 @@
 				A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */,
 				8A8BA528FBB8FF8C513CEFCD /* GPUFrameCalibratorTests.swift */,
 				E72B4D2D0F26762D2120F696 /* DriftAlignerTests.swift */,
+				204615FC1E3E16A7A9F5D622 /* ROIGeometryTests.swift */,
 				71C94A9D4A15CA2162D0C269 /* SharpnessScorerTests.swift */,
 				129AC416223DEE62CE827BBB /* FITSWriterTests.swift */,
 				EB9A11EC10A4B795DF7775C4 /* FITSReaderTests.swift */,
@@ -530,6 +535,7 @@
 			isa = PBXGroup;
 			children = (
 				E8F15C305509B9D238A0F6D8 /* CaptureEngine.swift */,
+				CC9617675220EF3F556AAD3D /* ROIGeometry.swift */,
 				8EE7DA51F7B4CABA4250F23B /* FrameBuffer.swift */,
 				7273CF82E64D50E81D2A3A99 /* LiveStacker.swift */,
 				DA8DAE31701FC35BE8DBA669 /* LuckyImagingSession.swift */,
@@ -727,6 +733,7 @@
 				0D23C4D5BE7AC4A7C03D1EF7 /* ZWOControlCaps.swift in Sources */,
 				0A08C7FECDEED149298D6EDD /* ZWOSDK.swift in Sources */,
 				92A6440058F11756D35C2280 /* CaptureEngine.swift in Sources */,
+				FAB1461117306ECFF247FCDB /* ROIGeometry.swift in Sources */,
 				59012F0493E0A68CC0C0C8A2 /* FrameBuffer.swift in Sources */,
 				86FC232F65510B942E12093E /* CameraManager.swift in Sources */,
 				AE4B3B2F3E9A93FEC227D482 /* ContentView.swift in Sources */,
@@ -801,6 +808,7 @@
 				7649C405BE01EB99C5A51847 /* MetalFrameRendererTests.swift in Sources */,
 				8E8362BFEC2F249B164B418F /* GPUFrameCalibratorTests.swift in Sources */,
 				FEC34A5F447185B40BABFF08 /* DriftAlignerTests.swift in Sources */,
+				78733D802357DFA200870A5B /* ROIGeometryTests.swift in Sources */,
 				76DB240A9CA9273E120A0BD7 /* SharpnessScorerTests.swift in Sources */,
 				5C2442ADD1A7C168C808C1F0 /* FITSWriterTests.swift in Sources */,
 				1EFED5722D1F7DC5ED9B38E0 /* FITSReaderTests.swift in Sources */,

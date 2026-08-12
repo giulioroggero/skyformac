@@ -45,6 +45,13 @@ actor CaptureEngine {
     /// pass it along.
     private var desiredWidth: Int
     private var desiredHeight: Int
+    /// Where a smaller-than-full-sensor ROI should be *centered*, in full-sensor pixel
+    /// coordinates — defaults to the sensor's own center. `nil` `centerX`/`centerY` in `setROI`
+    /// means "keep it centered on the sensor," not "reuse whatever was there before," so
+    /// switching to a smaller ROI without explicitly requesting an off-center position doesn't
+    /// require the caller to already know the sensor's dimensions.
+    private var desiredCenterX: Int
+    private var desiredCenterY: Int
 
     private var continuation: AsyncStream<CapturedFrame>.Continuation?
     private var onCameraRemoved: (@Sendable () -> Void)?
@@ -53,28 +60,44 @@ actor CaptureEngine {
         self.camera = camera
         self.desiredWidth = camera.maxWidth
         self.desiredHeight = camera.maxHeight
+        self.desiredCenterX = camera.maxWidth / 2
+        self.desiredCenterY = camera.maxHeight / 2
     }
 
-    /// Sets the ROI width/height future `startStreaming`/`captureSingleExposure` calls will
-    /// request — `nil` resets to the full sensor. Validated/clamped to the ASI SDK's own hard
-    /// constraints (`ASISetROIFormat`: width a multiple of 8, height a multiple of 2) and to the
-    /// sensor's real dimensions, rather than trusting the caller to have already done that.
-    /// Doesn't itself restart any in-progress stream — the caller (`CameraManager`) is
-    /// responsible for stopping and restarting streaming for a new ROI to actually take effect,
-    /// the same way switching RAW8/RAW16 format already works.
-    func setROI(width: Int?, height: Int?) {
+    /// Sets the ROI width/height/center future `startStreaming`/`captureSingleExposure` calls
+    /// will request — `nil` width/height resets to the full sensor. Width/height are
+    /// validated/clamped to the ASI SDK's own hard constraints (`ASISetROIFormat`: width a
+    /// multiple of 8, height a multiple of 2) and to the sensor's real dimensions, rather than
+    /// trusting the caller to have already done that; `centerX`/`centerY` (full-sensor pixel
+    /// coordinates), if given, are resolved to a top-left start position at request time (see
+    /// `ROIGeometry.startPosition`) — `nil` means centered on the sensor. Doesn't itself restart
+    /// any in-progress stream — the caller (`CameraManager`) is responsible for stopping and
+    /// restarting streaming for a new ROI to actually take effect, the same way switching
+    /// RAW8/RAW16 format already works.
+    func setROI(width: Int?, height: Int?, centerX: Int? = nil, centerY: Int? = nil) {
         guard let width, let height else {
             desiredWidth = camera.maxWidth
             desiredHeight = camera.maxHeight
+            desiredCenterX = camera.maxWidth / 2
+            desiredCenterY = camera.maxHeight / 2
             return
         }
-        desiredWidth = Self.clampROIDimension(width, maximum: camera.maxWidth, multipleOf: 8)
-        desiredHeight = Self.clampROIDimension(height, maximum: camera.maxHeight, multipleOf: 2)
+        desiredWidth = ROIGeometry.clampedDimension(width, maximum: camera.maxWidth, multipleOf: 8)
+        desiredHeight = ROIGeometry.clampedDimension(height, maximum: camera.maxHeight, multipleOf: 2)
+        desiredCenterX = centerX ?? camera.maxWidth / 2
+        desiredCenterY = centerY ?? camera.maxHeight / 2
     }
 
-    private static func clampROIDimension(_ value: Int, maximum: Int, multipleOf: Int) -> Int {
-        let clamped = min(max(value, multipleOf), maximum)
-        return (clamped / multipleOf) * multipleOf
+    /// `ASISetStartPos(cameraID:startX:startY:)` for whatever `desiredWidth`/`desiredHeight`
+    /// were just handed to `ASISetROIFormat` — must run right after it (both `startStreaming` and
+    /// `captureSingleExposure` call this immediately following their own `setROIFormat` call), per
+    /// `ROIGeometry.startPosition`'s doc comment on why this can't just be skipped.
+    private func applyStartPosition(width: Int, height: Int) throws {
+        let start = ROIGeometry.startPosition(
+            width: width, height: height, centerX: desiredCenterX, centerY: desiredCenterY,
+            sensorWidth: camera.maxWidth, sensorHeight: camera.maxHeight
+        )
+        try ZWOSDK.setStartPos(cameraID: camera.cameraID, startX: start.x, startY: start.y)
     }
 
     /// Live frame stream for the currently-connected camera. Consuming code (the renderer)
@@ -103,6 +126,7 @@ actor CaptureEngine {
             binning: 1,
             imageType: imageType
         )
+        try applyStartPosition(width: width, height: height)
         let format = try ZWOSDK.getROIFormat(cameraID: camera.cameraID)
         currentFormat = format
 
@@ -141,6 +165,7 @@ actor CaptureEngine {
             binning: 1,
             imageType: imageType
         )
+        try applyStartPosition(width: width, height: height)
         let format = try ZWOSDK.getROIFormat(cameraID: camera.cameraID)
 
         let exposureCaps = try ZWOSDK.allControlCaps(cameraID: camera.cameraID)

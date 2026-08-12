@@ -118,6 +118,10 @@ struct ControlsPanelView: View {
     @AppStorage("nightModeSeconds") private var nightModeSeconds: Double = 10
     @State private var showPlanetaryPresetsSection = false
     @State private var showCaptureROISection = false
+    @State private var customROIWidth: Int = 800
+    @State private var customROIHeight: Int = 600
+    @State private var customROICenterX: Int?
+    @State private var customROICenterY: Int?
     @State private var showSERRecordingSection = false
     @AppStorage("serRecordingDurationSeconds") private var serRecordingDurationSeconds: Double = 180
 
@@ -616,6 +620,22 @@ struct ControlsPanelView: View {
         return .custom(width: width, height: height)
     }
 
+    /// `TextField(value:format:)` needs a non-optional `Binding<Int>` — these fall back to the
+    /// sensor's own center for display until the user actually edits the field, at which point
+    /// `customROICenterX`/`Y` become a real, explicit value.
+    private var customROICenterXBinding: Binding<Int> {
+        Binding(
+            get: { customROICenterX ?? (cameraManager.connectedCamera?.maxWidth ?? 0) / 2 },
+            set: { customROICenterX = $0 }
+        )
+    }
+    private var customROICenterYBinding: Binding<Int> {
+        Binding(
+            get: { customROICenterY ?? (cameraManager.connectedCamera?.maxHeight ?? 0) / 2 },
+            set: { customROICenterY = $0 }
+        )
+    }
+
     @ViewBuilder
     private var captureROISection: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -631,6 +651,8 @@ struct ControlsPanelView: View {
                         cameraManager.changeCaptureROI(width: nil, height: nil)
                     case .custom(let width, let height):
                         cameraManager.changeCaptureROI(width: width, height: height)
+                        customROIWidth = width
+                        customROIHeight = height
                     }
                 }
             )) {
@@ -641,11 +663,80 @@ struct ControlsPanelView: View {
             .pickerStyle(.segmented)
 
             if let width = cameraManager.captureROIWidth, let height = cameraManager.captureROIHeight {
-                Text("Streaming at \(width) × \(height) — expect noticeably faster live/SER frame rates than full sensor.")
+                let centerX = cameraManager.captureROICenterX ?? (cameraManager.connectedCamera?.maxWidth ?? 0) / 2
+                let centerY = cameraManager.captureROICenterY ?? (cameraManager.connectedCamera?.maxHeight ?? 0) / 2
+                Text("Streaming at \(width) × \(height), centered at (\(centerX), \(centerY)) on the sensor — expect noticeably faster live/SER frame rates than full sensor.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+
+            customCaptureROIFields
         }
+    }
+
+    /// Manual width/height/center entry, for any rectangle — not just the two fixed presets
+    /// above. Also the only way to move the ROI off the sensor's default center at all: without
+    /// an explicit center, a small ROI would silently sit wherever `ASISetStartPos` last left it
+    /// (the sensor's top-left corner, if never called) instead of wherever the actual target is
+    /// framed — see `ROIGeometry.startPosition`'s doc comment.
+    @ViewBuilder
+    private var customCaptureROIFields: some View {
+        DisclosureGroup("Custom size & center") {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Size")
+                        .font(.caption)
+                        .frame(width: 44, alignment: .leading)
+                    TextField("Width", value: $customROIWidth, format: .number)
+                        .frame(width: 70)
+                    Text("×")
+                    TextField("Height", value: $customROIHeight, format: .number)
+                        .frame(width: 70)
+                    Text("px").font(.caption2).foregroundStyle(.secondary)
+                }
+                HStack {
+                    Text("Center")
+                        .font(.caption)
+                        .frame(width: 44, alignment: .leading)
+                    TextField("X", value: customROICenterXBinding, format: .number)
+                        .frame(width: 70)
+                    TextField("Y", value: customROICenterYBinding, format: .number)
+                        .frame(width: 70)
+                    Text("px on sensor").font(.caption2).foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button("Apply") {
+                        cameraManager.changeCaptureROI(
+                            width: customROIWidth, height: customROIHeight,
+                            centerX: customROICenterX, centerY: customROICenterY
+                        )
+                    }
+                    Button("Center on Sensor") {
+                        if let camera = cameraManager.connectedCamera {
+                            customROICenterX = camera.maxWidth / 2
+                            customROICenterY = camera.maxHeight / 2
+                        }
+                    }
+                }
+                if let camera = cameraManager.connectedCamera {
+                    Text("Sensor is \(camera.maxWidth) × \(camera.maxHeight) — width rounds down to a multiple of 8, height to a multiple of 2, and the center clamps so the ROI stays fully on-sensor.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.top, 4)
+            .onAppear {
+                if customROICenterX == nil || customROICenterY == nil, let camera = cameraManager.connectedCamera {
+                    customROICenterX = cameraManager.captureROICenterX ?? camera.maxWidth / 2
+                    customROICenterY = cameraManager.captureROICenterY ?? camera.maxHeight / 2
+                }
+                if let width = cameraManager.captureROIWidth, let height = cameraManager.captureROIHeight {
+                    customROIWidth = width
+                    customROIHeight = height
+                }
+            }
+        }
+        .font(.caption)
     }
 
     // MARK: - SER video recording (planetary/lunar workflow)

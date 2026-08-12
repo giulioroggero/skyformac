@@ -985,24 +985,36 @@ final class CameraManager {
     /// active without an `await` round-trip on every render.
     private(set) var captureROIWidth: Int?
     private(set) var captureROIHeight: Int?
+    /// Where the ROI is centered, in full-sensor pixel coordinates — `nil` (the default) means
+    /// centered on the sensor itself. Only meaningful alongside a non-`nil` `captureROIWidth`/
+    /// `captureROIHeight`; reset to `nil` whenever the ROI resets to the full sensor.
+    private(set) var captureROICenterX: Int?
+    private(set) var captureROICenterY: Int?
 
     /// Requests a smaller-than-full-sensor capture region — ZWO cameras only (see `CaptureEngine
     /// .setROI`'s doc comment for why this is worth doing at all: a smaller ROI genuinely
     /// increases achievable frame rate, since less data has to be read off the sensor per frame,
     /// the same "small ROI, high FPS" technique real planetary/lunar lucky-imaging workflows
-    /// (FireCapture, SharpCap) rely on). `width`/`height` `nil` resets to the full sensor. No-op
-    /// for a webcam/iPhone source, where there's no `ASISetROIFormat` equivalent — frame size
-    /// there is whatever the selected `AVCaptureDevice.Format` already is.
-    func changeCaptureROI(width: Int?, height: Int?) {
+    /// (FireCapture, SharpCap) rely on). `width`/`height` `nil` resets to the full sensor.
+    /// `centerX`/`centerY` (full-sensor pixel coordinates) place the ROI anywhere on the sensor —
+    /// `nil` means centered on the sensor, which is what every caller except the Controls panel's
+    /// own custom-ROI fields uses. Without this, a ROI always landed at the sensor's top-left
+    /// corner (`ASISetStartPos` was never called at all) regardless of where the actual target
+    /// sat — see `ROIGeometry.startPosition`'s doc comment. No-op for a webcam/iPhone source,
+    /// where there's no `ASISetROIFormat` equivalent — frame size there is whatever the selected
+    /// `AVCaptureDevice.Format` already is.
+    func changeCaptureROI(width: Int?, height: Int?, centerX: Int? = nil, centerY: Int? = nil) {
         guard let engine = captureEngine, connectedCamera != nil else { return }
         frameConsumerTask?.cancel()
         currentFrame = nil
         currentImage = nil
         captureROIWidth = width
         captureROIHeight = height
+        captureROICenterX = width != nil ? centerX : nil
+        captureROICenterY = height != nil ? centerY : nil
         Task {
             await engine.stop()
-            await engine.setROI(width: width, height: height)
+            await engine.setROI(width: width, height: height, centerX: centerX, centerY: centerY)
             await startPreview(using: engine, imageType: selectedImageType)
         }
     }
@@ -1824,6 +1836,8 @@ final class CameraManager {
         frameConsumerTask = nil
         captureROIWidth = nil
         captureROIHeight = nil
+        captureROICenterX = nil
+        captureROICenterY = nil
         if isRecordingSERVideo { stopSERRecording() }
         cancelIPhoneNightModeCapture()
         isWebcamFocusLocked = false

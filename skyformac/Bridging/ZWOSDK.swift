@@ -105,6 +105,21 @@ enum ZWOSDK {
         )
     }
 
+    /// Positions the ROI `ASISetROIFormat` just set — must be called *after* it, per the SDK's
+    /// own sample code. `(0, 0)` (the sensor's top-left corner) is the SDK's default if this is
+    /// never called at all, which is almost never where a ROI should actually sit relative to a
+    /// framed target — see `ROIGeometry.startPosition`'s doc comment.
+    static func setStartPos(cameraID: Int32, startX: Int, startY: Int) throws {
+        try ZWOError.check(ASISetStartPos(cameraID, Int32(startX), Int32(startY)))
+    }
+
+    static func getStartPos(cameraID: Int32) throws -> (x: Int, y: Int) {
+        var startX: Int32 = 0
+        var startY: Int32 = 0
+        try ZWOError.check(ASIGetStartPos(cameraID, &startX, &startY))
+        return (x: Int(startX), y: Int(startY))
+    }
+
     static func startVideoCapture(cameraID: Int32) throws {
         try ZWOError.check(ASIStartVideoCapture(cameraID))
     }
