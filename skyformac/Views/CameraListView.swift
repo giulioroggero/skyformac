@@ -109,6 +109,23 @@ struct CameraListView: View {
                         Text(device.localizedName)
                         Spacer()
                         if cameraManager.connectedCamera?.name == device.localizedName && cameraManager.isExternalWebcam {
+                            // Same pair of quick-access icons as the ZWO `cameraRow` below, next
+                            // to its own Disconnect — Live Stack/Lucky Imaging/Smart Live Stack
+                            // presets apply to a webcam/iPhone source exactly the same way (see
+                            // `CameraManager.applyAcquisitionPreset`'s doc comment), so there's no
+                            // reason these should only be reachable for a ZWO camera.
+                            Button {
+                                cameraManager.isAcquisitionWizardPresented = true
+                            } label: {
+                                Image(systemName: "wand.and.rays")
+                            }
+                            .help("Acquisition Wizard… (⌘⇧W)")
+                            Button {
+                                cameraManager.loadAndApplyAcquisitionPreset()
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                            .help("Load Preset… — loads a saved setup and applies it immediately. (⌘⇧L)")
                             Button("Disconnect") { cameraManager.disconnect() }
                         } else {
                             Button("Connect") {

@@ -1250,3 +1250,9 @@ made along the way.
   push it partly off a smaller display. Capped at `max: 280` so this column now always resizes
   within the existing window, the same way dragging the divider between `PreviewView`/
   `ControlsPanelView` already does (a plain `HSplitView`, which never grows the window either).
+- **Wizard/Load Preset icon buttons added to the webcam/iPhone row too** — the backend
+  (`applyAcquisitionPreset`/`resetToDefaultConfiguration`) and the fuller "Acquisition" section
+  already worked for that source (see the entry above), but the same quick-access pair next to
+  the *row's own* Connect/Disconnect only existed on the ZWO `cameraRow`, not `webcamSection`'s.
+  Added there too, for parity — there was never a reason these should only be reachable one row
+  down for a webcam source when everything they do already applies to it identically.
