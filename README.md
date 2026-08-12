@@ -106,35 +106,24 @@ version, and the main pane starts streaming a live preview.
 
 ### Controls panel
 
-The right-hand panel is split into three tabs (a vertical icon strip on its
-trailing edge — also reachable from the menu bar's Sidebar Tab menu, ⌘1-⌘3),
-grouped by what each control actually affects, not by imaging genre:
+The right-hand panel is split into four tabs (a vertical icon strip on its
+trailing edge — also reachable from the menu bar's Sidebar Tab menu, ⌘1-⌘4).
+Camera Controls/Improvements are grouped by what each control affects (raw
+hardware vs. display-only effects); Planetary/Deep Sky are grouped by
+imaging genre instead, since mixing both genres' workflow tools in one long
+list made it hard to navigate — Focus Assist appears in both, since it
+genuinely serves either:
 
 **Camera Controls** — raw hardware, nothing here is a display effect:
 - Dynamic per-camera controls (gain, offset, cooler, flip, binning, etc. —
   whatever the connected ZWO camera actually reports), plus one-tap
   **Gain/Offset Presets** (ZWO's own Highest Dynamic Range/Unity Gain/Lowest
-  Read Noise recommendations), a live dropped-frame counter, and (untested
-  against real hardware, since none has been available) **ST4 Guiding**
-  manual pulse-guide correction buttons.
+  Read Noise recommendations) and a live dropped-frame counter.
 - **Single Exposure** — a log-scale slider spanning microseconds to tens of
   seconds (real ASI exposure ranges don't fit a linear slider).
-- **Planetary Presets** (ZWO only) — one tap sets RAW8, a small **Capture
-  ROI**, and a safe starting exposure/gain for Saturn/Jupiter/Mars/Venus/the
-  Moon, tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC)
-  behind an f/10-f/12 Mak/SCT.
-- **Capture ROI** (ZWO only) — a smaller-than-full-sensor region increases
-  achievable frame rate directly (less data read off the sensor per frame),
-  the classic "small ROI, high FPS" planetary/lunar technique. Quick presets
-  or a custom width/height/center — genuinely centered on the sensor (or
-  wherever you place it), not pinned to its top-left corner.
 - **iPhone / Webcam** (webcam sources only) — Lock Focus (freezes the
   device's own autofocus, which otherwise fights afocal projection) and
   Night Mode (10s/60s frame-stacked simulated long exposure).
-- **Record SER Video** (ZWO only) — writes every incoming frame, undiscarded,
-  into a single `.ser` video for a set duration — the raw-video container
-  AutoStakkert!3/PIPP/RegiStax expect to do their own alignment and
-  best-frame selection from.
 - **Export** — PNG/TIFF/FITS, for the current frame or a stack. FITS exports
   from a color camera embed a `BAYERPAT` header card (the same convention
   PixInsight/Siril/SharpCap use), so a re-opened file knows how to debayer.
@@ -159,17 +148,46 @@ raw data:
 - One "Disable All Improvements" checkbox falls back to the camera's own
   unmodified output in a single click.
 
-**Advanced** — imaging workflow:
+**Planetary** — the small-ROI, high-FPS, burst/video capture workflow:
 - **Focus Assist** — live star detection with a sharpness/HFD readout; turn
   on **Recognize Stars** underneath it to identify which catalog stars are
   in frame and (once identification is confident enough) show real
-  catalog-object badges over the live view.
-- **Smart Exposure** — measures read noise and sky background from real
-  frames and recommends a sub-exposure length.
+  catalog-object badges over the live view. (Also in Deep Sky.)
 - **Planetary Auto-Center** — Vision-tracked disk with an optional
   auto-cropped ROI.
+- **Planetary Presets** (ZWO only) — one tap sets RAW8, a small **Capture
+  ROI**, and a safe starting exposure/gain for Saturn/Jupiter/Mars/Venus/the
+  Moon, tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC)
+  behind an f/10-f/12 Mak/SCT.
+- **Capture ROI** (ZWO only) — a smaller-than-full-sensor region increases
+  achievable frame rate directly (less data read off the sensor per frame),
+  the classic "small ROI, high FPS" planetary/lunar technique. Quick presets
+  or a custom width/height/center — genuinely centered on the sensor (or
+  wherever you place it), not pinned to its top-left corner. The live
+  preview's own refresh rate is capped independently (~30fps) so a very
+  small, very-high-frame-rate ROI can't flood the display into a growing,
+  flickering backlog — recording and Lucky Imaging still see every real
+  frame regardless.
+- **Record SER Video** (ZWO only) — writes every incoming frame, undiscarded,
+  into a single `.ser` video for a set duration — the raw-video container
+  AutoStakkert!3/PIPP/RegiStax expect to do their own alignment and
+  best-frame selection from.
+- **Lucky Imaging** — burst capture, keeping only the sharpest fraction,
+  stacked.
+- One "Disable All Planetary Features" checkbox falls back to the camera's
+  own unmodified output in a single click.
+
+**Deep Sky** — the long-exposure, many-subs workflow:
+- **Focus Assist** — same as Planetary's; genuinely useful before either
+  kind of session.
+- **Smart Exposure** — measures read noise and sky background from real
+  frames and recommends a sub-exposure length.
 - **Polar Alignment** — two-frame rotation-center solve from star
   correspondences, with a live on-screen correction vector.
+- **ST4 Guiding** — manual pulse-guide correction buttons (North/South/
+  East/West), shown only for cameras reporting a real ST4 port. **Untested
+  against real guiding hardware** — no ST4-cabled mount has been available
+  to confirm a pulse produces a real correction end to end.
 - **Calibration (Dark/Flat)** — capture and manage any number of named dark
   and flat frames; toggle subtraction/correction independently (GPU or CPU,
   matching the active render path).
@@ -183,11 +201,9 @@ raw data:
   skips frames softer than the session's best or flagged by Cloud Sentinel,
   with a live kept/rejected count and a real estimated-SNR-gain readout for
   judging when it's no longer worth continuing.
-- **Lucky Imaging** — burst capture, keeping only the sharpest fraction,
-  stacked.
 - **Record to Disk** — continuous recording with a GPU sharpness gate (only
   writes frames sharp enough to be worth keeping) and a disk-space guardrail.
-- One "Disable All Advanced Features" checkbox as above, plus stops any
+- One "Disable All Deep Sky Features" checkbox as above, plus stops any
   active recording.
 
 In-app **Help** (⌘?) covers every one of these in detail, with full-text

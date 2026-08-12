@@ -59,7 +59,8 @@ struct SkyformacCommands: Commands {
         CommandMenu("Sidebar Tab") {
             tabButton(.cameraControls, shortcut: "1")
             tabButton(.improvements, shortcut: "2")
-            tabButton(.advanced, shortcut: "3")
+            tabButton(.planetary, shortcut: "3")
+            tabButton(.deepSky, shortcut: "4")
         }
 
         CommandGroup(after: .toolbar) {

@@ -41,24 +41,38 @@ private struct HelpLinkedDisclosureLabel: View {
     }
 }
 
-/// Which of the sidebar's three tabs is showing — replaces the old `ControlMode` filter
-/// (General/Planetary/Deep Sky/All Tools), which grouped the same flat list of ~15 sections by
-/// imaging genre. This groups them by *role* instead:
+/// Which of the sidebar's four tabs is showing. Originally three, grouped by *role*
+/// (hardware/display-effects/workflow) rather than imaging genre — replacing an even older
+/// `ControlMode` filter (General/Planetary/Deep Sky/All Tools) that grouped the same flat list of
+/// ~15 sections by genre instead. The single `.advanced` tab mixed planetary workflow (Planetary
+/// Auto-Center, Lucky Imaging) with deep-sky workflow (Live Stack, Calibration, Polar Alignment,
+/// ST4 Guiding, Smart Exposure, Record to Disk) — reported as hard to navigate once both genres'
+/// tools lived in one long scrolling list, so `.advanced` is now split back into `.planetary` and
+/// `.deepSky`, genre-grouped again, while `.cameraControls`/`.improvements` (neither is genre-
+/// specific — a gain slider or a denoise toggle works identically for either) stay role-grouped:
 /// - `.cameraControls`: the raw per-camera hardware controls (gain, exposure, flip, cooler, ...)
 ///   plus Single Exposure and Export — nothing here alters the image, only what the sensor does.
 /// - `.improvements`: opt-in things that change what you *see* without touching the sensor
 ///   (Image Enhancement, Live GPU Enhancement Controls, the AI Suite) — exactly the category of
 ///   state that caused the "full white/black, no live view" bug in `docs/design-notes.md` when
 ///   left on from a previous session.
-/// - `.advanced`: imaging *workflows* (focus/tracking/stacking/calibration/recording).
+/// - `.planetary`: Planetary Presets, Capture ROI, Record SER Video, Lucky Imaging, Planetary
+///   Auto-Center — the FireCapture-style "small ROI, high FPS, burst/video capture" workflow.
+/// - `.deepSky`: Live Stack (+ Smart Live Stack, Reduce Drift), Calibration, Polar Alignment,
+///   ST4 Guiding, Smart Exposure, Record to Disk — the long-exposure, many-subs workflow.
 ///
-/// The latter two tabs each get a single "Disable All" checkbox, so ruling out "one of these
-/// is doing this" — or just falling back to the camera's own unmodified output — is one click
-/// instead of hunting down a dozen individual toggles.
+/// Focus Assist genuinely serves both genres (framing/focusing before either kind of session) and
+/// appears in both `.planetary`'s and `.deepSky`'s content rather than forcing an arbitrary choice
+/// of one over the other.
+///
+/// `.improvements`/`.planetary`/`.deepSky` each get a single "Disable All" checkbox, so ruling out
+/// "one of these is doing this" — or just falling back to the camera's own unmodified output — is
+/// one click instead of hunting down a dozen individual toggles.
 enum SidebarTab: String, CaseIterable, Identifiable {
     case cameraControls = "Camera Controls"
     case improvements = "Improvements"
-    case advanced = "Advanced"
+    case planetary = "Planetary"
+    case deepSky = "Deep Sky"
 
     var id: String { rawValue }
 
@@ -67,7 +81,8 @@ enum SidebarTab: String, CaseIterable, Identifiable {
         switch self {
         case .cameraControls: return "Camera"
         case .improvements: return "Improve"
-        case .advanced: return "Advanced"
+        case .planetary: return "Planetary"
+        case .deepSky: return "Deep Sky"
         }
     }
 
@@ -75,7 +90,8 @@ enum SidebarTab: String, CaseIterable, Identifiable {
         switch self {
         case .cameraControls: return "camera"
         case .improvements: return "wand.and.stars"
-        case .advanced: return "gearshape.2"
+        case .planetary: return "moon.fill"
+        case .deepSky: return "star.fill"
         }
     }
 }
@@ -137,8 +153,10 @@ struct ControlsPanelView: View {
                         cameraControlsTabContent
                     case .improvements:
                         improvementsTabContent
-                    case .advanced:
-                        advancedTabContent
+                    case .planetary:
+                        planetaryTabContent
+                    case .deepSky:
+                        deepSkyTabContent
                     }
                 }
                 // The window's own toolbar (GPU/CPU, Night Mode, All-Sky Monitor) overlaps this
@@ -269,36 +287,9 @@ struct ControlsPanelView: View {
             singleExposureSection
             Divider()
 
-            if !cameraManager.isExternalWebcam {
-                DisclosureGroup(isExpanded: $showPlanetaryPresetsSection) {
-                    planetaryPresetsSection
-                } label: {
-                    HelpLinkedDisclosureLabel(title: "Planetary Presets", cameraManager: cameraManager, sectionID: "setting.planetaryPresets")
-                }
-                Divider()
-            }
-
-            if !cameraManager.isExternalWebcam {
-                DisclosureGroup(isExpanded: $showCaptureROISection) {
-                    captureROISection
-                } label: {
-                    HelpLinkedDisclosureLabel(title: "Capture ROI (higher FPS)", cameraManager: cameraManager, sectionID: "setting.captureROI")
-                }
-                Divider()
-            }
-
             if cameraManager.isExternalWebcam {
                 DisclosureGroup("iPhone / Webcam", isExpanded: $showIPhoneWebcamSection) {
                     iPhoneWebcamSection
-                }
-                Divider()
-            }
-
-            if !cameraManager.isExternalWebcam {
-                DisclosureGroup(isExpanded: $showSERRecordingSection) {
-                    serRecordingSection
-                } label: {
-                    HelpLinkedDisclosureLabel(title: "Record SER Video (planetary/lunar)", cameraManager: cameraManager, sectionID: "setting.serRecording")
                 }
                 Divider()
             }
@@ -413,18 +404,84 @@ struct ControlsPanelView: View {
         }
     }
 
+    /// FireCapture-style "small ROI, high FPS, burst/video capture" workflow — everything here is
+    /// either ZWO-only or (Focus Assist) equally useful before a planetary session as a deep-sky
+    /// one. See `SidebarTab`'s doc comment for why this and `.deepSky` used to be one `.advanced`
+    /// tab and no longer are.
     @ViewBuilder
-    private var advancedTabContent: some View {
+    private var planetaryTabContent: some View {
         if cameraManager.connectedCamera == nil {
-            Text("Connect a camera to see advanced imaging tools.")
+            Text("Connect a camera to see planetary imaging tools.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
             HStack {
-                Toggle("Disable All Advanced Features", isOn: allAdvancedDisabled)
+                Toggle("Disable All Planetary Features", isOn: allPlanetaryDisabled)
                     .toggleStyle(.checkbox)
-                    .help("Turns off Focus Assist, Planetary tracking/crop, Live Stacking, and Dark/Flat calibration, and stops any active disk recording — for ruling one of these out, or to fall back to a plain, unmodified live view.")
-                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.disableAdvanced")
+                    .help("Turns off Focus Assist and Planetary tracking/crop — for ruling one of these out, or to fall back to a plain, unmodified live view.")
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.disablePlanetary")
+            }
+            Divider()
+
+            DisclosureGroup(isExpanded: $showFocusAssistSection) {
+                focusAssistSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Focus Assist", cameraManager: cameraManager, sectionID: "setting.focusAssist")
+            }
+            Divider()
+            DisclosureGroup(isExpanded: $showPlanetarySection) {
+                planetarySection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Planetary Auto-Center", cameraManager: cameraManager, sectionID: "setting.planetaryAutoCenter")
+            }
+            Divider()
+
+            if !cameraManager.isExternalWebcam {
+                DisclosureGroup(isExpanded: $showPlanetaryPresetsSection) {
+                    planetaryPresetsSection
+                } label: {
+                    HelpLinkedDisclosureLabel(title: "Planetary Presets", cameraManager: cameraManager, sectionID: "setting.planetaryPresets")
+                }
+                Divider()
+
+                DisclosureGroup(isExpanded: $showCaptureROISection) {
+                    captureROISection
+                } label: {
+                    HelpLinkedDisclosureLabel(title: "Capture ROI (higher FPS)", cameraManager: cameraManager, sectionID: "setting.captureROI")
+                }
+                Divider()
+
+                DisclosureGroup(isExpanded: $showSERRecordingSection) {
+                    serRecordingSection
+                } label: {
+                    HelpLinkedDisclosureLabel(title: "Record SER Video (planetary/lunar)", cameraManager: cameraManager, sectionID: "setting.serRecording")
+                }
+                Divider()
+            }
+
+            DisclosureGroup(isExpanded: $showLuckyImagingSection) {
+                luckyImagingSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Lucky Imaging", cameraManager: cameraManager, sectionID: "setting.luckyImaging")
+            }
+        }
+    }
+
+    /// The long-exposure, many-subs deep-sky workflow — tracking/alignment, calibration, and
+    /// stacking. See `SidebarTab`'s doc comment for why this and `.planetary` used to be one
+    /// `.advanced` tab and no longer are.
+    @ViewBuilder
+    private var deepSkyTabContent: some View {
+        if cameraManager.connectedCamera == nil {
+            Text("Connect a camera to see deep-sky imaging tools.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack {
+                Toggle("Disable All Deep Sky Features", isOn: allDeepSkyDisabled)
+                    .toggleStyle(.checkbox)
+                    .help("Turns off Focus Assist, Live Stacking, and Dark/Flat calibration, and stops any active disk recording — for ruling one of these out, or to fall back to a plain, unmodified live view.")
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.disableDeepSky")
             }
             Divider()
 
@@ -438,12 +495,6 @@ struct ControlsPanelView: View {
                 smartExposureSection
             } label: {
                 HelpLinkedDisclosureLabel(title: "Smart Exposure", cameraManager: cameraManager, sectionID: "setting.smartExposure")
-            }
-            Divider()
-            DisclosureGroup(isExpanded: $showPlanetarySection) {
-                planetarySection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Planetary Auto-Center", cameraManager: cameraManager, sectionID: "setting.planetaryAutoCenter")
             }
             Divider()
             DisclosureGroup(isExpanded: $showPolarAlignmentSection) {
@@ -470,12 +521,6 @@ struct ControlsPanelView: View {
                 liveStackSection
             } label: {
                 HelpLinkedDisclosureLabel(title: "Live Stack", cameraManager: cameraManager, sectionID: "setting.liveStack")
-            }
-            Divider()
-            DisclosureGroup(isExpanded: $showLuckyImagingSection) {
-                luckyImagingSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Lucky Imaging", cameraManager: cameraManager, sectionID: "setting.luckyImaging")
             }
             Divider()
             DisclosureGroup(isExpanded: $showRecordingSection) {
@@ -512,12 +557,29 @@ struct ControlsPanelView: View {
 
     /// Same "summarizes all-off, doesn't restore previous state" shape as
     /// `allImprovementsDisabled` above.
-    private var allAdvancedDisabled: Binding<Bool> {
+    private var allPlanetaryDisabled: Binding<Bool> {
         Binding(
             get: {
                 !cameraManager.isFocusAssistEnabled
                     && !cameraManager.isPlanetaryTrackingEnabled
                     && !cameraManager.isPlanetaryCropEnabled
+            },
+            set: { disableAll in
+                guard disableAll else { return }
+                cameraManager.isFocusAssistEnabled = false
+                cameraManager.isPlanetaryTrackingEnabled = false
+                cameraManager.isPlanetaryCropEnabled = false
+            }
+        )
+    }
+
+    /// Split from the old single `allAdvancedDisabled` alongside `.advanced` itself splitting
+    /// into `.planetary`/`.deepSky` (see `SidebarTab`'s doc comment) — Focus Assist appears in
+    /// both bindings since it appears in both tabs.
+    private var allDeepSkyDisabled: Binding<Bool> {
+        Binding(
+            get: {
+                !cameraManager.isFocusAssistEnabled
                     && !cameraManager.isLiveStackingEnabled
                     && !cameraManager.isDarkSubtractionEnabled
                     && !cameraManager.isFlatCorrectionEnabled
@@ -526,8 +588,6 @@ struct ControlsPanelView: View {
             set: { disableAll in
                 guard disableAll else { return }
                 cameraManager.isFocusAssistEnabled = false
-                cameraManager.isPlanetaryTrackingEnabled = false
-                cameraManager.isPlanetaryCropEnabled = false
                 cameraManager.isLiveStackingEnabled = false
                 cameraManager.isDarkSubtractionEnabled = false
                 cameraManager.isFlatCorrectionEnabled = false

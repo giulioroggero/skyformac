@@ -275,7 +275,7 @@ made along the way.
   overlap is the leading theory, but unconfirmed) — worked around by keeping the tab picker as
   ordinary content inside the `ScrollView`'s normal scroll flow, several rows away from that
   strip, at the cost of it scrolling away with everything else instead of staying pinned. The
-  menu-bar path (`SkyformacCommands`, ⌘1-⌘3) remains the reliable way to switch tabs regardless.
+  menu-bar path (`SkyformacCommands`, ⌘1-⌘4) remains the reliable way to switch tabs regardless.
 - **A single actor serializes *everything* routed through it — one call that never suspends
   monopolizes the actor forever, blocking every other call waiting on it too, not just its own
   caller.** Real root cause of "pressing Capture while live view is streaming hangs, and live view
@@ -1062,3 +1062,46 @@ made along the way.
     named when asked "what's missing for a professional"), and doesn't attempt to be. It's a real,
     shippable slice of "live, unattended, self-curating" that those bigger features would build on
     top of, not a replacement for them.
+- **A small Capture ROI (800×600 or smaller) made live view slow down and flicker — worse the
+  smaller the ROI.** The whole point of a smaller ROI is a *higher* frame rate (less sensor data
+  read per frame), which is exactly what caused this: `CameraManager.ingest` ran its full
+  per-frame pipeline — assigning `currentFrame`, bumping `frameID`, calling
+  `refreshCurrentImage()` — completely unthrottled, once per real incoming frame, on
+  `@MainActor`. `frameID` changing is what drives `MetalPreviewView.updateNSView`'s per-frame
+  Metal dispatch (debayer/stretch/denoise/live-stack accumulate/histogram, one full GPU pass per
+  tick). At a real camera's comfortable 100-200+fps on a small enough ROI, the previous frame's
+  display work often hadn't finished before the next one arrived — frames piled up waiting their
+  turn on `@MainActor`, and the visible result was a growing backlog being drawn in bursts: not a
+  live view, but a slow, flickering slideshow that got worse the longer it ran.
+  - **Fix**: `ingest` now rate-limits only the *visible* refresh (`frameID` bump +
+    `refreshCurrentImage()` call) to ~30fps (`minimumDisplayRefreshInterval`, wall-clock via
+    `Date`), while everything before that point in the function — dark subtraction,
+    `recordIfNeeded`/`recordSERFrameIfNeeded` (SER/FITS recording), Lucky Imaging accumulation,
+    the CPU `LiveStacker`'s own accumulation — still runs for every single real incoming frame,
+    completely unthrottled. This was the deliberate design constraint driving the fix shape:
+    **Record SER Video's own promise is "writes every incoming frame, undiscarded"** — capping
+    the *capture*-side `AsyncStream` buffering (the more obvious-looking fix) would have silently
+    broken that guarantee specifically in the small-ROI/high-FPS scenario SER recording is built
+    for. Rate-limiting only the display refresh keeps recording lossless while fixing the actual
+    visible bug.
+  - At low/normal frame rates this is a no-op — the throttle condition is never true because the
+    next real frame doesn't arrive within the 33ms window anyway. It only ever kicks in when
+    frames are arriving faster than a human eye needs from a live preview.
+  - One accepted trade-off: the GPU-native mono live-stack accumulator (`MetalFrameRenderer
+    .accumulationTexture`) only accumulates on `frameID` ticks, so at extreme frame rates it now
+    folds in at most ~30 frames/sec of a ROI that might be capturing 100-200+/sec, rather than
+    every one. The CPU `LiveStacker` path (webcam/iPhone, or GPU renderer off) is unaffected — it
+    accumulates every real frame regardless, per the fix above. Small-ROI-plus-Live-Stack is a
+    narrow combination in practice (that ROI size is normally a planetary/lucky-imaging workflow,
+    not deep-sky stacking), and "smooth, responsive live view" was judged the more important
+    property to guarantee than "every physically-captured frame counted toward the GPU stack" for
+    that narrow overlap.
+- **Split the sidebar's `.advanced` tab back into `.planetary`/`.deepSky`** — reported as hard to
+  navigate once both genres' workflow tools (Planetary Auto-Center/Lucky Imaging alongside Live
+  Stack/Calibration/Polar Alignment/ST4 Guiding/Smart Exposure/Record to Disk) lived in one long
+  scrolling list. See `SidebarTab`'s doc comment for the full reasoning, including why
+  `.cameraControls`/`.improvements` stayed role-grouped rather than also splitting by genre, and
+  why Focus Assist appears in both new tabs instead of forcing a choice of one over the other.
+  `SkyformacCommands`' menu-bar tab shortcuts grew a fourth (⌘4); the "Disable All" checkbox split
+  into `allPlanetaryDisabled`/`allDeepSkyDisabled` along the same lines, each covering only the
+  toggles actually relevant to its own tab (both still include Focus Assist).

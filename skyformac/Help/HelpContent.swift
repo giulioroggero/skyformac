@@ -223,7 +223,7 @@ enum HelpContent {
         icon: "slider.horizontal.3",
         sections: [
             HelpSection(
-                body: "What every control actually does, organized by where you find it in the sidebar's three tabs."
+                body: "What every control actually does, organized by where you find it in the sidebar's four tabs."
             ),
             HelpSection(heading: "Camera Controls tab — the sensor itself",
                 body: "These change what the camera hardware does — nothing here is a display effect."),
@@ -259,24 +259,6 @@ enum HelpContent {
                 body: "Cooled cameras only — see **Using: ZWO Camera**. Cooling reduces dark current (thermal noise); worth turning on for any exposure of more than a few seconds."
             ),
             HelpSection(
-                id: "setting.planetaryPresets", heading: "Planetary Presets",
-                body: "ZWO cameras only. One tap sets RAW8, a small **Capture ROI**, and a safe starting exposure/gain for a specific bright target (Saturn, Jupiter, Mars, Venus, or the Moon), tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC) behind a modest f/10-f/12 Maksutov/SCT — that pixel-scale/focal-ratio pairing needs no Barlow lens to reach a good sampling rate.",
-                bullets: [
-                    "Starts exposure/gain at the *low* end of each target's recommended range on purpose — raise Gain first (planetary cameras like the ASI678MC have a High Conversion Gain threshold, 182 on that model, where read noise drops meaningfully; Saturn/Jupiter/Mars presets start there or above), then fine-tune Live Exposure, watching the histogram (under the live preview) until its peak sits in the preset's target percentage — the app can't automate that last step, since it depends on the actual night's seeing/transparency, not just which target this is.",
-                    "Jupiter's own rotation blurs fine cloud detail in videos longer than ~2 minutes — its preset's shorter recommended duration reflects that, not a hardware limit.",
-                    "Sets the **Record SER Video** duration slider to the target's recommended length too — still adjustable afterward, and recording itself is a separate manual step.",
-                ]
-            ),
-            HelpSection(
-                id: "setting.captureROI", heading: "Capture ROI (higher FPS)",
-                body: "ZWO cameras only. Requests a smaller-than-full-sensor region from the camera itself (`ASISetROIFormat`) rather than just cropping the display — less data has to be read off the sensor per frame, which directly increases the achievable frame rate. Restarts the live stream to take effect.",
-                bullets: [
-                    "This is the standard \"small ROI, high FPS\" planetary/lunar lucky-imaging technique — e.g. a 640×480 or 800×600 region can push frame rate well past what the full sensor allows, at the cost of field of view (fine for a target — the Moon or a planet — that's small in the frame anyway).",
-                    "Persists across Single Exposure and dark/flat calibration captures too, not just live view, until reset back to Full Sensor.",
-                    "\"Custom size & center\" lets you type any width/height and any center position on the sensor — not just the two quick presets. The ROI is genuinely centered there (`ASISetStartPos`), so a target framed anywhere in the full-sensor preview is still in-frame after cropping — \"Center on Sensor\" resets to the sensor's own middle.",
-                ]
-            ),
-            HelpSection(
                 id: "setting.droppedFrames", heading: "Dropped Frames",
                 body: "ZWO cameras only. How many frames the camera captured but this app failed to read off the USB connection in time (`ASIGetDroppedFrames`), refreshed every couple of seconds while connected. A rising count during live view usually means Bandwidth (if your camera model reports it, under the generic sliders above) is set too high for your USB port/cable/hub — lowering it trades a little throughput for reliability."
             ),
@@ -291,28 +273,12 @@ enum HelpContent {
                 ]
             ),
             HelpSection(
-                id: "setting.st4Guiding", heading: "ST4 Guiding",
-                body: "ZWO cameras with a real ST4 guide port only (shown/hidden automatically based on what the connected camera reports) — sends a single pulse-guide correction in one of four directions for a set duration, then turns it back off, on the camera's own ST4 output.",
-                bullets: [
-                    "**Untested against real guiding hardware.** The underlying `ASIPulseGuideOn`/`ASIPulseGuideOff` calls are wired up exactly as the ZWO SDK documents, but this project has never had an actual ST4 cable connected to a real mount to confirm a correction actually happens end to end — treat this as plumbing ready for verification, not a proven feature, until checked against real hardware.",
-                    "This is a single manual pulse, not an autoguiding loop — there's no star-tracking feedback here deciding *when* or *how much* to correct, unlike PHD2 or similar dedicated guiding software. Useful as a wiring sanity check (\"does pressing North actually nudge the mount north\"), not a guiding system on its own.",
-                ]
-            ),
-            HelpSection(
-                id: "setting.serRecording", heading: "Record SER Video (planetary/lunar)",
-                body: "ZWO cameras only. Writes every incoming frame, undiscarded, into a single `.ser` video file for a set duration — the standard raw-video container AutoStakkert!3, PIPP, and similar dedicated stacking tools expect, so their own frame alignment and best-frame selection has the full, unfiltered video to work with.",
-                bullets: [
-                    "The classic workflow this exists for: set a small **Capture ROI** above for high FPS, a short Live Exposure with Gain adjusted so the histogram sits around 50-60%, record a few minutes of SER video, then align/stack the sharpest 20-30% of frames in AutoStakkert!3 and sharpen with wavelets in RegiStax or AstroSurface — none of which skyformac itself does; it produces the raw input those tools expect.",
-                    "Different from **Record to Disk** (Advanced tab): that one gates on a sharpness threshold and writes individual FITS files for unattended, self-curating recording. This one writes everything, because the whole point is handing a dedicated tool the complete video to make its own, better-informed frame selection from.",
-                ]
-            ),
-            HelpSection(
                 id: "setting.exportedFiles", heading: "Exported Files",
                 body: "A running history of every single-frame export, continuous-recording folder, and SER video this app has written — persists across relaunches, so \"where did that go\" has an answer weeks later, not just this session. **Open File…** opens any FITS/PNG/TIFF/JPEG file directly, history or not — or just drag a file onto the window from Finder.",
                 bullets: [
                     "Opening a FITS file re-renders it through this app's own debayer/stretch pipeline, with its own Black Point/White Point sliders and a \"Debayer as color\" override (with a Bayer pattern picker) for a file whose color metadata doesn't match what you actually want — useful for a file from another tool, or one written before this app started saving that metadata.",
                     "PNG/TIFF/JPEG files just display directly — they're already a finished picture, no debayering needed.",
-                    "`.ser` recordings and recording folders aren't viewable in this window — \"Reveal in Finder\" is the path to AutoStakkert!3/PIPP/whatever actually processes them, the same scope line **Record SER Video** above already draws.",
+                    "`.ser` recordings and recording folders aren't viewable in this window — \"Reveal in Finder\" is the path to AutoStakkert!3/PIPP/whatever actually processes them, the same scope line **Record SER Video** (Planetary tab) already draws.",
                     "This is a viewer, not an editor — no re-stacking, no plate solving, no saving changes back. For real processing, hand the file to a dedicated tool (PixInsight, Siril, AutoStakkert!3).",
                 ]
             ),
@@ -339,22 +305,68 @@ enum HelpContent {
                 id: "setting.disableImprovements", heading: "Disable All Improvements",
                 body: "One checkbox that turns everything in this tab off at once, for isolating whether an enhancement is causing a visual problem, or just to see the camera's own unmodified output."
             ),
-            HelpSection(heading: "Advanced tab — imaging workflow"),
+            HelpSection(heading: "Planetary tab — the small-ROI, high-FPS, burst/video workflow",
+                body: "Focus Assist appears here too (also in Deep Sky) — it genuinely serves both, so it isn't locked to one tab over the other."),
             HelpSection(
                 id: "setting.focusAssist", heading: "Focus Assist",
                 body: "Detects point sources (stars) and shows a sharpness/HFD readout to help focus. **Recognize Stars** additionally matches detected stars against a small built-in catalog and, once confident, overlays real catalog objects — this is real (if small-scale) astrometry, not a full plate solver."
-            ),
-            HelpSection(
-                id: "setting.smartExposure", heading: "Smart Exposure",
-                body: "Measures your camera's actual read noise (from a real bias frame) and the current sky brightness (from a short test exposure), then recommends a sub-exposure length. ZWO cameras only."
             ),
             HelpSection(
                 id: "setting.planetaryAutoCenter", heading: "Planetary Auto-Center",
                 body: "Tracks the largest bright disk in view and can auto-crop to a small region around it, for keeping a fast-moving planet centered during high-frame-rate capture."
             ),
             HelpSection(
+                id: "setting.planetaryPresets", heading: "Planetary Presets",
+                body: "ZWO cameras only. One tap sets RAW8, a small **Capture ROI**, and a safe starting exposure/gain for a specific bright target (Saturn, Jupiter, Mars, Venus, or the Moon), tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC) behind a modest f/10-f/12 Maksutov/SCT — that pixel-scale/focal-ratio pairing needs no Barlow lens to reach a good sampling rate.",
+                bullets: [
+                    "Starts exposure/gain at the *low* end of each target's recommended range on purpose — raise Gain first (planetary cameras like the ASI678MC have a High Conversion Gain threshold, 182 on that model, where read noise drops meaningfully; Saturn/Jupiter/Mars presets start there or above), then fine-tune Live Exposure, watching the histogram (under the live preview) until its peak sits in the preset's target percentage — the app can't automate that last step, since it depends on the actual night's seeing/transparency, not just which target this is.",
+                    "Jupiter's own rotation blurs fine cloud detail in videos longer than ~2 minutes — its preset's shorter recommended duration reflects that, not a hardware limit.",
+                    "Sets the **Record SER Video** duration slider to the target's recommended length too — still adjustable afterward, and recording itself is a separate manual step.",
+                ]
+            ),
+            HelpSection(
+                id: "setting.captureROI", heading: "Capture ROI (higher FPS)",
+                body: "ZWO cameras only. Requests a smaller-than-full-sensor region from the camera itself (`ASISetROIFormat`) rather than just cropping the display — less data has to be read off the sensor per frame, which directly increases the achievable frame rate. Restarts the live stream to take effect.",
+                bullets: [
+                    "This is the standard \"small ROI, high FPS\" planetary/lunar lucky-imaging technique — e.g. a 640×480 or 800×600 region can push frame rate well past what the full sensor allows, at the cost of field of view (fine for a target — the Moon or a planet — that's small in the frame anyway).",
+                    "Persists across Single Exposure and dark/flat calibration captures too, not just live view, until reset back to Full Sensor.",
+                    "\"Custom size & center\" lets you type any width/height and any center position on the sensor — not just the two quick presets. The ROI is genuinely centered there (`ASISetStartPos`), so a target framed anywhere in the full-sensor preview is still in-frame after cropping — \"Center on Sensor\" resets to the sensor's own middle.",
+                    "The live preview's own refresh rate is capped independently (~30fps) so a very small, very-high-frame-rate ROI can't flood the display pipeline with more frames than it can keep up with — recording (SER/FITS) and Lucky Imaging still process every single real frame regardless, only the visible preview is rate-limited.",
+                ]
+            ),
+            HelpSection(
+                id: "setting.serRecording", heading: "Record SER Video (planetary/lunar)",
+                body: "ZWO cameras only. Writes every incoming frame, undiscarded, into a single `.ser` video file for a set duration — the standard raw-video container AutoStakkert!3, PIPP, and similar dedicated stacking tools expect, so their own frame alignment and best-frame selection has the full, unfiltered video to work with.",
+                bullets: [
+                    "The classic workflow this exists for: set a small **Capture ROI** above for high FPS, a short Live Exposure with Gain adjusted so the histogram sits around 50-60%, record a few minutes of SER video, then align/stack the sharpest 20-30% of frames in AutoStakkert!3 and sharpen with wavelets in RegiStax or AstroSurface — none of which skyformac itself does; it produces the raw input those tools expect.",
+                    "Different from **Record to Disk** (Deep Sky tab): that one gates on a sharpness threshold and writes individual FITS files for unattended, self-curating recording. This one writes everything, because the whole point is handing a dedicated tool the complete video to make its own, better-informed frame selection from.",
+                ]
+            ),
+            HelpSection(
+                id: "setting.luckyImaging", heading: "Lucky Imaging",
+                body: "Captures a burst, scores every frame's sharpness, and stacks only the sharpest fraction — the classic technique for beating atmospheric seeing on the Moon/planets. Works with a ZWO camera or an iPhone/webcam source equally."
+            ),
+            HelpSection(
+                id: "setting.disablePlanetary", heading: "Disable All Planetary Features",
+                body: "Turns off Focus Assist and Planetary tracking/crop in one click — for isolating whether one of them is causing a problem, or just to fall back to a plain, unmodified live view."
+            ),
+            HelpSection(heading: "Deep Sky tab — the long-exposure, many-subs workflow",
+                body: "Focus Assist also appears here (see Planetary above) — it genuinely serves both, so it isn't locked to one tab over the other."),
+            HelpSection(
+                id: "setting.smartExposure", heading: "Smart Exposure",
+                body: "Measures your camera's actual read noise (from a real bias frame) and the current sky brightness (from a short test exposure), then recommends a sub-exposure length. ZWO cameras only."
+            ),
+            HelpSection(
                 id: "setting.polarAlignment", heading: "Polar Alignment",
                 body: "A 2-capture, rotate-the-mount-90°-between-them procedure that solves your mount's actual mechanical rotation center from matched stars. Not a full plate solver — it tells you where the axis is pointing relative to the frame, not your absolute alt/az error in degrees."
+            ),
+            HelpSection(
+                id: "setting.st4Guiding", heading: "ST4 Guiding",
+                body: "ZWO cameras with a real ST4 guide port only (shown/hidden automatically based on what the connected camera reports) — sends a single pulse-guide correction in one of four directions for a set duration, then turns it back off, on the camera's own ST4 output.",
+                bullets: [
+                    "**Untested against real guiding hardware.** The underlying `ASIPulseGuideOn`/`ASIPulseGuideOff` calls are wired up exactly as the ZWO SDK documents, but this project has never had an actual ST4 cable connected to a real mount to confirm a correction actually happens end to end — treat this as plumbing ready for verification, not a proven feature, until checked against real hardware.",
+                    "This is a single manual pulse, not an autoguiding loop — there's no star-tracking feedback here deciding *when* or *how much* to correct, unlike PHD2 or similar dedicated guiding software. Useful as a wiring sanity check (\"does pressing North actually nudge the mount north\"), not a guiding system on its own.",
+                ]
             ),
             HelpSection(
                 id: "setting.calibration", heading: "Calibration (Dark/Flat)",
@@ -387,16 +399,12 @@ enum HelpContent {
                 ]
             ),
             HelpSection(
-                id: "setting.luckyImaging", heading: "Lucky Imaging",
-                body: "Captures a burst, scores every frame's sharpness, and stacks only the sharpest fraction — the classic technique for beating atmospheric seeing on the Moon/planets. Works with a ZWO camera or an iPhone/webcam source equally."
-            ),
-            HelpSection(
                 id: "setting.recordToDisk", heading: "Record to Disk",
                 body: "Continuously writes frames as FITS, discarding any below a sharpness threshold before they hit disk, with a disk-space guardrail."
             ),
             HelpSection(
-                id: "setting.disableAdvanced", heading: "Disable All Advanced Features",
-                body: "Same one-click reset as Improvements' equivalent checkbox, plus it stops any active recording."
+                id: "setting.disableDeepSky", heading: "Disable All Deep Sky Features",
+                body: "Same one-click reset shape as Improvements'/Planetary's equivalent checkboxes, plus it stops any active disk recording."
             ),
             HelpSection(heading: "Elsewhere in the app"),
             HelpSection(

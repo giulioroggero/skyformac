@@ -124,7 +124,11 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   fixed-size quick presets (640×480/800×600) plus manual width/height/center
   entry for any rectangle at any position — the ROI is genuinely centered on
   the sensor (or wherever you place it) via `ASISetStartPos`, not pinned to
-  the sensor's top-left corner the way it silently was before. See
+  the sensor's top-left corner the way it silently was before. The live
+  preview's own refresh rate is capped independently (~30fps) so a small,
+  very-high-frame-rate ROI can't flood the display pipeline into a growing,
+  flickering backlog — recording (SER/FITS) and Lucky Imaging still process
+  every real frame regardless, only the visible preview is rate-limited. See
   [`docs/design-notes.md`](design-notes.md) for exactly what each piece does.
 - **Planetary Presets** (ZWO cameras only) — one tap sets RAW8, a small
   Capture ROI, and a safe starting exposure/gain for Saturn, Jupiter, Mars,
@@ -205,15 +209,18 @@ the spec's five features are declined rather than faked)
   affordance documenting Continuity Camera's real pairing prerequisites.
 - **Night mode** — red-only UI for dark adaptation.
 - **Controls panel tabs** — a vertical icon tab strip (Camera / Improve /
-  Advanced) on the sidebar's trailing edge, grouping
-  the sidebar's ~15 sections by role: raw per-camera hardware controls, opt-in
-  visual enhancements (denoise/sharpen/GPU pipeline/AI Suite), and imaging
-  workflows (focus/tracking/stacking/calibration/recording). The
-  Improvements and Advanced tabs each have a single "Disable All" checkbox to
-  instantly fall back to the camera's own unmodified output. Also reachable
-  from the menu bar (Sidebar Tab menu, ⌘1-⌘3) — a fully independent path to
-  the same `@AppStorage("sidebarTab")` state, not just a shortcut to the same
-  button.
+  Planetary / Deep Sky) on the sidebar's trailing edge. Camera Controls and
+  Improve are grouped by role (raw per-camera hardware controls; opt-in
+  visual enhancements — denoise/sharpen/GPU pipeline/AI Suite); Planetary and
+  Deep Sky are grouped by imaging genre instead — Planetary Presets/Capture
+  ROI/Record SER Video/Lucky Imaging/Planetary Auto-Center in one, Live
+  Stack/Calibration/Polar Alignment/ST4 Guiding/Smart Exposure/Record to Disk
+  in the other (Focus Assist appears in both — it genuinely serves either
+  genre). Improve, Planetary, and Deep Sky each have a single "Disable All"
+  checkbox to instantly fall back to the camera's own unmodified output.
+  Also reachable from the menu bar (Sidebar Tab menu, ⌘1-⌘4) — a fully
+  independent path to the same `@AppStorage("sidebarTab")` state, not just a
+  shortcut to the same button.
 - **Menu bar commands** — export (⌘E/⌘⇧E), camera rescan/connect (⌘R/⌘K), and
   toolbar toggles (⌘M, ⌘⇧N, ⌘⇧A), all with keyboard shortcuts.
 - **Settings persistence** — renderer choice, enhancement toggles, and which

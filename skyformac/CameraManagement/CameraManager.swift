@@ -1331,9 +1331,34 @@ final class CameraManager {
             currentFrame = processed
         }
 
+        // Rate-limits the *visible* refresh (this is what drives `MetalPreviewView`'s per-frame
+        // Metal dispatch via `frameID`, and `refreshCurrentImage`'s CPU-path CGImage render) —
+        // not the underlying capture rate itself. Everything above this point (dark subtraction,
+        // `recordIfNeeded`/`recordSERFrameIfNeeded`, Lucky Imaging, CPU `LiveStacker` accumulation)
+        // already ran for *this* real frame and stays fully lossless regardless.
+        //
+        // Without this, a small Capture ROI (real cameras can comfortably exceed 100-200fps at,
+        // say, 400×400) fed every single incoming frame straight into a full display refresh —
+        // `frameID` bump, GPU dispatch, SwiftUI observation — with no throttle at all. At that
+        // rate the previous frame's display work often hadn't finished before the next one
+        // arrived, so frames piled up waiting their turn on `@MainActor`; the visible result was
+        // exactly "slows down a lot and flickers" — a growing backlog of stale frames being drawn
+        // in bursts, not a live view. Capping the *display* refresh to ~30fps (already far more
+        // than a human eye needs from a preview, and unrelated to the camera's own real frame
+        // rate) keeps that backlog from ever building up, regardless of how small the ROI is.
+        let now = Date()
+        if let lastDisplayRefreshDate, now.timeIntervalSince(lastDisplayRefreshDate) < Self.minimumDisplayRefreshInterval {
+            return
+        }
+        lastDisplayRefreshDate = now
         frameID &+= 1
         refreshCurrentImage()
     }
+
+    /// ~30fps — see the doc comment where this is used in `ingest` for why a live *preview*
+    /// refresh rate is capped independently of the camera's own real capture rate.
+    private static let minimumDisplayRefreshInterval: TimeInterval = 1.0 / 30.0
+    private var lastDisplayRefreshDate: Date?
 
     // MARK: - AI Suite: quality score, cloud sentinel, streak masking
 
