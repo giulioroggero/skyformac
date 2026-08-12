@@ -165,13 +165,16 @@ raw data:
   Moon, tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC)
   behind an f/10-f/12 Mak/SCT.
 - **Acquisition Wizard** (⌘⇧W) — pick a target (Moon, Venus, Mars, Jupiter,
-  Saturn, or a curated deep-sky list: M13/M56/M31/M42/M45) and set up ROI,
-  gain, exposure, and Live Stack/Reduce Drift/Smart Live Stack/Lucky Imaging
-  for it in one step — the Moon uniquely turns on both Live Stack and Lucky
-  Imaging at once. **Save Preset…**/**Load Preset…** (⌘⇧S/⌘⇧L, Camera menu,
-  or the Cameras sidebar's own "Acquisition" section) round-trip a setup to
-  its own JSON file, one file per preset — and work standalone, without the
-  Wizard sheet open at all: Save snapshots whatever's currently configured,
+  Saturn, or a curated deep-sky list: M13/M56/M31/M42/M45/M51/M57/M27/M81/M8)
+  and set up ROI, gain, exposure, and Live Stack/Reduce Drift/Smart Live
+  Stack/Lucky Imaging for it in one step — the Moon uniquely turns on both
+  Live Stack and Lucky Imaging at once. Works for an iPhone/webcam source
+  too (Live Stack/Lucky Imaging/Smart Live Stack apply; ROI/gain/exposure/
+  Reduce Drift don't, and the Wizard says so). **Save Preset…**/
+  **Load Preset…** (⌘⇧S/⌘⇧L, Camera menu, or the Cameras sidebar's own
+  "Acquisition" section) round-trip a setup to its own JSON file, one file
+  per preset — and work standalone, without the Wizard sheet open at all:
+  Save snapshots whatever's currently configured,
   Load applies a file immediately.
 - **Capture ROI** (ZWO only) — a smaller-than-full-sensor region increases
   achievable frame rate directly (less data read off the sensor per frame),

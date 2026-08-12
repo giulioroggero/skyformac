@@ -141,17 +141,21 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   recording duration slider to that target's recommended session length.
 - **Acquisition Wizard** (⌘⇧W, or "Acquisition Wizard…" in the Planetary/
   Deep Sky tabs) — pick a target (Moon, Venus, Mars, Jupiter, Saturn, or a
-  curated deep-sky list: M13, M56, M31, M42, M45) and set up ROI, gain,
-  exposure, and which of Live Stack/Reduce Drift/Smart Live Stack/Lucky
-  Imaging to use, in one step. The Moon is the one target that turns on
-  *both* Live Stack and Lucky Imaging at once (high-res crater detail plus
-  a lower-noise full-disk shot); other planets are Lucky-Imaging-only,
-  every deep-sky object is Live-Stack-only with Reduce Drift on by default.
-  Presets round-trip to their own JSON file (one file per preset) via
-  Save/Load Preset, so a favorite setup for a specific object under a
-  specific telescope/camera pairing survives beyond one session. Doesn't
-  auto-start a Lucky Imaging burst or SER recording — framing/focus should
-  be confirmed against the real target first. See
+  curated deep-sky list: M13, M56, M31, M42, M45, M51, M57, M27, M81, M8)
+  and set up ROI, gain, exposure, and which of Live Stack/Reduce Drift/Smart
+  Live Stack/Lucky Imaging to use, in one step. The Moon is the one target
+  that turns on *both* Live Stack and Lucky Imaging at once (high-res
+  crater detail plus a lower-noise full-disk shot); other planets are
+  Lucky-Imaging-only, every deep-sky object is Live-Stack-only with Reduce
+  Drift on by default. Works on a webcam/iPhone source too — Live Stack/
+  Lucky Imaging/Smart Live Stack all apply normally there; ROI/gain/
+  exposure/Reduce Drift don't (no hardware equivalent, or a mono-only GPU
+  accumulator), which the Wizard says outright rather than blocking Apply
+  or implying they took effect. Presets round-trip to their own JSON file
+  (one file per preset) via Save/Load Preset, so a favorite setup for a
+  specific object under a specific telescope/camera pairing survives beyond
+  one session. Doesn't auto-start a Lucky Imaging burst or SER recording —
+  framing/focus should be confirmed against the real target first. See
   [`docs/design-notes.md`](design-notes.md) for the full reasoning.
 - **Save/Load Preset, standalone** — saving or loading a preset doesn't need
   the Wizard sheet open at all. "Save Preset…" snapshots *whatever's

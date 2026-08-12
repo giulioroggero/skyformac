@@ -32,7 +32,11 @@ struct CameraListView: View {
                 .listStyle(.inset)
             }
 
-            if cameraManager.connectedCamera != nil && !cameraManager.isExternalWebcam {
+            // Live Stack/Lucky Imaging/Smart Live Stack all genuinely work on a webcam/iPhone
+            // source too (see `CameraManager.applyAcquisitionPreset`'s doc comment) — only
+            // ROI/gain/exposure/Reduce Drift don't, and those already no-op gracefully rather
+            // than needing this section hidden outright for that source.
+            if cameraManager.connectedCamera != nil {
                 acquisitionSection
             }
 

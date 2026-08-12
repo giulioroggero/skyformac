@@ -326,12 +326,12 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.acquisitionWizard", heading: "Acquisition Wizard (⌘⇧W)",
-                body: "Pick a target — Moon, Venus, Mars, Jupiter, Saturn, or a curated deep-sky list (M13, M56, M31, M42, M45) — and see a recommended setup: mode (Live Stack, Lucky Imaging, or both), ROI, gain, exposure, and Reduce Drift/Smart Live Stack. Edit anything before applying, then **Apply Setup** to configure the camera in one step.",
+                body: "Pick a target — Moon, Venus, Mars, Jupiter, Saturn, or a curated deep-sky list (M13, M56, M31, M42, M45, M51, M57, M27, M81, M8) — and see a recommended setup: mode (Live Stack, Lucky Imaging, or both), ROI, gain, exposure, and Reduce Drift/Smart Live Stack. Edit anything before applying, then **Apply Setup** to configure the camera in one step.",
                 bullets: [
                     "The Moon is the one target set up for *both* Live Stack and Lucky Imaging at once — high-resolution crater/terminator detail from a burst, plus a lower-noise full-disk or earthshine shot from the running average. Every other planet is Lucky-Imaging-only; every deep-sky object is Live-Stack-only with Reduce Drift on by default (a planetary burst is over in seconds, so mount drift barely matters there — deep-sky integration runs long enough for it to actually accumulate into trailing).",
                     "**Save Preset…**/**Load Preset…** round-trip a setup to/from its own JSON file — one file per preset, so a favorite setup for a specific object under your specific telescope/camera pairing survives beyond one session, and can be shared or backed up like any other file.",
                     "Doesn't auto-start a Lucky Imaging burst or SER recording — those stay a deliberate manual step after Apply, so framing/focus gets confirmed against the actual target first rather than wasting a burst on whatever happened to be in frame.",
-                    "ZWO cameras only — an iPhone/webcam source has none of the ROI/exposure/gain hardware controls a setup applies.",
+                    "Works on an iPhone/webcam source too — Live Stack, Lucky Imaging, and Smart Live Stack all apply normally there. ROI, Gain, and Exposure don't (no hardware equivalent on that source), and Reduce Drift gets set but has no visible effect (its GPU accumulator only supports a ZWO camera's mono sensor data) — the Wizard says this explicitly rather than blocking Apply or implying those settings took effect.",
                 ]
             ),
             HelpSection(

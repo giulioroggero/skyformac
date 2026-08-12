@@ -42,15 +42,23 @@ enum DeepSkyObject: String, CaseIterable, Identifiable, Codable {
     case m31 = "M31 (Andromeda Galaxy)"
     case m42 = "M42 (Orion Nebula)"
     case m45 = "M45 (Pleiades)"
+    case m51 = "M51 (Whirlpool Galaxy)"
+    case m57 = "M57 (Ring Nebula)"
+    case m27 = "M27 (Dumbbell Nebula)"
+    case m81 = "M81 (Bode's Galaxy)"
+    case m8 = "M8 (Lagoon Nebula)"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
         case .m13, .m56: return "circle.grid.3x3.fill"
-        case .m31: return "sparkles"
-        case .m42: return "cloud.fill"
+        case .m31, .m81: return "sparkles"
+        case .m42, .m8: return "cloud.fill"
         case .m45: return "star.fill"
+        case .m51: return "tornado"
+        case .m57: return "circle.dotted"
+        case .m27: return "smallcircle.filled.circle"
         }
     }
 
@@ -61,6 +69,11 @@ enum DeepSkyObject: String, CaseIterable, Identifiable, Codable {
         case .m31: return "A bright core with a large, faint extended disk — start conservative to avoid clipping the core; the outer disk needs the accumulated integration time."
         case .m42: return "A very wide dynamic range: a bright Trapezium core against much fainter nebulosity — start low to protect the core, the wings build up in the stack over time."
         case .m45: return "A bright open cluster with faint surrounding reflection nebulosity — moderate gain, the nebulosity itself is the slow-building part of the stack."
+        case .m51: return "A face-on spiral galaxy with a smaller companion (NGC 5195) — genuinely faint outside its core, rewards a patient, longer-integration session."
+        case .m57: return "Small and bright for its size (a planetary nebula, not a deep-sky faint smudge) — the ring shape resolves quickly, but it's tiny; a longer focal length helps more than more integration time here."
+        case .m27: return "Similar story to M57 — a compact, comparatively bright planetary nebula that reveals its shape faster than most deep-sky targets, but stays small in frame."
+        case .m81: return "A fairly bright spiral galaxy, often framed together with its neighbor M82 — moderate gain, forgiving of a shorter session than a fainter galaxy would need."
+        case .m8: return "A bright, large emission nebula with an embedded open cluster — start low to protect the brighter regions; still one of the more forgiving nebulae for a shorter session."
         }
     }
 
@@ -75,6 +88,11 @@ enum DeepSkyObject: String, CaseIterable, Identifiable, Codable {
         case .m31: return 80
         case .m42: return 60
         case .m45: return 50
+        case .m51: return 120
+        case .m57: return 120
+        case .m27: return 100
+        case .m81: return 90
+        case .m8: return 50
         }
     }
 
@@ -87,6 +105,11 @@ enum DeepSkyObject: String, CaseIterable, Identifiable, Codable {
         case .m31: return 3.0
         case .m42: return 1.5
         case .m45: return 3.0
+        case .m51: return 4.0
+        case .m57: return 3.0
+        case .m27: return 3.0
+        case .m81: return 3.5
+        case .m8: return 2.0
         }
     }
 }

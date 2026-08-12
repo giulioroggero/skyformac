@@ -66,7 +66,17 @@ struct ContentView: View {
             set: { cameraManager.isCameraListSidebarVisible = $0 != .detailOnly }
         )) {
             CameraListView(cameraManager: cameraManager)
-                .navigationSplitViewColumnWidth(min: 130, ideal: 150)
+                // `max` matters here, not just `min`/`ideal` — the "detail" side (the HSplitView
+                // below, `PreviewView`/`ControlsPanelView`) has its own real minimum width
+                // (480 + 320 = 800pt). Without a cap here, dragging this sidebar wider than what
+                // that leaves available forced the *whole window* to grow instead — since
+                // `NavigationSplitView` won't shrink `detail` below its declared minimum, growing
+                // the window was its only way to satisfy both at once, which could push the
+                // window partly off-screen on a smaller display. Capped comfortably under that
+                // threshold so this column always resizes within the existing window instead, the
+                // same way dragging the divider between `PreviewView`/`ControlsPanelView` already
+                // does (a plain `HSplitView`, which never grows the window either).
+                .navigationSplitViewColumnWidth(min: 130, ideal: 150, max: 280)
         } detail: {
             HSplitView {
                 VStack(spacing: 0) {

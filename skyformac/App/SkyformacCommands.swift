@@ -65,10 +65,10 @@ struct SkyformacCommands: Commands {
             // you already have dialed in (or a preset file you already know you want).
             Button("Save Current Setup as Preset…") { cameraManager.saveCurrentSetupAsPreset() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-                .disabled(cameraManager.connectedCamera == nil || cameraManager.isExternalWebcam)
+                .disabled(cameraManager.connectedCamera == nil)
             Button("Load Preset…") { cameraManager.loadAndApplyAcquisitionPreset() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
-                .disabled(cameraManager.connectedCamera == nil || cameraManager.isExternalWebcam)
+                .disabled(cameraManager.connectedCamera == nil)
         }
 
         CommandMenu("Sidebar Tab") {

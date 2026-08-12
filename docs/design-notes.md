@@ -1223,3 +1223,30 @@ made along the way.
     clamped the request somewhere the app didn't expect) — the same "verify the fix actually took
     effect" spirit that found the original always-top-left-corner `ASISetStartPos` bug in the
     first place, now a standing check rather than a one-time investigation.
+- **Acquisition Wizard now works for a webcam/iPhone source, not just ZWO.** The only thing
+  actually blocking it was `applyAcquisitionPreset`/`resetToDefaultConfiguration`'s own guard
+  (`camera.cameraID >= 0`) — everything the ROI/gain/exposure calls touch (`captureEngine`,
+  `controls`) is already empty/`nil` for a webcam source, so they were already no-ops in practice;
+  the guard was blocking the parts that *do* work there too (Live Stack/Lucky Imaging/Smart Live
+  Stack, all already RGB24-capable from earlier fixes this session). Relaxed to `connectedCamera
+  != nil`, with the ROI/gain/exposure block itself now conditioned on `camera.cameraID >= 0`
+  internally. Reduce Drift is the one setting that still gets *set* but does nothing visible on
+  that source (the GPU accumulator it needs is mono-only) — `AcquisitionWizardView` says so
+  explicitly now rather than blocking Apply outright or silently implying it works.
+- **Added 5 more curated deep-sky objects to the Wizard** (M51, M57, M27, M81, M8 — alongside the
+  original M13/M56/M31/M42/M45), each with its own starting gain/exposure and a summary explaining
+  *why* that starting point (surface brightness, dynamic range, angular size) — same "curated
+  presets with real reasoning, not an exhaustive catalog dump" scoping the original five and
+  `PlanetaryPreset` both already use.
+- **The Wizard's target list was competing for space evenly with the editor pane** — now sized to
+  roughly a 1:4 ratio (`idealWidth: 220` vs `880`, the list capped at `maxWidth: 320` so dragging
+  it wider doesn't crowd out the editor) — it's a picker, not the main content, and shouldn't read
+  as though it were.
+- **Dragging the main window's left (Cameras) sidebar wider could push the whole window off-screen
+  — `NavigationSplitView`'s sidebar column had no `max` width.** The "detail" side (the nested
+  `HSplitView` holding `PreviewView`/`ControlsPanelView`) has its own real minimum width (480 +
+  320 = 800pt combined); once the sidebar's requested width left less than that available,
+  `NavigationSplitView` had only one way to satisfy both — grow the window itself, which could
+  push it partly off a smaller display. Capped at `max: 280` so this column now always resizes
+  within the existing window, the same way dragging the divider between `PreviewView`/
+  `ControlsPanelView` already does (a plain `HSplitView`, which never grows the window either).

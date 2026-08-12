@@ -27,9 +27,14 @@ struct AcquisitionWizardView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            // The target list is a picker, not the main content — it should read as roughly a
+            // quarter of the editor pane's width, not split evenly with it. `idealWidth` values
+            // are in that 1:4 ratio (220:880); `maxWidth` on the list keeps it from being dragged
+            // much wider than that and crowding out the editor, which still gets the rest via
+            // `maxWidth: .infinity`.
             HSplitView {
                 targetList
-                    .frame(minWidth: 260, idealWidth: 300, maxHeight: .infinity)
+                    .frame(minWidth: 200, idealWidth: 220, maxWidth: 320, maxHeight: .infinity)
                 Group {
                     if let workingPreset {
                         presetEditor(workingPreset)
@@ -41,7 +46,7 @@ struct AcquisitionWizardView: View {
                     }
                 }
                 .padding()
-                .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minWidth: 440, idealWidth: 880, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         // Sized generously — the target list (two sections, several rows each, each with a
@@ -188,12 +193,14 @@ struct AcquisitionWizardView: View {
                 HStack {
                     Button {
                         cameraManager.applyAcquisitionPreset(preset)
-                        confirmationMessage = "Applied — Live Exposure, Gain, and ROI are set; " +
-                            (preset.mode.usesLuckyImaging ? "start a Lucky Imaging burst when ready." : "Live Stack is running.")
+                        confirmationMessage = cameraManager.isExternalWebcam
+                            ? "Applied — Live Stack/Lucky Imaging mode is set; " + (preset.mode.usesLuckyImaging ? "start a burst when ready." : "Live Stack is running.")
+                            : "Applied — Live Exposure, Gain, and ROI are set; " +
+                                (preset.mode.usesLuckyImaging ? "start a Lucky Imaging burst when ready." : "Live Stack is running.")
                     } label: {
                         Label("Apply Setup", systemImage: "checkmark.circle.fill")
                     }
-                    .disabled(cameraManager.connectedCamera == nil || cameraManager.isExternalWebcam)
+                    .disabled(cameraManager.connectedCamera == nil)
 
                     Button {
                         cameraManager.saveAcquisitionPreset(withName(preset))
@@ -203,9 +210,16 @@ struct AcquisitionWizardView: View {
                 }
 
                 if cameraManager.isExternalWebcam {
-                    Label("ZWO cameras only — an iPhone/webcam source has none of the ROI/exposure/gain controls this applies.", systemImage: "exclamationmark.triangle")
+                    // Genuinely applies here, unlike the old "ZWO cameras only" message this
+                    // replaced — Live Stack/Lucky Imaging/Smart Live Stack all already work for
+                    // an RGB24 (webcam/iPhone) source (see `LiveStacker`/`SharpnessScorer`'s own
+                    // RGB24 cases). ROI/gain/exposure/Reduce Drift are the genuine exceptions:
+                    // the first three have no hardware equivalent on this source at all, and
+                    // Reduce Drift's GPU accumulator is mono-only, so it gets set but does nothing
+                    // visible — worth saying plainly rather than implying it takes effect.
+                    Label("On an iPhone/webcam source, Live Stack/Lucky Imaging/Smart Live Stack apply normally — ROI, Gain, Exposure, and Reduce Drift don't (no hardware equivalent, or Reduce Drift's GPU accumulator being mono-only).", systemImage: "info.circle")
                         .font(.caption2)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 } else if cameraManager.connectedCamera == nil {
                     Label("Connect a camera to apply a setup.", systemImage: "exclamationmark.triangle")
                         .font(.caption2)

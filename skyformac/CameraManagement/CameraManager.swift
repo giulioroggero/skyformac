@@ -1295,21 +1295,34 @@ final class CameraManager {
     /// burst against whatever happened to be in frame when the wizard closed would often just
     /// waste a burst on an unfocused or unframed capture). `luckyBurstCount`/`serDurationSeconds`
     /// are recommendations the wizard UI surfaces for those manual steps, not applied here.
+    /// Applies to a webcam/iPhone source too, not just ZWO — `changeImageType`/`changeCaptureROI`/
+    /// `setControlValue`'s own ROI/gain/exposure hardware calls all already no-op gracefully for
+    /// one (no `captureEngine`, no `ASI_CONTROL_CAPS` in `controls` to match against), so the only
+    /// thing that actually needed relaxing was this method's own guard, which used to require a
+    /// real ZWO camera outright. What *does* apply to a webcam/iPhone source: `mode` (Live Stack
+    /// and/or Lucky Imaging both already work for RGB24 — see `LiveStacker`/`SharpnessScorer`'s
+    /// own RGB24 cases) and Smart Live Stack (its GPU sharpness gate can't score an RGB24 frame,
+    /// so it just never rejects one — harmless, not broken). Reduce Drift is the one setting that
+    /// gets set but produces no visible difference on that source, since the GPU drift-reduction
+    /// accumulator is mono-only; `AcquisitionWizardView` notes this explicitly when a webcam is
+    /// the connected source, rather than silently implying it does something it doesn't.
     func applyAcquisitionPreset(_ preset: AcquisitionPreset) {
-        guard let camera = connectedCamera, camera.cameraID >= 0 else { return }
-        if camera.supportedVideoFormats.contains(ASI_IMG_RAW8) {
-            changeImageType(ASI_IMG_RAW8)
-        }
-        changeCaptureROI(width: preset.roiWidth, height: preset.roiHeight)
+        guard let camera = connectedCamera else { return }
+        if camera.cameraID >= 0 {
+            if camera.supportedVideoFormats.contains(ASI_IMG_RAW8) {
+                changeImageType(ASI_IMG_RAW8)
+            }
+            changeCaptureROI(width: preset.roiWidth, height: preset.roiHeight)
 
-        if let exposureSeconds = preset.exposureSeconds,
-           let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
-            let microseconds = Int(exposureSeconds * 1_000_000)
-            setControlValue(ASI_EXPOSURE, value: min(max(microseconds, exposureCap.minValue), exposureCap.maxValue))
-        }
-        if let gain = preset.gain,
-           let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
-            setControlValue(ASI_GAIN, value: min(max(gain, gainCap.minValue), gainCap.maxValue))
+            if let exposureSeconds = preset.exposureSeconds,
+               let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
+                let microseconds = Int(exposureSeconds * 1_000_000)
+                setControlValue(ASI_EXPOSURE, value: min(max(microseconds, exposureCap.minValue), exposureCap.maxValue))
+            }
+            if let gain = preset.gain,
+               let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+                setControlValue(ASI_GAIN, value: min(max(gain, gainCap.minValue), gainCap.maxValue))
+            }
         }
 
         isLiveStackingEnabled = preset.mode.usesLiveStack
@@ -1407,11 +1420,11 @@ final class CameraManager {
     /// night-sky target than the camera's own default" reasoning), and every capture-affecting
     /// toggle (Live Stack, Smart Live Stack, Reduce Drift, Lucky Imaging, Dark/Flat correction,
     /// Planetary tracking/crop, Image Enhancement, the AI Suite, any active recording) back off.
-    /// ZWO cameras only — a webcam/iPhone source has none of the hardware controls this touches,
-    /// and none of the capture-affecting toggles below are genre-specific enough to skip for it
-    /// anyway (they're already all harmless no-ops for a webcam source if somehow left on).
+    /// Applies to a webcam/iPhone source too, same as `applyAcquisitionPreset` — the ROI/gain/
+    /// exposure calls already no-op gracefully for one (no `captureEngine`, no `controls` to
+    /// match against), and every toggle below is genuinely meaningful there regardless.
     func resetToDefaultConfiguration() {
-        guard let camera = connectedCamera, camera.cameraID >= 0 else { return }
+        guard connectedCamera != nil else { return }
         changeCaptureROI(width: nil, height: nil)
         if let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
             setControlValue(ASI_GAIN, value: min(max(5, gainCap.minValue), gainCap.maxValue))
