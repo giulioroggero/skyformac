@@ -7,6 +7,15 @@ import Metal
 /// because a real per-frame keep/discard decision needs that exact frame's score, not a
 /// slightly-stale one.
 final class GPUSharpnessScorer {
+    /// Caps the effective resolution this scorer's dispatch/reduction cost scales with, regardless
+    /// of the actual sensor/ROI size — matching `SharpnessScorer` (the CPU sibling used for Lucky
+    /// Imaging's own ranking), which already downsamples to this same limit before scoring. See
+    /// the `sharpnessPartialSums` kernel's doc comment for the real bug this fixes: without a cap,
+    /// a full-sensor ROI (deliberately used by, e.g., the Moon's Planetary Preset) at a fast
+    /// planetary frame rate meant this dispatch ran at full native resolution every incoming
+    /// frame, synchronously, on whichever thread called `score` — in practice `@MainActor`.
+    private static let maxDimension = 512
+
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipeline: MTLComputePipelineState
@@ -62,9 +71,17 @@ final class GPUSharpnessScorer {
             )
         }
 
+        // Sample on a strided grid, not every raw pixel — see `Self.maxDimension`'s doc comment.
+        // A small frame (any real planetary ROI) gets `stride == 1`, i.e. exactly today's
+        // behavior; only a full-sensor-sized frame actually gets downsampled.
+        let stride = max(1, max(frame.width, frame.height) / Self.maxDimension)
+        var sampleStride = UInt32(stride)
+        let sampledWidth = frame.width / stride
+        let sampledHeight = frame.height / stride
+
         let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
-        let groupsX = (frame.width + 15) / 16
-        let groupsY = (frame.height + 15) / 16
+        let groupsX = (sampledWidth + 15) / 16
+        let groupsY = (sampledHeight + 15) / 16
         let threadgroups = MTLSize(width: groupsX, height: groupsY, depth: 1)
         let groupCount = groupsX * groupsY
 
@@ -80,6 +97,7 @@ final class GPUSharpnessScorer {
         encoder.setComputePipelineState(pipeline)
         encoder.setTexture(sourceTexture, index: 0)
         encoder.setBuffer(partialSumsBuffer, offset: 0, index: 0)
+        encoder.setBytes(&sampleStride, length: MemoryLayout<UInt32>.size, index: 1)
         encoder.setThreadgroupMemoryLength(MemoryLayout<UInt32>.size, index: 0)
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
@@ -90,7 +108,10 @@ final class GPUSharpnessScorer {
         var total = 0.0
         for i in 0..<groupCount { total += Double(partials[i]) }
 
-        let validPixelCount = max((frame.width - 2) * (frame.height - 2), 1)
-        return total / Double(validPixelCount)
+        // Normalized by the *sampled* grid's size, not the original frame's — this is a mean
+        // over however many Laplacian samples were actually taken, so the metric stays a
+        // comparable "average sharpness energy per sample" regardless of `stride`.
+        let validSampleCount = max((sampledWidth - 2) * (sampledHeight - 2), 1)
+        return total / Double(validSampleCount)
     }
 }

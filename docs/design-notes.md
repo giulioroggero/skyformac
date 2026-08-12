@@ -1256,3 +1256,36 @@ made along the way.
   the *row's own* Connect/Disconnect only existed on the ZWO `cameraRow`, not `webcamSection`'s.
   Added there too, for parity — there was never a reason these should only be reachable one row
   down for a webcam source when everything they do already applies to it identically.
+- **The app hung when the Moon's Acquisition Wizard preset was applied and a burst was started.**
+  Root cause: `GPUSharpnessScorer` (Smart Live Stack's per-frame quality gate, and Record to
+  Disk's) had no resolution cap at all — unlike `SharpnessScorer` (the CPU sibling Lucky Imaging's
+  own ranking uses), which already downsamples to a `maxDimension` of 512 before scoring, for
+  exactly this reason. The Moon is the one Acquisition Wizard target combining a full-sensor ROI
+  (`PlanetaryPreset.moon.roi == nil` — deliberate, Moon detail work wants the whole frame) *with*
+  Smart Live Stack turned on by default (the only planetary preset that does — every other planet
+  is Lucky-Imaging-only, so `isSmartLiveStackEnabled` stays off for them). At a real camera's
+  planetary-preset frame rate, that meant a full-native-resolution GPU Laplacian dispatch, texture
+  upload, and CPU-side partial-sum reduction, all synchronously blocked on (`waitUntilCompleted`)
+  — on `@MainActor`, since `CameraManager.updateSmartLiveStackGate` calls this directly — on every
+  single incoming frame. Once frames arrived faster than that could complete, `@MainActor` fell
+  further behind indefinitely (the same unbounded-`AsyncStream`-backlog mechanism the earlier
+  small-ROI flicker bug was), which is what "hangs" actually looked like once a burst pushed the
+  frame rate up further.
+  - **Fix**: `sharpnessPartialSums` (`Shaders.metal`) now takes a `sampleStride` and samples a
+    strided grid instead of every raw pixel; `GPUSharpnessScorer.score` computes
+    `stride = max(1, max(width, height) / 512)` (same formula, same limit, as `SharpnessScorer`'s
+    own `downsample`) and dispatches/reduces over the shrunken grid instead of the full one. Any
+    frame at or under 512px on its longer edge (every real planetary ROI) gets `stride == 1` —
+    unchanged behavior; only a full-sensor-sized frame is actually affected.
+  - **Found via this fix, not before it**: nearest-neighbor stride sampling has a
+    real aliasing edge case — a periodic test pattern whose period exactly matches the stride
+    samples the *same phase* at every neighbor, making the Laplacian read as exactly zero
+    regardless of how sharp the underlying content actually is. `GPUSharpnessScorerTests`'s own
+    large-frame test hit this immediately with the existing period-2 `checkerboard` helper at
+    `stride == 2`; needed a coarser `blockCheckerboard` (block size comfortably larger than the
+    stride) to actually exercise the downsampled path correctly. This isn't a new weakness this
+    fix introduced — `SharpnessScorer.downsample` uses the identical nearest-neighbor stride
+    approach and has the exact same theoretical vulnerability, just never triggered by a
+    checkerboard that fine at a size actually large enough to downsample. Real sensor data (star
+    fields, planetary disks) doesn't have this kind of exact periodic structure, so it's a
+    theoretical caveat worth knowing about, not a practical risk either scorer actually runs into.

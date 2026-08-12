@@ -417,6 +417,7 @@ enum HelpContent {
                     "A frame that can't be scored at all (an RGB24 webcam/iPhone frame — the GPU scorer only supports ZWO mono RAW8/RAW16) is always kept rather than silently excluded from a stack it can't judge.",
                     "The \"Estimated SNR gain from 20 more frames\" readout is real math (stacking SNR scales with the square root of frame count), not a guess — a falling percentage over the course of a session means each additional stretch of frames is helping less, a genuine \"is this still worth it\" signal for a long unattended run.",
                     "The kept/rejected counts and quality floor both reset whenever Live Stack itself resets — a fresh session starts its own new \"best frame so far\" baseline rather than comparing against a previous target's.",
+                    "The sharpness score itself is capped to an effective 512px-per-side resolution regardless of the actual sensor/ROI size, the same way Lucky Imaging's own ranking already is — keeps this gate's per-frame cost bounded even on a full-sensor ROI (the Moon's Acquisition Wizard preset, for instance) at a fast frame rate.",
                 ]
             ),
             HelpSection(

@@ -673,6 +673,7 @@ kernel void waveletCombineRGBA(
 kernel void sharpnessPartialSums(
     texture2d<float, access::read> source [[texture(0)]],
     device float *partialSums [[buffer(0)]],
+    constant uint &sampleStride [[buffer(1)]],
     uint2 gid [[thread_position_in_grid]],
     uint2 tid [[thread_position_in_threadgroup]],
     uint2 groupId [[threadgroup_position_in_grid]],
@@ -686,13 +687,27 @@ kernel void sharpnessPartialSums(
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
+    // `gid` indexes the *sampled* grid, not raw source pixels — `sampleStride` (1 for a small
+    // enough frame) is what keeps this kernel's real cost bounded regardless of sensor
+    // resolution, matching `SharpnessScorer` (the CPU sibling this scores the same way for)
+    // already downsampling to its own `maxDimension` before scoring. Without this, a full-sensor
+    // ROI (e.g. a Planetary Preset's Moon target, which deliberately doesn't crop) combined with
+    // a fast planetary frame rate meant this dispatch — plus the CPU-side partial-sum reduction
+    // below, proportional to thread*group count — ran at full native resolution on every single
+    // incoming frame, synchronously, on whichever thread called `GPUSharpnessScorer.score` (in
+    // practice `@MainActor`, from `CameraManager.updateSmartLiveStackGate`/`recordIfNeeded`) —
+    // reported as the whole app hanging once a burst capture started under exactly that
+    // combination (Moon's preset is the one target that both stays full-sensor and turns on
+    // Smart Live Stack, which calls this every frame).
+    uint2 samplePos = gid * sampleStride;
     float squaredLaplacian = 0;
-    if (gid.x > 0 && gid.y > 0 && gid.x < source.get_width() - 1 && gid.y < source.get_height() - 1) {
-        float center = source.read(gid).r;
-        float up = source.read(uint2(gid.x, gid.y - 1)).r;
-        float down = source.read(uint2(gid.x, gid.y + 1)).r;
-        float left = source.read(uint2(gid.x - 1, gid.y)).r;
-        float right = source.read(uint2(gid.x + 1, gid.y)).r;
+    if (samplePos.x >= sampleStride && samplePos.y >= sampleStride
+        && samplePos.x < source.get_width() - sampleStride && samplePos.y < source.get_height() - sampleStride) {
+        float center = source.read(samplePos).r;
+        float up = source.read(uint2(samplePos.x, samplePos.y - sampleStride)).r;
+        float down = source.read(uint2(samplePos.x, samplePos.y + sampleStride)).r;
+        float left = source.read(uint2(samplePos.x - sampleStride, samplePos.y)).r;
+        float right = source.read(uint2(samplePos.x + sampleStride, samplePos.y)).r;
         float laplacian = 4.0 * center - up - down - left - right;
         squaredLaplacian = laplacian * laplacian; // texture is normalized 0...1, so this is <= 16
     }
