@@ -1345,6 +1345,9 @@ struct ControlsPanelView: View {
                     .foregroundStyle(.orange)
             }
 
+            Divider()
+            smartLiveStackSection
+
             HStack {
                 Label("\(cameraManager.liveStackedFrameCount) frames stacked", systemImage: "square.stack.3d.up")
                     .font(.caption)
@@ -1378,6 +1381,57 @@ struct ControlsPanelView: View {
                 }
                 .disabled(cameraManager.liveStackedFrameCount == 0)
                 .help("Saves the stacked average exactly as it looks right now (debayered/stretched, same as the live preview) as a PNG — a quick snapshot, not the raw sensor data FITS export below writes.")
+            }
+        }
+    }
+
+    /// "Point, forget, and the app itself decides which frames earn a place in the stack" — see
+    /// `SmartLiveStackGate`'s doc comment for the full pitch. Nested under Live Stack rather than
+    /// its own top-level section since it's a mode of Live Stack, not a separate feature.
+    @ViewBuilder
+    private var smartLiveStackSection: some View {
+        HStack {
+            Toggle("Smart Live Stack (Autopilot)", isOn: Binding(
+                get: { cameraManager.isSmartLiveStackEnabled },
+                set: { cameraManager.isSmartLiveStackEnabled = $0 }
+            ))
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.smartLiveStack")
+        }
+        Text("Live-curates which frames actually join the stack — automatically skips ones softer than the session's best (seeing blur, focus drift, a lost drift-reduction lock) or flagged by Cloud Sentinel, instead of averaging everything in blindly. Turns Live Stack on automatically.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+
+        if cameraManager.isSmartLiveStackEnabled {
+            LabeledContent("Quality floor") {
+                HStack {
+                    Slider(value: Binding(
+                        get: { cameraManager.smartLiveStackQualityFraction },
+                        set: { cameraManager.smartLiveStackQualityFraction = $0 }
+                    ), in: 0.1...0.95)
+                    Text("\(Int(cameraManager.smartLiveStackQualityFraction * 100))%")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
+            .help("Keeps frames scoring at least this fraction as sharp as the best frame seen so far this session. Lower = more forgiving (keeps more frames, tolerates worse seeing); higher = stricter (a cleaner but smaller stack).")
+
+            HStack {
+                Label("\(cameraManager.smartStackKeptCount) kept", systemImage: "checkmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                Label("\(cameraManager.smartStackRejectedCount) rejected", systemImage: "xmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if let reason = cameraManager.smartStackLastRejectionReason, cameraManager.smartStackRejectedCount > 0 {
+                Text("Last rejection: \(reason.label)")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+            if let gain = cameraManager.smartStackEstimatedSNRGainPercent(forAdditionalFrames: 20) {
+                Text(String(format: "Estimated SNR gain from 20 more frames: +%.1f%% — %@", gain, gain < 5 ? "diminishing returns, may be worth wrapping up" : "still worth continuing"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
     }

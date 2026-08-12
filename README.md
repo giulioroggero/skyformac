@@ -178,7 +178,11 @@ raw data:
   background-subtracted centroid tracking, re-acquires on a lost lock) for
   mounts that don't track perfectly, e.g. alt-azimuth, a **Pause**/Resume to
   freeze and actually look at a running stack without discarding it, and a
-  one-click **Save Stacked Image…** PNG snapshot.
+  one-click **Save Stacked Image…** PNG snapshot. **Smart Live Stack
+  (Autopilot)** turns it into a live, self-curating stack — automatically
+  skips frames softer than the session's best or flagged by Cloud Sentinel,
+  with a live kept/rejected count and a real estimated-SNR-gain readout for
+  judging when it's no longer worth continuing.
 - **Lucky Imaging** — burst capture, keeping only the sharpest fraction,
   stacked.
 - **Record to Disk** — continuous recording with a GPU sharpness gate (only

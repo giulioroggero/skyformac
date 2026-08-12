@@ -1203,7 +1203,7 @@ struct MetalPreviewView: NSViewRepresentable {
             bayerPattern: camera.bayerPattern,
             stretch: cameraManager.stretch,
             isLiveStacking: cameraManager.isLiveStackingEnabled,
-            isLiveStackPaused: cameraManager.isLiveStackPaused,
+            isLiveStackPaused: cameraManager.effectiveLiveStackPaused,
             isDriftReductionEnabled: cameraManager.isLiveStackDriftReductionEnabled,
             streakMask: cameraManager.isStreakMaskingEnabled ? cameraManager.currentStreakMask : nil,
             isDenoisingEnabled: cameraManager.isDenoisingEnabled,

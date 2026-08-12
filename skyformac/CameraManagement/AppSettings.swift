@@ -27,6 +27,7 @@ enum AppSettings {
         case isCloudSentinelEnabled
         case isStreakMaskingEnabled
         case exportHistory
+        case smartLiveStackQualityFraction
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -58,6 +59,17 @@ enum AppSettings {
     static var sharpnessDiscardThreshold: Double {
         get { UserDefaults.standard.double(forKey: Key.sharpnessDiscardThreshold.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.sharpnessDiscardThreshold.rawValue) }
+    }
+
+    /// Defaults to 0.5 (keep frames at least half as sharp as the best one seen so far this
+    /// session) when never explicitly set.
+    static var smartLiveStackQualityFraction: Double {
+        get {
+            UserDefaults.standard.object(forKey: Key.smartLiveStackQualityFraction.rawValue) != nil
+                ? UserDefaults.standard.double(forKey: Key.smartLiveStackQualityFraction.rawValue)
+                : 0.5
+        }
+        set { UserDefaults.standard.set(newValue, forKey: Key.smartLiveStackQualityFraction.rawValue) }
     }
 
     static var isFocusAssistEnabled: Bool {

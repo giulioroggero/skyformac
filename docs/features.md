@@ -85,6 +85,18 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   frame; a "Save Stacked Image…" button right in the Live Stack panel does
   the same as a one-click PNG
   snapshot, without a trip to the Export section below.
+- **Smart Live Stack (Autopilot)** — live, self-curating stacking: each
+  incoming frame is GPU-sharpness-scored and only folded into the stack if
+  it's at least a configurable fraction as sharp as the session's best frame
+  so far, or discarded outright on a Cloud Sentinel alert. Curates *while*
+  the session runs instead of the traditional record-everything-then-curate-
+  in-another-tool workflow — the stack you're watching build is already the
+  curated one. Live kept/rejected counters, and a real (not fabricated)
+  estimated-SNR-gain-from-more-frames readout (`sqrt(N)` stacking-SNR
+  scaling) for judging when a session is past the point of diminishing
+  returns. See [`docs/design-notes.md`](design-notes.md) for the full
+  reasoning and its honest scope (quality curation, not autoguiding/
+  dithering/sequencing).
 - **Lucky imaging** — burst capture, sharpness-ranked (Laplacian variance,
   CPU or GPU), keeping and stacking only the sharpest fraction. Works for a
   webcam/iPhone source too (`SharpnessScorer`/`FrameArithmetic` both have an

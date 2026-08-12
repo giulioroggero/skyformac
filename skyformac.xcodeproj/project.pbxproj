@@ -88,6 +88,10 @@
 		1795D6382FD5CA3FAEE045AB /* GPUStillImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F8D95B0E15A88F43623D77 /* GPUStillImageRenderer.swift */; };
 		84C87CEFC11D44E892F94A49 /* GPUFrameCalibrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07FC5B1CEF8AFC0FB0AE411E /* GPUFrameCalibrator.swift */; };
 		DA9E1DFC5D3F1D65CF61E286 /* DriftAligner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 997D165FA843A38CD88F23B3 /* DriftAligner.swift */; };
+		870DFDA6B82D975FE0D93C0B /* SmartLiveStackGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7DF30A0E47AA4548BE6C4C /* SmartLiveStackGate.swift */; };
+		EB29EE8909962E24263198EB /* StackSNREstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A44408D853D33E940C1CF7 /* StackSNREstimator.swift */; };
+		8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */; };
+		EACCDF3E483EDEAF30BF3937 /* StackSNREstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */; };
 		0DF411FD0F4F2EFEAB0B8C7D /* GPUControlSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE54B50BB11C56587A3AAAB /* GPUControlSettings.swift */; };
 		E40ED26D8DA062E5855F847F /* HFDCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657EB226C032AB1BEA5B12E0 /* HFDCalculatorTests.swift */; };
 		EABC81F40C5E16F232227E41 /* SkyformacUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F9D8736D4BFB3C577283F37 /* SkyformacUITests.swift */; };
@@ -234,6 +238,10 @@
 		06F8D95B0E15A88F43623D77 /* GPUStillImageRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUStillImageRenderer.swift; sourceTree = "<group>"; };
 		07FC5B1CEF8AFC0FB0AE411E /* GPUFrameCalibrator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUFrameCalibrator.swift; sourceTree = "<group>"; };
 		997D165FA843A38CD88F23B3 /* DriftAligner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DriftAligner.swift; sourceTree = "<group>"; };
+		CD7DF30A0E47AA4548BE6C4C /* SmartLiveStackGate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SmartLiveStackGate.swift; sourceTree = "<group>"; };
+		B8A44408D853D33E940C1CF7 /* StackSNREstimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimator.swift; sourceTree = "<group>"; };
+		BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SmartLiveStackGateTests.swift; sourceTree = "<group>"; };
+		68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimatorTests.swift; sourceTree = "<group>"; };
 		1CE54B50BB11C56587A3AAAB /* GPUControlSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUControlSettings.swift; sourceTree = "<group>"; };
 		CFA796E075478701D2A6AC5A /* DiskSpaceChecker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiskSpaceChecker.swift; sourceTree = "<group>"; };
 		D096BA93F69912E52AB7D663 /* ImageEnhancer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEnhancer.swift; sourceTree = "<group>"; };
@@ -389,6 +397,8 @@
 				A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */,
 				8A8BA528FBB8FF8C513CEFCD /* GPUFrameCalibratorTests.swift */,
 				E72B4D2D0F26762D2120F696 /* DriftAlignerTests.swift */,
+				BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */,
+				68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */,
 				204615FC1E3E16A7A9F5D622 /* ROIGeometryTests.swift */,
 				71C94A9D4A15CA2162D0C269 /* SharpnessScorerTests.swift */,
 				129AC416223DEE62CE827BBB /* FITSWriterTests.swift */,
@@ -578,6 +588,8 @@
 				06F8D95B0E15A88F43623D77 /* GPUStillImageRenderer.swift */,
 				07FC5B1CEF8AFC0FB0AE411E /* GPUFrameCalibrator.swift */,
 				997D165FA843A38CD88F23B3 /* DriftAligner.swift */,
+				CD7DF30A0E47AA4548BE6C4C /* SmartLiveStackGate.swift */,
+				B8A44408D853D33E940C1CF7 /* StackSNREstimator.swift */,
 				1CE54B50BB11C56587A3AAAB /* GPUControlSettings.swift */,
 				6CA14B9C0CBFFF680DD56C77 /* Shaders.metal */,
 				885BBDC0D43C6A0B4ED42B32 /* StarDetector.swift */,
@@ -752,6 +764,8 @@
 				1795D6382FD5CA3FAEE045AB /* GPUStillImageRenderer.swift in Sources */,
 				84C87CEFC11D44E892F94A49 /* GPUFrameCalibrator.swift in Sources */,
 				DA9E1DFC5D3F1D65CF61E286 /* DriftAligner.swift in Sources */,
+				870DFDA6B82D975FE0D93C0B /* SmartLiveStackGate.swift in Sources */,
+				EB29EE8909962E24263198EB /* StackSNREstimator.swift in Sources */,
 				0DF411FD0F4F2EFEAB0B8C7D /* GPUControlSettings.swift in Sources */,
 				817C39E07E37D72955CC0836 /* Shaders.metal in Sources */,
 				4B7C66D8078B52C9F95C0EEC /* StarDetector.swift in Sources */,
@@ -808,6 +822,8 @@
 				7649C405BE01EB99C5A51847 /* MetalFrameRendererTests.swift in Sources */,
 				8E8362BFEC2F249B164B418F /* GPUFrameCalibratorTests.swift in Sources */,
 				FEC34A5F447185B40BABFF08 /* DriftAlignerTests.swift in Sources */,
+				8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */,
+				EACCDF3E483EDEAF30BF3937 /* StackSNREstimatorTests.swift in Sources */,
 				78733D802357DFA200870A5B /* ROIGeometryTests.swift in Sources */,
 				76DB240A9CA9273E120A0BD7 /* SharpnessScorerTests.swift in Sources */,
 				5C2442ADD1A7C168C808C1F0 /* FITSWriterTests.swift in Sources */,

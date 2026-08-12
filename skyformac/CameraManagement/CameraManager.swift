@@ -550,6 +550,11 @@ final class CameraManager {
             liveStackGeneration &+= 1
             gpuLiveStackFrameCount = 0
             isLiveStackPaused = false
+            smartStackKeptCount = 0
+            smartStackRejectedCount = 0
+            smartStackLastRejectionReason = nil
+            smartStackMaxObservedScore = 0
+            if !isLiveStackingEnabled { isSmartLiveStackEnabled = false }
         }
     }
     /// Freezes the running stack — `ingest`/`MetalFrameRenderer.process` both keep displaying
@@ -565,6 +570,91 @@ final class CameraManager {
         liveStackGeneration &+= 1
         gpuLiveStackFrameCount = 0
         isLiveStackPaused = false
+        smartStackKeptCount = 0
+        smartStackRejectedCount = 0
+        smartStackLastRejectionReason = nil
+        smartStackMaxObservedScore = 0
+    }
+
+    // MARK: - Smart Live Stack (autopilot: live-curates which frames actually join the stack)
+
+    /// Turns Live Stack from a plain running average into a self-curating one — each incoming
+    /// frame is scored (`GPUSharpnessScorer`, the same scorer `recordIfNeeded`'s quality gate
+    /// already uses) and only folded into the accumulator if it clears `smartLiveStackQualityFraction`
+    /// of the sharpest frame this session has seen, or if Cloud Sentinel currently reports an
+    /// alert. See `SmartLiveStackGate`'s doc comment for the full reasoning — this replaces the
+    /// traditional "record everything, curate afterward in another tool" workflow with live,
+    /// per-frame curation, so the stack you're watching build is already the curated one. Session
+    /// state, not a persisted preference (matches `isLiveStackingEnabled`'s own scoping) — always
+    /// starts back off on a fresh launch.
+    var isSmartLiveStackEnabled = false {
+        didSet {
+            guard isSmartLiveStackEnabled else { return }
+            isLiveStackingEnabled = true
+            smartStackKeptCount = 0
+            smartStackRejectedCount = 0
+            smartStackLastRejectionReason = nil
+            smartStackMaxObservedScore = 0
+        }
+    }
+    /// Keep frames scoring at least this fraction of the best-seen frame this session — a real
+    /// preference (unlike `isSmartLiveStackEnabled` itself), so it persists across launches.
+    var smartLiveStackQualityFraction: Double = AppSettings.smartLiveStackQualityFraction {
+        didSet { AppSettings.smartLiveStackQualityFraction = smartLiveStackQualityFraction }
+    }
+    private(set) var smartStackKeptCount = 0
+    private(set) var smartStackRejectedCount = 0
+    private(set) var smartStackLastRejectionReason: SmartLiveStackRejectionReason?
+    private var smartStackMaxObservedScore: Double = 0
+    /// Whether the frame `ingest` just processed should be excluded from this frame's stack
+    /// update — recomputed fresh every `ingest` call, read by `MetalPreviewView` (folded into
+    /// `effectiveLiveStackPaused`) so the GPU accumulation path respects the same per-frame
+    /// decision the CPU path (`ingest`'s `usesCPUStack` branch) already does.
+    private var smartStackSkipsCurrentFrame = false
+
+    /// What `MetalPreviewView`/`ingest` should actually treat as "paused" for this frame — the
+    /// user's own Pause button, *or* Smart Live Stack quality-gating this specific frame out.
+    /// Both mean the same thing to the accumulator: don't fold this frame in, keep displaying
+    /// whatever's already there.
+    var effectiveLiveStackPaused: Bool { isLiveStackPaused || smartStackSkipsCurrentFrame }
+
+    /// The percentage SNR improvement stacking `additionalFrames` more frames would give from
+    /// here — see `StackSNREstimator`'s doc comment for the math and how to read a falling trend
+    /// as "diminishing returns, might be worth wrapping up soon." `nil` before any frame has been
+    /// kept yet.
+    func smartStackEstimatedSNRGainPercent(forAdditionalFrames additionalFrames: Int) -> Double? {
+        StackSNREstimator.relativeSNRGainPercent(currentFrameCount: liveStackedFrameCount, additionalFrames: additionalFrames)
+    }
+
+    /// Scores `frame` (the same GPU sharpness scorer `recordIfNeeded` uses) and decides whether
+    /// this frame should join the stack — called once per frame from `ingest`, ahead of the
+    /// CPU-accumulation branch, so `smartStackSkipsCurrentFrame` is up to date before either the
+    /// CPU path reads it directly or `MetalPreviewView` reads it (via `effectiveLiveStackPaused`)
+    /// for the GPU path.
+    private func updateSmartLiveStackGate(_ frame: CapturedFrame) {
+        guard isSmartLiveStackEnabled, isLiveStackingEnabled else {
+            smartStackSkipsCurrentFrame = false
+            return
+        }
+        let score = sharpnessScorer?.score(frame: frame)
+        if let score {
+            smartStackMaxObservedScore = max(smartStackMaxObservedScore, score)
+        }
+        let decision = SmartLiveStackGate.decide(
+            sharpnessScore: score,
+            maxObservedScore: smartStackMaxObservedScore,
+            qualityFraction: smartLiveStackQualityFraction,
+            isCloudAlertActive: isCloudSentinelEnabled && isCloudAlertActive
+        )
+        switch decision {
+        case .keep:
+            smartStackSkipsCurrentFrame = false
+            smartStackKeptCount += 1
+        case .reject(let reason):
+            smartStackSkipsCurrentFrame = true
+            smartStackRejectedCount += 1
+            smartStackLastRejectionReason = reason
+        }
     }
     /// Webcam/iPhone sources always accumulate on the CPU `LiveStacker` even when the GPU render
     /// path is active (see `ingest`'s `shouldAccumulateOnCPU`) — `gpuLiveStackFrameCount` never
@@ -1212,6 +1302,7 @@ final class CameraManager {
         }
         scheduleQualityScoreIfNeeded(processed)
         scheduleCloudSentinelIfNeeded(processed)
+        updateSmartLiveStackGate(processed)
 
         // GPU live-stack accumulation (`MetalFrameRenderer.accumulationTexture`) is mono-only —
         // it never runs for RGB24 (webcam/iPhone) frames, see `MetalFrameRenderer.process`'s doc
@@ -1225,9 +1316,10 @@ final class CameraManager {
         // `currentFrame` once `gpuAccumulatedFrameProvider` comes back `nil` for RGB24).
         let usesCPUStack = isLiveStackingEnabled && (!useMetalRenderer || processed.imageType == ASI_IMG_RGB24)
         if usesCPUStack {
-            // Paused: skip folding this frame in (see `isLiveStackPaused`'s doc comment) but still
+            // Paused (manually, or Smart Live Stack quality-gating this one out — see
+            // `effectiveLiveStackPaused`'s doc comment): skip folding this frame in, but still
             // display whatever `liveStacker` already has — a frozen, not reset, stack.
-            if !isLiveStackPaused {
+            if !effectiveLiveStackPaused {
                 // Streak masking (see `currentStreakMask`'s doc comment) only applies here — it's a
                 // CPU-`LiveStacker`-only feature, disclosed as such in the Controls UI.
                 let mask = isStreakMaskingEnabled ? currentStreakMask : nil
@@ -1989,6 +2081,12 @@ final class CameraManager {
         currentImage = nil
         currentFrame = nil
         liveStacker.reset()
+        isLiveStackPaused = false
+        isSmartLiveStackEnabled = false
+        smartStackKeptCount = 0
+        smartStackRejectedCount = 0
+        smartStackLastRejectionReason = nil
+        smartStackMaxObservedScore = 0
         luckyImagingSession = nil
         focusTracker.reset()
         isRecordingToDisk = false

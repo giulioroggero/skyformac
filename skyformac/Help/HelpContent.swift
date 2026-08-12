@@ -377,6 +377,16 @@ enum HelpContent {
                 ]
             ),
             HelpSection(
+                id: "setting.smartLiveStack", heading: "Smart Live Stack (Autopilot)",
+                body: "Turns Live Stack from a plain running average into a self-curating one: every incoming frame is scored for sharpness (the same GPU scorer Record to Disk's quality gate and Lucky Imaging use), and only folded into the stack if it's at least the \"Quality floor\" fraction as sharp as the best frame this session has seen, or discarded if Cloud Sentinel currently reports an alert. Turns Live Stack on automatically when enabled.",
+                bullets: [
+                    "This live-curates instead of the traditional \"record everything, curate afterward\" workflow (PixInsight's SubframeSelector, AutoStakkert!3's quality graph) — the stack you're watching build is already the curated one, frame by frame, as it happens.",
+                    "A frame that can't be scored at all (an RGB24 webcam/iPhone frame — the GPU scorer only supports ZWO mono RAW8/RAW16) is always kept rather than silently excluded from a stack it can't judge.",
+                    "The \"Estimated SNR gain from 20 more frames\" readout is real math (stacking SNR scales with the square root of frame count), not a guess — a falling percentage over the course of a session means each additional stretch of frames is helping less, a genuine \"is this still worth it\" signal for a long unattended run.",
+                    "The kept/rejected counts and quality floor both reset whenever Live Stack itself resets — a fresh session starts its own new \"best frame so far\" baseline rather than comparing against a previous target's.",
+                ]
+            ),
+            HelpSection(
                 id: "setting.luckyImaging", heading: "Lucky Imaging",
                 body: "Captures a burst, scores every frame's sharpness, and stacks only the sharpest fraction — the classic technique for beating atmospheric seeing on the Moon/planets. Works with a ZWO camera or an iPhone/webcam source equally."
             ),

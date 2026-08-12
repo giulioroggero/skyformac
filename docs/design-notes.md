@@ -1027,3 +1027,38 @@ made along the way.
     truly infeasible AI Denoise/Super-Resolution features were — the difference being this is
     real, callable SDK surface with no missing dependency (no trained model, no unavailable
     hardware *class*), just no specific unit available to verify it against in this environment.
+- **Smart Live Stack (Autopilot)** — asked to "think out of the box" for a genuinely new,
+  fully-in-app live astrophotography workflow, rather than adding one more incremental control.
+  The traditional deep-sky/planetary workflow curates quality *after* a session, in a separate
+  tool, from a full recorded sequence (PixInsight's SubframeSelector/WeightedBatchPreprocessing,
+  AutoStakkert!3's quality graph). This inverts that: curate live, frame by frame, so the stack
+  on screen while a session runs is already the curated one — no separate tool, no post-session
+  triage step.
+  - **`SmartLiveStackGate.decide`** (new, pure, unit-tested) is the actual rule: reject a frame if
+    Cloud Sentinel currently reports an alert (checked first — a sharp frame taken during a
+    passing cloud is still a bad frame), otherwise reject if its `GPUSharpnessScorer` score (the
+    same scorer `recordIfNeeded`'s quality gate already uses for Record to Disk — no new GPU
+    resources needed, `CameraManager.sharpnessScorer` is one shared instance) is below
+    `smartLiveStackQualityFraction` (default 50%, user-adjustable, persisted) of the sharpest
+    frame this stacking session has actually seen. A frame that can't be scored at all (RGB24 —
+    the scorer is mono-only) is always kept rather than silently excluded from a decision it
+    can't make.
+  - **Wiring reused the Pause mechanism rather than adding a second "skip this frame" path.**
+    `CameraManager.effectiveLiveStackPaused` ORs the user's own Pause toggle with
+    `smartStackSkipsCurrentFrame` (recomputed fresh every `ingest()` call, before either the CPU
+    accumulation branch reads it directly or `MetalPreviewView` reads it building the GPU render
+    path's `pendingUpdate`) — both mean the exact same thing to either accumulator: don't fold
+    this frame in, keep displaying whatever's already there. No new "skip" concept needed in
+    either `MetalFrameRenderer.process` or `LiveStacker` at all.
+  - **`StackSNREstimator.relativeSNRGainPercent`** (new, pure, unit-tested) — the live "is this
+    still worth it" readout, from real stacking-SNR math (`sqrt(N)` scaling for independent-noise
+    frames), not a fabricated number. Deliberately documented that comparing gains across
+    *different* `additionalFrames` values isn't meaningful (doubling always gives the same ~41%
+    regardless of `N`) — only a *fixed* additional-frame-count's gain falling over the course of
+    one session is the real "diminishing returns" signal, which is exactly what the UI shows
+    (a fixed "next 20 frames" estimate, re-evaluated live).
+  - **Scope note**: this curates quality, the same axis Lucky Imaging/Record-to-Disk's gates
+    already work on — it is not autoguiding, dithering, or sequencing (the genuinely bigger gaps
+    named when asked "what's missing for a professional"), and doesn't attempt to be. It's a real,
+    shippable slice of "live, unattended, self-curating" that those bigger features would build on
+    top of, not a replacement for them.
