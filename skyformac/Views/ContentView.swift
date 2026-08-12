@@ -19,6 +19,12 @@ struct ContentView: View {
         )) {
             HelpView(initialTopicID: cameraManager.helpAnchorTopicID, initialSectionID: cameraManager.helpAnchorSectionID)
         }
+        .sheet(isPresented: Binding(
+            get: { cameraManager.viewingExportedFile != nil },
+            set: { if !$0 { cameraManager.viewingExportedFile = nil } }
+        )) {
+            ExportedFileViewerView(cameraManager: cameraManager)
+        }
     }
 
     /// The live video alone, filling the entire window with its own overlay controls (zoom
@@ -136,6 +142,17 @@ struct ContentView: View {
             Button("OK") {}
         } message: { message in
             Text(message)
+        }
+        // Drag a FITS/PNG/TIFF/JPEG file (from Finder, or the Exported Files section's own
+        // history rows) anywhere onto the window to open it — the same native "just drop it on
+        // the app" interaction macOS users already expect, rather than requiring the Camera
+        // Controls tab's "Open File…" button every time. `openExportedFile` already handles an
+        // unsupported extension by explaining why in the viewer sheet, so no extension
+        // filtering/validation is needed here.
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            cameraManager.openExportedFile(url)
+            return true
         }
     }
 

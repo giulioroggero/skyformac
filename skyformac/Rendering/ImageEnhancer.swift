@@ -1,16 +1,20 @@
 import Foundation
 
 /// CPU fallback for `MetalFrameRenderer`'s GPU denoise/wavelet-sharpen compute kernels
-/// (`bilateralDenoise`, `waveletBlur`/`waveletCombine` in `Shaders.metal`) — same algorithms,
-/// same math, operating on normalized `0...1` samples exactly like the Metal textures do, so the
-/// CPU (`CGImage`) render path gets the same real-time enhancement options as the Metal path
-/// instead of silently doing nothing when "Metal Renderer" is off.
+/// (`bilateralDenoise`/`waveletBlur`/`waveletCombine` for mono ZWO RAW8/RAW16/Y8 frames,
+/// `bilateralDenoiseRGBA`/`waveletBlurRGBA`/`waveletCombineRGBA` for RGB24 webcam/iPhone frames)
+/// — same algorithms, same math, operating on normalized `0...1` samples exactly like the Metal
+/// textures do, so the CPU (`CGImage`) render path gets the same real-time enhancement options
+/// as the Metal path instead of silently doing nothing when "Metal Renderer" is off.
 ///
 /// - Note: unoptimized (no vDSP/SIMD); the bilateral filter is O(25) samples/pixel and the
 ///   wavelet pass makes three full-image sweeps. Fine for the CPU preview path at typical camera
 ///   resolutions/frame rates; a large sensor at high frame rate will want the Metal path instead.
 enum ImageEnhancer {
     static func denoise(_ frame: CapturedFrame, spatialSigma: Double = 1.5, rangeSigma: Double = 0.08) -> CapturedFrame? {
+        if frame.imageType == ASI_IMG_RGB24 {
+            return denoiseRGB24(frame, spatialSigma: spatialSigma, rangeSigma: rangeSigma)
+        }
         guard let (samples, maxValue) = normalizedSamples(frame) else { return nil }
         let width = frame.width
         let height = frame.height
@@ -42,6 +46,9 @@ enum ImageEnhancer {
     }
 
     static func waveletSharpen(_ frame: CapturedFrame, fineGain: Double, midGain: Double) -> CapturedFrame? {
+        if frame.imageType == ASI_IMG_RGB24 {
+            return waveletSharpenRGB24(frame, fineGain: fineGain, midGain: midGain)
+        }
         guard let (samples, maxValue) = normalizedSamples(frame) else { return nil }
         let width = frame.width
         let height = frame.height
@@ -92,6 +99,110 @@ enum ImageEnhancer {
             }
         }
         return output
+    }
+
+    // MARK: - RGB24 (webcam/iPhone) — same math as `bilateralDenoiseRGBA`/`waveletBlurRGBA`/
+    // `waveletCombineRGBA` in `Shaders.metal`, so the CPU and GPU render paths produce matching
+    // results for a webcam/iPhone source, not just for the ZWO RAW8/RAW16/Y8 path
+    // `normalizedSamples`/`denormalizedFrame` below already covered.
+
+    /// Full-RGB-distance range weight (not per-channel-independent, which would let the three
+    /// channels blend by different amounts and introduce color fringing at edges) — mirrors
+    /// `bilateralDenoiseRGBA`'s `length(sample.rgb - center.rgb)` exactly.
+    private static func denoiseRGB24(_ frame: CapturedFrame, spatialSigma: Double, rangeSigma: Double) -> CapturedFrame? {
+        let width = frame.width
+        let height = frame.height
+        let count = width * height
+        guard frame.data.count >= count * 3 else { return nil }
+
+        let samples = frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> [Double] in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return [] }
+            return (0..<(count * 3)).map { Double(base[$0]) / 255.0 }
+        }
+        guard samples.count == count * 3 else { return nil }
+
+        var output = [Double](repeating: 0, count: samples.count)
+        let radius = 2
+        for y in 0..<height {
+            for x in 0..<width {
+                let centerIndex = (y * width + x) * 3
+                let centerR = samples[centerIndex]
+                let centerG = samples[centerIndex + 1]
+                let centerB = samples[centerIndex + 2]
+                var sumWeight = 0.0
+                var sumR = 0.0
+                var sumG = 0.0
+                var sumB = 0.0
+                for dy in -radius...radius {
+                    for dx in -radius...radius {
+                        let sx = min(max(x + dx, 0), width - 1)
+                        let sy = min(max(y + dy, 0), height - 1)
+                        let sampleIndex = (sy * width + sx) * 3
+                        let r = samples[sampleIndex]
+                        let g = samples[sampleIndex + 1]
+                        let b = samples[sampleIndex + 2]
+                        let spatialWeight = exp(-Double(dx * dx + dy * dy) / (2 * spatialSigma * spatialSigma))
+                        let dr = r - centerR
+                        let dg = g - centerG
+                        let db = b - centerB
+                        let delta = (dr * dr + dg * dg + db * db).squareRoot()
+                        let rangeWeight = exp(-(delta * delta) / (2 * rangeSigma * rangeSigma))
+                        let w = spatialWeight * rangeWeight
+                        sumWeight += w
+                        sumR += w * r
+                        sumG += w * g
+                        sumB += w * b
+                    }
+                }
+                let safeWeight = max(sumWeight, 1e-6)
+                output[centerIndex] = sumR / safeWeight
+                output[centerIndex + 1] = sumG / safeWeight
+                output[centerIndex + 2] = sumB / safeWeight
+            }
+        }
+        return denormalizedRGB24Frame(output, width: width, height: height)
+    }
+
+    /// The à trous blur weights are color-agnostic (unlike `denoiseRGB24`'s range weight), so
+    /// each channel plane can run through the exact same `waveletBlur` used for mono frames
+    /// independently, then get recombined with the same fine/mid gains per channel — mirrors
+    /// `waveletBlurRGBA`/`waveletCombineRGBA` exactly.
+    private static func waveletSharpenRGB24(_ frame: CapturedFrame, fineGain: Double, midGain: Double) -> CapturedFrame? {
+        let width = frame.width
+        let height = frame.height
+        let count = width * height
+        guard frame.data.count >= count * 3 else { return nil }
+
+        let samples = frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> [Double] in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return [] }
+            return (0..<(count * 3)).map { Double(base[$0]) / 255.0 }
+        }
+        guard samples.count == count * 3 else { return nil }
+
+        var output = [Double](repeating: 0, count: samples.count)
+        for channel in 0..<3 {
+            var plane = [Double](repeating: 0, count: count)
+            for i in 0..<count { plane[i] = samples[i * 3 + channel] }
+
+            let layer0 = waveletBlur(plane, width: width, height: height, spacing: 1)
+            let layer1 = waveletBlur(layer0, width: width, height: height, spacing: 2)
+            for i in 0..<count {
+                let fineDetail = plane[i] - layer0[i]
+                let midDetail = layer0[i] - layer1[i]
+                let sharpened = layer1[i] + midDetail * (1 + midGain) + fineDetail * (1 + fineGain)
+                output[i * 3 + channel] = min(max(sharpened, 0), 1)
+            }
+        }
+        return denormalizedRGB24Frame(output, width: width, height: height)
+    }
+
+    private static func denormalizedRGB24Frame(_ values: [Double], width: Int, height: Int) -> CapturedFrame? {
+        var data = Data(count: values.count)
+        data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+            for i in 0..<values.count { base[i] = UInt8(clamping: Int((values[i] * 255.0).rounded())) }
+        }
+        return CapturedFrame(width: width, height: height, imageType: ASI_IMG_RGB24, data: data)
     }
 
     // MARK: - Normalize / denormalize

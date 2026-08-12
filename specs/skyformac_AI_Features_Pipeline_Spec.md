@@ -339,17 +339,24 @@ implementation diverges from sections 1-8 above, and why.
    only new work was surfacing it live (`CameraManager.currentFrameQualityScore`), normalized
    against the sharpest frame *this session has actually measured* rather than a fabricated fixed
    0-100 scale, since Laplacian variance has no fixed ceiling to calibrate one against.
-3. **Feature 3 (streak masking) only masks the CPU `LiveStacker` path, not the GPU accumulate
-   kernel.** The Metal `accumulateMono` kernel (and the `stretchMono`/`debayerAndStretch`/
-   `histogramReduce` kernels that read its output) all divide by one shared scalar frame count;
-   masking specific pixels in specific frames needs a *per-pixel* count instead, which would mean
-   threading a second accumulator texture through all of them at once — a much bigger, riskier
-   change to already-shipped GPU code than this feature's own scope justifies. The Metal
-   `apply_streak_mask` kernel in section 4.2 above is otherwise a reasonable, buildable kernel (it
-   was written correctly against real Metal APIs, unlike the model-shaped gaps above) — it just
-   isn't wired into the live-stack accumulate step for the reason above. `AI Suite` discloses this
-   gap directly in the UI when the GPU renderer is active, rather than the toggle silently doing
-   nothing.
+3. **Feature 3 (streak masking) now masks the GPU accumulate path too — later closed, not still
+   open.** The concern above (masking specific pixels in specific frames needs a *per-pixel*
+   count, not `accumulateMono`'s one shared scalar) was real, but the fix avoided the "thread a
+   second accumulator through every downstream kernel" cost it worried about: a masked frame
+   accumulates into a *separate* `(sum, count)` texture pair via a new `accumulateMonoMasked`
+   kernel, then a new `normalizeMaskedAccumulator` kernel collapses that pair into a true
+   per-pixel average written into the *existing* `accumulationTexture` — so `stretchMono`/
+   `debayerAndStretch`/`histogramReduce` never need to know masking happened at all; they just
+   read `accumulationTexture` with `divisor = 1.0`, exactly as if it were one already-averaged
+   frame. Two new kernels instead of retrofitting the existing ones. The Metal `apply_streak_mask`
+   kernel in section 4.2 above was never actually built as written (it replaces masked pixels with
+   zero, which — as this note originally pointed out — would darken a pixel's average instead of
+   excluding it from the frames it didn't appear in); `accumulateMonoMasked`/
+   `normalizeMaskedAccumulator` in `Shaders.metal` are what actually shipped, matching
+   `LiveStacker.add(_:mask:)`'s CPU semantics exactly (skip, don't zero) rather than section 4.2's
+   design. Masking takes priority over the (separately-added, GPU-only) drift-reduction live-stack
+   alignment when both are enabled at once, since combining per-pixel masking with sub-pixel
+   shift-sampling would need a third kernel variant for a combination that's rare in practice.
 4. **No standalone `AIPipelineSettings.swift`/`AIDenoiseEngine.swift`/etc. files.** The two real
    features (streak masking, cloud sentinel) were added directly onto `CameraManager` and a small
    `CloudDriftSentinel` tracker class, matching how every other capture-pipeline feature in this

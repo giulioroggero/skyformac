@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Small "?" button next to a setting's label that opens Help scrolled directly to that
 /// setting's own explanation (`CameraManager.showHelp(topicID:sectionID:)`) — every `sectionID`
@@ -104,6 +105,7 @@ struct ControlsPanelView: View {
     @State private var showLiveStackSection = false
     @State private var showLuckyImagingSection = false
     @State private var showExportSection = false
+    @State private var showExportedFilesSection = false
     @State private var showRecordingSection = false
     @AppStorage("recordingThreshold") private var recordingThreshold: Double = 0
     @State private var showSmartExposureSection = false
@@ -114,6 +116,10 @@ struct ControlsPanelView: View {
     @State private var showAISuiteSection = false
     @State private var showIPhoneWebcamSection = false
     @AppStorage("nightModeSeconds") private var nightModeSeconds: Double = 10
+    @State private var showPlanetaryPresetsSection = false
+    @State private var showCaptureROISection = false
+    @State private var showSERRecordingSection = false
+    @AppStorage("serRecordingDurationSeconds") private var serRecordingDurationSeconds: Double = 180
 
     var body: some View {
         HStack(spacing: 0) {
@@ -236,6 +242,24 @@ struct ControlsPanelView: View {
             singleExposureSection
             Divider()
 
+            if !cameraManager.isExternalWebcam {
+                DisclosureGroup(isExpanded: $showPlanetaryPresetsSection) {
+                    planetaryPresetsSection
+                } label: {
+                    HelpLinkedDisclosureLabel(title: "Planetary Presets", cameraManager: cameraManager, sectionID: "setting.planetaryPresets")
+                }
+                Divider()
+            }
+
+            if !cameraManager.isExternalWebcam {
+                DisclosureGroup(isExpanded: $showCaptureROISection) {
+                    captureROISection
+                } label: {
+                    HelpLinkedDisclosureLabel(title: "Capture ROI (higher FPS)", cameraManager: cameraManager, sectionID: "setting.captureROI")
+                }
+                Divider()
+            }
+
             if cameraManager.isExternalWebcam {
                 DisclosureGroup("iPhone / Webcam", isExpanded: $showIPhoneWebcamSection) {
                     iPhoneWebcamSection
@@ -243,8 +267,24 @@ struct ControlsPanelView: View {
                 Divider()
             }
 
+            if !cameraManager.isExternalWebcam {
+                DisclosureGroup(isExpanded: $showSERRecordingSection) {
+                    serRecordingSection
+                } label: {
+                    HelpLinkedDisclosureLabel(title: "Record SER Video (planetary/lunar)", cameraManager: cameraManager, sectionID: "setting.serRecording")
+                }
+                Divider()
+            }
+
             DisclosureGroup("Export", isExpanded: $showExportSection) {
                 exportSection
+            }
+            Divider()
+
+            DisclosureGroup(isExpanded: $showExportedFilesSection) {
+                exportedFilesSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Exported Files", cameraManager: cameraManager, sectionID: "setting.exportedFiles")
             }
         }
     }
@@ -497,6 +537,152 @@ struct ControlsPanelView: View {
                 if !cameraManager.isLiveViewActive {
                     Button("Resume Live View") { cameraManager.resumeLiveView() }
                 }
+            }
+        }
+    }
+
+    // MARK: - Planetary presets
+
+    @ViewBuilder
+    private var planetaryPresetsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("One tap sets RAW8, a small Capture ROI, and a safe starting exposure/gain for a specific target — raise Gain/Exposure from there while watching the histogram (under the live preview) until its peak sits in the target range below. Tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC) behind a modest f/10-f/12 Mak/SCT, which needs no Barlow at that pairing.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            ForEach(PlanetaryPreset.allCases) { preset in
+                Button {
+                    cameraManager.applyPlanetaryPreset(preset)
+                    serRecordingDurationSeconds = preset.recommendedMaxDurationSeconds
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Label(preset.rawValue, systemImage: preset.icon)
+                                .font(.callout.bold())
+                            Spacer()
+                            Text(preset.roi.map { "\($0.width)×\($0.height)" } ?? "Full Sensor")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(String(
+                            format: "%.0f-%.0f ms · Gain %d-%d · up to %.0fs · histogram %.0f-%.0f%%",
+                            preset.exposureRangeSeconds.lowerBound * 1000,
+                            preset.exposureRangeSeconds.upperBound * 1000,
+                            preset.gainRange.lowerBound,
+                            preset.gainRange.upperBound,
+                            preset.recommendedMaxDurationSeconds,
+                            preset.histogramTargetPercent.lowerBound,
+                            preset.histogramTargetPercent.upperBound
+                        ))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        if let note = preset.note {
+                            Text(note)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    // Without this, the button's tappable area is just the tight bounding box of
+                    // its text glyphs — clicking the row's background/padding did nothing (same
+                    // fix the vertical tab strip's buttons already needed).
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    // MARK: - Capture ROI (small region -> higher frame rate)
+
+    private enum CaptureROIPreset: Hashable {
+        case full
+        case custom(width: Int, height: Int)
+
+        static let all: [CaptureROIPreset] = [.full, .custom(width: 640, height: 480), .custom(width: 800, height: 600)]
+
+        var label: String {
+            switch self {
+            case .full: return "Full Sensor"
+            case .custom(let width, let height): return "\(width) × \(height)"
+            }
+        }
+    }
+
+    private var currentROIPreset: CaptureROIPreset {
+        guard let width = cameraManager.captureROIWidth, let height = cameraManager.captureROIHeight else { return .full }
+        return .custom(width: width, height: height)
+    }
+
+    @ViewBuilder
+    private var captureROISection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("A smaller region reads off the sensor faster, directly increasing achievable frame rate — the same \"small ROI, high FPS\" technique planetary/lunar lucky-imaging workflows rely on. Restarts the live stream to take effect.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Picker("Region", selection: Binding(
+                get: { currentROIPreset },
+                set: { preset in
+                    switch preset {
+                    case .full:
+                        cameraManager.changeCaptureROI(width: nil, height: nil)
+                    case .custom(let width, let height):
+                        cameraManager.changeCaptureROI(width: width, height: height)
+                    }
+                }
+            )) {
+                ForEach(CaptureROIPreset.all, id: \.self) { preset in
+                    Text(preset.label).tag(preset)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if let width = cameraManager.captureROIWidth, let height = cameraManager.captureROIHeight {
+                Text("Streaming at \(width) × \(height) — expect noticeably faster live/SER frame rates than full sensor.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: - SER video recording (planetary/lunar workflow)
+
+    @ViewBuilder
+    private var serRecordingSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Writes every incoming frame, undiscarded, into a single .ser video — the standard format AutoStakkert!3, PIPP, and similar tools expect for their own frame alignment/stacking. Pair with a small Capture ROI above for the classic high-FPS planetary workflow.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            if cameraManager.isRecordingSERVideo {
+                ProgressView(
+                    value: cameraManager.serRecordingElapsedSeconds,
+                    total: max(serRecordingDurationSeconds, 0.001)
+                ) {
+                    Text(String(format: "Recording… %.0fs / %.0fs · %d frames", cameraManager.serRecordingElapsedSeconds, serRecordingDurationSeconds, cameraManager.serRecordedFrameCount))
+                        .font(.caption)
+                }
+                Button("Stop Recording", role: .destructive) { cameraManager.stopSERRecording() }
+            } else {
+                HStack {
+                    Text("\(Int(serRecordingDurationSeconds))s")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 44, alignment: .leading)
+                    Slider(value: $serRecordingDurationSeconds, in: 10...600, step: 10)
+                }
+                Button("Choose File & Start…") {
+                    let panel = NSSavePanel()
+                    panel.allowedContentTypes = []
+                    panel.nameFieldStringValue = "capture.ser"
+                    panel.prompt = "Start Recording"
+                    if panel.runModal() == .OK, let url = panel.url {
+                        cameraManager.startSERRecording(to: url, durationSeconds: serRecordingDurationSeconds)
+                    }
+                }
+                .disabled(cameraManager.currentFrame == nil)
             }
         }
     }
@@ -790,14 +976,15 @@ struct ControlsPanelView: View {
                 get: { cameraManager.isStreakMaskingEnabled },
                 set: { cameraManager.isStreakMaskingEnabled = $0 }
             ))
-            if cameraManager.useMetalRenderer {
-                Label("Only affects the CPU (non-GPU) live-stack path — see the spec file's Implementation Notes for why the GPU accumulate kernel isn't wired up yet. Turn off \"GPU\" in the toolbar to use this.", systemImage: "exclamationmark.triangle")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            } else if cameraManager.isStreakMaskingEnabled {
+            if cameraManager.isStreakMaskingEnabled {
                 Text(streakStatusText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                if cameraManager.useMetalRenderer && cameraManager.isLiveStackDriftReductionEnabled {
+                    Label("Streak masking takes priority over Reduce Drift when both are on at once — this live stack won't be alignment-corrected while masking is active.", systemImage: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Divider()
@@ -923,7 +1110,7 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private var liveStackSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Running average of incoming frames — no star alignment, so it assumes a tracked, stationary mount.")
+            Text("Running average of incoming frames — by default no star alignment, so it assumes a tracked, stationary mount. \"Reduce Drift\" below adds basic single-star-lock alignment (GPU only) for mounts that don't track perfectly.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -931,6 +1118,20 @@ struct ControlsPanelView: View {
                 get: { cameraManager.isLiveStackingEnabled },
                 set: { cameraManager.isLiveStackingEnabled = $0 }
             ))
+
+            HStack {
+                Toggle("Reduce Drift (align to a locked star)", isOn: Binding(
+                    get: { cameraManager.isLiveStackDriftReductionEnabled },
+                    set: { cameraManager.isLiveStackDriftReductionEnabled = $0 }
+                ))
+                .disabled(!cameraManager.useMetalRenderer)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.liveStackDriftReduction")
+            }
+            if !cameraManager.useMetalRenderer {
+                Label("GPU renderer only — turn on \"GPU\" in the toolbar to use this.", systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
 
             HStack {
                 Label("\(cameraManager.liveStackedFrameCount) frames stacked", systemImage: "square.stack.3d.up")
@@ -1009,6 +1210,72 @@ struct ControlsPanelView: View {
                 Button("TIFF") { cameraManager.exportCurrentFrame(as: .tiff) }
             }
             .disabled(cameraManager.currentFrame == nil)
+        }
+    }
+
+    // MARK: - Exported Files (open/view what's already been exported or recorded)
+
+    @ViewBuilder
+    private var exportedFilesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Every export and recording this app has written, oldest first below — plus any FITS/PNG/TIFF file, even from outside skyformac, you want to view here directly.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Button("Open File…") {
+                let panel = NSOpenPanel()
+                panel.allowedContentTypes = [UTType(filenameExtension: "fits") ?? .data, .png, .tiff, .jpeg]
+                panel.allowsMultipleSelection = false
+                panel.canChooseDirectories = false
+                if panel.runModal() == .OK, let url = panel.url {
+                    cameraManager.openExportedFile(url)
+                }
+            }
+
+            if cameraManager.exportHistory.isEmpty {
+                Text("Nothing exported yet.").font(.caption2).foregroundStyle(.tertiary)
+            } else {
+                ForEach(cameraManager.exportHistory.reversed()) { entry in
+                    exportHistoryRow(entry)
+                }
+                Button("Clear History", role: .destructive) { cameraManager.clearExportHistory() }
+                    .font(.caption)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func exportHistoryRow(_ entry: ExportHistoryEntry) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: entry.kind.icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.url.lastPathComponent)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(entry.date.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if entry.kind.isViewableInApp {
+                Button {
+                    cameraManager.openExportedFile(entry.url)
+                } label: {
+                    Image(systemName: "eye")
+                }
+                .buttonStyle(.plain)
+                .help("View in skyformac")
+            }
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([entry.url])
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.plain)
+            .help("Reveal in Finder")
         }
     }
 

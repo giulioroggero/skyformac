@@ -77,8 +77,101 @@ struct ImageEnhancerTests {
     }
 
     @Test func unsupportedImageTypeReturnsNil() {
-        let frame = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RGB24, data: Data(count: 12))
+        // `ASI_IMG_END` (-1) is the SDK's own "no such format" sentinel — a genuinely
+        // unsupported `ASI_IMG_TYPE`, unlike RGB24 (see the RGB24-specific tests below, which
+        // confirm that one *is* supported).
+        let frame = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_END, data: Data(count: 12))
         #expect(ImageEnhancer.denoise(frame) == nil)
         #expect(ImageEnhancer.waveletSharpen(frame, fineGain: 1, midGain: 1) == nil)
+    }
+
+    // MARK: - RGB24 (webcam/iPhone)
+
+    private func rgb24Variance(of data: Data) -> Double {
+        let values = data.map { Double($0) }
+        let mean = values.reduce(0, +) / Double(values.count)
+        return values.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(values.count)
+    }
+
+    @Test func denoiseRGB24ReducesNoiseVariance() throws {
+        var rng = SeededGenerator(seed: 11)
+        var bytes = [UInt8](repeating: 128, count: 32 * 32 * 3)
+        for i in 0..<bytes.count {
+            let noise = Int.random(in: -40...40, using: &rng)
+            bytes[i] = UInt8(clamping: 128 + noise)
+        }
+        let noisy = CapturedFrame(width: 32, height: 32, imageType: ASI_IMG_RGB24, data: Data(bytes))
+        let denoised = try #require(ImageEnhancer.denoise(noisy))
+
+        #expect(denoised.imageType == ASI_IMG_RGB24)
+        #expect(denoised.data.count == noisy.data.count)
+        #expect(rgb24Variance(of: denoised.data) < rgb24Variance(of: noisy.data))
+    }
+
+    @Test func denoiseRGB24LeavesFlatFieldUnchanged() throws {
+        let flat = CapturedFrame(width: 16, height: 16, imageType: ASI_IMG_RGB24, data: Data(repeating: 100, count: 16 * 16 * 3))
+        let denoised = try #require(ImageEnhancer.denoise(flat))
+        for byte in denoised.data {
+            #expect(abs(Int(byte) - 100) <= 1)
+        }
+    }
+
+    @Test func denoiseRGB24PreservesColorAtAUniformlyColoredEdge() throws {
+        // A hard color edge (not just brightness) — left half red, right half green, both at
+        // full intensity in their own channel and zero in the other two. A per-channel-blind
+        // (full-RGB-distance) range weight should still smooth each side toward its own color
+        // rather than bleeding one channel's high value across the edge asymmetrically enough to
+        // flip which channel dominates on either side.
+        var bytes = [UInt8](repeating: 0, count: 32 * 32 * 3)
+        for y in 0..<32 {
+            for x in 0..<32 {
+                let index = (y * 32 + x) * 3
+                if x < 16 {
+                    bytes[index] = 255 // R
+                } else {
+                    bytes[index + 1] = 255 // G
+                }
+            }
+        }
+        let original = CapturedFrame(width: 32, height: 32, imageType: ASI_IMG_RGB24, data: Data(bytes))
+        let denoised = try #require(ImageEnhancer.denoise(original))
+
+        let leftIndex = (32 * 15 + 5) * 3
+        let rightIndex = (32 * 15 + 26) * 3
+        #expect(denoised.data[leftIndex] > denoised.data[leftIndex + 1]) // still red-dominant
+        #expect(denoised.data[rightIndex + 1] > denoised.data[rightIndex]) // still green-dominant
+    }
+
+    @Test func waveletSharpenRGB24IncreasesEdgeContrastOnEachChannel() throws {
+        var bytes = [UInt8](repeating: 0, count: 32 * 32 * 3)
+        for y in 0..<32 {
+            for x in 0..<32 {
+                let index = (y * 32 + x) * 3
+                let value: UInt8 = x < 16 ? 50 : 200
+                bytes[index] = value
+                bytes[index + 1] = value
+                bytes[index + 2] = value
+            }
+        }
+        let original = CapturedFrame(width: 32, height: 32, imageType: ASI_IMG_RGB24, data: Data(bytes))
+        let sharpened = try #require(ImageEnhancer.waveletSharpen(original, fineGain: 2.0, midGain: 1.0))
+
+        let leftIndex = (32 * 15 + 15) * 3
+        let rightIndex = (32 * 15 + 16) * 3
+        for channel in 0..<3 {
+            let originalContrast = Int(original.data[rightIndex + channel]) - Int(original.data[leftIndex + channel])
+            let sharpenedContrast = Int(sharpened.data[rightIndex + channel]) - Int(sharpened.data[leftIndex + channel])
+            #expect(sharpenedContrast >= originalContrast)
+        }
+    }
+
+    @Test func zeroGainWaveletSharpenRGB24IsNearIdentity() throws {
+        var bytes = [UInt8](repeating: 0, count: 16 * 16 * 3)
+        for i in 0..<bytes.count { bytes[i] = UInt8(i % 256) }
+        let frame = CapturedFrame(width: 16, height: 16, imageType: ASI_IMG_RGB24, data: Data(bytes))
+        let result = try #require(ImageEnhancer.waveletSharpen(frame, fineGain: 0, midGain: 0))
+        for (original, processed) in zip(frame.data, result.data) {
+            #expect(abs(Int(original) - Int(processed)) <= 2) // rounding tolerance
+        }
     }
 }

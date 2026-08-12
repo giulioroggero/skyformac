@@ -128,6 +128,174 @@ kernel void clearMono(
     tex.write(float4(0), gid);
 }
 
+/// Masked variant of `accumulateMono` — the GPU counterpart of `LiveStacker.add(_:mask:)`'s CPU
+/// masking semantics (`AI Suite`'s satellite/aircraft trail masking): adds `source`'s value into
+/// `sum` and increments `counts` (a running *per-pixel* contribution count, not the single shared
+/// scalar `accumulateMono`'s divisor uses) only where `mask` says to keep this pixel this frame
+/// (`0` = keep, `1` = masked out — inside a detected streak this specific frame). A pixel masked
+/// out on one frame still contributes normally on every *other* frame, so its final average is
+/// over fewer frames than the rest of the image, not the same count with the excluded value
+/// replaced by zero (which would darken it instead of just averaging over what's actually there)
+/// — matching `LiveStacker`'s CPU behavior exactly, not an approximation of it.
+kernel void accumulateMonoMasked(
+    texture2d<float, access::read> source [[texture(0)]],
+    texture2d<float, access::read_write> sum [[texture(1)]],
+    texture2d<float, access::read_write> counts [[texture(2)]],
+    device const uchar *mask [[buffer(0)]],
+    constant uint &maskWidth [[buffer(1)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
+    if (mask[gid.y * maskWidth + gid.x] != 0) { return; }
+    float newValue = source.read(gid).r;
+    float currentSum = sum.read(gid).r;
+    float currentCount = counts.read(gid).r;
+    sum.write(float4(currentSum + newValue, 0, 0, 0), gid);
+    counts.write(float4(currentCount + 1, 0, 0, 0), gid);
+}
+
+/// Turns a masked accumulator's raw `(sum, count)` pair into a true per-pixel average, written
+/// into `destination` — once this runs, `destination` holds exactly what an *unmasked*
+/// `accumulateMono` accumulator holds after `stretchMono`/`debayerAndStretch` divide it by a
+/// single shared frame count, just computed with a per-pixel count instead of one uniform value.
+/// This is what lets those two kernels (and `histogramReduce`) stay completely unaware masking
+/// happened at all — `MetalFrameRenderer` points them at `destination` with `divisor = 1.0`,
+/// exactly as if it were a single already-averaged frame, instead of needing a second
+/// per-pixel-count-aware variant of each of them (the "much bigger, riskier change" the AI
+/// Features Pipeline spec's Implementation Notes originally deferred this feature over).
+kernel void normalizeMaskedAccumulator(
+    texture2d<float, access::read> sum [[texture(0)]],
+    texture2d<float, access::read> counts [[texture(1)]],
+    texture2d<float, access::write> destination [[texture(2)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= sum.get_width() || gid.y >= sum.get_height()) { return; }
+    float count = max(counts.read(gid).r, 1.0);
+    destination.write(float4(sum.read(gid).r / count, 0, 0, 0), gid);
+}
+
+/// Per-threadgroup brightest-pixel search over the *whole* frame — used once, when a live-stack
+/// session with drift reduction on has no lock-on point yet, to find an initial star to track
+/// (see `MetalFrameRenderer.findBrightestPoint`). A plain sequential scan of the threadgroup's
+/// 256 local values (rather than a parallel tree reduction) is deliberate: this dispatches once
+/// per stacking session, not once per frame, so its cost doesn't matter, and a linear scan is far
+/// less likely to have a reduction-logic bug than a hand-rolled tree reduction would be.
+kernel void findBrightestPartial(
+    texture2d<float, access::read> source [[texture(0)]],
+    device float3 *partials [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    uint2 groupId [[threadgroup_position_in_grid]],
+    uint2 groupsPerGrid [[threadgroups_per_grid]],
+    threadgroup float *localValue [[threadgroup(0)]],
+    threadgroup float *localX [[threadgroup(1)]],
+    threadgroup float *localY [[threadgroup(2)]]
+) {
+    uint localFlatIndex = tid.y * 16 + tid.x;
+    float value = -1;
+    if (gid.x < source.get_width() && gid.y < source.get_height()) {
+        value = source.read(gid).r;
+    }
+    localValue[localFlatIndex] = value;
+    localX[localFlatIndex] = float(gid.x);
+    localY[localFlatIndex] = float(gid.y);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localFlatIndex == 0) {
+        float bestValue = -1;
+        float bestX = 0;
+        float bestY = 0;
+        for (uint i = 0; i < 256; i++) {
+            if (localValue[i] > bestValue) {
+                bestValue = localValue[i];
+                bestX = localX[i];
+                bestY = localY[i];
+            }
+        }
+        uint groupIndex = groupId.y * groupsPerGrid.x + groupId.x;
+        partials[groupIndex] = float3(bestValue, bestX, bestY);
+    }
+}
+
+/// A small rectangular search window for `centroidPartial` below — `origin` may fall (partly)
+/// outside the source texture's bounds when the tracked star sits near an edge; out-of-bounds
+/// samples are simply excluded rather than clamped, so they don't pull the centroid toward the
+/// frame edge.
+struct CentroidROI {
+    int originX;
+    int originY;
+    int size;
+};
+
+/// Per-threadgroup weighted-intensity-centroid partial sums over `roi` — used every live-stack
+/// frame (once drift reduction has a lock-on point) to re-locate the tracked star, cheap because
+/// `roi` is small (`MetalFrameRenderer.driftROISize`) rather than the whole frame. Same
+/// sequential-scan-in-thread-0 reduction shape as `findBrightestPartial`, for the same reason —
+/// this ROI is small enough (a handful of threadgroups) that reduction cost is a non-issue.
+kernel void centroidPartial(
+    texture2d<float, access::read> source [[texture(0)]],
+    constant CentroidROI &roi [[buffer(0)]],
+    device float3 *partials [[buffer(1)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    uint2 groupId [[threadgroup_position_in_grid]],
+    uint2 groupsPerGrid [[threadgroups_per_grid]],
+    threadgroup float *localSumI [[threadgroup(0)]],
+    threadgroup float *localSumIx [[threadgroup(1)]],
+    threadgroup float *localSumIy [[threadgroup(2)]]
+) {
+    uint localFlatIndex = tid.y * 16 + tid.x;
+    float sumI = 0;
+    float sumIx = 0;
+    float sumIy = 0;
+    int px = roi.originX + int(gid.x);
+    int py = roi.originY + int(gid.y);
+    if (int(gid.x) < roi.size && int(gid.y) < roi.size
+        && px >= 0 && py >= 0 && px < int(source.get_width()) && py < int(source.get_height())) {
+        float value = source.read(uint2(uint(px), uint(py))).r;
+        sumI = value;
+        sumIx = value * float(px);
+        sumIy = value * float(py);
+    }
+    localSumI[localFlatIndex] = sumI;
+    localSumIx[localFlatIndex] = sumIx;
+    localSumIy[localFlatIndex] = sumIy;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localFlatIndex == 0) {
+        float totalI = 0;
+        float totalIx = 0;
+        float totalIy = 0;
+        for (uint i = 0; i < 256; i++) {
+            totalI += localSumI[i];
+            totalIx += localSumIx[i];
+            totalIy += localSumIy[i];
+        }
+        uint groupIndex = groupId.y * groupsPerGrid.x + groupId.x;
+        partials[groupIndex] = float3(totalI, totalIx, totalIy);
+    }
+}
+
+/// Same running-sum accumulation as `accumulateMono`, except it samples `source` at a sub-pixel
+/// `shift` (bilinear-interpolated, via `access::sample` rather than `access::read`) instead of
+/// directly at `gid` — the GPU half of live-stack drift reduction: shifting each incoming frame
+/// back by however far the locked-on star has drifted since the reference frame, before adding
+/// it into the running sum, so a drifting (e.g. alt-az, not perfectly tracking) mount doesn't
+/// smear stars into short trails across the stack.
+kernel void accumulateMonoAligned(
+    texture2d<float, access::sample> source [[texture(0)]],
+    texture2d<float, access::read_write> accumulator [[texture(1)]],
+    constant float2 &shift [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= accumulator.get_width() || gid.y >= accumulator.get_height()) { return; }
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    float2 uv = (float2(gid) + 0.5 + shift) / float2(source.get_width(), source.get_height());
+    float newValue = source.sample(s, uv).r;
+    float current = accumulator.read(gid).r;
+    accumulator.write(float4(current + newValue, 0, 0, 0), gid);
+}
+
 /// Bayer pattern identifiers, matching `ASI_BAYER_PATTERN` (RG=0, BG=1, GR=2, GB=3).
 inline bool isRedAt(uint2 p, uint pattern) {
     bool evenX = (p.x % 2) == 0;
@@ -322,6 +490,83 @@ kernel void waveletCombine(
     float midDetail = layer0 - layer1;
     float sharpened = layer1 + midDetail * (1.0 + midGain) + fineDetail * (1.0 + fineGain);
     destination.write(float4(saturate(sharpened), 0, 0, 0), gid);
+}
+
+/// Color analog of `bilateralDenoise`, for the webcam/iPhone RGB24 path — these frames are
+/// already color (device-ISP-debayered), so denoise/wavelet-sharpen need RGBA-aware kernels
+/// instead of the mono ones the ZWO RAW8/RAW16/Y8 path uses. Spatial weight is identical to the
+/// mono version; the range (intensity-similarity) weight uses full RGB Euclidean distance rather
+/// than per-channel-independent weights, which would let the three channels blend by different
+/// amounts and introduce color fringing at edges.
+kernel void bilateralDenoiseRGBA(
+    texture2d<float, access::read> source [[texture(0)]],
+    texture2d<float, access::write> destination [[texture(1)]],
+    constant float &spatialSigma [[buffer(0)]],
+    constant float &rangeSigma [[buffer(1)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
+    float3 center = source.read(gid).rgb;
+    float sumWeight = 0;
+    float3 sumValue = float3(0);
+    const int radius = 2;
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            int x = clamp(int(gid.x) + dx, 0, int(source.get_width()) - 1);
+            int y = clamp(int(gid.y) + dy, 0, int(source.get_height()) - 1);
+            float3 sample = source.read(uint2(x, y)).rgb;
+            float spatialWeight = exp(-float(dx * dx + dy * dy) / (2 * spatialSigma * spatialSigma));
+            float delta = length(sample - center);
+            float rangeWeight = exp(-(delta * delta) / (2 * rangeSigma * rangeSigma));
+            float w = spatialWeight * rangeWeight;
+            sumWeight += w;
+            sumValue += w * sample;
+        }
+    }
+    destination.write(float4(sumValue / max(sumWeight, 1e-6), 1.0), gid);
+}
+
+/// Color analog of `waveletBlur` — the same B3-spline à trous taps, applied to all three
+/// channels at once (the blur weights themselves don't depend on color, so there's no
+/// channel-desync risk the way there is for `bilateralDenoiseRGBA`'s range weight).
+kernel void waveletBlurRGBA(
+    texture2d<float, access::read> source [[texture(0)]],
+    texture2d<float, access::write> destination [[texture(1)]],
+    constant int &spacing [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
+    constexpr float k[5] = {1.0 / 16, 4.0 / 16, 6.0 / 16, 4.0 / 16, 1.0 / 16};
+    float3 sum = float3(0);
+    for (int j = -2; j <= 2; j++) {
+        for (int i = -2; i <= 2; i++) {
+            int x = clamp(int(gid.x) + i * spacing, 0, int(source.get_width()) - 1);
+            int y = clamp(int(gid.y) + j * spacing, 0, int(source.get_height()) - 1);
+            sum += k[i + 2] * k[j + 2] * source.read(uint2(x, y)).rgb;
+        }
+    }
+    destination.write(float4(sum, 1.0), gid);
+}
+
+/// Color analog of `waveletCombine` — identical fine/mid detail extraction and gain, applied per
+/// channel with the same (color-agnostic) gains.
+kernel void waveletCombineRGBA(
+    texture2d<float, access::read> original [[texture(0)]],
+    texture2d<float, access::read> blurLayer0 [[texture(1)]],
+    texture2d<float, access::read> blurLayer1 [[texture(2)]],
+    texture2d<float, access::write> destination [[texture(3)]],
+    constant float &fineGain [[buffer(0)]],
+    constant float &midGain [[buffer(1)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= original.get_width() || gid.y >= original.get_height()) { return; }
+    float3 orig = original.read(gid).rgb;
+    float3 layer0 = blurLayer0.read(gid).rgb;
+    float3 layer1 = blurLayer1.read(gid).rgb;
+    float3 fineDetail = orig - layer0;
+    float3 midDetail = layer0 - layer1;
+    float3 sharpened = layer1 + midDetail * (1.0 + midGain) + fineDetail * (1.0 + fineGain);
+    destination.write(float4(saturate(sharpened), 1.0), gid);
 }
 
 /// GPU per-frame sharpness scoring for the continuous-recording quality gate: computes the

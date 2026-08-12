@@ -10,12 +10,22 @@ import Foundation
 /// padded to a 2880-byte block. 8-bit data is unsigned per the FITS convention; 16-bit data is
 /// stored as FITS's native signed 16-bit with the standard `BZERO=32768`/`BSCALE=1` offset so it
 /// round-trips as unsigned (the same convention ASCOM/INDI/SharpCap all use).
+///
+/// `isColorCamera`/`bayerPattern` are written as a `BAYERPAT` header card (the same convention
+/// PixInsight/Siril/SharpCap already use for exactly this) when the source was a color camera —
+/// this is what lets `FITSReader` (and any real downstream tool) know whether/how to debayer a
+/// re-opened file, since FITS itself carries no color information otherwise. Omitted for mono
+/// frames, matching how a mono camera's own FITS export has no such card either.
 enum FITSWriter {
     enum FITSError: Error {
         case unsupportedImageType
     }
 
-    static func write(frame: CapturedFrame, instrumentName: String, to url: URL) throws {
+    static func write(
+        frame: CapturedFrame, instrumentName: String, isColorCamera: Bool = false,
+        bayerPattern: ASI_BAYER_PATTERN = ASI_BAYER_RG, to url: URL
+    ) throws {
+        let bayerCard = isColorCamera ? bayerPatternCardValue(bayerPattern) : nil
         switch frame.imageType {
         case ASI_IMG_RAW8, ASI_IMG_Y8:
             try writeHeaderAndData(
@@ -24,6 +34,7 @@ enum FITSWriter {
                 height: frame.height,
                 bzero: nil,
                 instrumentName: instrumentName,
+                bayerPattern: bayerCard,
                 pixelData: frame.data, // already unsigned bytes, no byte-order concerns
                 to: url
             )
@@ -35,11 +46,38 @@ enum FITSWriter {
                 height: frame.height,
                 bzero: 32768,
                 instrumentName: instrumentName,
+                bayerPattern: bayerCard,
                 pixelData: bigEndianSigned,
                 to: url
             )
         default:
             throw FITSError.unsupportedImageType
+        }
+    }
+
+    /// `ASI_BAYER_PATTERN`'s raw values (RG=0, BG=1, GR=2, GB=3 — see `Debayer.swift`) mapped to
+    /// the 4-letter mosaic-order strings PixInsight/Siril/SharpCap already write to this exact
+    /// header card.
+    private static func bayerPatternCardValue(_ pattern: ASI_BAYER_PATTERN) -> String {
+        switch pattern {
+        case ASI_BAYER_RG: return "RGGB"
+        case ASI_BAYER_BG: return "BGGR"
+        case ASI_BAYER_GR: return "GRBG"
+        case ASI_BAYER_GB: return "GBRG"
+        default: return "RGGB"
+        }
+    }
+
+    /// The inverse of `bayerPatternCardValue` — used by `FITSReader` to recover the pattern a
+    /// `BAYERPAT` card encodes. `nil` for anything unrecognized (a file this app didn't write,
+    /// or a mono frame with no such card at all).
+    static func bayerPattern(fromCardValue value: String) -> ASI_BAYER_PATTERN? {
+        switch value.trimmingCharacters(in: .whitespaces).uppercased() {
+        case "RGGB": return ASI_BAYER_RG
+        case "BGGR": return ASI_BAYER_BG
+        case "GRBG": return ASI_BAYER_GR
+        case "GBRG": return ASI_BAYER_GB
+        default: return nil
         }
     }
 
@@ -69,6 +107,7 @@ enum FITSWriter {
         height: Int,
         bzero: Int?,
         instrumentName: String,
+        bayerPattern: String?,
         pixelData: Data,
         to url: URL
     ) throws {
@@ -84,6 +123,9 @@ enum FITSWriter {
             cards.append(card("BSCALE", "1", comment: "default scaling"))
         }
         cards.append(cardString("INSTRUME", instrumentName))
+        if let bayerPattern {
+            cards.append(cardString("BAYERPAT", bayerPattern))
+        }
         cards.append("END".padding(toLength: 80, withPad: " ", startingAt: 0))
 
         var header = Data(cards.joined().utf8)

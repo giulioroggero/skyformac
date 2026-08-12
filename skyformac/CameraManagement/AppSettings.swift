@@ -26,6 +26,7 @@ enum AppSettings {
         case gpuWhitePoint
         case isCloudSentinelEnabled
         case isStreakMaskingEnabled
+        case exportHistory
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -137,5 +138,26 @@ enum AppSettings {
     static var isStreakMaskingEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Key.isStreakMaskingEnabled.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.isStreakMaskingEnabled.rawValue) }
+    }
+
+    // MARK: - Exported Files section
+
+    /// Where every single-frame export, recording-folder start, and SER recording start landed
+    /// — this genuinely is preference-shaped state (a persistent record of past actions the user
+    /// wants to find again later, like a browser's download history), not session state that
+    /// should reset on relaunch the way `isLiveStackingEnabled`/`darkFrame` do. Capped at 50
+    /// entries on write so this can't grow unbounded across many sessions.
+    static var exportHistory: [ExportHistoryEntry] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Key.exportHistory.rawValue),
+                  let decoded = try? JSONDecoder().decode([ExportHistoryEntry].self, from: data)
+            else { return [] }
+            return decoded
+        }
+        set {
+            let capped = Array(newValue.suffix(50))
+            guard let data = try? JSONEncoder().encode(capped) else { return }
+            UserDefaults.standard.set(data, forKey: Key.exportHistory.rawValue)
+        }
     }
 }

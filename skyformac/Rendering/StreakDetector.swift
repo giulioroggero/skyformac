@@ -94,6 +94,14 @@ struct StreakMask: Sendable {
         return keep[flatIndex]
     }
 
+    /// `keep` re-encoded for `MetalFrameRenderer`'s `accumulateMonoMasked` kernel, which reads a
+    /// flat GPU buffer rather than a Swift `[Bool]` — `0` = keep, `1` = masked out, the opposite
+    /// sense of `keep` itself (chosen to match the kernel's `if (mask[i] != 0) return;` early-out
+    /// reading naturally as "skip if masked").
+    var keepBytes: [UInt8] {
+        keep.map { $0 ? 0 : 1 }
+    }
+
     /// Fraction of pixels currently masked out — surfaced in the UI so "streak masking is on" has
     /// some live feedback even when nothing's actively being stacked.
     var maskedFraction: Double {

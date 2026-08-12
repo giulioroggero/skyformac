@@ -258,6 +258,41 @@ enum HelpContent {
                 id: "setting.cooler", heading: "Cooler On / Target Temp",
                 body: "Cooled cameras only — see **Using: ZWO Camera**. Cooling reduces dark current (thermal noise); worth turning on for any exposure of more than a few seconds."
             ),
+            HelpSection(
+                id: "setting.planetaryPresets", heading: "Planetary Presets",
+                body: "ZWO cameras only. One tap sets RAW8, a small **Capture ROI**, and a safe starting exposure/gain for a specific bright target (Saturn, Jupiter, Mars, Venus, or the Moon), tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC) behind a modest f/10-f/12 Maksutov/SCT — that pixel-scale/focal-ratio pairing needs no Barlow lens to reach a good sampling rate.",
+                bullets: [
+                    "Starts exposure/gain at the *low* end of each target's recommended range on purpose — raise Gain first (planetary cameras like the ASI678MC have a High Conversion Gain threshold, 182 on that model, where read noise drops meaningfully; Saturn/Jupiter/Mars presets start there or above), then fine-tune Live Exposure, watching the histogram (under the live preview) until its peak sits in the preset's target percentage — the app can't automate that last step, since it depends on the actual night's seeing/transparency, not just which target this is.",
+                    "Jupiter's own rotation blurs fine cloud detail in videos longer than ~2 minutes — its preset's shorter recommended duration reflects that, not a hardware limit.",
+                    "Sets the **Record SER Video** duration slider to the target's recommended length too — still adjustable afterward, and recording itself is a separate manual step.",
+                ]
+            ),
+            HelpSection(
+                id: "setting.captureROI", heading: "Capture ROI (higher FPS)",
+                body: "ZWO cameras only. Requests a smaller-than-full-sensor region from the camera itself (`ASISetROIFormat`) rather than just cropping the display — less data has to be read off the sensor per frame, which directly increases the achievable frame rate. Restarts the live stream to take effect.",
+                bullets: [
+                    "This is the standard \"small ROI, high FPS\" planetary/lunar lucky-imaging technique — e.g. a 640×480 or 800×600 region can push frame rate well past what the full sensor allows, at the cost of field of view (fine for a target — the Moon or a planet — that's small in the frame anyway).",
+                    "Persists across Single Exposure and dark/flat calibration captures too, not just live view, until reset back to Full Sensor.",
+                ]
+            ),
+            HelpSection(
+                id: "setting.serRecording", heading: "Record SER Video (planetary/lunar)",
+                body: "ZWO cameras only. Writes every incoming frame, undiscarded, into a single `.ser` video file for a set duration — the standard raw-video container AutoStakkert!3, PIPP, and similar dedicated stacking tools expect, so their own frame alignment and best-frame selection has the full, unfiltered video to work with.",
+                bullets: [
+                    "The classic workflow this exists for: set a small **Capture ROI** above for high FPS, a short Live Exposure with Gain adjusted so the histogram sits around 50-60%, record a few minutes of SER video, then align/stack the sharpest 20-30% of frames in AutoStakkert!3 and sharpen with wavelets in RegiStax or AstroSurface — none of which skyformac itself does; it produces the raw input those tools expect.",
+                    "Different from **Record to Disk** (Advanced tab): that one gates on a sharpness threshold and writes individual FITS files for unattended, self-curating recording. This one writes everything, because the whole point is handing a dedicated tool the complete video to make its own, better-informed frame selection from.",
+                ]
+            ),
+            HelpSection(
+                id: "setting.exportedFiles", heading: "Exported Files",
+                body: "A running history of every single-frame export, continuous-recording folder, and SER video this app has written — persists across relaunches, so \"where did that go\" has an answer weeks later, not just this session. **Open File…** opens any FITS/PNG/TIFF/JPEG file directly, history or not — or just drag a file onto the window from Finder.",
+                bullets: [
+                    "Opening a FITS file re-renders it through this app's own debayer/stretch pipeline, with its own Black Point/White Point sliders and a \"Debayer as color\" override (with a Bayer pattern picker) for a file whose color metadata doesn't match what you actually want — useful for a file from another tool, or one written before this app started saving that metadata.",
+                    "PNG/TIFF/JPEG files just display directly — they're already a finished picture, no debayering needed.",
+                    "`.ser` recordings and recording folders aren't viewable in this window — \"Reveal in Finder\" is the path to AutoStakkert!3/PIPP/whatever actually processes them, the same scope line **Record SER Video** above already draws.",
+                    "This is a viewer, not an editor — no re-stacking, no plate solving, no saving changes back. For real processing, hand the file to a dedicated tool (PixInsight, Siril, AutoStakkert!3).",
+                ]
+            ),
             HelpSection(heading: "Improve tab — display-only effects",
                 body: "Nothing here changes the sensor or what gets exported/recorded as raw data (except where noted) — these change how the live view *looks*."),
             HelpSection(
@@ -275,7 +310,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.aiSuite", heading: "AI & Machine Learning Suite",
-                body: "**Satellite/Aircraft Trail Masking** — Vision-detected streaks are excluded from the live CPU stack, per-frame (GPU live-stacking isn't supported for this yet, and the panel tells you so if it's on). **Cloud Cover & Drift Sentinel** — watches for a sudden sky-brightness change, pauses active recording, and sends a notification."
+                body: "**Satellite/Aircraft Trail Masking** — Vision-detected streaks are excluded from the live stack, per-frame, on both the CPU and GPU render paths. A masked pixel on one frame still contributes normally to every *other* frame — its final average is over fewer frames than the rest of the image, not the same count with a zeroed-out value mixed in. Takes priority over **Reduce Drift** if both are on at once (the panel says so); combining per-pixel masking with drift alignment isn't supported yet. **Cloud Cover & Drift Sentinel** — watches for a sudden sky-brightness change, pauses active recording, and sends a notification."
             ),
             HelpSection(
                 id: "setting.disableImprovements", heading: "Disable All Improvements",
@@ -304,7 +339,16 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.liveStack", heading: "Live Stack",
-                body: "A running average of incoming frames. No star alignment — this assumes a tracked, stationary mount, the same scoping SharpCap's basic live-stack mode uses."
+                body: "A running average of incoming frames. By default no star alignment — this assumes a tracked, stationary mount, the same scoping SharpCap's basic live-stack mode uses. See **Reduce Drift** below for basic alignment. Exporting FITS/PNG/TIFF (Export, above) while this is on exports the actual stacked average, on both the GPU and CPU render paths — not just whatever the latest single frame happened to be."
+            ),
+            HelpSection(
+                id: "setting.liveStackDriftReduction", heading: "Reduce Drift (align to a locked star)",
+                body: "GPU renderer only. Locks onto the brightest star in the first stacked frame, then re-locates it every subsequent frame and shifts that frame back (sub-pixel) to where the lock started before adding it into the running sum — so a mount that isn't tracking perfectly (an alt-azimuth mount, for example, which drifts and slowly field-rotates even when roughly following a target) doesn't smear stars into short trails across the stack the way plain Live Stack alone would.",
+                bullets: [
+                    "This is single-star translation alignment only — it corrects drift (the whole frame shifting), not field rotation (an alt-az mount's other real effect over a longer session), and it isn't full multi-star geometric registration the way a dedicated stacking tool's alignment is.",
+                    "If the locked star is lost for a frame (a passing cloud, or it drifted out of the search window), that one frame falls back to plain unaligned accumulation rather than applying a wrong shift — a rare miss doesn't derail the whole stack.",
+                    "Turning this on or off, or resetting Live Stack, always starts a fresh lock on the next frame — a lock from a previous session or target is never reused.",
+                ]
             ),
             HelpSection(
                 id: "setting.luckyImaging", heading: "Lucky Imaging",

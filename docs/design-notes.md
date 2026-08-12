@@ -556,3 +556,284 @@ made along the way.
   never copied that step. Fixed by cancelling `frameConsumerTask` there too, matching
   `captureSingleExposure`'s pattern; "Resume Live View" (already shown whenever `!isLiveViewActive`)
   re-subscribes via the existing `resumeLiveView()` path unchanged.
+- **Live Stack's "no star alignment" caveat got a real, opt-in fix: GPU drift reduction.**
+  Plain Live Stack (`accumulateMono`) always added each incoming frame into the running sum at
+  its own native pixel position — fine for a well-tracked equatorial mount, but a mount that
+  drifts even slightly (an alt-az mount especially, which also field-rotates over a session, not
+  just translates) slowly smears stars into short trails across a long stack. Added
+  `MetalFrameRenderer`'s "Drift reduction": on the first stacked frame of a session, a one-time
+  full-frame GPU max-search (`findBrightestPartial`) picks the brightest point as an initial
+  lock-on guess, refined by a weighted-intensity-centroid GPU reduction (`centroidPartial`) over a
+  small (`driftROISize` = 64px) window around it — that becomes the session's fixed reference
+  position. Every subsequent frame, the same centroid search re-locates the star in a window
+  centered on where it was found *last* frame (so the lock follows slow drift instead of only
+  ever searching one fixed spot), and the frame is accumulated via a new `accumulateMonoAligned`
+  kernel that samples the source texture at a sub-pixel (bilinear, `access::sample`) offset equal
+  to how far the star has moved from the reference, instead of `accumulateMono`'s direct
+  unshifted read — pulling the drifted frame back into alignment before it's summed.
+  - **Real, deliberate tradeoff: this makes `process()` synchronously block on a small extra
+    GPU round-trip once per live-stack frame** (`computeDriftShift` commits its own command
+    buffer and calls `waitUntilCompleted` before the main per-frame command buffer's accumulate
+    dispatch, since the shift has to be known before that dispatch can be encoded). Kept
+    acceptable by keeping both GPU-side searches tiny: the full-frame max-search only ever runs
+    once per stacking session (to find the initial lock), and the per-frame centroid search is
+    bounded to a 64×64 window, not the whole frame.
+  - **Correctly scoped as translation-only, not full registration.** This corrects drift (the
+    whole frame shifting) via one tracked star, not field rotation — a real alt-az effect over a
+    longer session that a single-point lock structurally can't capture (would need at least two
+    tracked points to solve for rotation too). Documented as such in `HelpContent` rather than
+    oversold as full multi-star geometric alignment.
+  - **Fails safe, not silent-wrong.** If the tracked star's window sums to ~zero signal (lost
+    behind a cloud, or drifted out of the search window entirely), `DriftAligner.centroid`
+    returns `nil` and that one frame falls back to plain unaligned `accumulateMono` rather than
+    accumulating with a stale or nonsensical shift — a single missed frame is a minor blur
+    contribution, not a corrupted stack.
+  - **The reduction math itself (`DriftAligner`) is deliberately separated from the GPU dispatch
+    plumbing** (`findBrightestPoint`/`computeCentroid`/`computeDriftShift` in
+    `MetalFrameRenderer`) specifically so it has real unit test coverage
+    (`DriftAlignerTests`) without needing a Metal-dependent test harness for the arithmetic
+    itself — the same split `GPUFrameCalibrator`/its tests didn't need (that one's correctness
+    was verified by comparing whole-pipeline output against the CPU reference instead), chosen
+    here because there's no separate CPU reference implementation of drift tracking to compare
+    against.
+  - CPU-only sessions (`useMetalRenderer == false`) don't get this — the toggle is disabled in
+    the UI rather than silently doing nothing, since `LiveStacker` (the CPU accumulator) has no
+    equivalent aligned-accumulate path.
+- **Added the actual "small ROI, high FPS" planetary/lunar lucky-imaging workflow (a real
+  technique: FireCapture/SharpCap users routinely set a small ROI, then record raw SER video for
+  AutoStakkert!3/PIPP/RegiStax to align, stack, and sharpen) — this app had none of the three
+  pieces it needs.** All three real gaps closed:
+  - **`startStreaming`/`captureSingleExposure` always requested the full sensor.**
+    `CaptureEngine` called `ASISetROIFormat` with `camera.maxWidth`/`maxHeight` unconditionally —
+    there was no way to request a smaller region at all, and a smaller ROI is what actually
+    increases achievable frame rate (less data read off the sensor per frame), not just a
+    post-readout software crop (`FrameCropper`, used for planetary auto-crop, crops *after* the
+    full-resolution frame already arrived — no FPS benefit). Added `CaptureEngine.setROI(width:
+    height:)`, storing the desired dimensions as actor-local state (`desiredWidth`/
+    `desiredHeight`, defaulting to the full sensor) that both `startStreaming` and
+    `captureSingleExposure` now read instead of the hardcoded maximum — centralizing it in the
+    actor itself, rather than threading a parameter through every call site, is what makes a
+    chosen ROI persist automatically across live streaming, single exposures, *and* dark/flat
+    calibration captures (which all reuse `captureSingleExposure`) without each one needing to
+    remember to pass it along. Validated/clamped to `ASISetROIFormat`'s own hard constraints
+    (width a multiple of 8, height a multiple of 2) rather than trusting the caller.
+    `CameraManager.changeCaptureROI(width:height:)` restarts the stream for a new ROI to take
+    effect, mirroring `changeImageType`'s existing RAW8/RAW16-switch pattern exactly. UI: a
+    "Capture ROI" section (Camera Controls tab, ZWO only) with Full Sensor/640×480/800×600
+    presets.
+  - **No raw, undiscarded video export — only single-frame FITS/PNG/TIFF, and a *sharpness-gated*
+    continuous FITS recorder** (`recordIfNeeded`) that discards frames below a threshold before
+    they hit disk. That's the wrong shape for this workflow: AutoStakkert!3 does its own,
+    better-informed frame ranking and alignment from the *complete* video — pre-discarding frames
+    in the capture app would take that choice away from it, not help it.
+  - **No SER writer at all**, and downstream tools expect exactly that container, not FITS.
+    Added `SERWriter` — an incremental (`FileHandle`-based, not buffer-then-write) implementation
+    of the open SER format spec: a 178-byte header (patched in `close()` once the real frame count
+    is known — SER has no length prefix elsewhere), each frame's raw bytes appended as it arrives,
+    then a per-frame `.NET`-tick timestamp trailer. Incremental specifically because the whole
+    point of a small ROI is a *high* frame rate sustained over minutes — tens of thousands of
+    frames, easily multiple gigabytes, that an in-memory-buffer-then-write approach would have to
+    hold before writing a single byte. `CameraManager.startSERRecording(to:durationSeconds:)`
+    writes every incoming (dark-subtracted) frame unconditionally via a new, separate
+    `recordSERFrameIfNeeded` — deliberately not reusing `recordIfNeeded`'s sharpness gate, for the
+    reason above. Colors correctly: mono for a non-color camera, the connected camera's actual
+    Bayer pattern for a color one, and SER's `.rgb` ColorID (not `.bgr`) for webcam/iPhone RGB24
+    frames, matching the R,G,B byte order `WebcamCaptureEngine` already produces.
+  - Tested at the file-format level (`SERWriterTests`): header field values/offsets, the
+    frame-count patch actually landing after `close()`, frame-data byte-for-byte round-tripping,
+    Bayer-pattern-to-ColorID mapping, and the RGB24 3-planes-per-pixel case — not end-to-end
+    against a real ZWO camera or real AutoStakkert!3 ingestion, which is outside what a unit test
+    can reach; the format itself (byte layout, header offsets) is what's verified.
+  - **Follow-up: `PlanetaryPreset` + `CameraManager.applyPlanetaryPreset`.** The ROI/SER pieces
+    above are the mechanism; this is the actual per-target numbers (ROI size, exposure/gain
+    starting points, recommended SER duration, target histogram percentage) real planetary
+    imagers already work from for Saturn/Jupiter/Mars/Venus/Moon, tuned around a ~2µm-pixel
+    camera (ASI678MC) behind an f/10-f/12 Mak/SCT. Applying a preset sets RAW8, the ROI, and
+    starting exposure/gain in one step (deliberately the *low* end of each range — the actual
+    histogram target still needs the operator's own live adjustment, which depends on the
+    night's real seeing/transparency, not just the target) — and `ControlsPanelView` separately
+    sets its own SER-duration `@AppStorage` state from `preset.recommendedMaxDurationSeconds`,
+    since `CameraManager` has no reason to know about that view-local setting. `PlanetaryPreset`
+    is plain declarative data (ranges/constants, no GPU or hardware calls), so `PlanetaryPresetTests`
+    covers it directly rather than needing a device/mock-camera harness.
+- **Audit pass: closed the real gaps found in a "what's not fully implemented yet" review**,
+  leaving the deliberately-scoped ones (no full plate solving, no geometric alignment beyond
+  single-star drift reduction, the declined AI Neural-Engine/super-resolution features, real
+  ZWO-hardware/notarization validation) untouched — those are documented design decisions or
+  external-resource dependencies, not bugs.
+  - **`ASI_IMG_Y8` silently produced a blank GPU preview.** `MetalFrameRenderer.process` and
+    `GPUStillImageRenderer.makeDisplayImage` both explicitly excluded `ASI_IMG_Y8` from their
+    RAW8/RAW16 guards/switches with a "not wired up yet" comment, even though Y8 is mono
+    1-byte/pixel — identical in layout to RAW8 — and every *other* Y8-aware path in the app
+    (`LiveStacker`, `CalibrationLibrary`, `FrameArithmetic`, `GPUFrameCalibrator`,
+    `HistogramComputer`, `FrameCropper`, `CGImageRenderer`, `FITSWriter`, `SERWriter`, ...)
+    already treats it exactly like RAW8. The two GPU display paths just hadn't been updated to
+    match — widened both guards to include `ASI_IMG_Y8`; no new code needed, since `renderMono`'s
+    pixel-format selection already falls into the correct 1-byte/`.r8Unorm` branch for anything
+    that isn't `ASI_IMG_RAW16`.
+  - **Denoise and Wavelet Sharpening silently did nothing for webcam/iPhone (RGB24) sources —
+    on *both* render paths.** `Shaders.metal`'s `bilateralDenoise`/`waveletBlur`/`waveletCombine`
+    are mono-only (`texture2d<float,...>` reads exposed a single channel), so
+    `MetalFrameRenderer.processRGB24` never ran them at all; the CPU fallback
+    (`ImageEnhancer.denoise`/`waveletSharpen`) called `normalizedSamples`, whose `switch` had no
+    RGB24 case and returned `nil`, silently no-opping in `CameraManager.scheduleCPUEnhancementIfNeeded`. A real capability gap for the whole iPhone/webcam capture source, not a documented scoping choice.
+    - **GPU fix**: added `bilateralDenoiseRGBA`/`waveletBlurRGBA`/`waveletCombineRGBA` — direct
+      color analogs of the mono kernels. The blur weights are color-agnostic, so
+      `waveletBlurRGBA` just runs the identical taps on all three channels via `float3` math; the
+      bilateral filter's *range* (intensity-similarity) weight is the one place color needed real
+      thought — using full RGB Euclidean distance (`length(sample.rgb - center.rgb)`) rather than
+      three independent per-channel weights, since independent weights would let each channel
+      blend by a different amount and introduce color fringing at edges.
+      `MetalFrameRenderer.processRGB24` now chains stretch → (denoise) → (wavelet-sharpen) →
+      display, with whichever stage runs *last* always targeting `outputTexture` directly —
+      avoiding an unconditional extra scratch-to-`outputTexture` copy pass on the common
+      "neither enabled" path, which still behaves exactly as before this fix (stretch writes
+      straight into `outputTexture`, nothing else runs).
+    - **CPU fix**: added `ImageEnhancer.denoiseRGB24`/`waveletSharpenRGB24`, using the exact same
+      math as their GPU counterparts (full-RGB-distance range weight; per-channel-independent
+      blur) so the CPU and GPU render paths produce matching results for a webcam/iPhone source,
+      not just visually-similar ones. `denoise`/`waveletSharpen` now dispatch on
+      `frame.imageType` internally, so `CameraManager`'s call sites needed no changes.
+    - GPU live-stacking (`accumulateMono`) remains mono-only — the Controls panel already
+      discloses this (`isStreakMaskingEnabled`'s GPU-only warning is a related, separate gap: the
+      CPU `LiveStacker`'s per-pixel streak mask has no GPU-accumulator equivalent yet, since that
+      needs a second per-pixel contribution-count texture threaded through the accumulate
+      kernels, not just a color-aware version of an existing one — left as the one remaining,
+      already-disclosed gap from this audit, scoped but not attempted here).
+    - Tested on both render paths' math: `ImageEnhancerTests` adds RGB24 cases for noise-variance
+      reduction, flat-field stability, edge-contrast increase, near-identity at zero gain, and a
+      color-fringing check (a hard red/green edge should stay red- and green-dominant on its
+      respective side after denoising, not bleed into an unexpected color). The GPU kernels
+      themselves aren't independently unit-tested (no existing precedent in this codebase for
+      testing `.metal` kernel output directly without a full render-pipeline harness), but share
+      the exact same math as the now-tested CPU path.
+  - **Follow-up: closed the "GPU live-stacking doesn't support streak masking" gap left open
+    above** — `specs/skyformac_AI_Features_Pipeline_Spec.md`'s Implementation Notes had
+    explicitly deferred this as too big/risky a change to already-shipped GPU code, since
+    `accumulateMono` (and everything downstream of it — `stretchMono`/`debayerAndStretch`/
+    `histogramReduce`) all divide by one shared *scalar* frame count, and masking needs a
+    *per-pixel* count instead. The actual fix avoids the cost that deferral worried about: rather
+    than thread a per-pixel-count-aware variant through every one of those kernels, a masked
+    frame accumulates into a separate `(sum, count)` texture pair via a new
+    `accumulateMonoMasked` kernel; a second new kernel, `normalizeMaskedAccumulator`, then
+    collapses that pair into a true per-pixel average written into the *existing*
+    `accumulationTexture` — so `stretchMono`/`debayerAndStretch`/`histogramReduce` need zero
+    changes at all, they just read `accumulationTexture` with `divisor = 1.0`, exactly as if it
+    held one already-averaged frame. Two new kernels, not N modified ones.
+    - **A real correctness hazard this design has to guard against explicitly**:
+      `accumulationTexture` means two different things depending on whether masking is active
+      this frame — a running *sum* (the pre-existing unmasked path) vs. an already-normalized
+      *average* (the new masked path). Toggling masking on/off mid-session, or a dimension change,
+      would silently corrupt it if a raw-sum accumulate landed on top of a previous frame's
+      already-divided average. `MetalFrameRenderer` tracks `wasAccumulatingMasked` and forces a
+      full `resetLiveStack()` the moment the mode would otherwise change frame-to-frame, the same
+      way enabling/disabling Live Stack itself already resets via `liveStackGeneration`.
+    - **Masking takes priority over GPU drift-reduction alignment** when both are enabled at
+      once (satellite masking and single-star drift-lock are largely orthogonal use cases —
+      combining them would need a third kernel variant this feature's scope doesn't justify);
+      the Controls panel now says so instead of quietly not aligning.
+    - **Verified against real dispatch, not just reasoning about the math**: `MaskedLiveStackGPUTests`
+      loads and dispatches the actual `accumulateMonoMasked`/`normalizeMaskedAccumulator` kernels
+      against a real `MTLDevice` (same pattern `GPUFrameCalibratorTests` already established) and
+      confirms a masked-out pixel's average comes out as if that frame never existed for it (not
+      as if it contributed a zero) — the exact CPU behavior `LiveStacker.add(_:mask:)` already has.
+- **CI has never actually passed, on any commit, going back to the first one — every push failed
+  the same way.** Three separate, pre-existing Swift 6 "sending" concurrency diagnostics, all
+  reproducible on Xcode 16.4 (the `macos-15` GitHub Actions runner image) but not on a newer local
+  Xcode, which is exactly why nobody had noticed locally:
+  1. **Every `Task.detached(priority:) { [weak self] in ... await MainActor.run { ...self... } }`
+     in `CameraManager`** (`scheduleQualityScoreIfNeeded`, `scheduleStreakDetectionIfNeeded`,
+     `scheduleCPUEnhancementIfNeeded`, `schedulePlanetTrackingIfNeeded`,
+     `scheduleFocusAssistIfNeeded`) failed with "sending 'self' risks causing data races" / "task-
+     isolated 'self' is captured by a main actor-isolated closure." Fixed by replacing the nested
+     `MainActor.run { ... }` closure with a call to a plain method on the class (already
+     `@MainActor` since the class itself is) — `await self?.applyFoo(...)` instead of `await
+     MainActor.run { guard let self ...; self.foo = ... }`. This sidesteps the diagnostic
+     structurally (no second closure literal "sends" `self` anywhere) rather than arguing with it.
+     Plain (non-`.detached`) `Task { [weak self] in ... }` blocks elsewhere in the same file
+     (`startIPhoneNightModeCapture`, catalog object fetching) were never affected — they inherit
+     the caller's `@MainActor` context directly, so there's no nonisolated-task boundary for the
+     diagnostic to fire on in the first place.
+  2. **`try #require(GPUFrameCalibrator(device: device))` in `GPUFrameCalibratorTests`** — wrapping
+     an actor's failable initializer call directly inside `#require`'s macro-generated
+     autoclosure failed with "sending '$1' risks causing data races." Fixed by binding the
+     constructor's result to a plain local optional first, then `#require`-ing that instead —
+     the macro never needs to embed the constructor call itself in its expansion.
+  3. **`SkyformacUITests` had no `@MainActor` annotation** on a class whose methods call
+     `XCUIApplication`/`XCUIElement` APIs that are `@MainActor`-isolated in the SDK Xcode 16.4
+     builds against — failed with "call to main actor-isolated ... in a synchronous nonisolated
+     context." Fixed by adding `@MainActor` to the class; XCTest already runs these methods on the
+     main thread, so this just tells the compiler what was already true.
+
+  All three fixed as isolated, individually-verified commits (each built and tested standalone in
+  a throwaway `git worktree` at the exact commit CI was failing on, before merging into the real
+  working tree) rather than bundled with unrelated in-progress feature work, specifically so a
+  bisect or revert of any one fix stays clean.
+- **Added FITS round-trip (`FITSReader`) — reading, not just writing.** The app could write FITS
+  but never read one back, so "open a file I exported earlier" or "view a dark frame I captured
+  last week" had no in-app path at all. `FITSReader.read(from:)` parses exactly what `FITSWriter`
+  itself produces back into a `CapturedFrame` — deliberately not a general-purpose FITS reader
+  (no multi-HDU, no WCS keywords, no floating-point pixel data), matching the same "don't build
+  more than this app actually needs" discipline as everywhere else in this codebase.
+  - **`FITSWriter` gained a `BAYERPAT` header card** (`RGGB`/`BGGR`/`GRBG`/`GBRG` — the same
+    convention PixInsight/Siril/SharpCap already use) for color-camera exports; without it, a
+    reopened file has no way to know whether/how to debayer at all, since FITS itself carries no
+    color information otherwise. Both existing `FITSWriter.write` call sites now pass the
+    connected camera's real `isColorCamera`/`bayerPattern` instead of writing color-blind files.
+  - **Real bug caught while writing `FITSReaderTests`, not just designed around in the abstract**:
+    the first `parseHeaderCards` implementation ASCII-decoded a size-capped *prefix of the whole
+    file* — header and pixel data together — as one string, then scanned it for 80-character
+    cards. `String(data:encoding:.ascii)` returns `nil` outright the instant it's handed even one
+    byte ≥ 128, and real sensor pixel data (RAW16 especially, and RAW8 values ≥ 128) routinely
+    contains such bytes — so this "worked" only for the RAW8 mono test whose specific fixture
+    bytes all happened to be < 128, and silently reported "not a FITS file" for RAW16 and any
+    color/`BAYERPAT` fixture the moment real byte values were involved. Fixed by decoding strictly
+    one 2880-byte block at a time and stopping the instant `END` is found, never touching a byte
+    past the header's own blocks — the same fix shape as `MetalFrameRenderer`'s known "always
+    verify byte layout against what real data actually contains, not just a convenient test
+    fixture" lesson from earlier in this project's history.
+  - New "Exported Files" section (`ControlsPanelView`, Camera Controls tab): a persisted
+    (`AppSettings.exportHistory`, JSON-encoded, capped at 50 entries) history of every export/
+    recording, an "Open File…" browser, and `ExportedFileViewerView` — a `.sheet` rendering a
+    reopened FITS frame through the app's own `CGImageRenderer`/`DisplayStretch` pipeline with
+    adjustable Black/White Point sliders and a "Debayer as color" override, or displaying PNG/
+    TIFF/JPEG directly. Deliberately a viewer, not a second processing suite — see
+    `specs/skyformac_Exported_Files_Spec.md`'s directives for exactly where that line is drawn.
+- **Real bug found while verifying "does exporting the stack actually export the stack": on the
+  GPU render path (the default), it didn't — exporting FITS/PNG/TIFF while Live Stack was
+  running silently exported the latest raw single frame instead.** `CameraManager.currentFrame`
+  is only ever the raw per-frame data when `useMetalRenderer == true` — the GPU accumulation
+  happens entirely inside `MetalFrameRenderer`, display-only, with no path handing the running
+  average back out to `CameraManager` at all. `finishExport`'s FITS case read `currentFrame`
+  directly; the PNG/TIFF case went through `currentDisplayImage()`, which (in GPU mode,
+  `currentImage` being `nil`) re-rendered `currentFrame` — same raw frame either way. The CPU
+  render path never had this bug: `ingest()` already sets `currentFrame = liveStacker
+  .currentAverage() ?? processed` there, so `currentFrame` genuinely is the stack.
+  - **Fix**: `MetalFrameRenderer.currentAccumulatedFrame(imageType:)` reads the GPU accumulator
+    texture back into a real, full-bit-depth `CapturedFrame` — accounting for the two different
+    things `accumulationTexture` can hold (a running *sum* of normalized `0...1` texture reads
+    for plain unmasked accumulation, needing `sum / accumulatedFrameCount * maxValue`; an
+    already-`normalizeMaskedAccumulator`-divided true average when masking was active, needing
+    `divisor = 1.0` instead — reusing `wasAccumulatingMasked`, the same flag the masked-
+    accumulation correctness fix earlier added). `CameraManager.gpuAccumulatedFrameProvider` (a
+    closure set by `MetalPreviewView`, since `CameraManager` otherwise has no reference at all to
+    the `MetalFrameRenderer` instance living inside that view's own `Coordinator`) is how
+    `CameraManager` pulls this on demand, from the new `frameForExport()`/`imageForExport()` —
+    used only by `finishExport`, deliberately *not* substituted into `currentDisplayImage()`
+    itself, since that function's other two callers (`capturePolarAlignmentReferenceFrame`/
+    `solvePolarAlignment`) specifically want the single raw current frame for star-position
+    detection — averaging across drift would blur exactly the star positions polar alignment
+    needs precise, not stacked.
+  - The actual "GPU accumulator sum → real sensor pixel value" arithmetic is factored into
+    `MetalFrameRenderer.rawPixelValue(fromAccumulatedSum:divisor:maxValue:)`, a pure function with
+    direct unit tests (`MetalFrameRendererTests`) covering the unmasked-average, masked-already-
+    normalized, RAW16-range, and rounding-not-truncating cases — the same "factor the easy-to-get-
+    subtly-wrong math out into something testable without a full render pipeline" pattern
+    `DriftAligner` already established.
+  - **Known remaining edge case, not fixed**: if Live Stack *and* an in-progress Lucky Imaging
+    "Stack" result are both active at once (an unusual combination — different, largely
+    orthogonal workflows), `frameForExport()` currently prefers the GPU Live Stack accumulator
+    over whatever Lucky Imaging's own `stackLuckyImagingBest` just wrote into `currentFrame`.
+    Lucky Imaging's own result is arguably the more deliberate, more recent user action in that
+    specific overlap; not resolved here since it's a narrow, rare combination rather than the
+    common case this fix targets.

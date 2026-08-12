@@ -36,11 +36,45 @@ actor CaptureEngine {
     private var frameBuffer: FrameBuffer?
     private var currentFormat: ZWOSDK.ROIFormat?
 
+    /// What `startStreaming`/`captureSingleExposure` request via `ASISetROIFormat` — defaults to
+    /// the full sensor, settable via `setROI(width:height:)`. Centralized here (rather than
+    /// threaded as a parameter through every call site) so a smaller ROI, once set, persists
+    /// automatically across live streaming, single exposures, and dark/flat calibration captures
+    /// alike — exactly the "smaller ROI -> faster FPS" workflow real planetary/lunar capture tools
+    /// (FireCapture, SharpCap) support, without every future capture path needing to remember to
+    /// pass it along.
+    private var desiredWidth: Int
+    private var desiredHeight: Int
+
     private var continuation: AsyncStream<CapturedFrame>.Continuation?
     private var onCameraRemoved: (@Sendable () -> Void)?
 
     init(camera: ZWOCameraInfo) {
         self.camera = camera
+        self.desiredWidth = camera.maxWidth
+        self.desiredHeight = camera.maxHeight
+    }
+
+    /// Sets the ROI width/height future `startStreaming`/`captureSingleExposure` calls will
+    /// request — `nil` resets to the full sensor. Validated/clamped to the ASI SDK's own hard
+    /// constraints (`ASISetROIFormat`: width a multiple of 8, height a multiple of 2) and to the
+    /// sensor's real dimensions, rather than trusting the caller to have already done that.
+    /// Doesn't itself restart any in-progress stream — the caller (`CameraManager`) is
+    /// responsible for stopping and restarting streaming for a new ROI to actually take effect,
+    /// the same way switching RAW8/RAW16 format already works.
+    func setROI(width: Int?, height: Int?) {
+        guard let width, let height else {
+            desiredWidth = camera.maxWidth
+            desiredHeight = camera.maxHeight
+            return
+        }
+        desiredWidth = Self.clampROIDimension(width, maximum: camera.maxWidth, multipleOf: 8)
+        desiredHeight = Self.clampROIDimension(height, maximum: camera.maxHeight, multipleOf: 2)
+    }
+
+    private static func clampROIDimension(_ value: Int, maximum: Int, multipleOf: Int) -> Int {
+        let clamped = min(max(value, multipleOf), maximum)
+        return (clamped / multipleOf) * multipleOf
     }
 
     /// Live frame stream for the currently-connected camera. Consuming code (the renderer)
@@ -53,14 +87,15 @@ actor CaptureEngine {
         }
     }
 
-    /// Configures the camera for full-resolution, unbinned video capture in `imageType` and
-    /// starts the background poll loop. Call `frames(onCameraRemoved:)` first to obtain the
-    /// stream. Safe to call again with a different `imageType` after `stop()`.
+    /// Configures the camera for unbinned video capture in `imageType`, at whatever ROI
+    /// `setROI(width:height:)` last requested (the full sensor by default), and starts the
+    /// background poll loop. Call `frames(onCameraRemoved:)` first to obtain the stream. Safe to
+    /// call again with a different `imageType` after `stop()`.
     func startStreaming(imageType: ASI_IMG_TYPE = ASI_IMG_RAW8) throws {
         guard !isRunning else { return }
 
-        let width = camera.maxWidth
-        let height = camera.maxHeight
+        let width = desiredWidth
+        let height = desiredHeight
         try ZWOSDK.setROIFormat(
             cameraID: camera.cameraID,
             width: width,
@@ -97,8 +132,8 @@ actor CaptureEngine {
     ) async throws -> CapturedFrame {
         if isRunning { await stop() }
 
-        let width = camera.maxWidth
-        let height = camera.maxHeight
+        let width = desiredWidth
+        let height = desiredHeight
         try ZWOSDK.setROIFormat(
             cameraID: camera.cameraID,
             width: width,

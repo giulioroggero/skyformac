@@ -19,6 +19,104 @@ enum PolarAlignmentStage: Equatable {
     case complete
 }
 
+/// One targeted starting point (ROI, exposure, gain, a recommended max SER video length, and a
+/// histogram target to fine-tune against) for a specific bright solar-system target —
+/// `CameraManager.applyPlanetaryPreset` applies the concrete numbers; getting the *histogram*
+/// itself into the recommended range still needs the operator's own live adjustment, since that
+/// depends on the actual night's seeing/transparency, not just which target this is.
+///
+/// The numbers below assume a modern ~2µm-pixel planetary CMOS camera (e.g. a ZWO ASI678MC)
+/// behind a modest f/10-f/12 Maksutov/SCT — that pixel-scale/focal-ratio pairing needs no Barlow
+/// to reach a good sampling rate, so these presets don't add one. A different camera/telescope
+/// combination may need the exposure/gain starting points nudged, but the ROI sizes and workflow
+/// (small ROI for FPS, RAW8 + SER for AutoStakkert!3-style downstream processing) still apply.
+enum PlanetaryPreset: String, CaseIterable, Identifiable {
+    case saturn = "Saturn"
+    case jupiter = "Jupiter"
+    case mars = "Mars"
+    case venus = "Venus"
+    case moon = "Moon (Detail)"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .saturn: return "circle.dotted.and.circle"
+        case .jupiter: return "circle.hexagonpath"
+        case .mars: return "circle.fill"
+        case .venus: return "sun.max"
+        case .moon: return "moon.fill"
+        }
+    }
+
+    /// `nil` means the full sensor — Moon detail work wants the whole frame, not a crop, since
+    /// the target itself is much larger in frame than a planet's disk.
+    var roi: (width: Int, height: Int)? {
+        switch self {
+        case .saturn: return (800, 600)
+        case .jupiter: return (800, 600)
+        case .mars: return (400, 400)
+        case .venus: return (640, 480)
+        case .moon: return nil
+        }
+    }
+
+    var exposureRangeSeconds: ClosedRange<Double> {
+        switch self {
+        case .saturn: return 0.015...0.025
+        case .jupiter: return 0.005...0.010
+        case .mars: return 0.002...0.006
+        case .venus: return 0.001...0.004
+        case .moon: return 0.002...0.008
+        }
+    }
+
+    /// The ASI678MC's High Conversion Gain mode kicks in at 182 — its own real read-noise drop,
+    /// not a rule of thumb — which is why Saturn/Jupiter/Mars all start at or above it while
+    /// Venus (bright enough not to need it) and Moon detail work don't require reaching it.
+    var gainRange: ClosedRange<Int> {
+        switch self {
+        case .saturn: return 200...280
+        case .jupiter: return 182...240
+        case .mars: return 182...220
+        case .venus: return 100...182
+        case .moon: return 100...182
+        }
+    }
+
+    var recommendedMaxDurationSeconds: Double {
+        switch self {
+        case .saturn: return 180
+        case .jupiter: return 120
+        case .mars: return 240
+        case .venus: return 180
+        case .moon: return 60
+        }
+    }
+
+    var histogramTargetPercent: ClosedRange<Double> {
+        switch self {
+        case .saturn: return 50...60
+        case .jupiter: return 60...70
+        case .mars: return 60...70
+        case .venus: return 70...70
+        case .moon: return 60...75
+        }
+    }
+
+    /// What `applyPlanetaryPreset` actually sets — the *low* end of each range (see its own doc
+    /// comment for why: safer to start under-exposed and raise while watching the live histogram
+    /// than to start already near clipping).
+    var startingExposureSeconds: Double { exposureRangeSeconds.lowerBound }
+    var startingGain: Int { gainRange.lowerBound }
+
+    var note: String? {
+        self == .jupiter
+            ? "Jupiter's own rotation blurs fine cloud detail in videos longer than ~2 minutes — keep sessions short."
+            : nil
+    }
+}
+
 struct SmartExposureRecommendation: Sendable {
     let readNoiseElectrons: Double
     let skyRateElectronsPerSecond: Double
@@ -418,6 +516,18 @@ final class CameraManager {
     private(set) var liveStackGeneration = 0
     var gpuLiveStackFrameCount = 0
 
+    /// Set by `MetalPreviewView` to `{ [weak renderer] imageType in renderer?
+    /// .currentAccumulatedFrame(imageType: imageType) }` once the Metal view exists — lets
+    /// `frameForExport()` pull back the GPU live-stack accumulator's current average as a real
+    /// `CapturedFrame`. Needed because that accumulator lives entirely inside
+    /// `MetalFrameRenderer` (owned by the view's own `Coordinator`), which `CameraManager`
+    /// otherwise has no reference to at all — without this, `currentFrame` on the GPU render path
+    /// is only ever the latest *raw, unstacked* frame (the accumulation is display-only there),
+    /// so exporting "the current frame" while Live Stack was running on the GPU path silently
+    /// exported a single frame instead of the stack. `@ObservationIgnored` since a closure
+    /// reference isn't UI-observable state.
+    @ObservationIgnored var gpuAccumulatedFrameProvider: ((ASI_IMG_TYPE) -> CapturedFrame?)?
+
     var isLiveStackingEnabled = false {
         didSet {
             liveStacker.reset()
@@ -431,6 +541,14 @@ final class CameraManager {
         gpuLiveStackFrameCount = 0
     }
     var liveStackedFrameCount: Int { useMetalRenderer ? gpuLiveStackFrameCount : liveStacker.frameCount }
+
+    /// GPU-only (see `MetalFrameRenderer`'s "Drift reduction" section) — locks onto the
+    /// brightest star in the first stacked frame and shifts every subsequent frame back to that
+    /// position (sub-pixel, bilinear-sampled) before adding it into the running sum, so a
+    /// drifting (not perfectly tracking — e.g. alt-az) mount doesn't smear stars into short
+    /// trails across the stack. No effect on the CPU `LiveStacker` path; the UI disables this
+    /// toggle whenever `useMetalRenderer` is off, rather than silently ignoring it.
+    var isLiveStackDriftReductionEnabled = false
 
     // MARK: - Plate-solved polar alignment
 
@@ -527,6 +645,7 @@ final class CameraManager {
         recordingBytesWritten = 0
         recordingLowDiskSpaceStopped = false
         isRecordingToDisk = true
+        recordExport(url: directory, kind: .recordingFolder)
     }
 
     func stopRecording() {
@@ -557,7 +676,11 @@ final class CameraManager {
         }
         let url = directory.appendingPathComponent(String(format: "frame_%06d.fits", recordedFrameCount))
         do {
-            try FITSWriter.write(frame: frame, instrumentName: connectedCamera?.name ?? "skyformac", to: url)
+            try FITSWriter.write(
+                frame: frame, instrumentName: connectedCamera?.name ?? "skyformac",
+                isColorCamera: connectedCamera?.isColorCamera ?? false, bayerPattern: connectedCamera?.bayerPattern ?? ASI_BAYER_RG,
+                to: url
+            )
             recordedFrameCount += 1
             if let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int64 {
                 recordingBytesWritten += size
@@ -570,6 +693,78 @@ final class CameraManager {
 
     private func formattedBytes(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    // MARK: - SER video recording (planetary/lunar "small ROI, high FPS" lucky-imaging workflow)
+
+    /// Deliberately separate from "Record to Disk" above: that one gates on a sharpness
+    /// threshold and writes individual FITS files, because it's meant to run unattended and
+    /// self-curate. This one writes *every* frame, undiscarded, into a single `.ser` video — the
+    /// classic planetary/lunar capture workflow hands the entire raw video to a dedicated
+    /// alignment/stacking tool (AutoStakkert!3, PIPP) that does its own, better-informed frame
+    /// selection; pre-discarding frames here would just take that choice away from it.
+    @ObservationIgnored private var serWriter: SERWriter?
+    private(set) var isRecordingSERVideo = false
+    private(set) var serRecordedFrameCount = 0
+    private(set) var serRecordingElapsedSeconds: Double = 0
+    private var serRecordingStartDate: Date?
+    private var serRecordingTargetSeconds: Double = 0
+
+    /// Starts writing every incoming (dark-subtracted) frame to `url` as a single SER video,
+    /// stopping automatically after `durationSeconds` (or sooner, via `stopSERRecording()`) — the
+    /// classic "record N minutes at a small ROI/high frame rate" planetary capture workflow.
+    func startSERRecording(to url: URL, durationSeconds: Double) {
+        guard let frame = currentFrame, let camera = connectedCamera else { return }
+        if let free = DiskSpaceChecker.availableBytes(at: url.deletingLastPathComponent()),
+           free < Self.minimumFreeDiskSpaceBytes {
+            lastErrorMessage = "Only \(formattedBytes(free)) free on that volume — need at least \(formattedBytes(Self.minimumFreeDiskSpaceBytes)) to start recording."
+            return
+        }
+        do {
+            serWriter = try SERWriter(
+                firstFrame: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern,
+                instrumentName: camera.name, url: url
+            )
+        } catch {
+            lastErrorMessage = String(describing: error)
+            return
+        }
+        serRecordedFrameCount = 0
+        serRecordingElapsedSeconds = 0
+        serRecordingTargetSeconds = durationSeconds
+        serRecordingStartDate = Date()
+        isRecordingSERVideo = true
+        recordExport(url: url, kind: .serVideo)
+    }
+
+    /// Finalizes the SER file (writes its timestamp trailer and patches the frame count into the
+    /// header — see `SERWriter.close()`) and stops recording. Safe to call whether recording
+    /// stopped on its own (`durationSeconds` elapsed) or the user is stopping it early.
+    func stopSERRecording() {
+        guard isRecordingSERVideo else { return }
+        isRecordingSERVideo = false
+        do {
+            try serWriter?.close()
+        } catch {
+            lastErrorMessage = String(describing: error)
+        }
+        serWriter = nil
+    }
+
+    private func recordSERFrameIfNeeded(_ frame: CapturedFrame) {
+        guard isRecordingSERVideo, let serWriter, let startDate = serRecordingStartDate else { return }
+        serRecordingElapsedSeconds = Date().timeIntervalSince(startDate)
+        guard serRecordingElapsedSeconds < serRecordingTargetSeconds else {
+            stopSERRecording()
+            return
+        }
+        do {
+            try serWriter.write(frame)
+            serRecordedFrameCount += 1
+        } catch {
+            lastErrorMessage = String(describing: error)
+            stopSERRecording()
+        }
     }
 
     // MARK: - Lucky imaging (burst capture + sharpness-ranked stacking — see `LuckyImagingSession`)
@@ -771,6 +966,63 @@ final class CameraManager {
         }
     }
 
+    /// What `CaptureEngine.setROI` last actually applied — `nil` means the full sensor. Surfaced
+    /// here (rather than only living inside the actor) purely so the UI can show what's currently
+    /// active without an `await` round-trip on every render.
+    private(set) var captureROIWidth: Int?
+    private(set) var captureROIHeight: Int?
+
+    /// Requests a smaller-than-full-sensor capture region — ZWO cameras only (see `CaptureEngine
+    /// .setROI`'s doc comment for why this is worth doing at all: a smaller ROI genuinely
+    /// increases achievable frame rate, since less data has to be read off the sensor per frame,
+    /// the same "small ROI, high FPS" technique real planetary/lunar lucky-imaging workflows
+    /// (FireCapture, SharpCap) rely on). `width`/`height` `nil` resets to the full sensor. No-op
+    /// for a webcam/iPhone source, where there's no `ASISetROIFormat` equivalent — frame size
+    /// there is whatever the selected `AVCaptureDevice.Format` already is.
+    func changeCaptureROI(width: Int?, height: Int?) {
+        guard let engine = captureEngine, connectedCamera != nil else { return }
+        frameConsumerTask?.cancel()
+        currentFrame = nil
+        currentImage = nil
+        captureROIWidth = width
+        captureROIHeight = height
+        Task {
+            await engine.stop()
+            await engine.setROI(width: width, height: height)
+            await startPreview(using: engine, imageType: selectedImageType)
+        }
+    }
+
+    /// Applies one bright solar-system target's starting ROI/exposure/gain in a single step, and
+    /// switches to RAW8 if the camera supports it (the recommended format for this workflow —
+    /// undebayered means more frames/second, and color reconstruction is AutoStakkert!3's job,
+    /// not something worth paying a live-capture debayer cost for). ZWO cameras only; a no-op for
+    /// a webcam/iPhone source, which has none of the ROI/exposure/gain hardware controls this
+    /// touches. Doesn't itself set a SER recording duration — `ControlsPanelView` reads
+    /// `preset.recommendedMaxDurationSeconds` itself, since recording duration is that view's own
+    /// `@AppStorage` state, not `CameraManager`'s.
+    ///
+    /// Deliberately starts exposure/gain at the *low* end of each preset's recommended range,
+    /// not the middle or high end — getting the live histogram into the actual target percentage
+    /// still depends on the night's real seeing/transparency, which this can't know in advance,
+    /// so starting low and raising while watching the histogram is safer than starting high and
+    /// risking a blown-out (clipped) capture from the first frame.
+    func applyPlanetaryPreset(_ preset: PlanetaryPreset) {
+        guard let camera = connectedCamera, camera.cameraID >= 0 else { return }
+        if camera.supportedVideoFormats.contains(ASI_IMG_RAW8) {
+            changeImageType(ASI_IMG_RAW8)
+        }
+        changeCaptureROI(width: preset.roi?.width, height: preset.roi?.height)
+
+        if let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
+            let microseconds = Int(preset.startingExposureSeconds * 1_000_000)
+            setControlValue(ASI_EXPOSURE, value: min(max(microseconds, exposureCap.minValue), exposureCap.maxValue))
+        }
+        if let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+            setControlValue(ASI_GAIN, value: min(max(preset.startingGain, gainCap.minValue), gainCap.maxValue))
+        }
+    }
+
     /// The single place a freshly-captured raw frame (real camera or webcam) enters the
     /// display pipeline: dark subtraction, then lucky-imaging burst collection, then live
     /// stacking — all operating on raw sensor data, before `refreshCurrentImage` debayers and
@@ -804,6 +1056,7 @@ final class CameraManager {
         }
 
         recordIfNeeded(processed)
+        recordSERFrameIfNeeded(processed)
 
         if let camera = connectedCamera, let session = luckyImagingSession, !session.isComplete {
             session.add(processed, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
@@ -860,11 +1113,11 @@ final class CameraManager {
     /// .method(...)` from inside `scheduleQualityScoreIfNeeded`'s detached task, rather than a
     /// nested `await MainActor.run { ... }` closure — the latter makes Swift 6's strict
     /// concurrency checker flag "sending 'self' risks causing data races" on some toolchains
-    /// (confirmed on Xcode 16.4/CI, not reproduced on a newer local Xcode) even though the
-    /// underlying access pattern (a `weak self` captured once, resolved once, touched only on
-    /// the actor it's isolated to) is safe; calling an isolated method directly avoids the
-    /// diagnostic entirely instead of arguing with it. Applies to every other `Task.detached` in
-    /// this file with the same shape, not just this one.
+    /// (confirmed on Xcode 16.4/CI, not reproduced on the newer Xcode used for local development)
+    /// even though the underlying access pattern (a `weak self` captured once, resolved once,
+    /// touched only on the actor it's isolated to) is safe; calling an isolated method directly
+    /// avoids the diagnostic entirely instead of arguing with it. Applies to every other
+    /// `Task.detached` in this file with the same shape, not just this one.
     private func applyQualityScore(_ raw: Double) {
         // Laplacian variance has no fixed theoretical ceiling, so "out of 100" here is relative
         // to the sharpest frame *this session has actually seen* — a genuinely meaningful "how
@@ -1178,17 +1431,100 @@ final class CameraManager {
         do {
             switch kind {
             case .fits:
-                guard let frame = currentFrame else { return }
-                try FITSWriter.write(frame: frame, instrumentName: connectedCamera?.name ?? "skyformac", to: url)
+                guard let frame = frameForExport() else { return }
+                try FITSWriter.write(
+                    frame: frame, instrumentName: connectedCamera?.name ?? "skyformac",
+                    isColorCamera: connectedCamera?.isColorCamera ?? false, bayerPattern: connectedCamera?.bayerPattern ?? ASI_BAYER_RG,
+                    to: url
+                )
+                recordExport(url: url, kind: .fits)
             case .png:
-                guard let image = currentDisplayImage() else { return }
+                guard let image = imageForExport() else { return }
                 try ImageExporter.writePNG(image, to: url)
+                recordExport(url: url, kind: .png)
             case .tiff:
-                guard let image = currentDisplayImage() else { return }
+                guard let image = imageForExport() else { return }
                 try ImageExporter.writeTIFF(image, to: url)
+                recordExport(url: url, kind: .tiff)
             }
         } catch {
             lastErrorMessage = String(describing: error)
+        }
+    }
+
+    /// The frame `exportCurrentFrame` should actually write out — the GPU live-stack accumulator's
+    /// current average when one is active and reachable, otherwise whatever `currentFrame`
+    /// already is (a plain single frame, or the CPU `LiveStacker`'s own average when Live Stack
+    /// is on and the CPU render path is active — `currentFrame` already holds *that* correctly,
+    /// see `ingest`). This is the fix for exporting "the current frame" while GPU Live Stack was
+    /// running previously exporting a raw single frame instead of the stack — see
+    /// `MetalFrameRenderer.currentAccumulatedFrame`'s doc comment for exactly why that gap existed.
+    private func frameForExport() -> CapturedFrame? {
+        if useMetalRenderer, isLiveStackingEnabled,
+           let stacked = gpuAccumulatedFrameProvider?(selectedImageType) {
+            return stacked
+        }
+        return currentFrame
+    }
+
+    /// `imageForExport`'s frame source (`frameForExport()`) debayered/stretched for PNG/TIFF —
+    /// deliberately a fresh on-demand render rather than reusing `currentImage` (which, even
+    /// when non-`nil`, reflects whatever `currentFrame` was at the time it was last computed, not
+    /// necessarily the GPU stack `frameForExport()` may now be substituting in instead).
+    private func imageForExport() -> CGImage? {
+        guard let frame = frameForExport(), let camera = connectedCamera else { return currentDisplayImage() }
+        return renderedCurrentImage(frame: frame, camera: camera)
+    }
+
+    // MARK: - Exported Files: history + opening a file back up for viewing
+
+    private(set) var exportHistory: [ExportHistoryEntry] = AppSettings.exportHistory
+
+    private func recordExport(url: URL, kind: ExportHistoryEntry.Kind) {
+        exportHistory.append(ExportHistoryEntry(url: url, kind: kind))
+        AppSettings.exportHistory = exportHistory
+    }
+
+    func clearExportHistory() {
+        exportHistory = []
+        AppSettings.exportHistory = []
+    }
+
+    /// What `ExportedFileViewerView` actually displays — a raw FITS frame (still needs this
+    /// app's own debayer/stretch pipeline to become a picture) vs. an already-displayable
+    /// PNG/TIFF, vs. a reason opening it failed.
+    enum ExportedFileContent {
+        case rawFrame(FITSReader.ParsedFITS, sourceURL: URL)
+        case image(NSImage, sourceURL: URL)
+        case error(String)
+    }
+
+    var viewingExportedFile: ExportedFileContent?
+
+    /// Opens a FITS/PNG/TIFF file — one just exported this session, one from `exportHistory`
+    /// (which can span previous sessions), or any arbitrary file the user picks via "Open File…"
+    /// — for in-app viewing (`ExportedFileViewerView`). `.ser` and other formats aren't something
+    /// this app's own viewer can render (see `ExportHistoryEntry.Kind.isViewableInApp`'s doc
+    /// comment for why that's a deliberate scope line, not a missing feature) — callers should
+    /// check that first and offer "Reveal in Finder"/"Open with default app" instead.
+    func openExportedFile(_ url: URL) {
+        let extensionLowercased = url.pathExtension.lowercased()
+        switch extensionLowercased {
+        case "fits", "fit":
+            do {
+                let parsed = try FITSReader.read(from: url)
+                viewingExportedFile = .rawFrame(parsed, sourceURL: url)
+            } catch {
+                viewingExportedFile = .error(String(describing: error))
+            }
+        case "png", "tif", "tiff", "jpg", "jpeg":
+            if let image = NSImage(contentsOf: url) {
+                viewingExportedFile = .image(image, sourceURL: url)
+            } else {
+                viewingExportedFile = .error("Couldn't load image data from \"\(url.lastPathComponent)\".")
+            }
+        default:
+            viewingExportedFile = .error("skyformac can only view FITS, PNG, TIFF, and JPEG files directly — \"\(url.lastPathComponent)\" needs another tool (Reveal in Finder, then open it with whatever handles that format).")
         }
     }
 
@@ -1460,6 +1796,9 @@ final class CameraManager {
     func disconnect() {
         frameConsumerTask?.cancel()
         frameConsumerTask = nil
+        captureROIWidth = nil
+        captureROIHeight = nil
+        if isRecordingSERVideo { stopSERRecording() }
         cancelIPhoneNightModeCapture()
         isWebcamFocusLocked = false
         focusAssistTask?.cancel()

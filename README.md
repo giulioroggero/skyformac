@@ -106,34 +106,80 @@ version, and the main pane starts streaming a live preview.
 
 ### Controls panel
 
-The right-hand panel always shows **Single Exposure** (with a log-scale slider
-spanning microseconds to tens of seconds — real ASI exposure ranges don't fit a
-linear slider) and **Export**. A **Mode** picker (General / Planetary / Deep
-Sky / All Tools) filters the rest down to what's relevant for the session type;
-"All Tools" always shows everything:
+The right-hand panel is split into three tabs (a vertical icon strip on its
+trailing edge — also reachable from the menu bar's Sidebar Tab menu, ⌘1-⌘3),
+grouped by what each control actually affects, not by imaging genre:
 
-- **Focus Assist** — live star detection with a sharpness readout; turn on
-  **Recognize Stars** underneath it to identify which catalog stars are in
-  frame and (once identification is confident enough) show real catalog-object
-  badges over the live view.
-- **Smart Exposure** — measures read noise and sky background from real frames
-  and recommends a sub-exposure length.
+**Camera Controls** — raw hardware, nothing here is a display effect:
+- Dynamic per-camera controls (gain, offset, cooler, flip, binning, etc. —
+  whatever the connected ZWO camera actually reports).
+- **Single Exposure** — a log-scale slider spanning microseconds to tens of
+  seconds (real ASI exposure ranges don't fit a linear slider).
+- **Planetary Presets** (ZWO only) — one tap sets RAW8, a small **Capture
+  ROI**, and a safe starting exposure/gain for Saturn/Jupiter/Mars/Venus/the
+  Moon, tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC)
+  behind an f/10-f/12 Mak/SCT.
+- **Capture ROI** (ZWO only) — a smaller-than-full-sensor region increases
+  achievable frame rate directly (less data read off the sensor per frame),
+  the classic "small ROI, high FPS" planetary/lunar technique.
+- **iPhone / Webcam** (webcam sources only) — Lock Focus (freezes the
+  device's own autofocus, which otherwise fights afocal projection) and
+  Night Mode (10s/60s frame-stacked simulated long exposure).
+- **Record SER Video** (ZWO only) — writes every incoming frame, undiscarded,
+  into a single `.ser` video for a set duration — the raw-video container
+  AutoStakkert!3/PIPP/RegiStax expect to do their own alignment and
+  best-frame selection from.
+- **Export** — PNG/TIFF/FITS, for the current frame or a stack. FITS exports
+  from a color camera embed a `BAYERPAT` header card (the same convention
+  PixInsight/Siril/SharpCap use), so a re-opened file knows how to debayer.
+- **Exported Files** — a persistent (survives a relaunch) history of every
+  export/recording this app has written, plus an **Open File…** button (or
+  just drag a file onto the window) for any FITS/PNG/TIFF/JPEG file. Opening
+  a FITS file re-renders it through the app's own debayer/stretch pipeline
+  with adjustable Black/White Point sliders — a viewer, not an editor; real
+  elaboration (stacking, plate solving, wavelet sharpening at full strength)
+  still belongs to a dedicated tool. Exporting while Live Stack is running
+  exports the actual stacked average, on both render paths.
+
+**Improvements** — opt-in visual effects, never baked into exported/recorded
+raw data:
+- **Image Enhancement** — real-time denoise (bilateral filter) and wavelet
+  sharpening, as Metal compute kernels (CPU fallback when GPU rendering is
+  off) — works for both ZWO mono and iPhone/webcam color sources.
+- **Live GPU Enhancement Controls** — a separate three-stage pipeline (GPU
+  only): temporal + spatial denoise, then a non-linear contrast stretch.
+- **AI & Machine Learning Suite** — satellite/aircraft trail masking and a
+  Cloud Cover & Drift Sentinel.
+- One "Disable All Improvements" checkbox falls back to the camera's own
+  unmodified output in a single click.
+
+**Advanced** — imaging workflow:
+- **Focus Assist** — live star detection with a sharpness/HFD readout; turn
+  on **Recognize Stars** underneath it to identify which catalog stars are
+  in frame and (once identification is confident enough) show real
+  catalog-object badges over the live view.
+- **Smart Exposure** — measures read noise and sky background from real
+  frames and recommends a sub-exposure length.
 - **Planetary Auto-Center** — Vision-tracked disk with an optional
-  auto-cropped ROI, for planetary work.
+  auto-cropped ROI.
 - **Polar Alignment** — two-frame rotation-center solve from star
   correspondences, with a live on-screen correction vector.
-- **Image Enhancement** — real-time denoise and wavelet sharpening.
 - **Calibration (Dark/Flat)** — capture and manage any number of named dark
-  and flat frames; toggle subtraction/correction independently.
-- **Live Stack** — running-average stacking of the live feed.
+  and flat frames; toggle subtraction/correction independently (GPU or CPU,
+  matching the active render path).
+- **Live Stack** — running-average stacking of the live feed, with an
+  optional GPU-only **Reduce Drift** (single-star lock-on alignment) for
+  mounts that don't track perfectly, e.g. alt-azimuth.
 - **Lucky Imaging** — burst capture, keeping only the sharpest fraction,
   stacked.
-- **Export** — PNG/TIFF/FITS, for the current frame or a stack.
 - **Record to Disk** — continuous recording with a GPU sharpness gate (only
   writes frames sharp enough to be worth keeping) and a disk-space guardrail.
+- One "Disable All Advanced Features" checkbox as above, plus stops any
+  active recording.
 
-Dynamic per-camera controls (gain, offset, cooler, etc. — whatever the
-connected ZWO camera actually reports) show below the fixed sections.
+In-app **Help** (⌘?) covers every one of these in detail, with full-text
+search and a "?" shortcut next to each setting that jumps straight to its
+explanation.
 
 ### Permissions
 

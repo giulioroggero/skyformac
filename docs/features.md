@@ -49,14 +49,42 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   type (`CalibrationLibrary`), independently toggleable subtraction/correction
   (`FlatFieldCorrector`).
 - **Live stacking** — CPU running-average, or a genuine GPU running-sum
-  compute kernel end to end when the Metal renderer is active.
+  compute kernel end to end when the Metal renderer is active. Optional GPU
+  drift reduction (single-star lock-on, sub-pixel aligned accumulation) for
+  mounts that don't track perfectly, e.g. alt-azimuth — see
+  [`docs/design-notes.md`](design-notes.md) for exactly what it does and
+  doesn't correct for. Exporting FITS/PNG/TIFF while stacking is active
+  exports the actual stacked average on both render paths (the GPU path's
+  accumulator is read back into a real frame for exactly this) — not the
+  latest raw single frame.
 - **Lucky imaging** — burst capture, sharpness-ranked (Laplacian variance,
   CPU or GPU), keeping and stacking only the sharpest fraction.
-- **FITS/PNG/TIFF export**, for the current frame or a live stack.
+- **FITS/PNG/TIFF export**, for the current frame or a live stack. Color-camera
+  FITS exports embed a `BAYERPAT` header card so downstream tools (and
+  skyformac's own reader, below) know how to debayer them.
+- **Exported Files** — a persistent history of every export/recording, an
+  **Open File…** browser for any FITS/PNG/TIFF/JPEG file, and an in-app
+  viewer (`FITSReader` + the existing debayer/stretch pipeline for FITS,
+  direct display for the rest) with adjustable Black/White Point sliders.
+  Deliberately a viewer, not a second processing suite — see
+  [`specs/skyformac_Exported_Files_Spec.md`](../specs/skyformac_Exported_Files_Spec.md).
 - **Continuous recording** with a GPU sharpness frame filter (only writes
   frames sharp enough to be worth keeping, scored by a GPU Laplacian-energy
   kernel) and a disk-space guardrail that stops recording before it can fill
   the disk.
+- **Capture ROI + SER video recording** (ZWO cameras only) — the standard
+  "small ROI, high FPS" planetary/lunar lucky-imaging workflow: request a
+  smaller-than-full-sensor region from the camera itself (increases
+  achievable frame rate, not just a display crop), then record every
+  incoming frame undiscarded into a single `.ser` video for a set duration —
+  the raw-video container AutoStakkert!3/PIPP/RegiStax expect to do their
+  own alignment, best-frame selection, and wavelet sharpening from. See
+  [`docs/design-notes.md`](design-notes.md) for exactly what each piece does.
+- **Planetary Presets** (ZWO cameras only) — one tap sets RAW8, a small
+  Capture ROI, and a safe starting exposure/gain for Saturn, Jupiter, Mars,
+  Venus, or the Moon, tuned around a modern ~2µm-pixel planetary camera
+  (e.g. ASI678MC) behind a modest f/10-f/12 Maksutov/SCT. Also sets the SER
+  recording duration slider to that target's recommended session length.
 
 **Focus & tracking**
 - **Focus assist** — Vision `VNDetectContoursRequest` star detection overlay
@@ -88,7 +116,11 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
 **Image enhancement**
 - Real-time denoise (classical bilateral filter) and 2-level à trous wavelet
   sharpening (RegiStax-style), as Metal compute kernels with a CPU fallback
-  (throttled, off-`@MainActor`) for when the GPU renderer is off.
+  (throttled, off-`@MainActor`) for when the GPU renderer is off. Works for
+  both ZWO RAW8/RAW16/Y8 (mono kernels) and iPhone/webcam RGB24 sources
+  (color-aware kernels, matching CPU/GPU math) — see
+  [`docs/design-notes.md`](design-notes.md) for the color-fringing
+  consideration that took.
 - **Live GPU Enhancement Controls** (`specs/skyformac_GPU_Live_Controls_Spec.md`,
   GPU renderer only, opt-in) — a second, independent three-stage pipeline:
   temporal (exponential-moving-average) denoise across frames, a second
@@ -106,10 +138,13 @@ the spec's five features are declined rather than faked)
   Laplacian-variance sharpness score live, the same metric that already ranks
   frames for stacking.
 - **Satellite/aircraft trail masking** — Vision-based streak detection
-  (`StreakDetector`) excludes detected trails from the live CPU stack on a
-  per-pixel, per-frame basis (`StreakMask`/`LiveStacker`) so a passing
-  satellite doesn't bake a bright line into the average. GPU live-stacking
-  only, not supported yet — the panel says so when both are on at once.
+  (`StreakDetector`) excludes detected trails from the live stack on a
+  per-pixel, per-frame basis, on both the CPU (`StreakMask`/`LiveStacker`)
+  and GPU (`accumulateMonoMasked`/`normalizeMaskedAccumulator` in
+  `Shaders.metal`) render paths, so a passing satellite doesn't bake a
+  bright line into the average. Takes priority over GPU drift-reduction
+  live-stack alignment if both are on at once — see
+  [`docs/design-notes.md`](design-notes.md).
 - **Cloud & Drift Sentinel** — reuses the All-Sky monitor's cloud/light-alert
   detection against the main capture feed's own brightness, with a one-shot
   local notification and a "pause capture" action when triggered.

@@ -53,4 +53,40 @@ struct MetalFrameRendererTests {
         #expect(viewport.width == 800)
         #expect(viewport.height == 600)
     }
+
+    // MARK: - rawPixelValue (GPU live-stack accumulator readback for export — see
+    // `currentAccumulatedFrame`'s doc comment)
+
+    @Test func rawPixelValueRecoversAverageOfUnmaskedAccumulation() {
+        // Three frames summed as normalized 0...1 texture reads: 100, 150, 200 (out of 255) ->
+        // normalized sum = (100+150+200)/255 = 1.7647..., divided back by frame count 3, times
+        // maxValue 255, should recover the mean (150) exactly (up to rounding).
+        let sum: Float = (100.0 + 150.0 + 200.0) / 255.0
+        let value = MetalFrameRenderer.rawPixelValue(fromAccumulatedSum: sum, divisor: 3, maxValue: 255)
+        #expect(value == 150)
+    }
+
+    @Test func rawPixelValueUsesDivisorOneForAlreadyNormalizedMaskedAccumulation() {
+        // The masked-accumulation path (`normalizeMaskedAccumulator`) already divides by its own
+        // per-pixel count before this ever runs, so `currentAccumulatedFrame` passes `divisor:
+        // 1.0` for it — the stored "sum" is already the true normalized average, not a raw sum
+        // still needing a frame-count division.
+        let alreadyAveraged: Float = 200.0 / 255.0
+        let value = MetalFrameRenderer.rawPixelValue(fromAccumulatedSum: alreadyAveraged, divisor: 1.0, maxValue: 255)
+        #expect(value == 200)
+    }
+
+    @Test func rawPixelValueScalesToRAW16Range() {
+        let sum: Float = (1000.0 + 3000.0) / 65535.0
+        let value = MetalFrameRenderer.rawPixelValue(fromAccumulatedSum: sum, divisor: 2, maxValue: 65535)
+        #expect(value == 2000)
+    }
+
+    @Test func rawPixelValueRoundsRatherThanTruncates() {
+        // 0.999.../255 * 255 lands just under an integer boundary — should round to the nearest
+        // whole pixel value, not floor down to the one below.
+        let sum: Float = 100.6 / 255.0
+        let value = MetalFrameRenderer.rawPixelValue(fromAccumulatedSum: sum, divisor: 1, maxValue: 255)
+        #expect(value == 101)
+    }
 }

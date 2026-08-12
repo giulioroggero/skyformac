@@ -52,16 +52,19 @@ actor GPUStillImageRenderer {
         }
     }
 
-    /// `nil` for `ASI_IMG_Y8` — that straight-to-Metal path isn't wired up here either, the same
-    /// gap `MetalFrameRenderer.process`'s own doc comment already documents for the live path.
-    /// Callers should fall back to `CGImageRenderer.makeDisplayImage` in that case.
+    /// `nil` for anything other than RAW8/RAW16/Y8 (mono) or RGB24 — callers should fall back to
+    /// `CGImageRenderer.makeDisplayImage` in that case, though no such frame type currently
+    /// exists in this app's captured formats.
     func makeDisplayImage(
         from frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN, stretch: DisplayStretch
     ) -> CGImage? {
         switch frame.imageType {
         case ASI_IMG_RGB24:
             return renderRGB24(frame: frame, stretch: stretch)
-        case ASI_IMG_RAW8, ASI_IMG_RAW16:
+        case ASI_IMG_RAW8, ASI_IMG_RAW16, ASI_IMG_Y8:
+            // Y8 is mono 1-byte/pixel, identical in layout to RAW8 — `renderMono` already
+            // branches on `frame.imageType == ASI_IMG_RAW16` for the 16-bit case and falls
+            // through to the 8-bit path otherwise, so Y8 needs no dedicated branch there.
             return renderMono(frame: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: stretch)
         default:
             return nil
