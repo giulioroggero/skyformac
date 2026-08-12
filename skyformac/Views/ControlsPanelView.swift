@@ -1513,7 +1513,7 @@ struct ControlsPanelView: View {
                 .clipShape(Capsule())
             HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.meshDriftCorrection")
         }
-        Text("Tracks a grid of points across the frame instead of one locked star, blending their individual drift with bilinear interpolation — corrects for field rotation and differential drift a single global shift can't. Takes priority over \"Reduce Drift\" above when both are on. GPU only.")
+        Text("Tracks a grid of points across the frame instead of one locked star, triangulating the mesh and blending each triangle's drift with barycentric interpolation — corrects for field rotation and differential drift a single global shift can't. Takes priority over \"Reduce Drift\" above when both are on. GPU only.")
             .font(.caption2)
             .foregroundStyle(.secondary)
 

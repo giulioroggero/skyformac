@@ -7,9 +7,17 @@ import Foundation
 /// whole frame — it can't correct for field rotation or differential drift across a wide field
 /// (alt-az mounts without a rotator, imperfect polar alignment, mirror flop). This tracks an
 /// NxN grid of points across the frame instead, each drifting independently, and blends their
-/// displacements with bilinear interpolation — the same "vertex skinning" technique used to
-/// blend bone transforms smoothly across a mesh in real-time rendering/games — to build a smooth,
-/// spatially-varying correction instead of one global shift.
+/// displacements with triangulated (barycentric) interpolation — the same mesh-deformation
+/// primitive real-time rendering/games use to blend control-point transforms smoothly across a
+/// surface — to build a smooth, spatially-varying correction instead of one global shift.
+///
+/// Not a 3D reconstruction of anything, despite the "mesh" name inviting that comparison to e.g.
+/// a face-tracking mesh: there's no depth/parallax information to recover from a single 2D
+/// camera pointed at the night sky in the first place (every star is, for this purpose, at
+/// infinite distance — a flat 2D field, not a 3D surface with real curvature the way a face is).
+/// The mesh here is purely a 2D image-plane deformation field for motion compensation; triangles
+/// are used because they're the standard, unambiguous interpolation primitive for that (see
+/// `interpolatedDisplacement`'s own doc comment), not because there's 3D shape being fitted.
 ///
 /// Marked "Experimental" in the UI on purpose: unlike the single-star lock (which has a
 /// background-subtracted two-pass measurement per frame), each mesh vertex here measures its own
@@ -66,10 +74,16 @@ enum MeshDriftField {
         return SIMD2<Float>(cellWidth * factor / 2, cellHeight * factor / 2)
     }
 
-    /// Bilinear blend of the (up to) 4 nearest vertices' displacement vectors at an arbitrary
-    /// pixel position — the same interpolation real-time rendering uses to blend control-point
-    /// transforms smoothly across a mesh, rather than each cell having a hard edge at its
-    /// boundary (a visible seam in the accumulated stack otherwise).
+    /// Barycentric blend of the 3 vertices of whichever triangle a pixel position falls in —
+    /// each of the mesh's quad cells is split into 2 triangles (along the `v10`-`v01` diagonal,
+    /// the standard top-right/bottom-left split), the same primitive real-time rendering actually
+    /// rasterizes (a GPU has no native "quad" — every rasterized surface, including a deformed
+    /// mesh's, is triangles under the hood). Unlike a quad's bilinear blend (which is a smooth
+    /// but not-quite-flat function across the whole cell), barycentric interpolation across a
+    /// triangle is exactly affine — a single flat plane fit through its 3 corner values — so each
+    /// half of the cell blends as one flat plane instead of two overlapping curved ones. The two
+    /// triangles still agree exactly along their shared diagonal (both formulas below evaluate
+    /// identically there), so there's no seam introduced at that split.
     static func interpolatedDisplacement(
         at pixel: SIMD2<Float>, gridSize: Int, width: Int, height: Int, vertexDisplacements: [SIMD2<Float>]
     ) -> SIMD2<Float> {
@@ -96,9 +110,14 @@ enum MeshDriftField {
         let v01 = vertexDisplacements[row1 * gridSize + col0]
         let v11 = vertexDisplacements[row1 * gridSize + col1]
 
-        let top = v00 * (1 - fx) + v10 * fx
-        let bottom = v01 * (1 - fx) + v11 * fx
-        return top * (1 - fy) + bottom * fy
+        // Triangle (v00, v10, v01) covers fx + fy <= 1; triangle (v10, v11, v01) covers the rest.
+        if fx + fy <= 1 {
+            let w00 = 1 - fx - fy
+            return v00 * w00 + v10 * fx + v01 * fy
+        } else {
+            let w11 = fx + fy - 1
+            return v11 * w11 + v10 * (1 - fy) + v01 * (1 - fx)
+        }
     }
 
     /// Exponential (single-pole) smoothing toward a newly measured value — `sensitivity == 1`
@@ -178,6 +197,67 @@ enum MeshDriftField {
             let gridCentroidX = Float(sumWeightX / sumWeight)
             let gridCentroidY = Float(sumWeightY / sumWeight)
             return SIMD2<Float>(gridCentroidX / scaleX, gridCentroidY / scaleY)
+        }
+    }
+
+    /// Maximum grid dimension for `cheapLuminanceGrid` — same bounded-cost idea as
+    /// `SharpnessScorer`'s own `maxDimension`, just enforced *before* touching most of the
+    /// frame's bytes instead of after, see that function's doc comment for why the difference
+    /// matters here specifically.
+    private static let maxLuminanceDimension = 512
+
+    /// A cheap, stride-sampled approximate brightness grid built directly from raw sensor
+    /// bytes — deliberately *not* `SharpnessScorer.luminanceGrid`, which debayers the entire
+    /// native-resolution frame (a real interpolating demosaic over every pixel) *before* its own
+    /// downsample. That's the right tradeoff for `SharpnessScorer`'s own use (a perceptually
+    /// accurate sharpness metric needs real debayered luminance), but it means calling it once
+    /// per live-stack frame — continuously, for as long as mesh drift correction is on — runs a
+    /// full-resolution CPU debayer every single frame, unconditionally, regardless of the
+    /// downstream downsample. That's exactly what was making the UI stutter while this feature is
+    /// on despite the accumulate step itself being pure GPU work: the *measurement* stage was
+    /// still doing full-native-resolution CPU work first.
+    ///
+    /// Mesh-drift measurement doesn't need perceptually accurate demosaiced luminance in the
+    /// first place — it only needs an approximate brightness map to locate bright stars, and a
+    /// real star saturates every Bayer channel similarly, so a raw single-channel sample is a
+    /// perfectly good brightness proxy for that purpose. Sampling at a stride *before* touching
+    /// most of the frame's bytes (rather than after debayering all of them) is the same lesson
+    /// `GPUSharpnessScorer`'s own hang fix already applied to its Metal kernel, just needed again
+    /// here on the CPU side.
+    static func cheapLuminanceGrid(for frame: CapturedFrame) -> (values: [Double], width: Int, height: Int)? {
+        guard frame.width > 0, frame.height > 0 else { return nil }
+        let stride = max(1, max(frame.width, frame.height) / maxLuminanceDimension)
+        let newWidth = (frame.width + stride - 1) / stride
+        let newHeight = (frame.height + stride - 1) / stride
+        guard newWidth > 0, newHeight > 0 else { return nil }
+
+        switch frame.imageType {
+        case ASI_IMG_RAW8, ASI_IMG_Y8:
+            guard frame.data.count >= frame.width * frame.height else { return nil }
+            return frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> (values: [Double], width: Int, height: Int)? in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return nil }
+                var output = [Double](repeating: 0, count: newWidth * newHeight)
+                for y in Swift.stride(from: 0, to: frame.height, by: stride) {
+                    for x in Swift.stride(from: 0, to: frame.width, by: stride) {
+                        output[(y / stride) * newWidth + (x / stride)] = Double(base[y * frame.width + x])
+                    }
+                }
+                return (output, newWidth, newHeight)
+            }
+        case ASI_IMG_RAW16:
+            guard frame.data.count >= frame.width * frame.height * 2 else { return nil }
+            return frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> (values: [Double], width: Int, height: Int)? in
+                guard let base = raw.bindMemory(to: UInt16.self).baseAddress else { return nil }
+                var output = [Double](repeating: 0, count: newWidth * newHeight)
+                for y in Swift.stride(from: 0, to: frame.height, by: stride) {
+                    for x in Swift.stride(from: 0, to: frame.width, by: stride) {
+                        output[(y / stride) * newWidth + (x / stride)] = Double(base[y * frame.width + x])
+                    }
+                }
+                return (output, newWidth, newHeight)
+            }
+        default:
+            return nil
         }
     }
 }

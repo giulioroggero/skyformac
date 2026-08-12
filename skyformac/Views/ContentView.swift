@@ -83,6 +83,15 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 130, ideal: 150, max: 280)
         } detail: {
             HSplitView {
+                // `.frame(maxHeight: .infinity)` here is what actually matters: without it,
+                // whenever the window is taller than this column's own intrinsic content height
+                // (e.g. a saved/restored window frame from before Histogram/Curves got shorter),
+                // neither `HSplitView` nor its children stretch to fill that extra height on
+                // their own — it was showing up as blank space below everything, at the very
+                // bottom of the whole window, not specifically "belonging" to the histogram.
+                // `PreviewView`'s own `.layoutPriority(1)` then makes sure that extra height
+                // actually goes to the preview image, not back into more wasted space below the
+                // tabs.
                 VStack(spacing: 0) {
                     PreviewView(
                         cameraManager: cameraManager,
@@ -139,8 +148,9 @@ struct ContentView: View {
                         .frame(minHeight: 150, maxHeight: 260)
                     }
                 }
+                .frame(maxHeight: .infinity)
                 ControlsPanelView(cameraManager: cameraManager)
-                    .frame(minWidth: 320, idealWidth: 340)
+                    .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
             }
         }
         // Night mode: preserves dark adaptation by rendering the whole content area in red only

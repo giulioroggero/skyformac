@@ -1439,3 +1439,51 @@ made along the way.
     a displacement arrow (exaggerated 8x for visibility — real sub-pixel/few-pixel drift would
     otherwise be an invisible sliver at typical preview zoom), so "Vector Overlap" is something
     you can actually *see* change, not just a number.
+- **Mesh drift correction, round 2: triangulated interpolation, and the actual cause of the UI
+  stutter this feature was reported to cause.**
+  - **Triangles, not bilinear quads.** The original version blended each pixel's displacement
+    from the bilinear weighting of its cell's 4 corner vertices. Bilinear is a real, valid
+    interpolation scheme, but it's not the primitive real-time rendering/games actually use for
+    mesh deformation — a GPU has no native "quad," every rasterized surface (including a
+    deformed mesh) is triangles under the hood, and unlike bilinear (a smooth but not-quite-flat
+    blend across the whole cell), barycentric interpolation across a triangle is exactly affine —
+    a single flat plane fit through its 3 corner values. Switched `MeshDriftField
+    .interpolatedDisplacement` (Swift) and `Shaders.metal`'s `meshInterpolatedDisplacement` (GPU)
+    to split each quad cell into 2 triangles along the `v10`-`v01` diagonal and blend
+    barycentrically within whichever triangle a pixel falls in; both triangles' formulas agree
+    exactly along their shared diagonal (verified in `MeshDriftFieldTests
+    .interpolatedDisplacementIsContinuousAcrossTheTriangleDiagonal`), so no seam is introduced by
+    the split. `MeshDriftOverlayView` now draws the actual wireframe (horizontal/vertical mesh
+    edges *and* each cell's diagonal) instead of just the per-vertex ROI rectangles, so what's
+    on-screen matches what's actually being interpolated across.
+    - Worth being explicit about: this is *not* a 3D reconstruction of anything, despite the
+      resemblance to a face-tracking mesh (e.g. ARKit/MediaPipe's hundreds of triangulated
+      landmark points) that motivated asking for it. A face mesh triangulates because it's
+      fitting a real 3D surface with actual depth/curvature, recovered from a depth sensor or a
+      trained shape model. There's no depth or parallax information to recover here at all — a
+      camera pointed at the night sky sees every star as effectively infinitely distant, a flat
+      2D field, not a 3D surface. The mesh in this feature is a 2D image-plane deformation field
+      for motion compensation; triangles are used because they're the correct, standard,
+      unambiguous primitive for *that* — not because there's 3D shape being fitted.
+  - **The actual root cause of the reported UI stutter**: `computeMeshDisplacements` was calling
+    `SharpnessScorer.luminanceGrid`, which — for a color camera — runs a full interpolating
+    debayer (`Debayer.debayerRAW8`/`debayerRAW16`) over the *entire native-resolution* frame
+    *before* its own bounded downsample. That's the right tradeoff for `SharpnessScorer`'s actual
+    use (Lucky Imaging burst ranking needs a perceptually accurate sharpness metric, and runs on
+    a bounded/paused burst, not continuously) — but calling it every single live-stack frame,
+    continuously, for as long as mesh drift correction is on, meant a full-resolution CPU
+    demosaic every frame regardless of the downstream downsample. That was real, unbounded
+    (scales with native sensor resolution) CPU cost sitting directly in the per-frame path,
+    independent of the GPU accumulate step (which really was cheap) — "GPU is used" was true of
+    the *accumulate* stage, just not the *measurement* stage feeding it. Exactly the same shape of
+    mistake the `GPUSharpnessScorer` hang fix (see above) exists to prevent, just on the CPU side
+    of a different feature this time.
+    - **Fix**: `MeshDriftField.cheapLuminanceGrid` — strides directly over the raw sensor bytes
+      (RAW8/RAW16, no debayer at all) at the same bounded stride `SharpnessScorer`'s own
+      `downsample` uses, `nil` for RGB24 (mesh drift never runs for a webcam/iPhone source
+      anyway — the GPU accumulator is mono-only). Mesh-drift measurement doesn't need
+      perceptually accurate demosaiced luminance in the first place, just an approximate
+      brightness map to locate bright stars — a real star saturates every Bayer channel
+      similarly, so a raw single-channel sample is a perfectly good brightness proxy for that.
+      `computeMeshDisplacements` now calls this instead, and no longer needs `isColorCamera`/
+      `bayerPattern` at all.

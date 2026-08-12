@@ -797,27 +797,34 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// Measures this frame's per-vertex drift and returns the updated (already-blended)
     /// displacement grid ready to feed `dispatchMeshAlignedAccumulate` — entirely CPU-side, from
     /// `frame.data` directly, deliberately *not* a GPU round trip like the single-star lock's
-    /// `computeCentroid`/`reacquireLock`: `SharpnessScorer.luminanceGrid`'s bounded downsample
-    /// (≤512px on the longer edge) already keeps this cheap regardless of the camera's real
-    /// resolution — the same fix applied to `GPUSharpnessScorer`'s own hang, just reused here
+    /// `computeCentroid`/`reacquireLock`: `MeshDriftField.cheapLuminanceGrid`'s bounded stride
+    /// sampling (≤512px on the longer edge) already keeps this cheap regardless of the camera's
+    /// real resolution — the same fix applied to `GPUSharpnessScorer`'s own hang, just reused here
     /// instead of re-derived, since doing `gridSize * gridSize` GPU round trips every live-stack
     /// frame (one per vertex, mirroring the single-star lock's two-pass measurement) would not
     /// scale nearly as safely.
+    ///
+    /// Uses `MeshDriftField.cheapLuminanceGrid`, not `SharpnessScorer.luminanceGrid` — the latter
+    /// debayers the *entire* native-resolution frame before its own downsample, which for a color
+    /// camera meant a full-resolution CPU demosaic every single live-stack frame while this
+    /// feature is on, regardless of the downstream downsample. That was the actual cause of the
+    /// UI stutter reported with this feature enabled — real CPU cost on the measurement side, not
+    /// the GPU accumulate step, which really was cheap. `cheapLuminanceGrid` strides directly over
+    /// the raw sensor bytes instead, which is all this needs (an approximate brightness map to
+    /// locate bright stars, not perceptually accurate demosaiced luminance).
     ///
     /// A vertex whose window currently has no clear signal (`MeshDriftField.measuredCentroids`
     /// returning `nil` for it) just keeps its last smoothed displacement rather than snapping to
     /// zero — the same "hold the last known value through a brief loss" reasoning
     /// `computeDriftShift`'s local-search fallback uses for the single star.
-    private func computeMeshDisplacements(
-        frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN, config: MeshDriftConfig
-    ) -> [SIMD2<Float>] {
+    private func computeMeshDisplacements(frame: CapturedFrame, config: MeshDriftConfig) -> [SIMD2<Float>] {
         let vertexCount = config.gridSize * config.gridSize
         if meshLastGridSize != config.gridSize {
             meshReferenceCentroids = Array(repeating: nil, count: vertexCount)
             meshSmoothedDisplacements = Array(repeating: SIMD2<Float>.zero, count: vertexCount)
             meshLastGridSize = config.gridSize
         }
-        guard let grid = SharpnessScorer.luminanceGrid(for: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern)
+        guard let grid = MeshDriftField.cheapLuminanceGrid(for: frame)
         else { return meshSmoothedDisplacements }
 
         let measured = MeshDriftField.measuredCentroids(
@@ -1202,7 +1209,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                         // single-star lock when both would otherwise apply — they're two
                         // alternate techniques for the same job, not a combinable pair.
                         let displacements = computeMeshDisplacements(
-                            frame: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, config: meshDriftConfig
+                            frame: frame, config: meshDriftConfig
                         )
                         dispatchMeshAlignedAccumulate(
                             encoder: encoder, source: workingTexture, accumulator: accumulationTexture,

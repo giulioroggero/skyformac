@@ -454,10 +454,12 @@ kernel void accumulateMonoAligned(
     accumulator.write(float4(current + newValue, 0, 0, 0), gid);
 }
 
-/// Bilinear blend of a `gridSize x gridSize` mesh's vertex displacements at an arbitrary pixel —
-/// the GPU-side twin of `MeshDriftField.interpolatedDisplacement` (Swift), same math, evaluated
-/// per-pixel here instead of per-vertex there. See `accumulateMonoMeshAligned` below for how it's
-/// used.
+/// Barycentric blend of a `gridSize x gridSize` mesh's vertex displacements at an arbitrary
+/// pixel — the GPU-side twin of `MeshDriftField.interpolatedDisplacement` (Swift), same math
+/// (each quad cell split into 2 triangles along the `v10`-`v01` diagonal, exactly matching that
+/// function's own doc comment for why triangles rather than a bilinear blend), evaluated
+/// per-pixel here instead of per-vertex there. See `accumulateMonoMeshAligned` below for how
+/// it's used.
 inline float2 meshInterpolatedDisplacement(
     float2 pixel, uint gridSize, float2 frameSize, device const float2 *vertexDisplacements
 ) {
@@ -480,9 +482,13 @@ inline float2 meshInterpolatedDisplacement(
     float2 v01 = vertexDisplacements[row1 * gridSize + col0];
     float2 v11 = vertexDisplacements[row1 * gridSize + col1];
 
-    float2 top = mix(v00, v10, fx);
-    float2 bottom = mix(v01, v11, fx);
-    return mix(top, bottom, fy);
+    if (fx + fy <= 1.0) {
+        float w00 = 1.0 - fx - fy;
+        return v00 * w00 + v10 * fx + v01 * fy;
+    } else {
+        float w11 = fx + fy - 1.0;
+        return v11 * w11 + v10 * (1.0 - fy) + v01 * (1.0 - fx);
+    }
 }
 
 /// Mesh-based counterpart to `accumulateMonoAligned` above — "Experimental" mesh-based drift
