@@ -344,6 +344,15 @@ enum HelpContent {
                 ]
             ),
             HelpSection(
+                id: "setting.activePipelines", heading: "\"Running\" status list",
+                body: "Right next to the camera, above the \"Acquisition\" section — every currently-active pipeline (Live Stack, Lucky Imaging, Recording to Disk, SER recording, Planetary Tracking, Polar Alignment, Cloud Sentinel, Focus Assist) gets its own row here, whether or not its own tab happens to be the one showing in the Controls panel on the right.",
+                bullets: [
+                    "The arrow button jumps the Controls panel to that pipeline's own tab; the stop button turns it off immediately, without navigating there first.",
+                    "A pipeline's own modifiers — Smart Live Stack, Reduce Drift, and Mesh Drift Correction are all specifically settings *of* Live Stack, not independent pipelines — fold into that one row's detail text instead of getting rows of their own.",
+                    "Lucky Imaging's row keeps showing after a burst finishes filling (it says \"ready to stack\") — the session stays held, ready for Stack Best to be called, until you explicitly discard it or start a new burst.",
+                ]
+            ),
+            HelpSection(
                 id: "setting.captureROI", heading: "Capture ROI (higher FPS)",
                 body: "ZWO cameras only. Requests a smaller-than-full-sensor region from the camera itself (`ASISetROIFormat`) rather than just cropping the display — less data has to be read off the sensor per frame, which directly increases the achievable frame rate. Restarts the live stream to take effect.",
                 bullets: [

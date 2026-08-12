@@ -1507,3 +1507,21 @@ made along the way.
   "recommended starting point" preset should silently turn on. It's still exposed as an editable
   row in the Wizard editor (with the same orange "Experimental" tag `ControlsPanelView`'s own
   toggle uses) for any target the preset turns Live Stack on for.
+- **"Running" status list, next to the camera.** A pipeline (Live Stack, Lucky Imaging, Recording
+  to Disk, SER recording, Planetary Tracking, Polar Alignment, Cloud Sentinel, Focus Assist) left
+  on from a previous session — or just easy to forget about once its tab isn't the one currently
+  showing in the right-hand Controls panel — was otherwise invisible until you happened to click
+  over to check. `ActivePipelinesView.swift` surfaces every one that's currently active as its own
+  row directly in `CameraListView` (right next to the camera, the same "lives where the camera
+  itself is, not tucked into one tab" reasoning `acquisitionSection`'s own doc comment already
+  uses), each with a "Focus Control" button (jumps `@AppStorage("sidebarTab")` to that pipeline's
+  own tab) and a one-click "Stop" button calling that exact pipeline's existing stop
+  method/toggle. `CameraManager.activePipelineStatuses` (an extension in the same file, since it
+  needs `SidebarTab`, a Views-layer type) is the actual list-building logic — a pipeline's own
+  *modifiers* (Smart Live Stack/Reduce Drift/Mesh Drift Correction are all specifically Live
+  Stack's settings, not independent pipelines) fold into that pipeline's one-line detail string
+  rather than getting their own row, so "Running" stays a list of actual processes, not every
+  toggle that happens to be on. Lucky Imaging's row keeps showing after a burst *finishes*
+  filling — `luckyImagingSession` stays alive (ready for `stackLuckyImagingBest`, possibly more
+  than once with different fractions) until explicitly discarded — with its detail text saying
+  "ready to stack" rather than implying a capture is still running.

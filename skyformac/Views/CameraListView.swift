@@ -37,6 +37,7 @@ struct CameraListView: View {
             // ROI/gain/exposure/Reduce Drift don't, and those already no-op gracefully rather
             // than needing this section hidden outright for that source.
             if cameraManager.connectedCamera != nil {
+                ActivePipelinesView(cameraManager: cameraManager)
                 acquisitionSection
             }
 

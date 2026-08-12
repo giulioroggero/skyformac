@@ -200,6 +200,13 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   into the right-hand Controls panel, since these work regardless of which
   Controls tab happens to be showing), and Wizard/Load sit right next to
   each camera's own Disconnect button too, for the fastest path to either.
+- **"Running" status list** (next to the camera, above the "Acquisition"
+  section) — every currently-active pipeline (Live Stack, Lucky Imaging,
+  Recording to Disk, SER recording, Planetary Tracking, Polar Alignment,
+  Cloud Sentinel, Focus Assist), each with a one-click button to jump to
+  its own tab in the right-hand Controls panel and a one-click Stop button,
+  so nothing left running from a previous session (or just easy to forget
+  about once its own tab isn't the one showing) stays invisible.
 - **Reset to Default** (next to the camera, same "Acquisition" section) —
   full sensor ROI, a safe starting gain, and every capture-affecting toggle
   (Live Stack/Smart Live Stack/Reduce Drift, Lucky Imaging, Dark/Flat

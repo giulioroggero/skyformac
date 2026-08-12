@@ -88,6 +88,7 @@
 		C46BC5FE3510EBFAEAB2EF84 /* CurvesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998BCBC6DE56A7D81FC9945B /* CurvesView.swift */; };
 		6BF41C500611F8B1FBC3CC43 /* HistogramCurvesPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1859DB557F01A0CB1DA601 /* HistogramCurvesPanelController.swift */; };
 		35B4B9FAB54E9967BCF2786C /* MeshDriftOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E331792BF577A295320A01E /* MeshDriftOverlayView.swift */; };
+		F46DF222992C699FFBC87D77 /* ActivePipelinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8785A8BD20F061A304645DCA /* ActivePipelinesView.swift */; };
 		DB9921B12CCAD5F82BA42F1F /* CameraListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA9CB1026F277EAA9537DD1 /* CameraListView.swift */; };
 		DCC70AE6FCD8FE43610E9596 /* ExposureOptimizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900B52336DE17B1F7F80FD28 /* ExposureOptimizerTests.swift */; };
 		E27273C1437161A8B073027E /* DiskSpaceChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA796E075478701D2A6AC5A /* DiskSpaceChecker.swift */; };
@@ -242,6 +243,7 @@
 		998BCBC6DE56A7D81FC9945B /* CurvesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CurvesView.swift; sourceTree = "<group>"; };
 		2B1859DB557F01A0CB1DA601 /* HistogramCurvesPanelController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramCurvesPanelController.swift; sourceTree = "<group>"; };
 		4E331792BF577A295320A01E /* MeshDriftOverlayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeshDriftOverlayView.swift; sourceTree = "<group>"; };
+		8785A8BD20F061A304645DCA /* ActivePipelinesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivePipelinesView.swift; sourceTree = "<group>"; };
 		ACA9CB1026F277EAA9537DD1 /* CameraListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraListView.swift; sourceTree = "<group>"; };
 		ACC2E5F195F93B6B68A6C451 /* HistogramComputer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramComputer.swift; sourceTree = "<group>"; };
 		AEF040EFD1A707E65E5EDB36 /* App-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "App-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -524,6 +526,7 @@
 				998BCBC6DE56A7D81FC9945B /* CurvesView.swift */,
 				2B1859DB557F01A0CB1DA601 /* HistogramCurvesPanelController.swift */,
 				4E331792BF577A295320A01E /* MeshDriftOverlayView.swift */,
+				8785A8BD20F061A304645DCA /* ActivePipelinesView.swift */,
 				EC6E0E0C0F50079C03C013D8 /* AllSkyMonitorView.swift */,
 				D9B1FC7C82CE4B2EBFA7C295 /* SkyHUDView.swift */,
 			);
@@ -798,6 +801,7 @@
 				C46BC5FE3510EBFAEAB2EF84 /* CurvesView.swift in Sources */,
 				6BF41C500611F8B1FBC3CC43 /* HistogramCurvesPanelController.swift in Sources */,
 				35B4B9FAB54E9967BCF2786C /* MeshDriftOverlayView.swift in Sources */,
+				F46DF222992C699FFBC87D77 /* ActivePipelinesView.swift in Sources */,
 				E2EAC3EFFD26B34D7DBF5C7F /* MetalFrameRenderer.swift in Sources */,
 				1795D6382FD5CA3FAEE045AB /* GPUStillImageRenderer.swift in Sources */,
 				84C87CEFC11D44E892F94A49 /* GPUFrameCalibrator.swift in Sources */,
