@@ -302,6 +302,28 @@ actor CaptureEngine {
         try ZWOSDK.setControlValue(cameraID: camera.cameraID, controlType: controlType, value: value, isAuto: isAuto)
     }
 
+    /// Sensor temperature + dropped-frame count, for `CameraManager`'s periodic diagnostics poll.
+    /// Routed through this actor rather than called directly from `@MainActor` (an earlier version
+    /// did exactly that) — per the "Strict Threading" rule every other blocking `ZWOSDK` call in
+    /// this file already follows: while live streaming, `pollLoop` is continuously calling
+    /// `ASIGetVideoData` for this same camera ID on its own background queue, so a *second*,
+    /// unrelated blocking SDK call for the same camera arriving from `@MainActor` every 2 seconds
+    /// could contend with it at the USB/firmware level, and — since a plain (non-`.detached`)
+    /// `Task` created from a `@MainActor` method inherits that isolation for its whole body —
+    /// would literally block the main thread for however long that contention took to resolve.
+    /// That's exactly what "small Capture ROI + live view slows down and flickers" turned out to
+    /// still be happening from, even after throttling the display refresh separately: a periodic
+    /// main-thread stall from this poll, worse the higher the real frame rate (more frames back
+    /// up during each stall). Routing it through the actor instead means it's just one more call
+    /// queued behind whatever `pollLoop` is doing, on the actor's own background execution
+    /// context — never blocking the main thread, and never racing the video poll for the SDK
+    /// itself since both now go through the same serializing actor.
+    func refreshDiagnostics() -> (temperature: ZWOControlValue?, droppedFrames: Int?) {
+        let temperature = try? ZWOSDK.getControlValue(cameraID: camera.cameraID, controlType: ASI_TEMPERATURE)
+        let droppedFrames = try? ZWOSDK.getDroppedFrames(cameraID: camera.cameraID)
+        return (temperature, droppedFrames)
+    }
+
     /// - Important: Every iteration's blocking `ASIGetVideoData` call (up to 500ms, per its
     ///   `waitMilliseconds`) runs via `fetchVideoData`'s continuation, on a background queue —
     ///   *not* inline on the actor. `CaptureEngine` is a single actor: an `await`-free `while`

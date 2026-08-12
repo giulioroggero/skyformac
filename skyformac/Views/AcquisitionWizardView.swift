@@ -29,7 +29,7 @@ struct AcquisitionWizardView: View {
             Divider()
             HSplitView {
                 targetList
-                    .frame(minWidth: 220, idealWidth: 240)
+                    .frame(minWidth: 260, idealWidth: 300, maxHeight: .infinity)
                 Group {
                     if let workingPreset {
                         presetEditor(workingPreset)
@@ -41,10 +41,16 @@ struct AcquisitionWizardView: View {
                     }
                 }
                 .padding()
-                .frame(minWidth: 320)
+                .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(minWidth: 640, minHeight: 460)
+        // Sized generously — the target list (two sections, several rows each, each with a
+        // secondary caption line) plus the preset editor's own grid of fields need real room;
+        // the previous, much smaller fixed minimum left both cramped enough that the recommended
+        // settings grid effectively disappeared off the bottom of the editor pane unscrolled in
+        // practice. `idealWidth`/`idealHeight` open it close to a full display by default rather
+        // than at the bare minimum.
+        .frame(minWidth: 900, idealWidth: 1100, minHeight: 640, idealHeight: 760)
     }
 
     private var header: some View {

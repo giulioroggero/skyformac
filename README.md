@@ -88,10 +88,12 @@ and signed into the same Apple ID for wireless Continuity Camera); click
 the top of the sidebar to rescan either list.
 
 Once connected, the toolbar's status pill shows the connection state and ZWO SDK
-version, and the main pane starts streaming a live preview. A connected ZWO
-camera also shows an **Acquisition** section right there in the sidebar —
-Wizard/Save Preset/Load Preset, so a target setup or a saved preset is one
-click away without hunting through the Controls panel's tabs.
+version, and the main pane starts streaming a live preview. Wizard/Load Preset
+buttons sit right next to **Disconnect** on a connected ZWO camera's own row,
+and a fuller **Acquisition** section (Wizard/Save Preset/Load Preset/Reset to
+Default) appears right below the camera list — so a target setup, a saved
+preset, or undoing everything back to defaults is one click away without
+hunting through the Controls panel's tabs.
 
 ### The live preview and toolbar
 

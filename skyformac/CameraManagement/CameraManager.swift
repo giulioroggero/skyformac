@@ -1049,8 +1049,12 @@ final class CameraManager {
     /// One-time fetch (gain/offset presets are a fixed camera-model characteristic, not something
     /// that changes during a session) of ZWO's own recommended gain/offset reference points —
     /// see `gainOffsetPresets`'s doc comment. Direct `ZWOSDK` calls on `@MainActor`, not routed
-    /// through `CaptureEngine`'s actor, matching `setControlValue`'s own precedent: these are
-    /// single fast SDK reads, not a blocking multi-step handshake.
+    /// through `CaptureEngine`'s actor — safe specifically because this runs once, synchronously,
+    /// *before* `startPreview` starts the video poll loop (see `connect(to:)`), so there's no
+    /// concurrent `ASIGetVideoData` call for the same camera to contend with yet. `refreshDiagnostics`
+    /// (`CaptureEngine`) is the cautionary counter-example: an earlier version of *that* repeating
+    /// poll made these same direct-`ZWOSDK`-from-`@MainActor` calls every 2 seconds while streaming
+    /// was very much active, and blocked the main thread doing it — see its doc comment.
     private func refreshGainOffsetPresets() {
         guard let camera = connectedCamera, camera.cameraID >= 0 else {
             gainOffsetPresets = nil
@@ -1110,15 +1114,17 @@ final class CameraManager {
     /// not a live per-frame readout.
     private func startDiagnosticsPolling() {
         diagnosticsPollTask?.cancel()
-        guard let camera = connectedCamera, camera.cameraID >= 0 else { return }
-        let cameraID = camera.cameraID
-        diagnosticsPollTask = Task { [weak self] in
+        guard let engine = captureEngine, let camera = connectedCamera, camera.cameraID >= 0 else { return }
+        diagnosticsPollTask = Task { [weak self, weak engine] in
             while !Task.isCancelled {
-                if let temperature = try? ZWOSDK.getControlValue(cameraID: cameraID, controlType: ASI_TEMPERATURE) {
-                    await MainActor.run { self?.controlValues[Int32(ASI_TEMPERATURE.rawValue)] = temperature }
+                guard let engine else { return }
+                let (temperature, dropped) = await engine.refreshDiagnostics()
+                await MainActor.run {
+                    if let temperature {
+                        self?.controlValues[Int32(ASI_TEMPERATURE.rawValue)] = temperature
+                    }
+                    self?.droppedFrameCount = dropped
                 }
-                let dropped = try? ZWOSDK.getDroppedFrames(cameraID: cameraID)
-                await MainActor.run { self?.droppedFrameCount = dropped }
                 try? await Task.sleep(for: .seconds(2))
             }
         }
@@ -1381,6 +1387,44 @@ final class CameraManager {
         loadAcquisitionPreset { [weak self] preset, _ in
             self?.applyAcquisitionPreset(preset)
         }
+    }
+
+    /// Undoes every Wizard/preset/manual adjustment in one action — full sensor ROI, a safe
+    /// starting gain (matching `connect(to:)`'s own "5 is a much safer starting point for a real
+    /// night-sky target than the camera's own default" reasoning), and every capture-affecting
+    /// toggle (Live Stack, Smart Live Stack, Reduce Drift, Lucky Imaging, Dark/Flat correction,
+    /// Planetary tracking/crop, Image Enhancement, the AI Suite, any active recording) back off.
+    /// ZWO cameras only — a webcam/iPhone source has none of the hardware controls this touches,
+    /// and none of the capture-affecting toggles below are genre-specific enough to skip for it
+    /// anyway (they're already all harmless no-ops for a webcam source if somehow left on).
+    func resetToDefaultConfiguration() {
+        guard let camera = connectedCamera, camera.cameraID >= 0 else { return }
+        changeCaptureROI(width: nil, height: nil)
+        if let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+            setControlValue(ASI_GAIN, value: min(max(5, gainCap.minValue), gainCap.maxValue))
+        }
+        if let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
+            setControlValue(ASI_EXPOSURE, value: exposureCap.defaultValue)
+        }
+
+        isLiveStackingEnabled = false // also clears isSmartLiveStackEnabled via its own didSet
+        isLiveStackDriftReductionEnabled = false
+        discardLuckyImagingSession()
+        isDarkSubtractionEnabled = false
+        isFlatCorrectionEnabled = false
+        isFocusAssistEnabled = false
+        isPlanetaryTrackingEnabled = false
+        isPlanetaryCropEnabled = false
+        isDenoisingEnabled = false
+        isWaveletSharpeningEnabled = false
+        gpuControls.isEnabled = false
+        isStreakMaskingEnabled = false
+        isCloudSentinelEnabled = false
+        if isRecordingToDisk { stopRecording() }
+        if isRecordingSERVideo { stopSERRecording() }
+
+        stretch = .identity
+        pendingAutoStretch = true
     }
 
     /// The single place a freshly-captured raw frame (real camera or webcam) enters the

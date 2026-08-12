@@ -1163,3 +1163,50 @@ made along the way.
     both live as `@AppStorage` inside `ControlsPanelView`, not `CameraManager`, so there's nothing
     for this snapshot to read; loading such a preset back still restores everything this class
     itself actually tracks, just without a burst-count/SER-duration recommendation riding along.
+- **Regression: small Capture ROI still slowed down/flickered after the earlier display-refresh
+  throttle, and selecting a Planetary Preset made it worse — traced to the diagnostics poll added
+  the same session, not the throttle itself.** `CameraManager.startDiagnosticsPolling`'s `Task { ...
+  }` was a plain (non-`.detached`) task created from a `@MainActor`-isolated method — per Swift's
+  isolation-inheritance rules, its *entire body*, including the blocking `ZWOSDK.getControlValue`/
+  `getDroppedFrames` calls inside it, ran on `@MainActor`, every 2 seconds, for as long as a camera
+  stayed connected. Live streaming's own `pollLoop` (`CaptureEngine`, an actor) is continuously
+  calling `ASIGetVideoData` for that same camera ID on its own background queue the whole time —
+  a second, concurrent blocking SDK call for the same camera arriving from the main thread every 2
+  seconds could contend with it at the USB/firmware level, and since it ran directly on
+  `@MainActor`, any such contention *was* a main-thread stall, not just a dropped frame somewhere.
+  Worse at a small ROI's higher real frame rate for the same reason the original flicker bug was:
+  more frames pile up during any given stall the faster they're arriving. Selecting a Planetary
+  Preset doesn't touch this poll at all — it "regressed" because a small ROI (which every
+  Planetary Preset sets) is exactly the condition that makes the poll's periodic stall visible.
+  **Fix**: `CaptureEngine.refreshDiagnostics()` — the actor-isolated equivalent, added instead of
+  ever putting these two calls back on `@MainActor` at all — matching the "Strict Threading" rule
+  every *other* blocking `ZWOSDK` call in this codebase already follows. `startDiagnosticsPolling`
+  now `await`s it, so the calls queue behind whatever `pollLoop` is doing on the actor's own
+  background execution context instead of the main thread, and never race the video poll for the
+  SDK itself since both now funnel through the same serializing actor. `refreshGainOffsetPresets`
+  (the *other* direct-`ZWOSDK`-from-`@MainActor` call added the same session) stays as it was —
+  safe specifically because it's one-time, called before `startPreview` starts the video poll at
+  all, not a repeating loop racing an active one; its doc comment now points at this entry as the
+  cautionary counter-example for why that distinction matters.
+- **The sidebar's vertical tab strip was only shown once a camera was connected at all** —
+  reported as "the sidebar doesn't have the two new [Planetary/Deep Sky] tabs," tried without a
+  camera connected. Every tab's own content already handled "no camera connected" gracefully (a
+  plain message, per tab) — hiding the *strip itself* until then just made every tab besides
+  whichever one happened to be last selected undiscoverable with nothing connected yet. Fixed by
+  always showing the strip; each tab's existing disconnected-state message still applies inside it.
+- **Added "Reset to Default" next to the camera** (`CameraManager.resetToDefaultConfiguration`) —
+  full sensor ROI, a safe starting gain (`5`, matching `connect(to:)`'s own reasoning for why that
+  beats the camera's own bright-test-condition-tuned default), and every capture-affecting toggle
+  this session's "Disable All" checkboxes already know about (Live Stack/Smart Live Stack/Reduce
+  Drift, Lucky Imaging, Dark/Flat correction, Focus Assist, Planetary tracking/crop, Image
+  Enhancement, the AI Suite) plus any active recording, all back off in one action — undoing a
+  Wizard preset or any manual adjustment without needing to hunt down each toggle individually.
+- **Wizard/Load Preset also placed directly beside Disconnect in each camera row**, not only in
+  the fuller "Acquisition" section below the list — the two most-reached-for actions (open the
+  Wizard, load an already-saved setup) live right where a user would naturally look for them,
+  next to the button that just confirmed which camera they're working with.
+- **Enlarged the Acquisition Wizard sheet** — reported as too small, with the recommended-setup
+  fields effectively invisible. `minWidth: 640, minHeight: 460` wasn't enough room for the target
+  list (two sections, several rows, each with a secondary caption line) plus the preset editor's
+  own field grid at once; now `minWidth: 900`/`minHeight: 640`, opening at `idealWidth: 1100`/
+  `idealHeight: 760` by default rather than at the bare minimum.

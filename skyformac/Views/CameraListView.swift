@@ -74,6 +74,13 @@ struct CameraListView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .help("Loads a saved preset file and applies it immediately. ⌘⇧L")
+            Button {
+                cameraManager.resetToDefaultConfiguration()
+            } label: {
+                Label("Reset to Default", systemImage: "arrow.counterclockwise")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .help("Full sensor ROI, a safe starting gain, and every capture-affecting toggle (Live Stack, Lucky Imaging, Reduce Drift, Dark/Flat correction, Image Enhancement, the AI Suite, any active recording) back off — undoes a Wizard preset or any manual adjustment in one step.")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -122,6 +129,22 @@ struct CameraListView: View {
             }
             Spacer()
             if cameraManager.connectedCamera == camera {
+                // Right next to Disconnect, not only in the fuller "Acquisition" section below
+                // the list — the two fastest, most-reached-for actions (open the Wizard, load an
+                // already-saved setup) live exactly where you'd naturally look for them: right
+                // beside the button that just confirmed this is the camera you're working with.
+                Button {
+                    cameraManager.isAcquisitionWizardPresented = true
+                } label: {
+                    Image(systemName: "wand.and.rays")
+                }
+                .help("Acquisition Wizard… (⌘⇧W)")
+                Button {
+                    cameraManager.loadAndApplyAcquisitionPreset()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .help("Load Preset… — loads a saved setup and applies it immediately. (⌘⇧L)")
                 Button("Disconnect") { cameraManager.disconnect() }
             } else {
                 Button("Connect") {

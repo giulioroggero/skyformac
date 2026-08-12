@@ -128,7 +128,11 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   preview's own refresh rate is capped independently (~30fps) so a small,
   very-high-frame-rate ROI can't flood the display pipeline into a growing,
   flickering backlog — recording (SER/FITS) and Lucky Imaging still process
-  every real frame regardless, only the visible preview is rate-limited. See
+  every real frame regardless, only the visible preview is rate-limited. A
+  second stall source (the sensor-temperature/dropped-frame diagnostics poll
+  briefly blocking the main thread every 2 seconds, worse the higher the
+  real frame rate) was found and fixed the same way — routed through the
+  capture actor instead of running directly on the main thread. See
   [`docs/design-notes.md`](design-notes.md) for exactly what each piece does.
 - **Planetary Presets** (ZWO cameras only) — one tap sets RAW8, a small
   Capture ROI, and a safe starting exposure/gain for Saturn, Jupiter, Mars,
@@ -153,10 +157,17 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   the Wizard sheet open at all. "Save Preset…" snapshots *whatever's
   currently configured* (not a target's recommendation) into its own file;
   "Load Preset…" loads a file and applies it immediately. Available from
-  the **Camera** menu (⌘⇧S/⌘⇧L) and from a new "Acquisition" section in the
-  left camera-list sidebar, right under the connected camera — not tucked
+  the **Camera** menu (⌘⇧S/⌘⇧L), from a new "Acquisition" section in the
+  left camera-list sidebar right under the connected camera (not tucked
   into the right-hand Controls panel, since these work regardless of which
-  Controls tab happens to be showing.
+  Controls tab happens to be showing), and Wizard/Load sit right next to
+  each camera's own Disconnect button too, for the fastest path to either.
+- **Reset to Default** (next to the camera, same "Acquisition" section) —
+  full sensor ROI, a safe starting gain, and every capture-affecting toggle
+  (Live Stack/Smart Live Stack/Reduce Drift, Lucky Imaging, Dark/Flat
+  correction, Focus Assist, Planetary tracking/crop, Image Enhancement, the
+  AI Suite) plus any active recording, all back off in one action — undoes
+  a Wizard preset or any manual adjustment without hunting down each toggle.
 
 **Focus & tracking**
 - **Focus assist** — Vision `VNDetectContoursRequest` star detection overlay

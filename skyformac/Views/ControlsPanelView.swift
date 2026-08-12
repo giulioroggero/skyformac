@@ -171,10 +171,13 @@ struct ControlsPanelView: View {
                 .padding(.top, 70)
             }
 
-            if cameraManager.connectedCamera != nil {
-                Divider()
-                verticalTabStrip
-            }
+            // Always shown, even with no camera connected — every tab's own content already
+            // handles that case (a "Connect a camera to see..." message), but hiding the strip
+            // itself entirely until then meant Planetary/Deep Sky (or any tab besides whichever
+            // one was last selected) were undiscoverable without a camera already connected —
+            // reported as "the sidebar doesn't have the two new tabs" when tried disconnected.
+            Divider()
+            verticalTabStrip
         }
     }
 
