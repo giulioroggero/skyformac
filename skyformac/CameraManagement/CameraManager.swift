@@ -1390,6 +1390,10 @@ final class CameraManager {
         if preset.mode.usesLiveStack {
             isLiveStackDriftReductionEnabled = preset.isDriftReductionEnabled
             isSmartLiveStackEnabled = preset.isSmartLiveStackEnabled
+            // `?? false` covers a preset file saved before this field existed — an older preset
+            // simply never turned this "Experimental" feature on, same reasoning as any other
+            // newly-added optional preset field.
+            isMeshDriftCorrectionEnabled = preset.isMeshDriftCorrectionEnabled ?? false
         }
     }
 

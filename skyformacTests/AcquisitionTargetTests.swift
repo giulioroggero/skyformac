@@ -75,6 +75,33 @@ struct AcquisitionTargetTests {
         #expect(decoded == original)
     }
 
+    /// "Experimental" mesh-based drift correction is worth trying deliberately, not silently
+    /// inherited from a "recommended" preset — never `true` out of `recommendedPreset`, for
+    /// either target genre, even the deep-sky one where it'd actually apply.
+    @Test func recommendedPresetNeverAutoEnablesMeshDriftCorrection() {
+        for target in AcquisitionTarget.all {
+            #expect(target.recommendedPreset().isMeshDriftCorrectionEnabled == false)
+        }
+    }
+
+    /// A preset file saved before `isMeshDriftCorrectionEnabled` existed has no such key at all —
+    /// it must still decode (as `nil`, not throw) rather than breaking every previously-saved
+    /// preset the moment this field was added.
+    @Test func presetMissingMeshDriftCorrectionKeyStillDecodes() throws {
+        let json = """
+        {
+            "id": "\(UUID().uuidString)",
+            "name": "Old Preset",
+            "targetID": "deepSky.M13 (Hercules Cluster)",
+            "mode": "liveStack",
+            "isDriftReductionEnabled": true,
+            "isSmartLiveStackEnabled": true
+        }
+        """
+        let decoded = try JSONDecoder().decode(AcquisitionPreset.self, from: Data(json.utf8))
+        #expect(decoded.isMeshDriftCorrectionEnabled == nil)
+    }
+
     @Test func currentModeIsLiveStackOnlyWhenNoLuckySession() {
         #expect(AcquisitionMode.current(isLiveStackingEnabled: true, hasLuckyImagingSession: false) == .liveStack)
     }

@@ -1487,3 +1487,23 @@ made along the way.
       similarly, so a raw single-channel sample is a perfectly good brightness proxy for that.
       `computeMeshDisplacements` now calls this instead, and no longer needs `isColorCamera`/
       `bayerPattern` at all.
+- **Histogram tab's dead space, actual root cause**: wrapping `HistogramView`'s whole `body` in a
+  `ScrollView` (to handle "By Channel" mode's 6 sliders without clipping) made the *combined*
+  mode's much shorter content request all the space its parent offered instead of reporting its
+  own real height upward — a `ScrollView` is inherently a "fill what I'm given" container, not a
+  "size to my content" one. `.layoutPriority(1)`/`.frame(maxHeight: .infinity)` on the surrounding
+  columns (an earlier pass at this) couldn't fix that, because the thing lying about its own size
+  was inside those columns, not their sizing logic. Fixed by only wrapping the taller "By
+  Channel" case in a `ScrollView`; the normal combined-histogram case renders as a plain `VStack`
+  that reports its actual content height, so the tab (and the preview above it) size correctly.
+- **Mesh drift correction and the Acquisition Wizard.** `AcquisitionPreset` gained
+  `isMeshDriftCorrectionEnabled: Bool?` — `Optional`, not a plain `Bool`, specifically so a preset
+  file saved before this field existed still decodes via `decodeIfPresent`'s automatic `nil` for
+  a missing key, rather than every previously-saved preset breaking the moment this field was
+  added (`AcquisitionTargetTests.presetMissingMeshDriftCorrectionKeyStillDecodes` is the
+  regression test for that). `recommendedPreset()` never sets it `true` for either target genre —
+  worth trying deliberately for a long, multi-minute-plus deep-sky integration (where field
+  rotation/differential drift a single global shift can't correct becomes real), not something a
+  "recommended starting point" preset should silently turn on. It's still exposed as an editable
+  row in the Wizard editor (with the same orange "Experimental" tag `ControlsPanelView`'s own
+  toggle uses) for any target the preset turns Live Stack on for.

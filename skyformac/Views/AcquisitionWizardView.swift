@@ -171,6 +171,20 @@ struct AcquisitionWizardView: View {
                             Text("Smart Live Stack").font(.caption)
                             Toggle("", isOn: smartLiveStackBinding).labelsHidden()
                         }
+                        GridRow {
+                            HStack(spacing: 4) {
+                                Text("Mesh Drift Correction").font(.caption)
+                                Text("Experimental")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.orange.opacity(0.2))
+                                    .foregroundStyle(.orange)
+                                    .clipShape(Capsule())
+                            }
+                            Toggle("", isOn: meshDriftCorrectionBinding).labelsHidden()
+                        }
+                        .help("Tracks a grid of points instead of one locked star — worth trying for a long, multi-minute-plus integration where field rotation or differential drift matters (e.g. an alt-az mount), not needed for a short session. Takes priority over \"Reduce Drift\" above when both are on.")
                     }
                     if let burstCount = preset.luckyBurstCount {
                         GridRow {
@@ -255,6 +269,12 @@ struct AcquisitionWizardView: View {
     }
     private var smartLiveStackBinding: Binding<Bool> {
         Binding(get: { workingPreset?.isSmartLiveStackEnabled ?? false }, set: { workingPreset?.isSmartLiveStackEnabled = $0 })
+    }
+    private var meshDriftCorrectionBinding: Binding<Bool> {
+        Binding(
+            get: { workingPreset?.isMeshDriftCorrectionEnabled ?? false },
+            set: { workingPreset?.isMeshDriftCorrectionEnabled = $0 }
+        )
     }
     private var burstCountBinding: Binding<Int> {
         Binding(get: { workingPreset?.luckyBurstCount ?? 60 }, set: { workingPreset?.luckyBurstCount = $0 })

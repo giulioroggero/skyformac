@@ -179,6 +179,14 @@ enum AcquisitionTarget: Identifiable, Hashable {
     /// `presetName` is caller-supplied (defaults to the target's own name) since a user saving a
     /// preset may want to name it after their specific setup ("M13 — 6 inch f/8") rather than just
     /// the object.
+    ///
+    /// `isMeshDriftCorrectionEnabled` is never recommended `true` here, deliberately — it's
+    /// rougher than the single-star lock (`isDriftReductionEnabled`, above) and worth trying
+    /// deliberately, not silently inherited from a "recommended" preset. It's still exposed as an
+    /// editable row in the Wizard for any target this preset turns Live Stack on for (deep-sky
+    /// objects, and the Moon's `.both` mode) — genuinely long, multi-minute-plus integrations are
+    /// exactly where field rotation/differential drift a single global shift can't correct
+    /// becomes real, unlike a Lucky Imaging burst that's over in seconds.
     func recommendedPreset(name presetName: String? = nil) -> AcquisitionPreset {
         let mode = recommendedMode
         switch self {
@@ -194,7 +202,8 @@ enum AcquisitionTarget: Identifiable, Hashable {
                 isDriftReductionEnabled: false,
                 isSmartLiveStackEnabled: mode.usesLiveStack,
                 luckyBurstCount: mode.usesLuckyImaging ? 60 : nil,
-                serDurationSeconds: preset.recommendedMaxDurationSeconds
+                serDurationSeconds: preset.recommendedMaxDurationSeconds,
+                isMeshDriftCorrectionEnabled: false
             )
         case .deepSky(let object):
             return AcquisitionPreset(
@@ -211,7 +220,8 @@ enum AcquisitionTarget: Identifiable, Hashable {
                 isDriftReductionEnabled: true,
                 isSmartLiveStackEnabled: true,
                 luckyBurstCount: nil,
-                serDurationSeconds: nil
+                serDurationSeconds: nil,
+                isMeshDriftCorrectionEnabled: false
             )
         }
     }
@@ -247,4 +257,11 @@ struct AcquisitionPreset: Codable, Identifiable, Equatable {
     var isSmartLiveStackEnabled: Bool
     var luckyBurstCount: Int?
     var serDurationSeconds: Double?
+    /// "Experimental" mesh-based drift correction (`CameraManager.isMeshDriftCorrectionEnabled`)
+    /// — `Optional`, not a plain `Bool`, specifically so a preset file saved before this field
+    /// existed still decodes (`decodeIfPresent`'s automatic `nil` for a missing key) instead of
+    /// failing to load outright. Never recommended on by default (see `recommendedPreset`'s doc
+    /// comment) — offered as an opt-in row in the Wizard editor for any Live-Stack-using target,
+    /// not auto-enabled for any of them.
+    var isMeshDriftCorrectionEnabled: Bool?
 }

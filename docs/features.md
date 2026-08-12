@@ -172,7 +172,12 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   Deep Sky tabs) — pick a target (Moon, Venus, Mars, Jupiter, Saturn, or a
   curated deep-sky list: M13, M56, M31, M42, M45, M51, M57, M27, M81, M8)
   and set up ROI, gain, exposure, and which of Live Stack/Reduce Drift/Smart
-  Live Stack/Lucky Imaging to use, in one step. The Moon is the one target
+  Live Stack/Lucky Imaging/Mesh Drift Correction (Experimental) to use, in
+  one step. Mesh Drift Correction is never recommended on by default —
+  worth trying deliberately for a long, multi-minute-plus integration where
+  field rotation matters, not something a starting-point preset should
+  silently enable — but it's an editable row for any target the preset
+  turns Live Stack on for. The Moon is the one target
   that turns on *both* Live Stack and Lucky Imaging at once (high-res
   crater detail plus a lower-noise full-disk shot); other planets are
   Lucky-Imaging-only, every deep-sky object is Live-Stack-only with Reduce
