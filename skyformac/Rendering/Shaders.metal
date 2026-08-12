@@ -310,18 +310,24 @@ kernel void roiStatsPartial(
 /// `threshold` (mean and mean + 3*stddev, from `roiStatsPartial`) exclude everything but the
 /// star's own signal from the weighted sum, the same sigma-clipped-background technique real
 /// source-extraction tools use.
+///
+/// Also counts how many pixels actually cleared `threshold` (the 4th, `w` component of the
+/// output) — `MetalFrameRenderer.computeCentroid` uses it to reject a "lock" that's really a huge
+/// overexposed area (a window, a light source) rather than anything resembling a real star's
+/// small point-spread footprint; see `DriftAligner.isLikelyPointSource`'s doc comment.
 kernel void centroidPartial(
     texture2d<float, access::read> source [[texture(0)]],
     constant CentroidROI &roi [[buffer(0)]],
     constant float2 &backgroundAndThreshold [[buffer(1)]],
-    device float3 *partials [[buffer(2)]],
+    device float4 *partials [[buffer(2)]],
     uint2 gid [[thread_position_in_grid]],
     uint2 tid [[thread_position_in_threadgroup]],
     uint2 groupId [[threadgroup_position_in_grid]],
     uint2 groupsPerGrid [[threadgroups_per_grid]],
     threadgroup float *localSumI [[threadgroup(0)]],
     threadgroup float *localSumIx [[threadgroup(1)]],
-    threadgroup float *localSumIy [[threadgroup(2)]]
+    threadgroup float *localSumIy [[threadgroup(2)]],
+    threadgroup float *localCount [[threadgroup(3)]]
 ) {
     uint localFlatIndex = tid.y * 16 + tid.x;
     float background = backgroundAndThreshold.x;
@@ -329,32 +335,39 @@ kernel void centroidPartial(
     float sumI = 0;
     float sumIx = 0;
     float sumIy = 0;
+    float count = 0;
     int px = roi.originX + int(gid.x);
     int py = roi.originY + int(gid.y);
     if (int(gid.x) < roi.size && int(gid.y) < roi.size
         && px >= 0 && py >= 0 && px < int(source.get_width()) && py < int(source.get_height())) {
         float rawValue = source.read(uint2(uint(px), uint(py))).r;
-        float value = rawValue > threshold ? (rawValue - background) : 0.0;
-        sumI = value;
-        sumIx = value * float(px);
-        sumIy = value * float(py);
+        if (rawValue > threshold) {
+            float value = rawValue - background;
+            sumI = value;
+            sumIx = value * float(px);
+            sumIy = value * float(py);
+            count = 1;
+        }
     }
     localSumI[localFlatIndex] = sumI;
     localSumIx[localFlatIndex] = sumIx;
     localSumIy[localFlatIndex] = sumIy;
+    localCount[localFlatIndex] = count;
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
     if (localFlatIndex == 0) {
         float totalI = 0;
         float totalIx = 0;
         float totalIy = 0;
+        float totalCount = 0;
         for (uint i = 0; i < 256; i++) {
             totalI += localSumI[i];
             totalIx += localSumIx[i];
             totalIy += localSumIy[i];
+            totalCount += localCount[i];
         }
         uint groupIndex = groupId.y * groupsPerGrid.x + groupId.x;
-        partials[groupIndex] = float3(totalI, totalIx, totalIy);
+        partials[groupIndex] = float4(totalI, totalIx, totalIy, totalCount);
     }
 }
 

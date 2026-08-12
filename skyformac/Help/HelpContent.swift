@@ -273,6 +273,7 @@ enum HelpContent {
                 bullets: [
                     "This is the standard \"small ROI, high FPS\" planetary/lunar lucky-imaging technique — e.g. a 640×480 or 800×600 region can push frame rate well past what the full sensor allows, at the cost of field of view (fine for a target — the Moon or a planet — that's small in the frame anyway).",
                     "Persists across Single Exposure and dark/flat calibration captures too, not just live view, until reset back to Full Sensor.",
+                    "\"Custom size & center\" lets you type any width/height and any center position on the sensor — not just the two quick presets. The ROI is genuinely centered there (`ASISetStartPos`), so a target framed anywhere in the full-sensor preview is still in-frame after cropping — \"Center on Sensor\" resets to the sensor's own middle.",
                 ]
             ),
             HelpSection(
@@ -348,6 +349,7 @@ enum HelpContent {
                     "This is single-star translation alignment only — it corrects drift (the whole frame shifting), not field rotation (an alt-az mount's other real effect over a longer session), and it isn't full multi-star geometric registration the way a dedicated stacking tool's alignment is. It's built for real mount tracking error against a star field — genuinely point-like sources — not for stabilizing a handheld camera panned across an ordinary scene with no real point source in it at all.",
                     "The lock-on point is measured against the search window's own local sky background (not raw pixel brightness) — a plain brightness-weighted centroid gets swamped by the sky itself, which covers far more pixels than the star does, and ends up barely tracking anything.",
                     "The initial lock rejects isolated hot/warm sensor pixels — a real star's blur spreads over several pixels, a hot pixel doesn't, so the search looks for that spread rather than just the single brightest pixel in the frame.",
+                    "It also rejects a lock candidate that turns out to be a huge overexposed area (a stray light source in frame, for instance) rather than a real star's small point-spread footprint — locking onto that would track the blob's edge, not star motion.",
                     "If the locked star drifts further than the search window can follow in one frame — or is briefly lost behind a passing cloud — that frame re-scans the whole frame to re-acquire, still measured against the original lock so alignment stays consistent, instead of derailing for the rest of the session.",
                     "Turning this on or off, or resetting Live Stack, always starts a fresh lock on the next frame — a lock from a previous session or target is never reused.",
                 ]

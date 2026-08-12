@@ -99,7 +99,11 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   achievable frame rate, not just a display crop), then record every
   incoming frame undiscarded into a single `.ser` video for a set duration —
   the raw-video container AutoStakkert!3/PIPP/RegiStax expect to do their
-  own alignment, best-frame selection, and wavelet sharpening from. See
+  own alignment, best-frame selection, and wavelet sharpening from. Two
+  fixed-size quick presets (640×480/800×600) plus manual width/height/center
+  entry for any rectangle at any position — the ROI is genuinely centered on
+  the sensor (or wherever you place it) via `ASISetStartPos`, not pinned to
+  the sensor's top-left corner the way it silently was before. See
   [`docs/design-notes.md`](design-notes.md) for exactly what each piece does.
 - **Planetary Presets** (ZWO cameras only) — one tap sets RAW8, a small
   Capture ROI, and a safe starting exposure/gain for Saturn, Jupiter, Mars,

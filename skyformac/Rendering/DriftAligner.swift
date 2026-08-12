@@ -54,4 +54,22 @@ enum DriftAligner {
         let stddev = variance.squareRoot()
         return (background: mean, threshold: mean + sigmaMultiplier * stddev)
     }
+
+    /// Whether `surviving` above-threshold pixels (out of `roiArea` total) looks like a real
+    /// star's point-spread footprint rather than a huge overexposed area — a window, a light
+    /// fixture, the Moon's disk at the wrong zoom level — that happens to be the brightest thing
+    /// in frame. `maxFraction` (15% of the ROI by default) is a generous ceiling: even a bloated,
+    /// saturated star at typical seeing/focus still occupies a small fraction of a
+    /// `driftROISize`×`driftROISize` window, while a blown-out room window or similar filled a
+    /// third or more of it in the case this was written for.
+    ///
+    /// - Important: Without this, `computeCentroid`/`findBrightestPoint` had no way to distinguish
+    ///   "the brightest pixel in frame is a star" from "the brightest pixel in frame is part of a
+    ///   huge saturated blob" — locking onto the latter tracks that blob's edge inside the search
+    ///   window, not anything resembling real star motion, so drift reduction can end up doing
+    ///   something closer to random than helpful against a real scene with no actual star in it.
+    static func isLikelyPointSource(survivingPixelCount: Float, roiArea: Float, maxFraction: Float = 0.15) -> Bool {
+        guard roiArea > 0, survivingPixelCount > 0 else { return false }
+        return survivingPixelCount / roiArea <= maxFraction
+    }
 }

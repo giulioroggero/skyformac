@@ -948,3 +948,50 @@ made along the way.
     stabilizer, and testing it against night-sky drift (arcsec-scale, mount-tracking-error
     magnitude) rather than a room-scale handheld pan is the realistic way to judge whether it's
     working.
+- **Reduce Drift, tested again with a real ZWO camera against a bright indoor scene, still
+  smeared — but for a third, distinct reason on top of the two already fixed.** The scene
+  (through a very wide/fisheye-style lens) had two enormous overexposed windows, each far bigger
+  and brighter than anything a real star field would present. `findBrightestPoint`'s smoothed-max
+  search and `computeCentroid`'s background-subtracted weighting both correctly identify "the
+  brightest, most locally-uniform thing in frame" — but nothing before this fix distinguished a
+  real star's small, few-dozen-pixel point-spread footprint from a lock candidate that's actually
+  part of a huge saturated blob spanning a third of the search window or more. Locking onto a
+  window's edge tracks that edge, not star motion — for a real sky target this would mean locking
+  onto (say) a satellite's flare or a very close double star's combined blob instead of a single
+  star, corrupting the whole session's alignment rather than just failing safely.
+  **Fix**: `centroidPartial` now also counts how many pixels in the ROI actually cleared the
+  sigma-clipped threshold (a 4th, `w` component on what was previously a `float3` partial —
+  `MetalFrameRenderer`'s drift-partials buffer is sized generously enough for either already,
+  since `SIMD3<Float>`/`SIMD4<Float>` share the same 16-byte stride on the Swift side).
+  `DriftAligner.isLikelyPointSource(survivingPixelCount:roiArea:maxFraction:)` (default 15% of the
+  ROI) rejects anything bigger than a generous star-footprint ceiling — `computeCentroid` returns
+  `nil` instead of a centroid when that check fails, which `computeDriftShift` already treats the
+  same as "lock lost" (fall back to unaligned accumulation this frame, or re-acquire via
+  `reacquireLock`).
+  - **This does not make Reduce Drift work on that specific test scene.** Two enormous, roughly
+    equally bright windows with fisheye distortion between them isn't a scene this algorithm can
+    align at all — rejecting the blob just means it now correctly finds *nothing* to lock onto
+    there (falling back to plain unaligned accumulation) instead of confidently locking onto the
+    wrong thing. The fix's real value is protecting a genuine star-field session from ever
+    quietly mistracking a bright non-star object that happens to be the brightest thing in frame.
+- **A Capture ROI smaller than the full sensor always landed at the sensor's top-left corner —
+  `ASISetStartPos` was never called at all.** Reported as "cropping to 800×600 doesn't show the
+  target" — a ROI genuinely was 800×600, just positioned at `(0, 0)` on the sensor every time
+  regardless of where the actual framed target sat, since the ASI SDK's own default (used
+  whenever `ASISetStartPos` is skipped) is the sensor's top-left corner, not its center. On a
+  multi-thousand-pixel sensor, a target framed anywhere near the middle of the full-sensor
+  preview — the normal case, once actually pointed at something — simply wasn't in an
+  uncentered small ROI at all. **Fix**: `CaptureEngine.setROI(width:height:centerX:centerY:)`
+  gained `centerX`/`centerY` (full-sensor pixel coordinates, `nil` = the sensor's own center);
+  `ROIGeometry.startPosition` (a pure, unit-tested function) resolves them to the top-left
+  `(startX, startY)` `ASISetStartPos` needs, clamped so the ROI never extends past the sensor's
+  edge. Called right after `ASISetROIFormat` at both call sites that set one
+  (`startStreaming`/`captureSingleExposure`, the latter covering every single-exposure/dark/flat
+  capture too), per the SDK's own sample-code ordering. Defaults to sensor-centered for every
+  existing caller (`Planetary Presets`, the quick-preset picker) — nothing needed to change there
+  for the by-far-most-common case to now actually work.
+- **Added manual width/height/center entry for Capture ROI** (`ControlsPanelView`'s "Custom size &
+  center" fields), not just the two fixed presets (640×480/800×600) — any rectangle, and any
+  on-sensor center, typed directly. `CameraManager.captureROICenterX/Y` surface what's actually
+  applied (mirroring the existing `captureROIWidth/Height`), and a "Center on Sensor" button
+  resets to the default without needing to know the sensor's real dimensions.

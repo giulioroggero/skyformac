@@ -78,4 +78,25 @@ struct DriftAlignerTests {
     @Test func backgroundThresholdReturnsNilForEmptyRegion() {
         #expect(DriftAligner.backgroundThreshold(sum: 0, sumOfSquares: 0, count: 0) == nil)
     }
+
+    @Test func isLikelyPointSourceAcceptsARealStarsFootprint() {
+        // A 64x64 (4096px) ROI with ~20 surviving pixels — a plausible bloated-star footprint,
+        // nowhere close to the 15% ceiling.
+        #expect(DriftAligner.isLikelyPointSource(survivingPixelCount: 20, roiArea: 4096))
+    }
+
+    @Test func isLikelyPointSourceRejectsAHugeOverexposedBlob() {
+        // Over a third of the ROI cleared the threshold — a blown-out window, not a star.
+        #expect(!DriftAligner.isLikelyPointSource(survivingPixelCount: 1500, roiArea: 4096))
+    }
+
+    @Test func isLikelyPointSourceRejectsNoSignalAtAll() {
+        #expect(!DriftAligner.isLikelyPointSource(survivingPixelCount: 0, roiArea: 4096))
+    }
+
+    @Test func isLikelyPointSourceRespectsCustomFraction() {
+        // Exactly at a custom, tighter ceiling should still pass; just over it should fail.
+        #expect(DriftAligner.isLikelyPointSource(survivingPixelCount: 40, roiArea: 4096, maxFraction: 0.01))
+        #expect(!DriftAligner.isLikelyPointSource(survivingPixelCount: 42, roiArea: 4096, maxFraction: 0.01))
+    }
 }

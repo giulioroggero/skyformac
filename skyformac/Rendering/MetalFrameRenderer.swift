@@ -620,26 +620,35 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         encoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 0)
         encoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 1)
         encoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 2)
+        encoder.setThreadgroupMemoryLength(256 * MemoryLayout<Float>.size, index: 3)
         encoder.dispatchThreadgroups(MTLSize(width: groupsPerAxis, height: groupsPerAxis, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
 
-        let partials = driftPartialsBuffer.contents().bindMemory(to: SIMD3<Float>.self, capacity: groupCount)
+        let partials = driftPartialsBuffer.contents().bindMemory(to: SIMD4<Float>.self, capacity: groupCount)
         var sumI: Float = 0
         var sumIx: Float = 0
         var sumIy: Float = 0
+        var survivingPixelCount: Float = 0
         for i in 0..<groupCount {
             sumI += partials[i].x
             sumIx += partials[i].y
             sumIy += partials[i].z
+            survivingPixelCount += partials[i].w
         }
+        // Reject a "lock" that's really a huge overexposed area (a window, a light fixture) —
+        // see `DriftAligner.isLikelyPointSource`'s doc comment. `roiSize * roiSize`, not the
+        // group-clipped pixel count actually sampled, since that's the same fixed denominator the
+        // 15%-of-window heuristic was calibrated against.
+        guard DriftAligner.isLikelyPointSource(survivingPixelCount: survivingPixelCount, roiArea: Float(roiSize * roiSize))
+        else { return nil }
         return DriftAligner.centroid(sumI: sumI, sumIx: sumIx, sumIy: sumIy)
     }
 
     private func ensureDriftPartialsBuffer(minimumCount: Int) {
         guard driftPartialsBuffer == nil || driftPartialsCapacity < minimumCount else { return }
-        driftPartialsBuffer = device.makeBuffer(length: minimumCount * MemoryLayout<SIMD3<Float>>.stride, options: .storageModeShared)
+        driftPartialsBuffer = device.makeBuffer(length: minimumCount * MemoryLayout<SIMD4<Float>>.stride, options: .storageModeShared)
         driftPartialsCapacity = minimumCount
     }
 

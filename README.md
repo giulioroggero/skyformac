@@ -121,7 +121,9 @@ grouped by what each control actually affects, not by imaging genre:
   behind an f/10-f/12 Mak/SCT.
 - **Capture ROI** (ZWO only) — a smaller-than-full-sensor region increases
   achievable frame rate directly (less data read off the sensor per frame),
-  the classic "small ROI, high FPS" planetary/lunar technique.
+  the classic "small ROI, high FPS" planetary/lunar technique. Quick presets
+  or a custom width/height/center — genuinely centered on the sensor (or
+  wherever you place it), not pinned to its top-left corner.
 - **iPhone / Webcam** (webcam sources only) — Lock Focus (freezes the
   device's own autofocus, which otherwise fights afocal projection) and
   Night Mode (10s/60s frame-stacked simulated long exposure).
