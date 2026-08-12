@@ -41,61 +41,72 @@ struct HistogramView: View {
     @State private var blueBlackCenter: Double = 0
     @State private var blueWhiteCenter: Double = 1
 
-    /// This whole tab lives in a fixed-height row shared with the live preview (see
-    /// `ContentView`'s doc comment on that `.frame(height:)` — the preview needs the lion's share
-    /// of the window), so "By Channel" mode's 6 sliders (vs. the combined mode's 2) need a
-    /// `ScrollView` rather than growing the tab itself, which would otherwise squeeze the preview
-    /// every time the toggle is flipped on.
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Histogram").font(.headline)
-                    if currentChannelHistograms != nil {
-                        Spacer()
-                        Toggle("By Channel", isOn: Binding(
-                            get: { showByChannel },
-                            set: { newValue in
-                                showByChannel = newValue
-                                cameraManager.isIndependentChannelStretchEnabled = newValue
-                            }
-                        ))
-                            .toggleStyle(.checkbox)
-                            .font(.caption)
-                            .help("Shows separate Red/Green/Blue histograms, and switches the Black/White Point sliders below to three independent pairs (one per channel) instead of the one combined pair — useful for compensating a color imbalance (e.g. a light-polluted sky's orange cast) directly at the stretch stage.")
-                    }
-                }
-
-                if showByChannel, let channels = currentChannelHistograms {
-                    channelHistogramCanvas(channels)
-                } else if let buckets = currentBuckets {
-                    histogramCanvas(buckets: buckets)
-                } else {
-                    Rectangle()
-                        .fill(.black)
-                        .frame(height: 70)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .overlay(Text("No signal").foregroundStyle(.white.opacity(0.5)))
-                }
-
-                zoomControl
-
-                if showByChannel {
-                    Text("Red").font(.caption).foregroundStyle(.red)
-                    stretchSlider("Black Point", value: channelBlackPointBinding(\.red), center: $redBlackCenter)
-                    stretchSlider("White Point", value: channelWhitePointBinding(\.red), center: $redWhiteCenter)
-                    Text("Green").font(.caption).foregroundStyle(.green)
-                    stretchSlider("Black Point", value: channelBlackPointBinding(\.green), center: $greenBlackCenter)
-                    stretchSlider("White Point", value: channelWhitePointBinding(\.green), center: $greenWhiteCenter)
-                    Text("Blue").font(.caption).foregroundStyle(.blue)
-                    stretchSlider("Black Point", value: channelBlackPointBinding(\.blue), center: $blueBlackCenter)
-                    stretchSlider("White Point", value: channelWhitePointBinding(\.blue), center: $blueWhiteCenter)
-                } else {
-                    stretchSlider("Black Point", value: blackPointBinding, center: $blackCenter)
-                    stretchSlider("White Point", value: whitePointBinding, center: $whiteCenter)
+    /// This whole tab lives in a shared row with the live preview — a plain `VStack` sizes to
+    /// its own content's actual height, letting the tab area (and so the preview, via its own
+    /// `.layoutPriority(1)` in `ContentView`) size correctly either way. A `ScrollView` does NOT
+    /// do that: it always requests all the space its parent offers rather than reporting its
+    /// content's real height upward, which is exactly what was leaving dead empty space below
+    /// the (usually short) combined-mode content once this got wrapped in one. Only "By
+    /// Channel" mode's 6 sliders (vs. combined mode's 2) actually risk running taller than the
+    /// tab's `maxHeight` cap, so only *that* case gets wrapped — see `body` below.
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Histogram").font(.headline)
+                if currentChannelHistograms != nil {
+                    Spacer()
+                    Toggle("By Channel", isOn: Binding(
+                        get: { showByChannel },
+                        set: { newValue in
+                            showByChannel = newValue
+                            cameraManager.isIndependentChannelStretchEnabled = newValue
+                        }
+                    ))
+                        .toggleStyle(.checkbox)
+                        .font(.caption)
+                        .help("Shows separate Red/Green/Blue histograms, and switches the Black/White Point sliders below to three independent pairs (one per channel) instead of the one combined pair — useful for compensating a color imbalance (e.g. a light-polluted sky's orange cast) directly at the stretch stage.")
                 }
             }
-            .padding()
+
+            if showByChannel, let channels = currentChannelHistograms {
+                channelHistogramCanvas(channels)
+            } else if let buckets = currentBuckets {
+                histogramCanvas(buckets: buckets)
+            } else {
+                Rectangle()
+                    .fill(.black)
+                    .frame(height: 70)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay(Text("No signal").foregroundStyle(.white.opacity(0.5)))
+            }
+
+            zoomControl
+
+            if showByChannel {
+                Text("Red").font(.caption).foregroundStyle(.red)
+                stretchSlider("Black Point", value: channelBlackPointBinding(\.red), center: $redBlackCenter)
+                stretchSlider("White Point", value: channelWhitePointBinding(\.red), center: $redWhiteCenter)
+                Text("Green").font(.caption).foregroundStyle(.green)
+                stretchSlider("Black Point", value: channelBlackPointBinding(\.green), center: $greenBlackCenter)
+                stretchSlider("White Point", value: channelWhitePointBinding(\.green), center: $greenWhiteCenter)
+                Text("Blue").font(.caption).foregroundStyle(.blue)
+                stretchSlider("Black Point", value: channelBlackPointBinding(\.blue), center: $blueBlackCenter)
+                stretchSlider("White Point", value: channelWhitePointBinding(\.blue), center: $blueWhiteCenter)
+            } else {
+                stretchSlider("Black Point", value: blackPointBinding, center: $blackCenter)
+                stretchSlider("White Point", value: whitePointBinding, center: $whiteCenter)
+            }
+        }
+        .padding()
+    }
+
+    var body: some View {
+        Group {
+            if showByChannel {
+                ScrollView { content }
+            } else {
+                content
+            }
         }
         .onChange(of: zoom) { recenter() }
         .onAppear { recenter() }
