@@ -93,7 +93,11 @@ buttons sit right next to **Disconnect** on a connected ZWO camera's own row,
 and a fuller **Acquisition** section (Wizard/Save Preset/Load Preset/Reset to
 Default) appears right below the camera list — so a target setup, a saved
 preset, or undoing everything back to defaults is one click away without
-hunting through the Controls panel's tabs.
+hunting through the Controls panel's tabs. Right above that, a **Running**
+status list shows every currently-active pipeline (Live Stack, Lucky Imaging,
+Recording to Disk, SER recording, Planetary Tracking, Polar Alignment, Cloud
+Sentinel, Focus Assist) — whether or not its own tab happens to be showing on
+the right — each with a one-click jump to its controls and a one-click Stop.
 
 ### The live preview and toolbar
 
@@ -108,6 +112,15 @@ hunting through the Controls panel's tabs.
   zoomed in; double-click to reset.
 - The format picker (RAW8/RAW16) appears when the connected camera supports
   more than one; webcam/iPhone sources are always RGB24, so it's hidden then.
+- Below the preview, a **Histogram**/**Curves** tab pair: the histogram has a
+  "By Channel" toggle (any color source) that swaps the combined black/white
+  view for separate Red/Green/Blue curves *and* switches the Black/White Point
+  sliders to three fully independent pairs, for correcting a color imbalance
+  (e.g. a light-polluted sky's orange cast) right at the stretch stage. Curves
+  is Photoshop-style tone-curve grading — a master RGB curve plus independent
+  Red/Green/Blue curves layered on top of it, applied as a post-stretch pass
+  on both render paths, off by default. A "Detach" button pops both into a
+  separate floating panel that can overlap the main window and stay open.
 
 ### Controls panel
 
@@ -167,8 +180,9 @@ raw data:
 - **Acquisition Wizard** (⌘⇧W) — pick a target (Moon, Venus, Mars, Jupiter,
   Saturn, or a curated deep-sky list: M13/M56/M31/M42/M45/M51/M57/M27/M81/M8)
   and set up ROI, gain, exposure, and Live Stack/Reduce Drift/Smart Live
-  Stack/Lucky Imaging for it in one step — the Moon uniquely turns on both
-  Live Stack and Lucky Imaging at once. Works for an iPhone/webcam source
+  Stack/Mesh Drift Correction (Experimental)/Lucky Imaging for it in one
+  step — the Moon uniquely turns on both Live Stack and Lucky Imaging at
+  once. Works for an iPhone/webcam source
   too (Live Stack/Lucky Imaging/Smart Live Stack apply; ROI/gain/exposure/
   Reduce Drift don't, and the Wizard says so). **Save Preset…**/
   **Load Preset…** (⌘⇧S/⌘⇧L, Camera menu, or the Cameras sidebar's own
@@ -211,7 +225,13 @@ raw data:
 - **Live Stack** — running-average stacking of the live feed, with an
   optional GPU-only **Reduce Drift** (single-star lock-on alignment,
   background-subtracted centroid tracking, re-acquires on a lost lock) for
-  mounts that don't track perfectly, e.g. alt-azimuth, a **Pause**/Resume to
+  mounts that don't track perfectly, e.g. alt-azimuth, or its "Experimental"
+  alternative **Mesh-Based Drift Correction** — tracks an NxN grid of points
+  instead of one locked star, triangulating the mesh and blending each
+  triangle's drift with barycentric interpolation, so it can correct for
+  field rotation and differential drift a single global shift can't. A live
+  preview overlay shows the actual tracked grid and displacement vectors. A
+  **Pause**/Resume to
   freeze and actually look at a running stack without discarding it, and a
   one-click **Save Stacked Image…** PNG snapshot. **Smart Live Stack
   (Autopilot)** turns it into a live, self-curating stack — automatically

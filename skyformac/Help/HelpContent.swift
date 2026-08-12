@@ -463,6 +463,10 @@ enum HelpContent {
                 body: "A second tab next to the histogram — Photoshop-style tone-curve grading. Drag points on the curve to shape tonality (lift shadows, roll off highlights) on top of whatever Black/White Point stretch is already set. Pick a channel with the segmented control at the top: **RGB** is a master curve applied to all three channels identically; Red/Green/Blue each layer their own independent curve on top of it. Off by default — nothing changes until the **Enable** checkbox is checked. Works for a mono camera too (RGB curve only, since there's nothing to split into channels)."
             ),
             HelpSection(
+                id: "setting.detachHistogramCurves", heading: "Detach (Histogram/Curves)",
+                body: "The button next to the Histogram/Curves tabs pops both into a separate floating window — it can overlap the main window and stay open while you work elsewhere, rather than being confined to the fixed spot under the live preview. Close it (its own close button) or click \"Dock\" in the main window to put them back inline."
+            ),
+            HelpSection(
                 id: "setting.gpuCpuToggle", heading: "GPU / CPU toggle",
                 body: "Toolbar, ⌘M — switches the render path. GPU (Metal) is the default and faster; CPU is a fallback that produces the same result more slowly."
             ),

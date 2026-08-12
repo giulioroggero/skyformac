@@ -139,6 +139,10 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   "Independent Channels") stretch is already dialed in. Works for a mono
   camera too (master curve only, since there's nothing to split into
   channels), not just a color source.
+- **Detachable Histogram/Curves panel** — a button next to the tabs pops
+  both into a separate floating window that can overlap the main one and
+  stay open while working elsewhere; closing it (its own close button, or
+  a "Dock" button in the main window) puts them back inline.
 - **Continuous recording** with a GPU sharpness frame filter (only writes
   frames sharp enough to be worth keeping, scored by a GPU Laplacian-energy
   kernel) and a disk-space guardrail that stops recording before it can fill
