@@ -32,11 +32,33 @@ struct StretchParams {
     float divisor;
 };
 
-inline float applyStretch(float normalizedValue, constant StretchParams &stretch) {
-    float white = max(stretch.whitePoint, stretch.blackPoint + (1.0 / 65535.0));
-    float t = (normalizedValue - stretch.blackPoint) / (white - stretch.blackPoint);
+inline float applyStretchBW(float normalizedValue, float blackPoint, float whitePoint) {
+    float white = max(whitePoint, blackPoint + (1.0 / 65535.0));
+    float t = (normalizedValue - blackPoint) / (white - blackPoint);
     return saturate(t);
 }
+
+inline float applyStretch(float normalizedValue, constant StretchParams &stretch) {
+    return applyStretchBW(normalizedValue, stretch.blackPoint, stretch.whitePoint);
+}
+
+/// Per-channel companion to `StretchParams` — three independent black/white pairs (one per
+/// color channel) plus the one shared `divisor`, which stays a single scalar since it's about
+/// how many live-stacked frames were summed, not a per-channel quantity. Used by
+/// `debayerAndStretch`/`stretchRGB24` in place of `StretchParams`; `stretchMono` has no channels
+/// to be independent between, so it keeps using plain `StretchParams`. "Independent Channels"
+/// mode off is just this struct with all three pairs set to the same values — see
+/// `PerChannelStretch(uniform:)` on the Swift side — so these two kernels never need to branch
+/// on whether independent mode is actually on.
+struct ChannelStretchParams {
+    float redBlack;
+    float redWhite;
+    float greenBlack;
+    float greenWhite;
+    float blueBlack;
+    float blueWhite;
+    float divisor;
+};
 
 /// Stretches a mono RAW8/RAW16 texture (`r8Unorm`/`r16Unorm`, both sample as normalized
 /// float in Metal) into an RGBA8 display texture. One thread per pixel.
@@ -59,15 +81,15 @@ kernel void stretchMono(
 kernel void stretchRGB24(
     device const uchar *source [[buffer(0)]],
     constant uint &sourceWidth [[buffer(1)]],
-    constant StretchParams &stretch [[buffer(2)]],
+    constant ChannelStretchParams &stretch [[buffer(2)]],
     texture2d<float, access::write> destination [[texture(0)]],
     uint2 gid [[thread_position_in_grid]]
 ) {
     if (gid.x >= destination.get_width() || gid.y >= destination.get_height()) { return; }
     uint index = (gid.y * sourceWidth + gid.x) * 3;
-    float r = applyStretch(float(source[index + 0]) / 255.0, stretch);
-    float g = applyStretch(float(source[index + 1]) / 255.0, stretch);
-    float b = applyStretch(float(source[index + 2]) / 255.0, stretch);
+    float r = applyStretchBW(float(source[index + 0]) / 255.0, stretch.redBlack, stretch.redWhite);
+    float g = applyStretchBW(float(source[index + 1]) / 255.0, stretch.greenBlack, stretch.greenWhite);
+    float b = applyStretchBW(float(source[index + 2]) / 255.0, stretch.blueBlack, stretch.blueWhite);
     destination.write(float4(r, g, b, 1.0), gid);
 }
 
@@ -468,7 +490,7 @@ inline float readClamped(texture2d<float, access::read> tex, int x, int y) {
 kernel void debayerAndStretch(
     texture2d<float, access::read> source [[texture(0)]],
     texture2d<float, access::write> destination [[texture(1)]],
-    constant StretchParams &stretch [[buffer(0)]],
+    constant ChannelStretchParams &stretch [[buffer(0)]],
     constant uint &bayerPattern [[buffer(1)]],
     uint2 gid [[thread_position_in_grid]]
 ) {
@@ -507,7 +529,11 @@ kernel void debayerAndStretch(
     r /= stretch.divisor;
     g /= stretch.divisor;
     b /= stretch.divisor;
-    float3 rgb = float3(applyStretch(r, stretch), applyStretch(g, stretch), applyStretch(b, stretch));
+    float3 rgb = float3(
+        applyStretchBW(r, stretch.redBlack, stretch.redWhite),
+        applyStretchBW(g, stretch.greenBlack, stretch.greenWhite),
+        applyStretchBW(b, stretch.blueBlack, stretch.blueWhite)
+    );
     destination.write(float4(rgb, 1.0), gid);
 }
 
@@ -581,6 +607,29 @@ kernel void arcsinhStretch(
     normalized /= max(whitePoint - blackPoint, 0.001);
     float3 stretched = intensity > 1.0 ? asinh(normalized * intensity) / asinh(intensity) : normalized;
     texture.write(float4(saturate(stretched), color.a), gid);
+}
+
+/// Post-stretch color grading ("Curves" tab) — an independent 256-entry lookup table per
+/// channel, built from user-placed control points (`ToneCurve.lookupTable()`/
+/// `ChannelToneCurves.effectiveRedLUT` etc.), applied as the very last stage before display.
+/// In place on a single `access::read_write` texture argument, same shape as `arcsinhStretch`
+/// above — safe because each thread only ever reads and writes its own texel, unlike a
+/// neighbor-sampling kernel (blur/denoise), where aliasing source and destination would be a
+/// real data race.
+kernel void applyToneCurveRGBA(
+    texture2d<float, access::read_write> texture [[texture(0)]],
+    device const uchar *redLUT [[buffer(0)]],
+    device const uchar *greenLUT [[buffer(1)]],
+    device const uchar *blueLUT [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= texture.get_width() || gid.y >= texture.get_height()) { return; }
+    float4 color = texture.read(gid);
+    uint ri = min(uint(saturate(color.r) * 255.0 + 0.5), 255u);
+    uint gi = min(uint(saturate(color.g) * 255.0 + 0.5), 255u);
+    uint bi = min(uint(saturate(color.b) * 255.0 + 0.5), 255u);
+    float3 graded = float3(float(redLUT[ri]), float(greenLUT[gi]), float(blueLUT[bi])) / 255.0;
+    texture.write(float4(graded, color.a), gid);
 }
 
 /// One level of an à trous ("with holes") wavelet blur — the standard stationary wavelet

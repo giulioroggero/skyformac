@@ -278,6 +278,32 @@ final class CameraManager {
     var stretch = DisplayStretch.identity {
         didSet { refreshCurrentImage() }
     }
+    /// "Independent Channels" mode — three separate black/white points instead of one shared
+    /// pair, for compensating a color imbalance (e.g. a light-polluted sky's orange cast)
+    /// directly at the stretch stage. Only meaningful for a color source; `HistogramView` only
+    /// shows the toggle for one. `channelStretch` itself is left alone when this is off (so
+    /// turning it back on later restores whatever was last dialed in) — `effectiveChannelStretch`
+    /// is what rendering actually reads, falling back to `stretch` applied uniformly.
+    var isIndependentChannelStretchEnabled = false {
+        didSet { refreshCurrentImage() }
+    }
+    var channelStretch = PerChannelStretch.identity {
+        didSet { if isIndependentChannelStretchEnabled { refreshCurrentImage() } }
+    }
+    /// What the render paths (GPU `MetalFrameRenderer`, CPU `CGImageRenderer`) actually read —
+    /// `channelStretch` verbatim when independent mode is on, or `stretch` applied uniformly to
+    /// all three channels otherwise, so neither render path needs its own branch for the toggle.
+    var effectiveChannelStretch: PerChannelStretch {
+        isIndependentChannelStretchEnabled ? channelStretch : PerChannelStretch(uniform: stretch)
+    }
+    /// "Curves" tab — post-stretch tone-curve grading, off by default. `toneCurves` is left alone
+    /// when this is off, same reasoning as `channelStretch` above.
+    var isToneCurveEnabled = false {
+        didSet { refreshCurrentImage() }
+    }
+    var toneCurves = ChannelToneCurves.identity {
+        didSet { if isToneCurveEnabled { refreshCurrentImage() } }
+    }
     /// Set on a fresh ZWO connection (see `connect(to:)`) — `.identity` is a safe *interim* value
     /// (better than inheriting an unrelated previous session's black/white point), but it's a bad
     /// permanent default for a real linear sensor: real signal only occupies a small fraction of
@@ -969,6 +995,8 @@ final class CameraManager {
         // comment (a real ZWO camera's 16-bit RAW black/white point carrying over onto this
         // 8-bit RGB24 feed, or vice versa on the next connect, is equally wrong either way).
         stretch = .identity
+        channelStretch = .identity
+        toneCurves = .identity
         consumeWebcamFrames(stream)
     }
 
@@ -1028,6 +1056,8 @@ final class CameraManager {
             // of its range (tuned by ZWO for bright test conditions) — 5 is a much safer starting
             // point for a real night-sky target than that default.
             stretch = .identity
+            channelStretch = .identity
+            toneCurves = .identity
             pendingAutoStretch = true
             gpuControls.isEnabled = false
             if let gainCap = caps.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
@@ -1454,6 +1484,8 @@ final class CameraManager {
         if isRecordingSERVideo { stopSERRecording() }
 
         stretch = .identity
+        channelStretch = .identity
+        toneCurves = .identity
         pendingAutoStretch = true
     }
 
@@ -2032,7 +2064,9 @@ final class CameraManager {
             from: frame,
             isColorCamera: camera.isColorCamera,
             bayerPattern: camera.bayerPattern,
-            stretch: stretch
+            stretch: stretch,
+            channelStretch: effectiveChannelStretch,
+            toneCurves: isToneCurveEnabled ? toneCurves : nil
         )
     }
 
@@ -2064,6 +2098,8 @@ final class CameraManager {
         let isColorCamera = camera.isColorCamera
         let bayerPattern = camera.bayerPattern
         let currentStretch = stretch
+        let currentChannelStretch = effectiveChannelStretch
+        let currentToneCurves = isToneCurveEnabled ? toneCurves : nil
         let frameIDAtSchedule = frameID
 
         enhancementTask = Task.detached(priority: .userInitiated) { [weak self] in
@@ -2077,7 +2113,8 @@ final class CameraManager {
                 displayFrame = sharpened
             }
             let image = CGImageRenderer.makeDisplayImage(
-                from: displayFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch
+                from: displayFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch,
+                channelStretch: currentChannelStretch, toneCurves: currentToneCurves
             )
             await self?.applyEnhancedImage(image, ifStillOnFrame: frameIDAtSchedule)
         }

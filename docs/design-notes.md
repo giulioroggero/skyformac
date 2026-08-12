@@ -1315,3 +1315,59 @@ made along the way.
     actually asking for it), reads back three 256-bucket device buffers via
     `addCompletedHandler`, and surfaces them through `CameraManager.gpuChannelHistogramCounts` —
     the same wiring shape as the existing `gpuHistogramCounts`.
+- **"Independent Channels" stretch mode and a "Curves" tab**, both building directly on top of
+  the per-channel histogram work above — the user's own framing was "is it possible to fine-tune
+  the histogram by color?", answered here in full: independent black/white points *and* a
+  Photoshop-style curve editor, not just the read-only by-channel view added earlier.
+  - **`PerChannelStretch`** (`DisplayStretch.swift`) is three independent `DisplayStretch`es.
+    `CameraManager.effectiveChannelStretch` is what every render path actually reads — either
+    `channelStretch` verbatim (independent mode on) or `PerChannelStretch(uniform: stretch)` (off,
+    all three channels sharing the one combined pair) — so `MetalFrameRenderer`/`CGImageRenderer`
+    never need their own branch for the toggle; it's baked into which `PerChannelStretch` they're
+    handed. `HistogramView`'s existing "By Channel" toggle now also flips
+    `isIndependentChannelStretchEnabled` in lockstep, swapping the one combined Black/White Point
+    slider pair for three independent ones — seeing the per-channel histograms is exactly when
+    per-channel stretch editing is useful, so one toggle drives both.
+  - **GPU**: `Shaders.metal` gained `ChannelStretchParams` (three black/white pairs + one shared
+    `divisor` — `divisor` stays scalar since it's "how many live-stacked frames were summed," not
+    a per-channel quantity) and `applyStretchBW`, the single-pair `applyStretch` now delegating to
+    it. `debayerAndStretch`/`stretchRGB24` take `ChannelStretchParams` instead of the old
+    single-pair `StretchParams`; `stretchMono` is untouched (a mono frame has no channels to be
+    independent between).
+  - **CPU**: `CGImageRenderer.makeDisplayImage` gained optional `channelStretch`/`toneCurves`
+    parameters (default `nil` — every export/analysis call site keeps exactly its old behavior
+    unchanged). Only `CameraManager.renderedCurrentImage`/`scheduleCPUEnhancementIfNeeded`'s
+    render (the CPU live-preview path, which also backs PNG/TIFF export and polar alignment's star
+    detection via `currentDisplayImage()`/`imageForExport()`) passes them — deliberately not the
+    four other `CGImageRenderer`/`GPUStillImageRenderer` call sites in focus-assist/streak-
+    detection/planet-tracking, which render their own internal Vision-analysis image and should see
+    the base combined stretch only, unaffected by what's essentially cosmetic display grading.
+  - **`ToneCurve`** (`ToneCurve.swift`) is a small set of user-placed control points sampled into
+    a 256-entry lookup table via a **monotonic** cubic Hermite spline (Fritsch-Carlson) — not a
+    plain natural spline, which can overshoot between widely-spaced hand-placed points and locally
+    *reverse* brightness order (a visible banding artifact with only 2-4 points, the realistic case
+    for a hand-tuned curve). `ChannelToneCurves` layers a master "RGB" curve (applied to all three
+    channels identically) with independent Red/Green/Blue curves on top of it — `effectiveRedLUT`
+    etc. compose the two LUTs (`firstLUT.map { secondLUT[Int($0)] }`), the same "apply master, then
+    per-channel" convention most curve-grading tools use.
+  - **Applying the curve**: rather than weaving it into `debayerAndStretch`/`stretchRGB24`
+    (per-channel-stretch's approach), curves apply as one *additional*, final GPU stage
+    (`applyToneCurveRGBA`) directly on `outputTexture` regardless of source path (mono, RAW8/16
+    color, or RGB24) — simpler, and correct, since by the time `outputTexture` holds real RGBA
+    values, per-channel grading no longer needs to know anything about Bayer patterns or source
+    format. It takes a single `access::read_write` texture argument, mirroring `arcsinhStretch`
+    right above it in `Shaders.metal` — safe because each thread only ever reads and writes its
+    own texel (no neighbor sampling, unlike a blur/denoise kernel, where aliasing source and
+    destination really would be a data race). Gated on `toneCurves != nil` (skips the dispatch
+    entirely when the "Curves" tab's "Enable" checkbox is off) via the same
+    `applyToneCurveIfNeeded` helper called from both `process` and `processRGB24`, right after the
+    existing `applyArcsinhStretchIfNeeded` call and before `encoder.endEncoding()`. The CPU path
+    mirrors this as `CGImageRenderer.channelLUTs`, composing each channel's stretch LUT with its
+    tone-curve LUT the same way.
+  - **`CurvesView.swift`** is the new tab itself: a segmented Channel picker (RGB/Red/Green/Blue),
+    a `Canvas`-drawn curve (identity diagonal + light grid behind it) with draggable control-point
+    circles (`DragGesture(minimumDistance: 0)`, hit-tested by index rather than position so a point
+    dragged near another doesn't confuse itself with its neighbor), and Add/Remove/Reset buttons.
+    Removing a point is disabled below 2 remaining points — `ToneCurve.lookupTable()` falls back to
+    a plain identity LUT for a degenerate (<2-point) curve rather than dividing by zero, but the UI
+    never actually lets that state happen via its own controls.

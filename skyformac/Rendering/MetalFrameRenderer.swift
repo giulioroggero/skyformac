@@ -45,6 +45,13 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private let redHistogramBuffer: MTLBuffer
     private let greenHistogramBuffer: MTLBuffer
     private let blueHistogramBuffer: MTLBuffer
+    /// "Curves" tab post-processing — `applyToneCurveRGBA`'s per-channel 256-entry LUTs,
+    /// rewritten from `ChannelToneCurves.effectiveRedLUT`/etc. right before each dispatch that
+    /// actually needs it (256 bytes x3, negligible next to the frame upload itself).
+    private let toneCurvePipeline: MTLComputePipelineState
+    private let redCurveBuffer: MTLBuffer
+    private let greenCurveBuffer: MTLBuffer
+    private let blueCurveBuffer: MTLBuffer
 
     private var sourceTexture: MTLTexture?
     private var outputTexture: MTLTexture?
@@ -131,9 +138,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// Set by the owning view whenever a new frame should be (re)processed.
     var pendingUpdate: (
         frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
-        stretch: DisplayStretch, isLiveStacking: Bool, isLiveStackPaused: Bool, isDriftReductionEnabled: Bool, streakMask: StreakMask?,
+        stretch: DisplayStretch, channelStretch: PerChannelStretch, isLiveStacking: Bool, isLiveStackPaused: Bool, isDriftReductionEnabled: Bool, streakMask: StreakMask?,
         isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
-        liveGPUControls: GPULiveControlsSnapshot
+        liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?
     )?
 
     /// Fired (off the main thread — hop back before touching UI state) with a fresh 256-bucket
@@ -178,6 +185,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let normalizeMaskedAccumulatorFn = library.makeFunction(name: "normalizeMaskedAccumulator"),
               let histogramBayerChannelsFn = library.makeFunction(name: "histogramReduceBayerChannels"),
               let histogramRGB24ChannelsFn = library.makeFunction(name: "histogramReduceRGB24Channels"),
+              let toneCurveFn = library.makeFunction(name: "applyToneCurveRGBA"),
               let vertexFn = library.makeFunction(name: "fullscreenTriangleVertex"),
               let fragmentFn = library.makeFunction(name: "blitFragment"),
               let histogramBuffer = device.makeBuffer(
@@ -185,7 +193,10 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               ),
               let redHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared),
               let greenHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared),
-              let blueHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared)
+              let blueHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared),
+              let redCurveBuffer = device.makeBuffer(length: 256, options: .storageModeShared),
+              let greenCurveBuffer = device.makeBuffer(length: 256, options: .storageModeShared),
+              let blueCurveBuffer = device.makeBuffer(length: 256, options: .storageModeShared)
         else { return nil }
 
         self.device = device
@@ -194,6 +205,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         self.redHistogramBuffer = redHistogramBuffer
         self.greenHistogramBuffer = greenHistogramBuffer
         self.blueHistogramBuffer = blueHistogramBuffer
+        self.redCurveBuffer = redCurveBuffer
+        self.greenCurveBuffer = greenCurveBuffer
+        self.blueCurveBuffer = blueCurveBuffer
 
         do {
             self.stretchPipeline = try device.makeComputePipelineState(function: stretchFn)
@@ -219,6 +233,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             self.normalizeMaskedAccumulatorPipeline = try device.makeComputePipelineState(function: normalizeMaskedAccumulatorFn)
             self.histogramReduceBayerChannelsPipeline = try device.makeComputePipelineState(function: histogramBayerChannelsFn)
             self.histogramReduceRGB24ChannelsPipeline = try device.makeComputePipelineState(function: histogramRGB24ChannelsFn)
+            self.toneCurvePipeline = try device.makeComputePipelineState(function: toneCurveFn)
 
             let renderDescriptor = MTLRenderPipelineDescriptor()
             renderDescriptor.vertexFunction = vertexFn
@@ -302,9 +317,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// no extra texture writes at all: `stretchRGB24Pipeline` still targets `outputTexture`
     /// directly then, exactly as before this pair of stages existed.
     private func processRGB24(
-        frame: CapturedFrame, stretch: DisplayStretch,
+        frame: CapturedFrame, channelStretch: PerChannelStretch,
         isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
-        liveGPUControls: GPULiveControlsSnapshot
+        liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?
     ) {
         ensureOutputTexture(width: frame.width, height: frame.height)
         let byteCount = frame.width * frame.height * 3
@@ -323,7 +338,12 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
         var width = UInt32(frame.width)
         var height = UInt32(frame.height)
-        var stretchParams = (Float(stretch.blackPoint), Float(stretch.whitePoint), Float(1.0))
+        var stretchParams = (
+            Float(channelStretch.red.blackPoint), Float(channelStretch.red.whitePoint),
+            Float(channelStretch.green.blackPoint), Float(channelStretch.green.whitePoint),
+            Float(channelStretch.blue.blackPoint), Float(channelStretch.blue.whitePoint),
+            Float(1.0)
+        )
         let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
         let threadgroups = MTLSize(width: (frame.width + 15) / 16, height: (frame.height + 15) / 16, depth: 1)
 
@@ -386,6 +406,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         }
 
         applyArcsinhStretchIfNeeded(liveGPUControls, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
+        applyToneCurveIfNeeded(toneCurves, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         encoder.endEncoding()
 
         if onHistogramUpdate != nil, let histogramEncoder = commandBuffer.makeComputeCommandEncoder() {
@@ -822,6 +843,34 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
     }
 
+    /// Skips the extra dispatch entirely when curves are off (`toneCurves == nil`) — same
+    /// gating pattern as `onChannelHistogramUpdate`'s dispatch, so a disabled "Curves" tab costs
+    /// nothing per frame beyond the `nil` check.
+    private func applyToneCurveIfNeeded(
+        _ toneCurves: ChannelToneCurves?,
+        encoder: MTLComputeCommandEncoder,
+        threadgroups: MTLSize,
+        threadsPerGroup: MTLSize
+    ) {
+        guard let toneCurves, let outputTexture else { return }
+        copyLUT(toneCurves.effectiveRedLUT, into: redCurveBuffer)
+        copyLUT(toneCurves.effectiveGreenLUT, into: greenCurveBuffer)
+        copyLUT(toneCurves.effectiveBlueLUT, into: blueCurveBuffer)
+        encoder.setComputePipelineState(toneCurvePipeline)
+        encoder.setTexture(outputTexture, index: 0)
+        encoder.setBuffer(redCurveBuffer, offset: 0, index: 0)
+        encoder.setBuffer(greenCurveBuffer, offset: 0, index: 1)
+        encoder.setBuffer(blueCurveBuffer, offset: 0, index: 2)
+        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+    }
+
+    private func copyLUT(_ lut: [UInt8], into buffer: MTLBuffer) {
+        lut.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            buffer.contents().copyMemory(from: base, byteCount: raw.count)
+        }
+    }
+
     private func dispatch(
         _ pipeline: MTLComputePipelineState,
         encoder: MTLComputeCommandEncoder,
@@ -843,6 +892,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         isColorCamera: Bool,
         bayerPattern: ASI_BAYER_PATTERN,
         stretch: DisplayStretch,
+        channelStretch: PerChannelStretch,
         isLiveStacking: Bool,
         isLiveStackPaused: Bool,
         isDriftReductionEnabled: Bool,
@@ -850,7 +900,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         isDenoisingEnabled: Bool,
         isWaveletSharpeningEnabled: Bool,
         sharpenAmount: Float,
-        liveGPUControls: GPULiveControlsSnapshot
+        liveGPUControls: GPULiveControlsSnapshot,
+        toneCurves: ChannelToneCurves?
     ) {
         if frame.imageType == ASI_IMG_RGB24 {
             // Webcam/iPhone frames: already color-processed by the device's own ISP, so no
@@ -861,9 +912,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             // Only affects webcam sources — ZWO cameras never produce RGB24. Arcsinh stretch
             // (stage 3) is source-agnostic, so it's still applied regardless.
             processRGB24(
-                frame: frame, stretch: stretch,
+                frame: frame, channelStretch: channelStretch,
                 isDenoisingEnabled: isDenoisingEnabled, isWaveletSharpeningEnabled: isWaveletSharpeningEnabled,
-                sharpenAmount: sharpenAmount, liveGPUControls: liveGPUControls
+                sharpenAmount: sharpenAmount, liveGPUControls: liveGPUControls, toneCurves: toneCurves
             )
             return
         }
@@ -1070,6 +1121,12 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         }
 
         var stretchParams = (Float(stretch.blackPoint), Float(stretch.whitePoint), divisor)
+        var channelStretchParams = (
+            Float(channelStretch.red.blackPoint), Float(channelStretch.red.whitePoint),
+            Float(channelStretch.green.blackPoint), Float(channelStretch.green.whitePoint),
+            Float(channelStretch.blue.blackPoint), Float(channelStretch.blue.whitePoint),
+            divisor
+        )
         let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
         let threadgroups = MTLSize(
             width: (frame.width + 15) / 16,
@@ -1082,7 +1139,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             encoder.setComputePipelineState(debayerPipeline)
             encoder.setTexture(readSource, index: 0)
             encoder.setTexture(outputTexture, index: 1)
-            encoder.setBytes(&stretchParams, length: MemoryLayout.size(ofValue: stretchParams), index: 0)
+            encoder.setBytes(&channelStretchParams, length: MemoryLayout.size(ofValue: channelStretchParams), index: 0)
             encoder.setBytes(&pattern, length: MemoryLayout.size(ofValue: pattern), index: 1)
         } else {
             encoder.setComputePipelineState(stretchPipeline)
@@ -1094,6 +1151,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
 
         applyArcsinhStretchIfNeeded(liveGPUControls, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
+        applyToneCurveIfNeeded(toneCurves, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         encoder.endEncoding()
 
         // Histogram is computed from the same (possibly-stacked) source, matching
@@ -1169,6 +1227,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 isColorCamera: update.isColorCamera,
                 bayerPattern: update.bayerPattern,
                 stretch: update.stretch,
+                channelStretch: update.channelStretch,
                 isLiveStacking: update.isLiveStacking,
                 isLiveStackPaused: update.isLiveStackPaused,
                 isDriftReductionEnabled: update.isDriftReductionEnabled,
@@ -1176,7 +1235,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 isDenoisingEnabled: update.isDenoisingEnabled,
                 isWaveletSharpeningEnabled: update.isWaveletSharpeningEnabled,
                 sharpenAmount: update.sharpenAmount,
-                liveGPUControls: update.liveGPUControls
+                liveGPUControls: update.liveGPUControls,
+                toneCurves: update.toneCurves
             )
         }
 
@@ -1295,6 +1355,7 @@ struct MetalPreviewView: NSViewRepresentable {
             isColorCamera: camera.isColorCamera,
             bayerPattern: camera.bayerPattern,
             stretch: cameraManager.stretch,
+            channelStretch: cameraManager.effectiveChannelStretch,
             isLiveStacking: cameraManager.isLiveStackingEnabled,
             isLiveStackPaused: cameraManager.effectiveLiveStackPaused,
             isDriftReductionEnabled: cameraManager.isLiveStackDriftReductionEnabled,
@@ -1302,7 +1363,8 @@ struct MetalPreviewView: NSViewRepresentable {
             isDenoisingEnabled: cameraManager.isDenoisingEnabled,
             isWaveletSharpeningEnabled: cameraManager.isWaveletSharpeningEnabled,
             sharpenAmount: Float(cameraManager.waveletSharpenAmount),
-            liveGPUControls: cameraManager.gpuControls.snapshot
+            liveGPUControls: cameraManager.gpuControls.snapshot,
+            toneCurves: cameraManager.isToneCurveEnabled ? cameraManager.toneCurves : nil
         )
         nsView.setNeedsDisplay(nsView.bounds)
     }

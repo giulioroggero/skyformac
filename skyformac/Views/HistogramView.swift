@@ -28,9 +28,18 @@ struct HistogramView: View {
     @State private var whiteCenter: Double = 1
     /// Combined (luma) histogram vs. separate Red/Green/Blue curves — only meaningful for a color
     /// source, so the toggle itself only appears when `currentChannelHistograms` has something to
-    /// show. The Black/White Point sliders below always act on the combined domain regardless of
-    /// which view is showing; this only changes what the canvas above them draws.
+    /// show. Also gates which Black/White Point sliders are shown below: "By Channel" on switches
+    /// those from the one combined pair to `cameraManager.channelStretch`'s three independent
+    /// pairs, in lockstep with `cameraManager.isIndependentChannelStretchEnabled` — seeing the
+    /// per-channel histograms is exactly when per-channel stretch editing is useful, so one
+    /// toggle drives both rather than asking for two separate ones.
     @State private var showByChannel = false
+    @State private var redBlackCenter: Double = 0
+    @State private var redWhiteCenter: Double = 1
+    @State private var greenBlackCenter: Double = 0
+    @State private var greenWhiteCenter: Double = 1
+    @State private var blueBlackCenter: Double = 0
+    @State private var blueWhiteCenter: Double = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -38,10 +47,16 @@ struct HistogramView: View {
                 Text("Histogram").font(.headline)
                 if currentChannelHistograms != nil {
                     Spacer()
-                    Toggle("By Channel", isOn: $showByChannel)
+                    Toggle("By Channel", isOn: Binding(
+                        get: { showByChannel },
+                        set: { newValue in
+                            showByChannel = newValue
+                            cameraManager.isIndependentChannelStretchEnabled = newValue
+                        }
+                    ))
                         .toggleStyle(.checkbox)
                         .font(.caption)
-                        .help("Shows separate Red/Green/Blue histograms instead of the combined one — useful for spotting a channel that's clipping or unbalanced on its own. The Black/White Point sliders below still act on the combined signal either way.")
+                        .help("Shows separate Red/Green/Blue histograms, and switches the Black/White Point sliders below to three independent pairs (one per channel) instead of the one combined pair — useful for compensating a color imbalance (e.g. a light-polluted sky's orange cast) directly at the stretch stage.")
                 }
             }
 
@@ -59,8 +74,20 @@ struct HistogramView: View {
 
             zoomControl
 
-            stretchSlider("Black Point", value: blackPointBinding, center: $blackCenter)
-            stretchSlider("White Point", value: whitePointBinding, center: $whiteCenter)
+            if showByChannel {
+                Text("Red").font(.caption).foregroundStyle(.red)
+                stretchSlider("Black Point", value: channelBlackPointBinding(\.red), center: $redBlackCenter)
+                stretchSlider("White Point", value: channelWhitePointBinding(\.red), center: $redWhiteCenter)
+                Text("Green").font(.caption).foregroundStyle(.green)
+                stretchSlider("Black Point", value: channelBlackPointBinding(\.green), center: $greenBlackCenter)
+                stretchSlider("White Point", value: channelWhitePointBinding(\.green), center: $greenWhiteCenter)
+                Text("Blue").font(.caption).foregroundStyle(.blue)
+                stretchSlider("Black Point", value: channelBlackPointBinding(\.blue), center: $blueBlackCenter)
+                stretchSlider("White Point", value: channelWhitePointBinding(\.blue), center: $blueWhiteCenter)
+            } else {
+                stretchSlider("Black Point", value: blackPointBinding, center: $blackCenter)
+                stretchSlider("White Point", value: whitePointBinding, center: $whiteCenter)
+            }
         }
         .padding()
         .onChange(of: zoom) { recenter() }
@@ -72,6 +99,12 @@ struct HistogramView: View {
     private func recenter() {
         blackCenter = cameraManager.stretch.blackPoint
         whiteCenter = cameraManager.stretch.whitePoint
+        redBlackCenter = cameraManager.channelStretch.red.blackPoint
+        redWhiteCenter = cameraManager.channelStretch.red.whitePoint
+        greenBlackCenter = cameraManager.channelStretch.green.blackPoint
+        greenWhiteCenter = cameraManager.channelStretch.green.whitePoint
+        blueBlackCenter = cameraManager.channelStretch.blue.blackPoint
+        blueWhiteCenter = cameraManager.channelStretch.blue.whitePoint
     }
 
     /// A window of width `1/zoom` centered on `center`, clamped into 0...1.
@@ -257,6 +290,28 @@ struct HistogramView: View {
         Binding(
             get: { cameraManager.stretch.whitePoint },
             set: { cameraManager.stretch.whitePoint = max(min($0, 1), cameraManager.stretch.blackPoint + 0.01) }
+        )
+    }
+
+    /// Same clamp logic as `blackPointBinding`/`whitePointBinding`, generalized over which of the
+    /// three channels a given pair of sliders edits.
+    private func channelBlackPointBinding(_ channel: WritableKeyPath<PerChannelStretch, DisplayStretch>) -> Binding<Double> {
+        Binding(
+            get: { cameraManager.channelStretch[keyPath: channel].blackPoint },
+            set: { newValue in
+                let whitePoint = cameraManager.channelStretch[keyPath: channel].whitePoint
+                cameraManager.channelStretch[keyPath: channel].blackPoint = min(max(newValue, 0), whitePoint - 0.01)
+            }
+        )
+    }
+
+    private func channelWhitePointBinding(_ channel: WritableKeyPath<PerChannelStretch, DisplayStretch>) -> Binding<Double> {
+        Binding(
+            get: { cameraManager.channelStretch[keyPath: channel].whitePoint },
+            set: { newValue in
+                let blackPoint = cameraManager.channelStretch[keyPath: channel].blackPoint
+                cameraManager.channelStretch[keyPath: channel].whitePoint = max(min(newValue, 1), blackPoint + 0.01)
+            }
         )
     }
 }

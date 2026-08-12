@@ -57,6 +57,7 @@
 		92A6440058F11756D35C2280 /* CaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F15C305509B9D238A0F6D8 /* CaptureEngine.swift */; };
 		FAB1461117306ECFF247FCDB /* ROIGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9617675220EF3F556AAD3D /* ROIGeometry.swift */; };
 		9497154EAB38892C7CED26D4 /* DisplayStretch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D45AD55387D14B1CD7F1C11 /* DisplayStretch.swift */; };
+		96E530F0B5887AE710093668 /* ToneCurve.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F7B0CC8B6C296672D8C417 /* ToneCurve.swift */; };
 		95B06475761DE1F50E280FB1 /* PreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C438170FE21AEABA0E72DB0 /* PreviewView.swift */; };
 		C67D30FB1206977D3F0B67D9 /* HelpContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F70DB4F88F8011F407D7B23 /* HelpContent.swift */; };
 		1C382BEEB5D5F4CBC15B47A3 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C57C29672EDA8B570AC83B /* HelpView.swift */; };
@@ -75,6 +76,7 @@
 		BBB9C41C2DE5B4082E3CB9D1 /* ImageEnhancerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C8D5AD1211A30927A071B6 /* ImageEnhancerTests.swift */; };
 		C05D048846FC640E6E72E689 /* ZWOErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0529E29D4A4C6E1127B1344A /* ZWOErrorTests.swift */; };
 		5DF765BF9356195732AC093B /* HistogramComputerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */; };
+		FF70AA111387FD2A10BD035C /* ToneCurveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16AE84B8AF673E7F0D7D3F7 /* ToneCurveTests.swift */; };
 		C4F70E862029FEA852476B6C /* PlanetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */; };
 		C50F2712D4496D9621959232 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
 		C5CC3B605C7E28E7339A565F /* ControlsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB59E4D2F2C11CC773741644 /* ControlsPanelView.swift */; };
@@ -82,6 +84,7 @@
 		CCF6E0ADA01D388356646E28 /* SharpnessScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E5F55953A1FF914B2B0198 /* SharpnessScorer.swift */; };
 		D750D67E465DFF02A0CA1F62 /* ZWOError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395E78B28CEEF0942529E931 /* ZWOError.swift */; };
 		D9F25BF98E302BBB4BCFBDF5 /* HistogramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7718EB70AC68699C4078062 /* HistogramView.swift */; };
+		C46BC5FE3510EBFAEAB2EF84 /* CurvesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998BCBC6DE56A7D81FC9945B /* CurvesView.swift */; };
 		DB9921B12CCAD5F82BA42F1F /* CameraListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA9CB1026F277EAA9537DD1 /* CameraListView.swift */; };
 		DCC70AE6FCD8FE43610E9596 /* ExposureOptimizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900B52336DE17B1F7F80FD28 /* ExposureOptimizerTests.swift */; };
 		E27273C1437161A8B073027E /* DiskSpaceChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA796E075478701D2A6AC5A /* DiskSpaceChecker.swift */; };
@@ -163,6 +166,7 @@
 		0332A2145788F658220362CC /* skyformacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = skyformacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0529E29D4A4C6E1127B1344A /* ZWOErrorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ZWOErrorTests.swift; sourceTree = "<group>"; };
 		6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramComputerTests.swift; sourceTree = "<group>"; };
+		E16AE84B8AF673E7F0D7D3F7 /* ToneCurveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ToneCurveTests.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
 		0C438170FE21AEABA0E72DB0 /* PreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
 		6F70DB4F88F8011F407D7B23 /* HelpContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpContent.swift; sourceTree = "<group>"; };
@@ -194,6 +198,7 @@
 		4A9C056C0EE26B49BC25C0F0 /* FlatFieldCorrector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlatFieldCorrector.swift; sourceTree = "<group>"; };
 		4CF848AF7EBEE51A4F296259 /* SkyformacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SkyformacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4D45AD55387D14B1CD7F1C11 /* DisplayStretch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisplayStretch.swift; sourceTree = "<group>"; };
+		46F7B0CC8B6C296672D8C417 /* ToneCurve.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ToneCurve.swift; sourceTree = "<group>"; };
 		4E60DE976E78E63EEC051F93 /* Debayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Debayer.swift; sourceTree = "<group>"; };
 		4F48776C296AA793CBA49158 /* ZWOControlCaps.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ZWOControlCaps.swift; sourceTree = "<group>"; };
 		54A0AEC3C0487BE791B3AF11 /* SkyformacApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyformacApp.swift; sourceTree = "<group>"; };
@@ -229,6 +234,7 @@
 		FC34926B3929D1C5721D34DA /* AcquisitionTarget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcquisitionTarget.swift; sourceTree = "<group>"; };
 		93F59753779FC35A72F9CDAE /* DiskSpaceCheckerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiskSpaceCheckerTests.swift; sourceTree = "<group>"; };
 		A7718EB70AC68699C4078062 /* HistogramView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramView.swift; sourceTree = "<group>"; };
+		998BCBC6DE56A7D81FC9945B /* CurvesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CurvesView.swift; sourceTree = "<group>"; };
 		ACA9CB1026F277EAA9537DD1 /* CameraListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraListView.swift; sourceTree = "<group>"; };
 		ACC2E5F195F93B6B68A6C451 /* HistogramComputer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramComputer.swift; sourceTree = "<group>"; };
 		AEF040EFD1A707E65E5EDB36 /* App-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "App-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -401,6 +407,7 @@
 				EBA7E98242926E6204AF579C /* GPUControlSettingsTests.swift */,
 				0529E29D4A4C6E1127B1344A /* ZWOErrorTests.swift */,
 				6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */,
+				E16AE84B8AF673E7F0D7D3F7 /* ToneCurveTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
 				A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */,
@@ -505,6 +512,7 @@
 				F6366935F9B2AAA5C996D2AA /* ExportedFileViewerView.swift */,
 				1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */,
 				A7718EB70AC68699C4078062 /* HistogramView.swift */,
+				998BCBC6DE56A7D81FC9945B /* CurvesView.swift */,
 				EC6E0E0C0F50079C03C013D8 /* AllSkyMonitorView.swift */,
 				D9B1FC7C82CE4B2EBFA7C295 /* SkyHUDView.swift */,
 			);
@@ -595,6 +603,7 @@
 				384B2470BBD31B41755AA16F /* CGImageRenderer.swift */,
 				4E60DE976E78E63EEC051F93 /* Debayer.swift */,
 				4D45AD55387D14B1CD7F1C11 /* DisplayStretch.swift */,
+				46F7B0CC8B6C296672D8C417 /* ToneCurve.swift */,
 				ACC2E5F195F93B6B68A6C451 /* HistogramComputer.swift */,
 				BFECDB2BCC9D0B85F291E1BD /* MetalFrameRenderer.swift */,
 				06F8D95B0E15A88F43623D77 /* GPUStillImageRenderer.swift */,
@@ -771,8 +780,10 @@
 				E28DA7DEA33DAEA6E13B624C /* CGImageRenderer.swift in Sources */,
 				F98B5FC37370F6ABA12AF277 /* Debayer.swift in Sources */,
 				9497154EAB38892C7CED26D4 /* DisplayStretch.swift in Sources */,
+				96E530F0B5887AE710093668 /* ToneCurve.swift in Sources */,
 				7FF8800F1BF446797258F1B4 /* HistogramComputer.swift in Sources */,
 				D9F25BF98E302BBB4BCFBDF5 /* HistogramView.swift in Sources */,
+				C46BC5FE3510EBFAEAB2EF84 /* CurvesView.swift in Sources */,
 				E2EAC3EFFD26B34D7DBF5C7F /* MetalFrameRenderer.swift in Sources */,
 				1795D6382FD5CA3FAEE045AB /* GPUStillImageRenderer.swift in Sources */,
 				84C87CEFC11D44E892F94A49 /* GPUFrameCalibrator.swift in Sources */,
@@ -832,6 +843,7 @@
 				F8EFDC6EA36425F594FF9F0D /* GPUControlSettingsTests.swift in Sources */,
 				C05D048846FC640E6E72E689 /* ZWOErrorTests.swift in Sources */,
 				5DF765BF9356195732AC093B /* HistogramComputerTests.swift in Sources */,
+				FF70AA111387FD2A10BD035C /* ToneCurveTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,
 				7649C405BE01EB99C5A51847 /* MetalFrameRendererTests.swift in Sources */,

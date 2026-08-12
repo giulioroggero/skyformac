@@ -6,17 +6,28 @@ import Foundation
 /// output. This is the CPU baseline per spec 3.4 / Milestone 4; the GPU upgrade pass replaces
 /// it with a `MetalKit`-backed renderer that does the stretch (and debayer) on the GPU.
 enum CGImageRenderer {
+    /// `channelStretch`/`toneCurves` are `nil` by default — every existing caller (exports, the
+    /// Vision-analysis renders in `CameraManager`'s focus-assist/streak-detection/planet-tracking
+    /// paths) keeps getting exactly the base combined `stretch`, unaffected. Only the CPU live-
+    /// preview render path (`renderedCurrentImage`/`scheduleCPUEnhancementIfNeeded`) passes them,
+    /// deliberately: "Independent Channels"/"Curves" are display-only grading, not something
+    /// Vision-based star/streak/planet detection should see tweaked underneath it.
     static func makeDisplayImage(
         from frame: CapturedFrame,
         isColorCamera: Bool,
         bayerPattern: ASI_BAYER_PATTERN,
-        stretch: DisplayStretch
+        stretch: DisplayStretch,
+        channelStretch: PerChannelStretch? = nil,
+        toneCurves: ChannelToneCurves? = nil
     ) -> CGImage? {
         switch frame.imageType {
         case ASI_IMG_RAW8, ASI_IMG_Y8:
             if isColorCamera, frame.imageType == ASI_IMG_RAW8,
                let rgb = Debayer.debayerRAW8(frame, pattern: bayerPattern) {
-                return makeRGB8Image(rgb, width: frame.width, height: frame.height, stretch: stretch)
+                return makeRGB8Image(
+                    rgb, width: frame.width, height: frame.height,
+                    channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves
+                )
             }
             return makeGrayscaleImage(
                 frame.data,
@@ -24,11 +35,15 @@ enum CGImageRenderer {
                 height: frame.height,
                 maxValue: 255,
                 bytesPerSample: 1,
-                stretch: stretch
+                stretch: stretch,
+                toneCurve: toneCurves?.master
             )
         case ASI_IMG_RAW16:
             if isColorCamera, let rgb16 = Debayer.debayerRAW16(frame, pattern: bayerPattern) {
-                return makeRGB16Image(rgb16, width: frame.width, height: frame.height, stretch: stretch)
+                return makeRGB16Image(
+                    rgb16, width: frame.width, height: frame.height,
+                    channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves
+                )
             }
             return makeGrayscaleImage(
                 frame.data,
@@ -36,10 +51,14 @@ enum CGImageRenderer {
                 height: frame.height,
                 maxValue: 65535,
                 bytesPerSample: 2,
-                stretch: stretch
+                stretch: stretch,
+                toneCurve: toneCurves?.master
             )
         case ASI_IMG_RGB24:
-            return makeRGB8Image(frame.data, width: frame.width, height: frame.height, stretch: stretch)
+            return makeRGB8Image(
+                frame.data, width: frame.width, height: frame.height,
+                channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves
+            )
         default:
             return nil
         }
@@ -53,10 +72,15 @@ enum CGImageRenderer {
         height: Int,
         maxValue: Int,
         bytesPerSample: Int,
-        stretch: DisplayStretch
+        stretch: DisplayStretch,
+        toneCurve: ToneCurve?
     ) -> CGImage? {
         guard data.count >= width * height * bytesPerSample else { return nil }
-        let lut = stretch.lookupTable(maxValue: maxValue)
+        var lut = stretch.lookupTable(maxValue: maxValue)
+        if let toneCurve {
+            let curveLUT = toneCurve.lookupTable()
+            lut = lut.map { curveLUT[Int($0)] }
+        }
         var output = Data(count: width * height)
 
         data.withUnsafeBytes { (src: UnsafeRawBufferPointer) in
@@ -94,22 +118,44 @@ enum CGImageRenderer {
 
     // MARK: - Color
 
+    /// Three independent LUTs (one per channel) instead of one shared LUT — `channelStretch`'s
+    /// black/white points, each further composed with `toneCurves`' own per-channel curve when
+    /// present, so "Independent Channels" and "Curves" both apply identically whether the source
+    /// went through debayering first (RAW8/RAW16) or is already packed RGB24.
+    private static func channelLUTs(channelStretch: PerChannelStretch, maxValue: Int, toneCurves: ChannelToneCurves?) -> (red: [UInt8], green: [UInt8], blue: [UInt8]) {
+        var red = channelStretch.red.lookupTable(maxValue: maxValue)
+        var green = channelStretch.green.lookupTable(maxValue: maxValue)
+        var blue = channelStretch.blue.lookupTable(maxValue: maxValue)
+        if let toneCurves {
+            let redCurve = toneCurves.effectiveRedLUT
+            let greenCurve = toneCurves.effectiveGreenLUT
+            let blueCurve = toneCurves.effectiveBlueLUT
+            red = red.map { redCurve[Int($0)] }
+            green = green.map { greenCurve[Int($0)] }
+            blue = blue.map { blueCurve[Int($0)] }
+        }
+        return (red, green, blue)
+    }
+
     private static func makeRGB8Image(
         _ rgbData: Data,
         width: Int,
         height: Int,
-        stretch: DisplayStretch
+        channelStretch: PerChannelStretch,
+        toneCurves: ChannelToneCurves?
     ) -> CGImage? {
         guard rgbData.count >= width * height * 3 else { return nil }
-        let lut = stretch.lookupTable(maxValue: 255)
+        let luts = channelLUTs(channelStretch: channelStretch, maxValue: 255, toneCurves: toneCurves)
         var output = Data(count: width * height * 3)
         rgbData.withUnsafeBytes { (src: UnsafeRawBufferPointer) in
             guard let srcBase = src.bindMemory(to: UInt8.self).baseAddress else { return }
             output.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) in
                 guard let dstBase = dst.bindMemory(to: UInt8.self).baseAddress else { return }
-                let count = width * height * 3
-                for i in 0..<count {
-                    dstBase[i] = lut[Int(srcBase[i])]
+                for i in 0..<(width * height) {
+                    let offset = i * 3
+                    dstBase[offset] = luts.red[Int(srcBase[offset])]
+                    dstBase[offset + 1] = luts.green[Int(srcBase[offset + 1])]
+                    dstBase[offset + 2] = luts.blue[Int(srcBase[offset + 2])]
                 }
             }
         }
@@ -120,18 +166,21 @@ enum CGImageRenderer {
         _ rgb16Data: Data,
         width: Int,
         height: Int,
-        stretch: DisplayStretch
+        channelStretch: PerChannelStretch,
+        toneCurves: ChannelToneCurves?
     ) -> CGImage? {
         guard rgb16Data.count >= width * height * 3 * 2 else { return nil }
-        let lut = stretch.lookupTable(maxValue: 65535)
+        let luts = channelLUTs(channelStretch: channelStretch, maxValue: 65535, toneCurves: toneCurves)
         var output = Data(count: width * height * 3)
         rgb16Data.withUnsafeBytes { (src: UnsafeRawBufferPointer) in
             guard let srcBase = src.bindMemory(to: UInt16.self).baseAddress else { return }
             output.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) in
                 guard let dstBase = dst.bindMemory(to: UInt8.self).baseAddress else { return }
-                let count = width * height * 3
-                for i in 0..<count {
-                    dstBase[i] = lut[Int(srcBase[i])]
+                for i in 0..<(width * height) {
+                    let offset = i * 3
+                    dstBase[offset] = luts.red[Int(srcBase[offset])]
+                    dstBase[offset + 1] = luts.green[Int(srcBase[offset + 1])]
+                    dstBase[offset + 2] = luts.blue[Int(srcBase[offset + 2])]
                 }
             }
         }

@@ -435,7 +435,11 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.histogramByChannel", heading: "By Channel (histogram)",
-                body: "A checkbox above the histogram, shown only for a color source (ZWO color camera or webcam/iPhone) — swaps the combined black/white histogram for three overlaid Red/Green/Blue ones, useful for spotting a single channel clipping or unbalanced on its own. The Black/White Point sliders below still act on the combined signal either way; this only changes what the plot above them draws. Not available for a mono camera, since there's nothing to split into channels."
+                body: "A checkbox above the histogram, shown only for a color source (ZWO color camera or webcam/iPhone) — swaps the combined black/white histogram for three overlaid Red/Green/Blue ones, useful for spotting a single channel clipping or unbalanced on its own. Also switches the Black/White Point sliders below from the one combined pair to three fully independent pairs (Red/Green/Blue), for compensating a color imbalance (e.g. a light-polluted sky's orange cast) directly at the stretch stage. Not available for a mono camera, since there's nothing to split into channels."
+            ),
+            HelpSection(
+                id: "setting.curves", heading: "Curves (tab)",
+                body: "A second tab next to the histogram — Photoshop-style tone-curve grading. Drag points on the curve to shape tonality (lift shadows, roll off highlights) on top of whatever Black/White Point stretch is already set. Pick a channel with the segmented control at the top: **RGB** is a master curve applied to all three channels identically; Red/Green/Blue each layer their own independent curve on top of it. Off by default — nothing changes until the **Enable** checkbox is checked. Works for a mono camera too (RGB curve only, since there's nothing to split into channels)."
             ),
             HelpSection(
                 id: "setting.gpuCpuToggle", heading: "GPU / CPU toggle",

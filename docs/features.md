@@ -112,9 +112,21 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   instead of the combined one — useful for spotting a single channel
   clipping or unbalanced on its own — for any color source (ZWO color camera
   or webcam/iPhone); not shown for a mono camera, since there's nothing to
-  split into channels.
+  split into channels. Turning "By Channel" on also switches the Black/White
+  Point sliders from one combined pair to three fully independent pairs (one
+  per channel), for compensating a color imbalance (e.g. a light-polluted
+  sky's orange cast) directly at the stretch stage.
   Deliberately a viewer, not a second processing suite — see
   [`specs/skyformac_Exported_Files_Spec.md`](../specs/skyformac_Exported_Files_Spec.md).
+- **Curves** — a second tab next to the histogram with Photoshop-style
+  tone-curve grading: drag control points on a 256-step response curve, per
+  channel (a master "RGB" curve applied to all three identically, plus
+  independent Red/Green/Blue curves layered on top of it). Off by default
+  ("Enable" checkbox); applies as a post-stretch pass on both the GPU and CPU
+  live-preview render paths, on top of whatever Black/White Point (and
+  "Independent Channels") stretch is already dialed in. Works for a mono
+  camera too (master curve only, since there's nothing to split into
+  channels), not just a color source.
 - **Continuous recording** with a GPU sharpness frame filter (only writes
   frames sharp enough to be worth keeping, scored by a GPU Laplacian-energy
   kernel) and a disk-space guardrail that stops recording before it can fill

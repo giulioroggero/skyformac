@@ -93,7 +93,13 @@ struct ContentView: View {
                                     .padding(12)
                             }
                         }
-                    HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
+                    TabView {
+                        HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
+                            .tabItem { Text("Histogram") }
+                        CurvesView(cameraManager: cameraManager)
+                            .tabItem { Text("Curves") }
+                    }
+                    .frame(minHeight: 280)
                 }
                 ControlsPanelView(cameraManager: cameraManager)
                     .frame(minWidth: 320, idealWidth: 340)

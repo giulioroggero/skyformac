@@ -49,3 +49,31 @@ struct DisplayStretch: Equatable, Sendable {
         }
     }
 }
+
+/// Three independent `DisplayStretch`es, one per color channel — "Independent Channels" mode in
+/// `HistogramView`, for compensating a color imbalance (e.g. a light-polluted sky's characteristic
+/// orange cast) directly in the black/white points rather than only via post-hoc `ToneCurve`
+/// grading. Only meaningful for a color source (ZWO color camera or webcam/iPhone) — a mono frame
+/// has nothing to split into channels, so this type is never even constructed for one.
+struct PerChannelStretch: Equatable, Sendable {
+    var red: DisplayStretch
+    var green: DisplayStretch
+    var blue: DisplayStretch
+
+    static let identity = PerChannelStretch(red: .identity, green: .identity, blue: .identity)
+
+    /// The same stretch applied uniformly to all three channels — what "Independent Channels"
+    /// being off is equivalent to, so the GPU/CPU render paths can always take a
+    /// `PerChannelStretch` unconditionally instead of branching on whether independent mode is on.
+    init(uniform stretch: DisplayStretch) {
+        self.red = stretch
+        self.green = stretch
+        self.blue = stretch
+    }
+
+    init(red: DisplayStretch, green: DisplayStretch, blue: DisplayStretch) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+    }
+}
