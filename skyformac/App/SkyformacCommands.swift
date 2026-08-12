@@ -54,6 +54,11 @@ struct SkyformacCommands: Commands {
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(cameraManager.availableCameras.isEmpty)
             }
+
+            Divider()
+
+            Button("Acquisition Wizard…") { cameraManager.isAcquisitionWizardPresented = true }
+                .keyboardShortcut("w", modifiers: [.command, .shift])
         }
 
         CommandMenu("Sidebar Tab") {

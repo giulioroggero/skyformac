@@ -1105,3 +1105,39 @@ made along the way.
   `SkyformacCommands`' menu-bar tab shortcuts grew a fourth (⌘4); the "Disable All" checkbox split
   into `allPlanetaryDisabled`/`allDeepSkyDisabled` along the same lines, each covering only the
   toggles actually relevant to its own tab (both still include Focus Assist).
+- **Added the Acquisition Wizard**: pick a target (a `PlanetaryPreset` or a new small curated
+  `DeepSkyObject` list — M13/M56/M31/M42/M45, the same "curated presets, not the full `SkyCatalog`
+  database" scoping `PlanetaryPreset` already uses for the solar-system side), see/edit its
+  recommended `AcquisitionPreset` (mode, ROI, gain, exposure, Reduce Drift/Smart Live Stack), and
+  apply it in one step (`CameraManager.applyAcquisitionPreset`). Presets round-trip to/from their
+  own JSON file (`saveAcquisitionPreset`/`loadAcquisitionPreset`, one file per preset, via the
+  same save/open-panel shape `exportCurrentFrame`/`openExportedFile` already use).
+  - `AcquisitionTarget.recommendedMode`/`recommendedPreset(name:)` are pure functions of the
+    target alone (`AcquisitionTargetTests`) — no camera, no GPU, so the actual "what's the right
+    starting setup for this object" logic is fully unit-tested without hardware.
+  - The Moon is the deliberate example of `.both` (Live Stack *and* Lucky Imaging at once) — Lucky
+    Imaging for high-resolution crater/terminator detail, Live Stack for a lower-noise full-disk
+    or earthshine shot; both are genuinely useful lunar techniques, not an arbitrary default.
+    Every other planetary target stays Lucky-Imaging-only; every deep-sky object stays
+    Live-Stack-only (with Reduce Drift defaulted on, since deep-sky integration runs long enough
+    for mount tracking error to accumulate into real trailing — a planetary burst is over in
+    seconds, so drift barely matters there).
+  - **Deliberately does not auto-start a Lucky Imaging burst or SER recording.** Framing/focus
+    should be confirmed against the *actual* target first — auto-firing a burst at whatever
+    happened to be in frame when the wizard's Apply button was pressed would often just waste it
+    on an unfocused or unframed capture. `luckyBurstCount`/`serDurationSeconds` are surfaced as
+    recommendations for those still-manual steps, not applied automatically.
+  - This is a *setup* step, not a new capture technique — every feature it configures (Live Stack,
+    Reduce Drift, Smart Live Stack, Capture ROI, Lucky Imaging's burst count) already exists and
+    is documented on its own terms elsewhere; the wizard's entire job is picking sensible starting
+    values for them per target, the same "starting point, not a promise" philosophy
+    `PlanetaryPreset` already uses.
+- **GPU-reliance re-audit, requested after the Acquisition Wizard landed.** Every feature added
+  this session that touches per-pixel data already runs on the GPU: Smart Live Stack's quality
+  gate (`GPUSharpnessScorer`, the same instance Record to Disk's gate already uses), and all three
+  Reduce Drift fixes (`roiStatsPartial`/`centroidPartial`/`findBrightestPartial`, all real Metal
+  kernels). Nothing added this session does per-pixel work on the CPU that GPU could instead
+  accelerate. The Acquisition Wizard itself, the Capture ROI center/position fix, Gain/Offset
+  Presets, the dropped-frame counter, ST4 Guiding, the sidebar tab split, and the live-view
+  refresh throttle are all configuration/orchestration/UI — none of them touch pixel data at all,
+  so there's no GPU work to move there; correctly CPU-only, not a gap.

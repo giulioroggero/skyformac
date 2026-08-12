@@ -1,0 +1,216 @@
+import Foundation
+
+/// Which capture technique(s) a target's recommended setup turns on.
+enum AcquisitionMode: String, Codable, CaseIterable, Identifiable {
+    case liveStack
+    case luckyImaging
+    case both
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .liveStack: return "Live Stack"
+        case .luckyImaging: return "Lucky Imaging"
+        case .both: return "Live Stack + Lucky Imaging"
+        }
+    }
+
+    var usesLiveStack: Bool { self == .liveStack || self == .both }
+    var usesLuckyImaging: Bool { self == .luckyImaging || self == .both }
+}
+
+/// A small, curated "interesting deep-sky objects" list — deliberately not `SkyCatalog`'s full
+/// database (built for matching *detected* stars against a huge real catalog for the HUD
+/// overlay), just a handful of well-known, genuinely rewarding live-view targets with real
+/// starting-point settings, the same "curated presets, not an exhaustive catalog" scoping
+/// `PlanetaryPreset` already uses for the solar system side.
+enum DeepSkyObject: String, CaseIterable, Identifiable, Codable {
+    case m13 = "M13 (Hercules Cluster)"
+    case m56 = "M56 (Globular Cluster)"
+    case m31 = "M31 (Andromeda Galaxy)"
+    case m42 = "M42 (Orion Nebula)"
+    case m45 = "M45 (Pleiades)"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .m13, .m56: return "circle.grid.3x3.fill"
+        case .m31: return "sparkles"
+        case .m42: return "cloud.fill"
+        case .m45: return "star.fill"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .m13: return "A bright, dense globular cluster — resolves into individual stars quickly, forgiving of a shorter integration."
+        case .m56: return "A fainter, more scattered globular cluster than M13 — rewards a longer integration and slightly higher gain."
+        case .m31: return "A bright core with a large, faint extended disk — start conservative to avoid clipping the core; the outer disk needs the accumulated integration time."
+        case .m42: return "A very wide dynamic range: a bright Trapezium core against much fainter nebulosity — start low to protect the core, the wings build up in the stack over time."
+        case .m45: return "A bright open cluster with faint surrounding reflection nebulosity — moderate gain, the nebulosity itself is the slow-building part of the stack."
+        }
+    }
+
+    /// Recommended *starting* gain — matching `PlanetaryPreset.startingGain`'s own philosophy
+    /// (safer to start under-exposed and raise while watching the live histogram than to start
+    /// already near clipping); these still depend on the actual night's sky darkness/transparency
+    /// and can't be exact regardless of which object this is.
+    var recommendedGain: Int {
+        switch self {
+        case .m13: return 100
+        case .m56: return 150
+        case .m31: return 80
+        case .m42: return 60
+        case .m45: return 50
+        }
+    }
+
+    /// Recommended starting per-frame (Live Exposure) length feeding Live Stack's running
+    /// average — not a single dedicated long exposure.
+    var recommendedExposureSeconds: Double {
+        switch self {
+        case .m13: return 2.0
+        case .m56: return 5.0
+        case .m31: return 3.0
+        case .m42: return 1.5
+        case .m45: return 3.0
+        }
+    }
+}
+
+/// One target the Acquisition Wizard can set up for — either a `PlanetaryPreset` (already the
+/// app's own solar-system preset table) or a `DeepSkyObject` (new, above). Kept as a thin wrapper
+/// rather than merging the two tables, since their recommended-settings *shape* genuinely differs
+/// (ROI/SER duration/burst-count for planetary vs. gain/exposure/drift-reduction for deep sky) —
+/// forcing one shared struct would mean most fields are meaningless for either genre.
+enum AcquisitionTarget: Identifiable, Hashable {
+    case planetary(PlanetaryPreset)
+    case deepSky(DeepSkyObject)
+
+    static var all: [AcquisitionTarget] {
+        PlanetaryPreset.allCases.map { .planetary($0) } + DeepSkyObject.allCases.map { .deepSky($0) }
+    }
+
+    var id: String {
+        switch self {
+        case .planetary(let preset): return "planetary.\(preset.rawValue)"
+        case .deepSky(let object): return "deepSky.\(object.rawValue)"
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .planetary(let preset): return preset.rawValue
+        case .deepSky(let object): return object.rawValue
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .planetary(let preset): return preset.icon
+        case .deepSky(let object): return object.icon
+        }
+    }
+
+    /// The Moon is the one target that genuinely benefits from *both* techniques at once — Lucky
+    /// Imaging for high-resolution crater/terminator detail, Live Stack for a lower-noise
+    /// full-disk or earthshine shot — so it's the deliberate example of `.both`, not an arbitrary
+    /// default. Every other planetary target stays Lucky-Imaging-only (the classic "small ROI,
+    /// high FPS, keep the sharpest fraction" workflow for beating seeing on a small, bright disk);
+    /// every deep-sky object is Live-Stack-only (long, faint, no seeing-beating burst helps here —
+    /// integration time is what builds signal).
+    var recommendedMode: AcquisitionMode {
+        switch self {
+        case .planetary(.moon): return .both
+        case .planetary: return .luckyImaging
+        case .deepSky: return .liveStack
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .planetary(.moon):
+            return "Both techniques are genuinely useful here: Lucky Imaging for high-resolution crater/terminator detail, Live Stack for a lower-noise full-disk or earthshine shot."
+        case .planetary(let preset):
+            return preset.note ?? "Small-ROI, high-FPS burst capture — the classic \"keep the sharpest fraction\" technique for beating atmospheric seeing on a small, bright disk."
+        case .deepSky(let object):
+            return object.summary
+        }
+    }
+
+    /// The actual recommended starting point this target's setup applies — a pure function of the
+    /// target alone (see `AcquisitionPresetTests`), so it's testable without a camera or GPU.
+    /// `presetName` is caller-supplied (defaults to the target's own name) since a user saving a
+    /// preset may want to name it after their specific setup ("M13 — 6 inch f/8") rather than just
+    /// the object.
+    func recommendedPreset(name presetName: String? = nil) -> AcquisitionPreset {
+        let mode = recommendedMode
+        switch self {
+        case .planetary(let preset):
+            return AcquisitionPreset(
+                name: presetName ?? name,
+                targetID: id,
+                mode: mode,
+                gain: preset.startingGain,
+                exposureSeconds: preset.startingExposureSeconds,
+                roiWidth: preset.roi?.width,
+                roiHeight: preset.roi?.height,
+                isDriftReductionEnabled: false,
+                isSmartLiveStackEnabled: mode.usesLiveStack,
+                luckyBurstCount: mode.usesLuckyImaging ? 60 : nil,
+                serDurationSeconds: preset.recommendedMaxDurationSeconds
+            )
+        case .deepSky(let object):
+            return AcquisitionPreset(
+                name: presetName ?? name,
+                targetID: id,
+                mode: mode,
+                gain: object.recommendedGain,
+                exposureSeconds: object.recommendedExposureSeconds,
+                roiWidth: nil,
+                roiHeight: nil,
+                // Deep-sky integration runs long enough that mount tracking error accumulates
+                // into real trailing — Reduce Drift defaults on here, unlike planetary (a burst
+                // is over in seconds, not minutes+, so drift barely matters there).
+                isDriftReductionEnabled: true,
+                isSmartLiveStackEnabled: true,
+                luckyBurstCount: nil,
+                serDurationSeconds: nil
+            )
+        }
+    }
+
+    /// Resolves a persisted `targetID` (`AcquisitionPreset.targetID`, from `id` above) back to a
+    /// concrete target — `nil` if it doesn't match anything this build knows about (an older or
+    /// newer version's target list, or a hand-edited file).
+    static func resolve(id: String) -> AcquisitionTarget? {
+        all.first { $0.id == id }
+    }
+}
+
+/// A saved (or freshly-recommended) Acquisition Wizard setup — `Codable` so it round-trips to/from
+/// its own JSON file (`CameraManager.saveAcquisitionPreset`/`loadAcquisitionPreset`), one file per
+/// preset, exactly the "save one file per preset for the object" shape asked for. Optional fields
+/// are `nil` when they don't apply to this preset's `mode`/target genre (a planetary preset has no
+/// `isDriftReductionEnabled` opinion worth persisting since Lucky Imaging doesn't use it; a
+/// deep-sky preset has no ROI or SER duration).
+struct AcquisitionPreset: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var name: String
+    /// Matches an `AcquisitionTarget.id` — resolved back via `AcquisitionTarget.resolve(id:)` when
+    /// loaded, so the wizard can show the target's own name/icon/summary again, not just raw
+    /// numbers. Kept as a plain `String`, not the enum itself, so an older preset file still loads
+    /// (with an "unknown target" fallback) even if a future version renames/removes a target.
+    var targetID: String
+    var mode: AcquisitionMode
+    var gain: Int?
+    var exposureSeconds: Double?
+    var roiWidth: Int?
+    var roiHeight: Int?
+    var isDriftReductionEnabled: Bool
+    var isSmartLiveStackEnabled: Bool
+    var luckyBurstCount: Int?
+    var serDurationSeconds: Double?
+}

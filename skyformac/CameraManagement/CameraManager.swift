@@ -390,6 +390,9 @@ final class CameraManager {
     /// `SkyformacApp`), so Help lives as a sheet on the one main window rather than its own
     /// `Window` scene.
     var isHelpPresented = false
+    /// Drives the Acquisition Wizard `.sheet` on `ContentView` — same single-window reasoning as
+    /// `isHelpPresented` above.
+    var isAcquisitionWizardPresented = false
     /// Set by `showHelp(topicID:sectionID:)` — read once by `HelpView`'s `init` when
     /// `ContentView`'s sheet constructs it, to open directly to a specific setting's explanation
     /// instead of always landing on the first topic. `sectionID` matches a `HelpSection.id` in
@@ -1259,6 +1262,79 @@ final class CameraManager {
         }
         if let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
             setControlValue(ASI_GAIN, value: min(max(preset.startingGain, gainCap.minValue), gainCap.maxValue))
+        }
+    }
+
+    // MARK: - Acquisition Wizard
+
+    /// Applies an `AcquisitionPreset` end to end — ROI, gain, exposure, and which of Live
+    /// Stack/Reduce Drift/Smart Live Stack are on. ZWO cameras only, same as `applyPlanetaryPreset`
+    /// (a webcam/iPhone source has none of the ROI/exposure/gain hardware controls this touches).
+    ///
+    /// Doesn't itself start a Lucky Imaging burst or SER recording — both stay a deliberate manual
+    /// step (framing/focus should be confirmed against the *actual* target first; auto-starting a
+    /// burst against whatever happened to be in frame when the wizard closed would often just
+    /// waste a burst on an unfocused or unframed capture). `luckyBurstCount`/`serDurationSeconds`
+    /// are recommendations the wizard UI surfaces for those manual steps, not applied here.
+    func applyAcquisitionPreset(_ preset: AcquisitionPreset) {
+        guard let camera = connectedCamera, camera.cameraID >= 0 else { return }
+        if camera.supportedVideoFormats.contains(ASI_IMG_RAW8) {
+            changeImageType(ASI_IMG_RAW8)
+        }
+        changeCaptureROI(width: preset.roiWidth, height: preset.roiHeight)
+
+        if let exposureSeconds = preset.exposureSeconds,
+           let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
+            let microseconds = Int(exposureSeconds * 1_000_000)
+            setControlValue(ASI_EXPOSURE, value: min(max(microseconds, exposureCap.minValue), exposureCap.maxValue))
+        }
+        if let gain = preset.gain,
+           let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+            setControlValue(ASI_GAIN, value: min(max(gain, gainCap.minValue), gainCap.maxValue))
+        }
+
+        isLiveStackingEnabled = preset.mode.usesLiveStack
+        if preset.mode.usesLiveStack {
+            isLiveStackDriftReductionEnabled = preset.isDriftReductionEnabled
+            isSmartLiveStackEnabled = preset.isSmartLiveStackEnabled
+        }
+    }
+
+    /// Writes `preset` as its own JSON file — one file per preset, via a save panel, matching
+    /// `exportCurrentFrame`'s own panel-then-write shape.
+    func saveAcquisitionPreset(_ preset: AcquisitionPreset) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(preset.name).acquisitionpreset.json"
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let data = try JSONEncoder().encode(preset)
+                try data.write(to: url, options: .atomic)
+            } catch {
+                Task { @MainActor in self?.lastErrorMessage = String(describing: error) }
+            }
+        }
+    }
+
+    /// Reads a previously-saved preset back via an open panel — `onLoad` receives it (and the
+    /// `AcquisitionTarget` it resolves to, `nil` if `targetID` doesn't match anything this build
+    /// knows about) so the wizard view can populate its own state; failures surface through
+    /// `lastErrorMessage` the same way every other file operation here does, rather than a second,
+    /// separate error-reporting path just for this one feature.
+    func loadAcquisitionPreset(onLoad: @escaping (AcquisitionPreset, AcquisitionTarget?) -> Void) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let data = try Data(contentsOf: url)
+                let preset = try JSONDecoder().decode(AcquisitionPreset.self, from: data)
+                Task { @MainActor in onLoad(preset, AcquisitionTarget.resolve(id: preset.targetID)) }
+            } catch {
+                Task { @MainActor in self?.lastErrorMessage = String(describing: error) }
+            }
         }
     }
 

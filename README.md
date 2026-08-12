@@ -159,6 +159,13 @@ raw data:
   ROI**, and a safe starting exposure/gain for Saturn/Jupiter/Mars/Venus/the
   Moon, tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC)
   behind an f/10-f/12 Mak/SCT.
+- **Acquisition Wizard** (⌘⇧W) — pick a target (Moon, Venus, Mars, Jupiter,
+  Saturn, or a curated deep-sky list: M13/M56/M31/M42/M45) and set up ROI,
+  gain, exposure, and Live Stack/Reduce Drift/Smart Live Stack/Lucky Imaging
+  for it in one step — the Moon uniquely turns on both Live Stack and Lucky
+  Imaging at once. Save/Load Preset round-trips a setup to its own JSON
+  file, one file per preset, for a favorite setup under a specific
+  telescope/camera pairing.
 - **Capture ROI** (ZWO only) — a smaller-than-full-sensor region increases
   achievable frame rate directly (less data read off the sensor per frame),
   the classic "small ROI, high FPS" planetary/lunar technique. Quick presets

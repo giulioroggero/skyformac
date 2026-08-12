@@ -25,6 +25,12 @@ struct ContentView: View {
         )) {
             ExportedFileViewerView(cameraManager: cameraManager)
         }
+        .sheet(isPresented: Binding(
+            get: { cameraManager.isAcquisitionWizardPresented },
+            set: { cameraManager.isAcquisitionWizardPresented = $0 }
+        )) {
+            AcquisitionWizardView(cameraManager: cameraManager)
+        }
     }
 
     /// The live video alone, filling the entire window with its own overlay controls (zoom

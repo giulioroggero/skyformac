@@ -135,6 +135,20 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   Venus, or the Moon, tuned around a modern ~2µm-pixel planetary camera
   (e.g. ASI678MC) behind a modest f/10-f/12 Maksutov/SCT. Also sets the SER
   recording duration slider to that target's recommended session length.
+- **Acquisition Wizard** (⌘⇧W, or "Acquisition Wizard…" in the Planetary/
+  Deep Sky tabs) — pick a target (Moon, Venus, Mars, Jupiter, Saturn, or a
+  curated deep-sky list: M13, M56, M31, M42, M45) and set up ROI, gain,
+  exposure, and which of Live Stack/Reduce Drift/Smart Live Stack/Lucky
+  Imaging to use, in one step. The Moon is the one target that turns on
+  *both* Live Stack and Lucky Imaging at once (high-res crater detail plus
+  a lower-noise full-disk shot); other planets are Lucky-Imaging-only,
+  every deep-sky object is Live-Stack-only with Reduce Drift on by default.
+  Presets round-trip to their own JSON file (one file per preset) via
+  Save/Load Preset, so a favorite setup for a specific object under a
+  specific telescope/camera pairing survives beyond one session. Doesn't
+  auto-start a Lucky Imaging burst or SER recording — framing/focus should
+  be confirmed against the real target first. See
+  [`docs/design-notes.md`](design-notes.md) for the full reasoning.
 
 **Focus & tracking**
 - **Focus assist** — Vision `VNDetectContoursRequest` star detection overlay

@@ -421,6 +421,7 @@ struct ControlsPanelView: View {
                     .help("Turns off Focus Assist and Planetary tracking/crop — for ruling one of these out, or to fall back to a plain, unmodified live view.")
                 HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.disablePlanetary")
             }
+            acquisitionWizardButton
             Divider()
 
             DisclosureGroup(isExpanded: $showFocusAssistSection) {
@@ -483,6 +484,7 @@ struct ControlsPanelView: View {
                     .help("Turns off Focus Assist, Live Stacking, and Dark/Flat calibration, and stops any active disk recording — for ruling one of these out, or to fall back to a plain, unmodified live view.")
                 HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.disableDeepSky")
             }
+            acquisitionWizardButton
             Divider()
 
             DisclosureGroup(isExpanded: $showFocusAssistSection) {
@@ -594,6 +596,20 @@ struct ControlsPanelView: View {
                 if cameraManager.isRecordingToDisk { cameraManager.stopRecording() }
             }
         )
+    }
+
+    /// Shared between `planetaryTabContent`/`deepSkyTabContent` — the Wizard covers both genres
+    /// at once, so it doesn't belong preferentially to either tab over the other.
+    private var acquisitionWizardButton: some View {
+        HStack {
+            Button {
+                cameraManager.isAcquisitionWizardPresented = true
+            } label: {
+                Label("Acquisition Wizard…", systemImage: "wand.and.rays")
+            }
+            .help("Pick a target (Moon, a planet, or a deep-sky object) and set up Live Stack/Lucky Imaging, ROI, gain, and exposure for it in one step. ⌘⇧W")
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.acquisitionWizard")
+        }
     }
 
     // MARK: - Single exposure

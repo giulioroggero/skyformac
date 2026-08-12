@@ -61,6 +61,7 @@
 		C67D30FB1206977D3F0B67D9 /* HelpContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F70DB4F88F8011F407D7B23 /* HelpContent.swift */; };
 		1C382BEEB5D5F4CBC15B47A3 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C57C29672EDA8B570AC83B /* HelpView.swift */; };
 		0A0887DD2D5A739A1C60B086 /* ExportedFileViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6366935F9B2AAA5C996D2AA /* ExportedFileViewerView.swift */; };
+		7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */; };
 		996DB3C1418971AAAEC7AAC9 /* SkyformacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54A0AEC3C0487BE791B3AF11 /* SkyformacApp.swift */; };
 		9A53D460709CB09BE9591343 /* ImageEnhancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D096BA93F69912E52AB7D663 /* ImageEnhancer.swift */; };
 		9F3706562428F173206180CB /* libASICamera2.dylib in Embed ZWO SDK */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -91,6 +92,7 @@
 		870DFDA6B82D975FE0D93C0B /* SmartLiveStackGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7DF30A0E47AA4548BE6C4C /* SmartLiveStackGate.swift */; };
 		EB29EE8909962E24263198EB /* StackSNREstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A44408D853D33E940C1CF7 /* StackSNREstimator.swift */; };
 		8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */; };
+		A31F6B6D3780FAB9C28BBB5C /* AcquisitionTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38DFDF628EE33E9B7BFF7C81 /* AcquisitionTargetTests.swift */; };
 		EACCDF3E483EDEAF30BF3937 /* StackSNREstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */; };
 		0DF411FD0F4F2EFEAB0B8C7D /* GPUControlSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE54B50BB11C56587A3AAAB /* GPUControlSettings.swift */; };
 		E40ED26D8DA062E5855F847F /* HFDCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657EB226C032AB1BEA5B12E0 /* HFDCalculatorTests.swift */; };
@@ -98,6 +100,7 @@
 		EACA501C75ACB4B665B2C9A8 /* PlanetDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 889E54F5992A9786C86BFFE6 /* PlanetDetector.swift */; };
 		EB5228BB1E2BDA91D5E9C74B /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91720C9F05AC7107B1BDD0B1 /* AppSettings.swift */; };
 		A15F3206EA8AAFEE41A40BD6 /* ExportHistoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7230C6EFCEF487C24F56FDC7 /* ExportHistoryEntry.swift */; };
+		132D993BF40D5FA6BA4A5325 /* AcquisitionTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC34926B3929D1C5721D34DA /* AcquisitionTarget.swift */; };
 		ECB9521608B401B8E2A84ECF /* FITSWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2CC29D2BF4A69C56F71CB12 /* FITSWriter.swift */; };
 		8BC13D3DD60D7F595F418CE3 /* FITSReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1842F26D7B76C34083DD829 /* FITSReader.swift */; };
 		EC59637F50035AF0676AE4C9 /* SERWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A25CEB13ECF6CE729D5560D /* SERWriter.swift */; };
@@ -163,6 +166,7 @@
 		6F70DB4F88F8011F407D7B23 /* HelpContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpContent.swift; sourceTree = "<group>"; };
 		60C57C29672EDA8B570AC83B /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		F6366935F9B2AAA5C996D2AA /* ExportedFileViewerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExportedFileViewerView.swift; sourceTree = "<group>"; };
+		1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcquisitionWizardView.swift; sourceTree = "<group>"; };
 		0DA8F4B758839FAEF6269FA8 /* FrameCropper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrameCropper.swift; sourceTree = "<group>"; };
 		129AC416223DEE62CE827BBB /* FITSWriterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FITSWriterTests.swift; sourceTree = "<group>"; };
 		EB9A11EC10A4B795DF7775C4 /* FITSReaderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FITSReaderTests.swift; sourceTree = "<group>"; };
@@ -220,6 +224,7 @@
 		911CAA0A46D80891F24A47EE /* SkyCatalogTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalogTests.swift; sourceTree = "<group>"; };
 		91720C9F05AC7107B1BDD0B1 /* AppSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		7230C6EFCEF487C24F56FDC7 /* ExportHistoryEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExportHistoryEntry.swift; sourceTree = "<group>"; };
+		FC34926B3929D1C5721D34DA /* AcquisitionTarget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcquisitionTarget.swift; sourceTree = "<group>"; };
 		93F59753779FC35A72F9CDAE /* DiskSpaceCheckerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiskSpaceCheckerTests.swift; sourceTree = "<group>"; };
 		A7718EB70AC68699C4078062 /* HistogramView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramView.swift; sourceTree = "<group>"; };
 		ACA9CB1026F277EAA9537DD1 /* CameraListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraListView.swift; sourceTree = "<group>"; };
@@ -241,6 +246,7 @@
 		CD7DF30A0E47AA4548BE6C4C /* SmartLiveStackGate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SmartLiveStackGate.swift; sourceTree = "<group>"; };
 		B8A44408D853D33E940C1CF7 /* StackSNREstimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimator.swift; sourceTree = "<group>"; };
 		BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SmartLiveStackGateTests.swift; sourceTree = "<group>"; };
+		38DFDF628EE33E9B7BFF7C81 /* AcquisitionTargetTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcquisitionTargetTests.swift; sourceTree = "<group>"; };
 		68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimatorTests.swift; sourceTree = "<group>"; };
 		1CE54B50BB11C56587A3AAAB /* GPUControlSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUControlSettings.swift; sourceTree = "<group>"; };
 		CFA796E075478701D2A6AC5A /* DiskSpaceChecker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiskSpaceChecker.swift; sourceTree = "<group>"; };
@@ -398,6 +404,7 @@
 				8A8BA528FBB8FF8C513CEFCD /* GPUFrameCalibratorTests.swift */,
 				E72B4D2D0F26762D2120F696 /* DriftAlignerTests.swift */,
 				BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */,
+				38DFDF628EE33E9B7BFF7C81 /* AcquisitionTargetTests.swift */,
 				68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */,
 				204615FC1E3E16A7A9F5D622 /* ROIGeometryTests.swift */,
 				71C94A9D4A15CA2162D0C269 /* SharpnessScorerTests.swift */,
@@ -465,6 +472,7 @@
 				8294B26F98035A7FF1A95728 /* CameraManager.swift */,
 				91720C9F05AC7107B1BDD0B1 /* AppSettings.swift */,
 				7230C6EFCEF487C24F56FDC7 /* ExportHistoryEntry.swift */,
+				FC34926B3929D1C5721D34DA /* AcquisitionTarget.swift */,
 			);
 			name = CameraManagement;
 			path = CameraManagement;
@@ -492,6 +500,7 @@
 				0C438170FE21AEABA0E72DB0 /* PreviewView.swift */,
 				60C57C29672EDA8B570AC83B /* HelpView.swift */,
 				F6366935F9B2AAA5C996D2AA /* ExportedFileViewerView.swift */,
+				1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */,
 				A7718EB70AC68699C4078062 /* HistogramView.swift */,
 				EC6E0E0C0F50079C03C013D8 /* AllSkyMonitorView.swift */,
 				D9B1FC7C82CE4B2EBFA7C295 /* SkyHUDView.swift */,
@@ -755,6 +764,7 @@
 				C67D30FB1206977D3F0B67D9 /* HelpContent.swift in Sources */,
 				1C382BEEB5D5F4CBC15B47A3 /* HelpView.swift in Sources */,
 				0A0887DD2D5A739A1C60B086 /* ExportedFileViewerView.swift in Sources */,
+				7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */,
 				E28DA7DEA33DAEA6E13B624C /* CGImageRenderer.swift in Sources */,
 				F98B5FC37370F6ABA12AF277 /* Debayer.swift in Sources */,
 				9497154EAB38892C7CED26D4 /* DisplayStretch.swift in Sources */,
@@ -792,6 +802,7 @@
 				82E7FD4137BD27113C8C516B /* AllSkyMonitorView.swift in Sources */,
 				EB5228BB1E2BDA91D5E9C74B /* AppSettings.swift in Sources */,
 				A15F3206EA8AAFEE41A40BD6 /* ExportHistoryEntry.swift in Sources */,
+				132D993BF40D5FA6BA4A5325 /* AcquisitionTarget.swift in Sources */,
 				7A92D3F1DF56E47D8A7CD80D /* FlatFieldCorrector.swift in Sources */,
 				890021C06EE5390F034AFAC1 /* CalibrationLibrary.swift in Sources */,
 				9A53D460709CB09BE9591343 /* ImageEnhancer.swift in Sources */,
@@ -823,6 +834,7 @@
 				8E8362BFEC2F249B164B418F /* GPUFrameCalibratorTests.swift in Sources */,
 				FEC34A5F447185B40BABFF08 /* DriftAlignerTests.swift in Sources */,
 				8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */,
+				A31F6B6D3780FAB9C28BBB5C /* AcquisitionTargetTests.swift in Sources */,
 				EACCDF3E483EDEAF30BF3937 /* StackSNREstimatorTests.swift in Sources */,
 				78733D802357DFA200870A5B /* ROIGeometryTests.swift in Sources */,
 				76DB240A9CA9273E120A0BD7 /* SharpnessScorerTests.swift in Sources */,
