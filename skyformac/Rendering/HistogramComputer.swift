@@ -5,6 +5,68 @@ import Foundation
 /// Metal compute-shader parallel reduction so histogram redraws don't cost a full CPU
 /// pass over multi-megapixel frames every update.
 enum HistogramComputer {
+    /// Per-channel histograms — CPU fallback for `HistogramView`'s "By Channel" display when the
+    /// GPU render path is off (`MetalFrameRenderer`'s `histogramReduce`/`histogramReduceRGB24`
+    /// kernels compute the equivalent on that path; see their own doc comments). `nil` for a mono
+    /// camera (nothing to split into channels) or an unsupported image type.
+    ///
+    /// For RAW8/RAW16 (a ZWO color camera's still-mosaiced Bayer data, the same pre-debayer domain
+    /// the combined luma histogram and the Black/White Point stretch both already operate in),
+    /// each raw sample is binned by which channel it directly measures (`Debayer.channel`) rather
+    /// than debayering first — a real per-photosite histogram, not an interpolated one, and
+    /// consistent with why `histogram(for:)` itself never debayers either.
+    static func channelHistograms(
+        for frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN
+    ) -> (red: [Int], green: [Int], blue: [Int])? {
+        guard frame.imageType == ASI_IMG_RGB24
+            || (isColorCamera && (frame.imageType == ASI_IMG_RAW8 || frame.imageType == ASI_IMG_RAW16))
+        else { return nil }
+        var red = [Int](repeating: 0, count: 256)
+        var green = [Int](repeating: 0, count: 256)
+        var blue = [Int](repeating: 0, count: 256)
+
+        frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            switch frame.imageType {
+            case ASI_IMG_RAW8:
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                for y in 0..<frame.height {
+                    for x in 0..<frame.width {
+                        let value = Int(base[y * frame.width + x])
+                        switch Debayer.channel(atX: x, y: y, pattern: bayerPattern) {
+                        case .red: red[value] += 1
+                        case .green: green[value] += 1
+                        case .blue: blue[value] += 1
+                        }
+                    }
+                }
+            case ASI_IMG_RAW16:
+                guard let base = raw.bindMemory(to: UInt16.self).baseAddress else { return }
+                for y in 0..<frame.height {
+                    for x in 0..<frame.width {
+                        let value = Int(base[y * frame.width + x] >> 8)
+                        switch Debayer.channel(atX: x, y: y, pattern: bayerPattern) {
+                        case .red: red[value] += 1
+                        case .green: green[value] += 1
+                        case .blue: blue[value] += 1
+                        }
+                    }
+                }
+            case ASI_IMG_RGB24:
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                let count = frame.width * frame.height
+                for i in 0..<count {
+                    let offset = i * 3
+                    red[Int(base[offset])] += 1
+                    green[Int(base[offset + 1])] += 1
+                    blue[Int(base[offset + 2])] += 1
+                }
+            default:
+                return
+            }
+        }
+        return (red, green, blue)
+    }
+
     static func histogram(for frame: CapturedFrame) -> [Int] {
         var buckets = [Int](repeating: 0, count: 256)
         frame.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in

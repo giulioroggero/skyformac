@@ -108,6 +108,11 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
   **Open File…** browser for any FITS/PNG/TIFF/JPEG file, and an in-app
   viewer (`FITSReader` + the existing debayer/stretch pipeline for FITS,
   direct display for the rest) with adjustable Black/White Point sliders.
+  The live histogram can also switch to a "By Channel" (Red/Green/Blue) view
+  instead of the combined one — useful for spotting a single channel
+  clipping or unbalanced on its own — for any color source (ZWO color camera
+  or webcam/iPhone); not shown for a mono camera, since there's nothing to
+  split into channels.
   Deliberately a viewer, not a second processing suite — see
   [`specs/skyformac_Exported_Files_Spec.md`](../specs/skyformac_Exported_Files_Spec.md).
 - **Continuous recording** with a GPU sharpness frame filter (only writes

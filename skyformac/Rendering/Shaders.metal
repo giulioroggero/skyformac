@@ -104,6 +104,47 @@ kernel void histogramReduceRGB24(
     }
 }
 
+/// Per-channel companion to `histogramReduceRGB24` above — already-color data (a webcam/iPhone
+/// frame), so no Bayer classification needed, just binning each of the 3 packed bytes directly.
+kernel void histogramReduceRGB24Channels(
+    device const uchar *source [[buffer(0)]],
+    constant uint &sourceWidth [[buffer(1)]],
+    constant uint &sourceHeight [[buffer(2)]],
+    device atomic_uint *redBuckets [[buffer(3)]],
+    device atomic_uint *greenBuckets [[buffer(4)]],
+    device atomic_uint *blueBuckets [[buffer(5)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    threadgroup atomic_uint *localRed [[threadgroup(0)]],
+    threadgroup atomic_uint *localGreen [[threadgroup(1)]],
+    threadgroup atomic_uint *localBlue [[threadgroup(2)]]
+) {
+    uint localIndex = tid.y * 16 + tid.x;
+    if (localIndex < 256) {
+        atomic_store_explicit(&localRed[localIndex], 0, memory_order_relaxed);
+        atomic_store_explicit(&localGreen[localIndex], 0, memory_order_relaxed);
+        atomic_store_explicit(&localBlue[localIndex], 0, memory_order_relaxed);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (gid.x < sourceWidth && gid.y < sourceHeight) {
+        uint index = (gid.y * sourceWidth + gid.x) * 3;
+        atomic_fetch_add_explicit(&localRed[source[index]], 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&localGreen[source[index + 1]], 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&localBlue[source[index + 2]], 1, memory_order_relaxed);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localIndex < 256) {
+        uint r = atomic_load_explicit(&localRed[localIndex], memory_order_relaxed);
+        if (r > 0) { atomic_fetch_add_explicit(&redBuckets[localIndex], r, memory_order_relaxed); }
+        uint g = atomic_load_explicit(&localGreen[localIndex], memory_order_relaxed);
+        if (g > 0) { atomic_fetch_add_explicit(&greenBuckets[localIndex], g, memory_order_relaxed); }
+        uint b = atomic_load_explicit(&localBlue[localIndex], memory_order_relaxed);
+        if (b > 0) { atomic_fetch_add_explicit(&blueBuckets[localIndex], b, memory_order_relaxed); }
+    }
+}
+
 /// Adds `source`'s per-pixel value into `accumulator` in place — the GPU running-sum step
 /// behind Metal-accelerated live stacking. `accumulator` is `r32Float` for headroom well beyond
 /// what hundreds of stacked 16-bit frames could sum to.
@@ -804,5 +845,57 @@ kernel void histogramReduce(
         if (count > 0) {
             atomic_fetch_add_explicit(&buckets[localIndex], count, memory_order_relaxed);
         }
+    }
+}
+
+/// Per-channel companion to `histogramReduce` above — a separate kernel/dispatch, not a folded-in
+/// extension of it, so a mono camera (which never needs this at all) never pays for the extra
+/// buffers/reduction. Classifies each raw Bayer sample by which channel it directly measures
+/// (`isRedAt`/`isBlueAt`, the same inline functions `debayerAndStretch` already uses) rather than
+/// debayering first — a real per-photosite histogram in the same pre-debayer domain the combined
+/// luma histogram and the Black/White Point stretch both already operate in, matching
+/// `HistogramComputer.channelHistograms`'s identical CPU-side reasoning for the render-path
+/// fallback.
+kernel void histogramReduceBayerChannels(
+    texture2d<float, access::read> source [[texture(0)]],
+    device atomic_uint *redBuckets [[buffer(0)]],
+    device atomic_uint *greenBuckets [[buffer(1)]],
+    device atomic_uint *blueBuckets [[buffer(2)]],
+    constant float &divisor [[buffer(3)]],
+    constant uint &pattern [[buffer(4)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    threadgroup atomic_uint *localRed [[threadgroup(0)]],
+    threadgroup atomic_uint *localGreen [[threadgroup(1)]],
+    threadgroup atomic_uint *localBlue [[threadgroup(2)]]
+) {
+    uint localIndex = tid.y * 16 + tid.x;
+    if (localIndex < 256) {
+        atomic_store_explicit(&localRed[localIndex], 0, memory_order_relaxed);
+        atomic_store_explicit(&localGreen[localIndex], 0, memory_order_relaxed);
+        atomic_store_explicit(&localBlue[localIndex], 0, memory_order_relaxed);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (gid.x < source.get_width() && gid.y < source.get_height()) {
+        float value = source.read(gid).r / divisor;
+        uint bucket = min(uint(saturate(value) * 255.0), 255u);
+        if (isRedAt(gid, pattern)) {
+            atomic_fetch_add_explicit(&localRed[bucket], 1, memory_order_relaxed);
+        } else if (isBlueAt(gid, pattern)) {
+            atomic_fetch_add_explicit(&localBlue[bucket], 1, memory_order_relaxed);
+        } else {
+            atomic_fetch_add_explicit(&localGreen[bucket], 1, memory_order_relaxed);
+        }
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localIndex < 256) {
+        uint r = atomic_load_explicit(&localRed[localIndex], memory_order_relaxed);
+        if (r > 0) { atomic_fetch_add_explicit(&redBuckets[localIndex], r, memory_order_relaxed); }
+        uint g = atomic_load_explicit(&localGreen[localIndex], memory_order_relaxed);
+        if (g > 0) { atomic_fetch_add_explicit(&greenBuckets[localIndex], g, memory_order_relaxed); }
+        uint b = atomic_load_explicit(&localBlue[localIndex], memory_order_relaxed);
+        if (b > 0) { atomic_fetch_add_explicit(&blueBuckets[localIndex], b, memory_order_relaxed); }
     }
 }

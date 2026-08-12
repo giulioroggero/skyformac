@@ -36,6 +36,15 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private let accumulateMaskedPipeline: MTLComputePipelineState
     private let normalizeMaskedAccumulatorPipeline: MTLComputePipelineState
     private let histogramBuffer: MTLBuffer
+    /// Per-channel companions to `histogramPipeline`/`histogramReduceRGB24Pipeline` — see
+    /// `Shaders.metal`'s `histogramReduceBayerChannels`/`histogramReduceRGB24Channels` doc
+    /// comments for why these are separate kernels/dispatches rather than folded into the
+    /// existing ones (mainly: a mono camera never needs this at all).
+    private let histogramReduceBayerChannelsPipeline: MTLComputePipelineState
+    private let histogramReduceRGB24ChannelsPipeline: MTLComputePipelineState
+    private let redHistogramBuffer: MTLBuffer
+    private let greenHistogramBuffer: MTLBuffer
+    private let blueHistogramBuffer: MTLBuffer
 
     private var sourceTexture: MTLTexture?
     private var outputTexture: MTLTexture?
@@ -133,6 +142,12 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// an acceptable trade-off for a non-critical live display feature.
     var onHistogramUpdate: (@Sendable ([Int]) -> Void)?
 
+    /// Per-channel companion to `onHistogramUpdate` — fired alongside it (same best-effort
+    /// staleness trade-off), but only for a color source (a mono ZWO camera has nothing to split
+    /// into channels, so this simply never fires for one). Powers `HistogramView`'s "By Channel"
+    /// display.
+    var onChannelHistogramUpdate: (@Sendable ((red: [Int], green: [Int], blue: [Int])) -> Void)?
+
     /// Fired with the GPU accumulator's running frame count whenever live stacking processes a
     /// frame, so `CameraManager` can surface it in the UI the same way `LiveStacker.frameCount` does.
     var onLiveStackFrameCountUpdate: (@Sendable (Int) -> Void)?
@@ -161,16 +176,24 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let waveletCombineRGBAFn = library.makeFunction(name: "waveletCombineRGBA"),
               let accumulateMaskedFn = library.makeFunction(name: "accumulateMonoMasked"),
               let normalizeMaskedAccumulatorFn = library.makeFunction(name: "normalizeMaskedAccumulator"),
+              let histogramBayerChannelsFn = library.makeFunction(name: "histogramReduceBayerChannels"),
+              let histogramRGB24ChannelsFn = library.makeFunction(name: "histogramReduceRGB24Channels"),
               let vertexFn = library.makeFunction(name: "fullscreenTriangleVertex"),
               let fragmentFn = library.makeFunction(name: "blitFragment"),
               let histogramBuffer = device.makeBuffer(
                 length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared
-              )
+              ),
+              let redHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared),
+              let greenHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared),
+              let blueHistogramBuffer = device.makeBuffer(length: 256 * MemoryLayout<UInt32>.size, options: .storageModeShared)
         else { return nil }
 
         self.device = device
         self.commandQueue = queue
         self.histogramBuffer = histogramBuffer
+        self.redHistogramBuffer = redHistogramBuffer
+        self.greenHistogramBuffer = greenHistogramBuffer
+        self.blueHistogramBuffer = blueHistogramBuffer
 
         do {
             self.stretchPipeline = try device.makeComputePipelineState(function: stretchFn)
@@ -194,6 +217,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             self.waveletCombineRGBAPipeline = try device.makeComputePipelineState(function: waveletCombineRGBAFn)
             self.accumulateMaskedPipeline = try device.makeComputePipelineState(function: accumulateMaskedFn)
             self.normalizeMaskedAccumulatorPipeline = try device.makeComputePipelineState(function: normalizeMaskedAccumulatorFn)
+            self.histogramReduceBayerChannelsPipeline = try device.makeComputePipelineState(function: histogramBayerChannelsFn)
+            self.histogramReduceRGB24ChannelsPipeline = try device.makeComputePipelineState(function: histogramRGB24ChannelsFn)
 
             let renderDescriptor = MTLRenderPipelineDescriptor()
             renderDescriptor.vertexFunction = vertexFn
@@ -379,6 +404,36 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 let counts = self.histogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
                 let snapshot = (0..<256).map { Int(counts[$0]) }
                 self.onHistogramUpdate?(snapshot)
+            }
+        }
+
+        if onChannelHistogramUpdate != nil, let channelEncoder = commandBuffer.makeComputeCommandEncoder() {
+            memset(redHistogramBuffer.contents(), 0, redHistogramBuffer.length)
+            memset(greenHistogramBuffer.contents(), 0, greenHistogramBuffer.length)
+            memset(blueHistogramBuffer.contents(), 0, blueHistogramBuffer.length)
+            channelEncoder.setComputePipelineState(histogramReduceRGB24ChannelsPipeline)
+            channelEncoder.setBuffer(rgbSourceBuffer, offset: 0, index: 0)
+            channelEncoder.setBytes(&width, length: MemoryLayout<UInt32>.size, index: 1)
+            channelEncoder.setBytes(&height, length: MemoryLayout<UInt32>.size, index: 2)
+            channelEncoder.setBuffer(redHistogramBuffer, offset: 0, index: 3)
+            channelEncoder.setBuffer(greenHistogramBuffer, offset: 0, index: 4)
+            channelEncoder.setBuffer(blueHistogramBuffer, offset: 0, index: 5)
+            channelEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<UInt32>.size, index: 0)
+            channelEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<UInt32>.size, index: 1)
+            channelEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<UInt32>.size, index: 2)
+            channelEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+            channelEncoder.endEncoding()
+
+            commandBuffer.addCompletedHandler { [weak self] _ in
+                guard let self else { return }
+                let red = self.redHistogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
+                let green = self.greenHistogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
+                let blue = self.blueHistogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
+                self.onChannelHistogramUpdate?((
+                    red: (0..<256).map { Int(red[$0]) },
+                    green: (0..<256).map { Int(green[$0]) },
+                    blue: (0..<256).map { Int(blue[$0]) }
+                ))
             }
         }
 
@@ -1064,6 +1119,41 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             }
         }
 
+        // Mono camera: nothing to split into channels at all — skip the dispatch entirely rather
+        // than firing `onChannelHistogramUpdate` with a meaningless all-in-one-bucket result.
+        if isColorCamera, onChannelHistogramUpdate != nil,
+           let channelEncoder = commandBuffer.makeComputeCommandEncoder() {
+            memset(redHistogramBuffer.contents(), 0, redHistogramBuffer.length)
+            memset(greenHistogramBuffer.contents(), 0, greenHistogramBuffer.length)
+            memset(blueHistogramBuffer.contents(), 0, blueHistogramBuffer.length)
+            var channelDivisor = divisor
+            var patternValue = UInt32(bayerPattern.rawValue)
+            channelEncoder.setComputePipelineState(histogramReduceBayerChannelsPipeline)
+            channelEncoder.setTexture(readSource, index: 0)
+            channelEncoder.setBuffer(redHistogramBuffer, offset: 0, index: 0)
+            channelEncoder.setBuffer(greenHistogramBuffer, offset: 0, index: 1)
+            channelEncoder.setBuffer(blueHistogramBuffer, offset: 0, index: 2)
+            channelEncoder.setBytes(&channelDivisor, length: MemoryLayout<Float>.size, index: 3)
+            channelEncoder.setBytes(&patternValue, length: MemoryLayout<UInt32>.size, index: 4)
+            channelEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<UInt32>.size, index: 0)
+            channelEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<UInt32>.size, index: 1)
+            channelEncoder.setThreadgroupMemoryLength(256 * MemoryLayout<UInt32>.size, index: 2)
+            channelEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+            channelEncoder.endEncoding()
+
+            commandBuffer.addCompletedHandler { [weak self] _ in
+                guard let self else { return }
+                let red = self.redHistogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
+                let green = self.greenHistogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
+                let blue = self.blueHistogramBuffer.contents().bindMemory(to: UInt32.self, capacity: 256)
+                self.onChannelHistogramUpdate?((
+                    red: (0..<256).map { Int(red[$0]) },
+                    green: (0..<256).map { Int(green[$0]) },
+                    blue: (0..<256).map { Int(blue[$0]) }
+                ))
+            }
+        }
+
         commandBuffer.commit()
     }
 
@@ -1169,6 +1259,9 @@ struct MetalPreviewView: NSViewRepresentable {
             let renderer = MetalFrameRenderer(device: device)
             renderer?.onHistogramUpdate = { [weak cameraManager] counts in
                 Task { @MainActor in cameraManager?.gpuHistogramCounts = counts }
+            }
+            renderer?.onChannelHistogramUpdate = { [weak cameraManager] channels in
+                Task { @MainActor in cameraManager?.gpuChannelHistogramCounts = channels }
             }
             renderer?.onLiveStackFrameCountUpdate = { [weak cameraManager] count in
                 Task { @MainActor in cameraManager?.gpuLiveStackFrameCount = count }

@@ -57,10 +57,13 @@ enum Debayer {
         return output
     }
 
-    /// Which color channel a given (x, y) Bayer sample directly measures.
-    private enum Channel: Equatable { case red, green, blue }
+    /// Which color channel a given (x, y) Bayer sample directly measures — `internal`, not
+    /// `private`, so `HistogramComputer` can classify raw sensor pixels into per-channel
+    /// histograms without duplicating this same pattern-matching logic a third time (`Shaders
+    /// .metal`'s `isRedAt`/`isBlueAt` inline functions are the GPU-side equivalent).
+    enum Channel: Equatable { case red, green, blue }
 
-    private static func channel(atX x: Int, y: Int, pattern: ASI_BAYER_PATTERN) -> Channel {
+    static func channel(atX x: Int, y: Int, pattern: ASI_BAYER_PATTERN) -> Channel {
         let evenX = x % 2 == 0
         let evenY = y % 2 == 0
         switch pattern {

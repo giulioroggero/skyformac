@@ -74,6 +74,7 @@
 		B776C06AD7070B97B33C23EF /* GPUSharpnessScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A74554FF1E98E12617F232 /* GPUSharpnessScorerTests.swift */; };
 		BBB9C41C2DE5B4082E3CB9D1 /* ImageEnhancerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C8D5AD1211A30927A071B6 /* ImageEnhancerTests.swift */; };
 		C05D048846FC640E6E72E689 /* ZWOErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0529E29D4A4C6E1127B1344A /* ZWOErrorTests.swift */; };
+		5DF765BF9356195732AC093B /* HistogramComputerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */; };
 		C4F70E862029FEA852476B6C /* PlanetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */; };
 		C50F2712D4496D9621959232 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
 		C5CC3B605C7E28E7339A565F /* ControlsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB59E4D2F2C11CC773741644 /* ControlsPanelView.swift */; };
@@ -161,6 +162,7 @@
 /* Begin PBXFileReference section */
 		0332A2145788F658220362CC /* skyformacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = skyformacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0529E29D4A4C6E1127B1344A /* ZWOErrorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ZWOErrorTests.swift; sourceTree = "<group>"; };
+		6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramComputerTests.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
 		0C438170FE21AEABA0E72DB0 /* PreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
 		6F70DB4F88F8011F407D7B23 /* HelpContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpContent.swift; sourceTree = "<group>"; };
@@ -398,6 +400,7 @@
 				A58B778D665C2941AEAB0293 /* StreakDetectorTests.swift */,
 				EBA7E98242926E6204AF579C /* GPUControlSettingsTests.swift */,
 				0529E29D4A4C6E1127B1344A /* ZWOErrorTests.swift */,
+				6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
 				A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */,
@@ -828,6 +831,7 @@
 				2502EF75D1573890901952A5 /* StreakDetectorTests.swift in Sources */,
 				F8EFDC6EA36425F594FF9F0D /* GPUControlSettingsTests.swift in Sources */,
 				C05D048846FC640E6E72E689 /* ZWOErrorTests.swift in Sources */,
+				5DF765BF9356195732AC093B /* HistogramComputerTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,
 				7649C405BE01EB99C5A51847 /* MetalFrameRendererTests.swift in Sources */,

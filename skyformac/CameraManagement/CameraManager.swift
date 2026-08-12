@@ -367,6 +367,10 @@ final class CameraManager {
     /// the Metal preview is active; `HistogramView` prefers this over its own CPU pass when
     /// non-nil. Not written to from anywhere else.
     var gpuHistogramCounts: [Int]?
+    /// Per-channel companion to `gpuHistogramCounts` — `nil` whenever the connected source has no
+    /// separate channels to show (a mono ZWO camera; `MetalFrameRenderer` simply never fires this
+    /// for one) or the GPU render path isn't active. Powers `HistogramView`'s "By Channel" display.
+    var gpuChannelHistogramCounts: (red: [Int], green: [Int], blue: [Int])?
 
     /// Which render path `PreviewView`/`HistogramView` use, and which live-stacking accumulator
     /// (`LiveStacker` CPU vs. `MetalFrameRenderer`'s GPU accumulation texture) is authoritative.
@@ -2292,6 +2296,7 @@ final class CameraManager {
         planetTracker.reset()
         planetROI = nil
         gpuHistogramCounts = nil
+        gpuChannelHistogramCounts = nil
         catalogFetchTask?.cancel()
         catalogFetchTask = nil
         liveWCS = nil

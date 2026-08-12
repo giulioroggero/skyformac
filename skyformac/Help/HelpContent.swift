@@ -434,6 +434,10 @@ enum HelpContent {
                 body: "Under the histogram — the base display stretch: what raw sensor range maps to on-screen black vs white. Auto-set from the first live frame's histogram on connect. Use the histogram's own **Zoom** slider for fine (0.01%) adjustment."
             ),
             HelpSection(
+                id: "setting.histogramByChannel", heading: "By Channel (histogram)",
+                body: "A checkbox above the histogram, shown only for a color source (ZWO color camera or webcam/iPhone) — swaps the combined black/white histogram for three overlaid Red/Green/Blue ones, useful for spotting a single channel clipping or unbalanced on its own. The Black/White Point sliders below still act on the combined signal either way; this only changes what the plot above them draws. Not available for a mono camera, since there's nothing to split into channels."
+            ),
+            HelpSection(
                 id: "setting.gpuCpuToggle", heading: "GPU / CPU toggle",
                 body: "Toolbar, ⌘M — switches the render path. GPU (Metal) is the default and faster; CPU is a fallback that produces the same result more slowly."
             ),

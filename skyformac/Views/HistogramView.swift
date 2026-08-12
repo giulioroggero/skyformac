@@ -26,12 +26,28 @@ struct HistogramView: View {
     /// window predictable — drag to an edge, then tap "Center" (or nudge `zoom`) to keep going.
     @State private var blackCenter: Double = 0
     @State private var whiteCenter: Double = 1
+    /// Combined (luma) histogram vs. separate Red/Green/Blue curves — only meaningful for a color
+    /// source, so the toggle itself only appears when `currentChannelHistograms` has something to
+    /// show. The Black/White Point sliders below always act on the combined domain regardless of
+    /// which view is showing; this only changes what the canvas above them draws.
+    @State private var showByChannel = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Histogram").font(.headline)
+            HStack {
+                Text("Histogram").font(.headline)
+                if currentChannelHistograms != nil {
+                    Spacer()
+                    Toggle("By Channel", isOn: $showByChannel)
+                        .toggleStyle(.checkbox)
+                        .font(.caption)
+                        .help("Shows separate Red/Green/Blue histograms instead of the combined one — useful for spotting a channel that's clipping or unbalanced on its own. The Black/White Point sliders below still act on the combined signal either way.")
+                }
+            }
 
-            if let buckets = currentBuckets {
+            if showByChannel, let channels = currentChannelHistograms {
+                channelHistogramCanvas(channels)
+            } else if let buckets = currentBuckets {
                 histogramCanvas(buckets: buckets)
             } else {
                 Rectangle()
@@ -123,12 +139,67 @@ struct HistogramView: View {
         .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 
+    /// Three overlaid, semi-transparent outline curves (not solid bars, which would just occlude
+    /// each other) — the black/white point lines are still drawn on the *combined* domain, since
+    /// the stretch itself is a single combined operation regardless of which view is showing.
+    private func channelHistogramCanvas(_ channels: (red: [Int], green: [Int], blue: [Int])) -> some View {
+        let maxCount = max(channels.red.max() ?? 1, channels.green.max() ?? 1, channels.blue.max() ?? 1, 1)
+
+        func curve(_ buckets: [Int], in size: CGSize) -> Path {
+            let barWidth = size.width / CGFloat(buckets.count)
+            var path = Path()
+            path.move(to: CGPoint(x: 0, y: size.height))
+            for (index, count) in buckets.enumerated() {
+                let height = size.height * CGFloat(count).squareRoot() / CGFloat(maxCount).squareRoot()
+                path.addLine(to: CGPoint(x: CGFloat(index) * barWidth, y: size.height - height))
+            }
+            path.addLine(to: CGPoint(x: size.width, y: size.height))
+            path.closeSubpath()
+            return path
+        }
+
+        return Canvas { context, size in
+            context.fill(curve(channels.red, in: size), with: .color(.red.opacity(0.35)))
+            context.stroke(curve(channels.red, in: size), with: .color(.red), lineWidth: 1)
+            context.fill(curve(channels.green, in: size), with: .color(.green.opacity(0.35)))
+            context.stroke(curve(channels.green, in: size), with: .color(.green), lineWidth: 1)
+            context.fill(curve(channels.blue, in: size), with: .color(.blue.opacity(0.35)))
+            context.stroke(curve(channels.blue, in: size), with: .color(.blue), lineWidth: 1)
+
+            let blackX = size.width * cameraManager.stretch.blackPoint
+            let whiteX = size.width * cameraManager.stretch.whitePoint
+            context.stroke(
+                Path { $0.move(to: CGPoint(x: blackX, y: 0)); $0.addLine(to: CGPoint(x: blackX, y: size.height)) },
+                with: .color(.white.opacity(0.7)), lineWidth: 1
+            )
+            context.stroke(
+                Path { $0.move(to: CGPoint(x: whiteX, y: 0)); $0.addLine(to: CGPoint(x: whiteX, y: size.height)) },
+                with: .color(.white), lineWidth: 1
+            )
+        }
+        .frame(height: 100)
+        .background(Color.black)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+
     private var currentBuckets: [Int]? {
         if useMetalRenderer {
             return cameraManager.gpuHistogramCounts
         }
         guard let frame = cameraManager.currentFrame else { return nil }
         return HistogramComputer.histogram(for: frame)
+    }
+
+    /// GPU path prefers `CameraManager.gpuChannelHistogramCounts` (`MetalFrameRenderer`'s
+    /// `histogramReduceBayerChannels`/`histogramReduceRGB24Channels`); CPU path computes the
+    /// equivalent directly from `currentFrame` via `HistogramComputer.channelHistograms`. `nil`
+    /// for a mono camera (nothing to split into channels) either way.
+    private var currentChannelHistograms: (red: [Int], green: [Int], blue: [Int])? {
+        if useMetalRenderer {
+            return cameraManager.gpuChannelHistogramCounts
+        }
+        guard let frame = cameraManager.currentFrame, let camera = cameraManager.connectedCamera else { return nil }
+        return HistogramComputer.channelHistograms(for: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
     }
 
     // MARK: - Sliders

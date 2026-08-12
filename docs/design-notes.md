@@ -1289,3 +1289,29 @@ made along the way.
     checkerboard that fine at a size actually large enough to downsample. Real sensor data (star
     fields, planetary disks) doesn't have this kind of exact periodic structure, so it's a
     theoretical caveat worth knowing about, not a practical risk either scorer actually runs into.
+- **Per-channel (Red/Green/Blue) histograms**, added alongside the existing combined-luma one.
+  `HistogramView` gets a "By Channel" checkbox (only shown when a channel breakdown is actually
+  available — i.e. never for a mono camera) that swaps the single bar chart for three overlaid
+  translucent curves; the Black/White Point sliders below are unaffected either way, since the
+  stretch itself is still one combined operation regardless of which view is showing.
+  - **CPU path**: `HistogramComputer.channelHistograms(for:isColorCamera:bayerPattern:)`. For
+    RAW8/RAW16 (a color camera's still-mosaiced Bayer data — the same pre-debayer domain the
+    combined histogram already operates in) each raw sample is classified by which channel it
+    directly measures via `Debayer.channel(atX:y:pattern:)` (made `internal`, was `private` —
+    reused here rather than duplicating Bayer-pattern logic a third time) rather than debayering
+    first, so it's a real per-photosite histogram, not an interpolated one. RGB24 bins the three
+    packed bytes per pixel directly. Returns `nil` for a mono camera, and also for any image type
+    other than RAW8/RAW16/RGB24 — the guard checks the *image type* explicitly rather than just
+    `isColorCamera`, since a color camera can still be requesting an unrelated single-channel
+    exposure format, and returning three all-zero channel arrays for one (a real, distinct bug
+    caught by `HistogramComputerTests` while writing it, not a hypothetical) would have looked to
+    `HistogramView` like a legitimately empty (but present) breakdown rather than "not available."
+  - **GPU path**: two new `Shaders.metal` kernels mirroring the existing luma ones —
+    `histogramReduceBayerChannels` (mono texture from a color ZWO camera, reusing the same
+    `isRedAt`/`isBlueAt` inline classifiers `debayerAndStretch` already uses) and
+    `histogramReduceRGB24Channels` (packed RGB24/webcam bytes, no Bayer classification needed).
+    `MetalFrameRenderer` dispatches both right after its existing luma histogram dispatch (gated on
+    `onChannelHistogramUpdate != nil` so the extra GPU work only happens while `HistogramView` is
+    actually asking for it), reads back three 256-bucket device buffers via
+    `addCompletedHandler`, and surfaces them through `CameraManager.gpuChannelHistogramCounts` —
+    the same wiring shape as the existing `gpuHistogramCounts`.
