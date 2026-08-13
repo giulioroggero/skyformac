@@ -1561,3 +1561,13 @@ made along the way.
     `SERError` case still is. The result: every frame that actually makes it into a `.ser` file
     is now guaranteed to have real per-frame statistics, so this exact failure can't recur
     regardless of what upstream condition produced the blank frame in the first place.
+- **Sidebar tab order, and the camera row layout.** `SidebarTab`'s declaration order (which
+  `CaseIterable.allCases` — and so `verticalTabStrip`'s `ForEach` — follows) is now Camera
+  Controls, Planetary, Deep Sky, Improvements — the two imaging-genre tabs grouped together right
+  after Camera, "always applies regardless of genre" Improvements last, before the separately-
+  appended Full Screen button (unaffected by this reorder either way, since it's not part of the
+  enum). `CameraListView.cameraRow`/`webcamSection`'s per-device row both switched from one
+  crammed `HStack` (name + spec line + 1-3 buttons all competing for the same row's width) to a
+  `VStack`: name, then (for the ZWO row) its spec line, then the buttons in their own row —
+  avoids the name truncating or the spec line wrapping awkwardly next to the buttons, which is
+  exactly what a longer camera/device name did before.

@@ -69,10 +69,15 @@ private struct HelpLinkedDisclosureLabel: View {
 /// "one of these is doing this" — or just falling back to the camera's own unmodified output — is
 /// one click instead of hunting down a dozen individual toggles.
 enum SidebarTab: String, CaseIterable, Identifiable {
+    // Declaration order is display order (`CaseIterable.allCases`, consumed by
+    // `verticalTabStrip`'s `ForEach`) — Camera, Planetary, Deep Sky, Improve, matching the two
+    // imaging-genre tabs together right after Camera, with the "always applies, never genre-
+    // specific" Improvements tab last (Full Screen, appended separately after this loop, stays
+    // last after that regardless of this order).
     case cameraControls = "Camera Controls"
-    case improvements = "Improvements"
     case planetary = "Planetary"
     case deepSky = "Deep Sky"
+    case improvements = "Improvements"
 
     var id: String { rawValue }
 
