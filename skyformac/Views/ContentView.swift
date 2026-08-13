@@ -41,6 +41,12 @@ struct ContentView: View {
         )) {
             AcquisitionWizardView(cameraManager: cameraManager)
         }
+        .sheet(isPresented: Binding(
+            get: { cameraManager.isProjectsBrowserPresented },
+            set: { cameraManager.isProjectsBrowserPresented = $0 }
+        )) {
+            ProjectsBrowserView(cameraManager: cameraManager)
+        }
     }
 
     /// The live video alone, filling the entire window with its own overlay controls (zoom
@@ -186,6 +192,12 @@ struct ContentView: View {
                     ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
                     : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
                 .accessibilityIdentifier("RenderPathToggle")
+            }
+            ToolbarItem {
+                Button("Projects…", systemImage: "folder") {
+                    cameraManager.isProjectsBrowserPresented = true
+                }
+                .help("Browse observation projects and sessions — plan, capture, and review their timelines")
             }
             ToolbarItem {
                 Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(

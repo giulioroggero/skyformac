@@ -1068,14 +1068,31 @@ final class CameraManager {
     /// directly, but `projectStore` itself never changes after init, so it doesn't need to.
     let projectStore: ProjectStore
     let locationProvider: CoreLocationProvider
+    let projectsLibrary: ProjectsLibrary
+    let ollamaPlanner: OllamaPlanner
     var activeProject: Project?
     var activeSession: Session?
+    var isProjectsBrowserPresented = false
+
+    /// Makes `session` (within `project`) the destination for future captures — see
+    /// `recordActiveSessionCapture`. Passing `session: nil` keeps the project active but stops
+    /// filing captures into any particular session's folder (they'll still hit
+    /// `ProjectsLibrary`'s in-memory copy of `project` once a session is picked again).
+    func setActive(project: Project?, session: Session?) {
+        activeProject = project
+        activeSession = session
+    }
 
     private var serRecordingURL: URL?
 
-    init(projectStore: ProjectStore = ProjectStore(), locationProvider: CoreLocationProvider = CoreLocationProvider()) {
+    init(
+        projectStore: ProjectStore = ProjectStore(), locationProvider: CoreLocationProvider = CoreLocationProvider(),
+        ollamaPlanner: OllamaPlanner = OllamaPlanner()
+    ) {
         self.projectStore = projectStore
         self.locationProvider = locationProvider
+        self.projectsLibrary = ProjectsLibrary(store: projectStore)
+        self.ollamaPlanner = ollamaPlanner
         refreshCameraList()
     }
 
@@ -1094,7 +1111,7 @@ final class CameraManager {
                 project.location = location
             }
             self.activeProject = project
-            try? self.projectStore.save(project)
+            try? self.projectsLibrary.save(project)
         }
     }
 
@@ -1114,7 +1131,7 @@ final class CameraManager {
         }
         activeProject = project
         do {
-            try projectStore.save(project)
+            try projectsLibrary.save(project)
         } catch {
             lastErrorMessage = String(describing: error)
         }
@@ -2230,6 +2247,7 @@ final class CameraManager {
         }
         activeProject = project
         activeSession = project.sessions.first(where: { $0.id == session.id })
+        projectsLibrary.syncInMemory(project)
     }
 
     // MARK: - Exported Files: history + opening a file back up for viewing
