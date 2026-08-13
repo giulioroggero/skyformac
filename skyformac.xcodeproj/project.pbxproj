@@ -12,6 +12,7 @@
 		47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */; };
 		DC9D7D8B7D1D90D151ED606B /* CoreLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */; };
 		18F32B6D347E62F801858544 /* ProjectSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6503F6FAB5EE60511276664 /* ProjectSearch.swift */; };
+		BC27AC288C8CEE63B9C1752D /* OllamaPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7C615644A9BCEC78CE2465 /* OllamaPlanner.swift */; };
 		0224F37EA5218C04135476C7 /* libASICamera2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; };
 		056885C6201C1236C8D50051 /* SkyformacCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */; };
 		099973C00C3E99A41739F432 /* AllSkyAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFBC991708FDCE0EA4CC1E /* AllSkyAnalyzer.swift */; };
@@ -88,6 +89,7 @@
 		DA96C7BDE9B70B89381E23B8 /* CoreLocationProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F4CDD606BCE2156ABE3B064 /* CoreLocationProviderTests.swift */; };
 		2F8C5EC8137C671D4279BEBE /* CameraManagerActiveSessionLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEE87CD4961B04418AE9312 /* CameraManagerActiveSessionLocationTests.swift */; };
 		08A2998069B703FC94396BC9 /* ProjectSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */; };
+		1E39FF799CAC5407841A7354 /* OllamaPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79AC1FEA6E74EB19701D1F40 /* OllamaPlannerTests.swift */; };
 		C4F70E862029FEA852476B6C /* PlanetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */; };
 		C50F2712D4496D9621959232 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
 		C5CC3B605C7E28E7339A565F /* ControlsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB59E4D2F2C11CC773741644 /* ControlsPanelView.swift */; };
@@ -189,6 +191,7 @@
 		3F4CDD606BCE2156ABE3B064 /* CoreLocationProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreLocationProviderTests.swift; sourceTree = "<group>"; };
 		EFEE87CD4961B04418AE9312 /* CameraManagerActiveSessionLocationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerActiveSessionLocationTests.swift; sourceTree = "<group>"; };
 		BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectSearchTests.swift; sourceTree = "<group>"; };
+		79AC1FEA6E74EB19701D1F40 /* OllamaPlannerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OllamaPlannerTests.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
 		0C438170FE21AEABA0E72DB0 /* PreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
 		6F70DB4F88F8011F407D7B23 /* HelpContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpContent.swift; sourceTree = "<group>"; };
@@ -246,6 +249,7 @@
 		4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGenerator.swift; sourceTree = "<group>"; };
 		F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreLocationProvider.swift; sourceTree = "<group>"; };
 		E6503F6FAB5EE60511276664 /* ProjectSearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectSearch.swift; sourceTree = "<group>"; };
+		6B7C615644A9BCEC78CE2465 /* OllamaPlanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OllamaPlanner.swift; sourceTree = "<group>"; };
 		87791B80E37FA5FFFEEAC02C /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		885BBDC0D43C6A0B4ED42B32 /* StarDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarDetector.swift; sourceTree = "<group>"; };
 		927F74D973300405CE8F799C /* StreakDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreakDetector.swift; sourceTree = "<group>"; };
@@ -447,6 +451,7 @@
 				3F4CDD606BCE2156ABE3B064 /* CoreLocationProviderTests.swift */,
 				EFEE87CD4961B04418AE9312 /* CameraManagerActiveSessionLocationTests.swift */,
 				BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */,
+				79AC1FEA6E74EB19701D1F40 /* OllamaPlannerTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
 				A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */,
@@ -535,6 +540,7 @@
 				4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */,
 				F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */,
 				E6503F6FAB5EE60511276664 /* ProjectSearch.swift */,
+				6B7C615644A9BCEC78CE2465 /* OllamaPlanner.swift */,
 			);
 			name = Projects;
 			path = Projects;
@@ -822,6 +828,7 @@
 				47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */,
 				DC9D7D8B7D1D90D151ED606B /* CoreLocationProvider.swift in Sources */,
 				18F32B6D347E62F801858544 /* ProjectSearch.swift in Sources */,
+				BC27AC288C8CEE63B9C1752D /* OllamaPlanner.swift in Sources */,
 				D750D67E465DFF02A0CA1F62 /* ZWOError.swift in Sources */,
 				B50020272473177E2E598EFF /* CTupleConversions.swift in Sources */,
 				A05020090FAE2338A11DB166 /* ZWOCameraInfo.swift in Sources */,
@@ -917,6 +924,7 @@
 				DA96C7BDE9B70B89381E23B8 /* CoreLocationProviderTests.swift in Sources */,
 				2F8C5EC8137C671D4279BEBE /* CameraManagerActiveSessionLocationTests.swift in Sources */,
 				08A2998069B703FC94396BC9 /* ProjectSearchTests.swift in Sources */,
+				1E39FF799CAC5407841A7354 /* OllamaPlannerTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,
 				7649C405BE01EB99C5A51847 /* MetalFrameRendererTests.swift in Sources */,
