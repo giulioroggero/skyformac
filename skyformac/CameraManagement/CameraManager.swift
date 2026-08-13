@@ -1067,14 +1067,58 @@ final class CameraManager {
     /// Not `@ObservationIgnored`: `ProjectsBrowserView` etc. observe `activeProject`/`activeSession`
     /// directly, but `projectStore` itself never changes after init, so it doesn't need to.
     let projectStore: ProjectStore
+    let locationProvider: CoreLocationProvider
     var activeProject: Project?
     var activeSession: Session?
 
     private var serRecordingURL: URL?
 
-    init(projectStore: ProjectStore = ProjectStore()) {
+    init(projectStore: ProjectStore = ProjectStore(), locationProvider: CoreLocationProvider = CoreLocationProvider()) {
         self.projectStore = projectStore
+        self.locationProvider = locationProvider
         refreshCameraList()
+    }
+
+    /// Fetches a GPS fix and saves it on whichever of `activeSession`/`activeProject` (session
+    /// takes precedence — a project's own `location` is meant as more of a "usual site" default,
+    /// see `GeoLocation`'s doc comment) is currently active. A no-op with no active project.
+    func useCurrentLocationForActiveSession() {
+        guard var project = activeProject else { return }
+        locationProvider.requestCurrentLocation { [weak self] location in
+            guard let self, let location else { return }
+            if var session = self.activeSession, let index = project.sessions.firstIndex(where: { $0.id == session.id }) {
+                session.location = location
+                project.sessions[index] = session
+                self.activeSession = session
+            } else {
+                project.location = location
+            }
+            self.activeProject = project
+            try? self.projectStore.save(project)
+        }
+    }
+
+    /// Sets a hand-entered location (see `GeoLocation.manual`) on the active session, or the
+    /// active project if no session is active. Returns `false` (and does nothing) for an
+    /// out-of-range latitude/longitude, or when no project is active at all.
+    @discardableResult
+    func setManualLocationForActiveSession(latitude: Double, longitude: Double, name: String?) -> Bool {
+        guard var project = activeProject, let location = GeoLocation.manual(latitude: latitude, longitude: longitude, name: name)
+        else { return false }
+        if var session = activeSession, let index = project.sessions.firstIndex(where: { $0.id == session.id }) {
+            session.location = location
+            project.sessions[index] = session
+            activeSession = session
+        } else {
+            project.location = location
+        }
+        activeProject = project
+        do {
+            try projectStore.save(project)
+        } catch {
+            lastErrorMessage = String(describing: error)
+        }
+        return true
     }
 
     /// Re-scans for connected ASI cameras. Safe to call with zero cameras attached.

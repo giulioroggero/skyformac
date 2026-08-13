@@ -21,6 +21,13 @@ struct GeoLocation: Codable, Equatable, Sendable {
     var displayName: String {
         name ?? String(format: "%.4f, %.4f", latitude, longitude)
     }
+
+    /// `nil` for an out-of-range latitude/longitude — the one thing free-text manual entry can
+    /// get wrong that GPS never would, so it's validated here rather than trusted at the UI layer.
+    static func manual(latitude: Double, longitude: Double, name: String?) -> GeoLocation? {
+        guard (-90...90).contains(latitude), (-180...180).contains(longitude) else { return nil }
+        return GeoLocation(latitude: latitude, longitude: longitude, name: name, source: .manual)
+    }
 }
 
 /// A timestamped free-text note on a `Project` or `Session` — what "annotate sessions and
