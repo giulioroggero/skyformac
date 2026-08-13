@@ -56,7 +56,20 @@ struct ProjectDetailPane: View {
                     SessionRow(project: project, session: session, cameraManager: cameraManager)
                         .tag(session.id)
                         .contentShape(Rectangle())
-                        .onTapGesture { selectedSessionID = session.id }
+                        // A session that's never been run yet has no history to show — clicking
+                        // it runs it directly (opens the camera view) instead of just selecting
+                        // it, matching "click a not-yet-run session to run it" from the Projects
+                        // workflow. One that's already been run selects it here instead, so its
+                        // history (the Timeline section in `SessionDetailPane`) shows up in the
+                        // detail column — "Run This Session" there still starts it again/resumes
+                        // capturing into it, for whenever that's actually wanted.
+                        .onTapGesture {
+                            if session.captures.isEmpty {
+                                cameraManager.setActive(project: project, session: session)
+                            } else {
+                                selectedSessionID = session.id
+                            }
+                        }
                         .listRowBackground(selectedSessionID == session.id ? Color.accentColor.opacity(0.15) : nil)
                         .contextMenu {
                             Button(session.isArchived ? "Unarchive" : "Archive") {
@@ -122,7 +135,7 @@ private struct SessionRow: View {
             }
             Spacer()
             Text("\(session.captures.count)").font(.caption).foregroundStyle(.tertiary)
-            Button(isActive ? "Active" : "Set Active") {
+            Button(isActive ? "Running" : "Run") {
                 cameraManager.setActive(project: project, session: session)
             }
             .disabled(isActive)
@@ -277,8 +290,7 @@ struct LocationEditorView: View {
                 Text(currentLocation?.displayName ?? "Not set").foregroundStyle(currentLocation == nil ? .secondary : .primary)
                 Spacer()
                 Button("Use Current Location", systemImage: "location") {
-                    cameraManager.setActive(project: project, session: session)
-                    cameraManager.useCurrentLocationForActiveSession()
+                    cameraManager.useCurrentLocation(for: project, session: session)
                 }
                 Button("Enter Manually…", systemImage: "pin") { isEnteringManually = true }
             }
@@ -291,9 +303,8 @@ struct LocationEditorView: View {
                 TextField("Name (optional)", text: $nameText)
                 Button("Save") {
                     guard let lat = Double(latitudeText), let lon = Double(longitudeText) else { return }
-                    cameraManager.setActive(project: project, session: session)
-                    cameraManager.setManualLocationForActiveSession(
-                        latitude: lat, longitude: lon, name: nameText.isEmpty ? nil : nameText
+                    cameraManager.setManualLocation(
+                        for: project, session: session, latitude: lat, longitude: lon, name: nameText.isEmpty ? nil : nameText
                     )
                     isEnteringManually = false
                 }

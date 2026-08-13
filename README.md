@@ -265,15 +265,21 @@ explanation.
 
 ### Projects browser
 
-Toolbar → "Projects…" opens an iMovie-style library: **projects** group
-**sessions** under a shared goal ("see M13, M57, Saturn"), each with its own
-folder for captures and settings, a timeline of thumbnails, tags, notes, and
-GPS or hand-entered location. Exporting a frame or finishing a SER recording
-while a session is active also files a copy into that session's timeline.
-"Ask AI to Plan…" sends a one-line goal to a local Ollama server and shows
-the suggested session(s) before creating anything. Opening the app with zero
-projects on disk creates an empty untitled one and opens this browser
-automatically — nothing is saved until it's actually named.
+The Projects browser — an iMovie-style library of **projects** grouping
+**sessions** under a shared goal ("see M13, M57, Saturn") — is the app's main
+window whenever no session is running: there's no camera view to switch to
+without one. "New Project…" (sidebar, toolbar, or ⌘⇧N) is the only modal in
+the feature — it requires a name up front, so the project's name is always
+visible. Clicking a session with no captures yet **runs** it (switches
+straight to the camera view); clicking one that's already been run shows its
+history instead. Each session gets its own folder for captures and settings,
+a timeline of thumbnails, tags, notes, and GPS or hand-entered location.
+Exporting a frame or finishing a SER recording while a session is running
+also files a copy into that session's timeline. While running, the toolbar's
+project/session menu covers ending the session, opening the next one, adding
+a new one, or deleting it — no trip back to the browser required. "Ask AI to
+Plan…" sends a one-line goal to a local Ollama server and shows the
+suggested session(s) before creating anything.
 
 ### Permissions
 

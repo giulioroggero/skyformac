@@ -498,15 +498,23 @@ enum HelpContent {
         icon: "folder.fill.badge.gearshape",
         sections: [
             HelpSection(
-                body: "A **project** groups observation sessions under a shared goal — a Messier marathon, tracking Saturn through opposition, a single trip to a dark-sky site. Each **session** is one planned outing (\"see M13, M57, Saturn\") with its own goal, object list, and date. Toolbar → **Projects…** opens the browser."
+                body: "This app's main window **is** the Projects browser whenever nothing's running — there's no camera view to switch to without an active session. A **project** groups observation sessions under a shared goal — a Messier marathon, tracking Saturn through opposition, a single trip to a dark-sky site. Each **session** is one planned outing (\"see M13, M57, Saturn\") with its own goal, object list, and date."
+            ),
+            HelpSection(
+                id: "setting.newProject", heading: "Creating a project",
+                body: "**New Project…** (sidebar, toolbar, or ⌘⇧N from the File menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
             ),
             HelpSection(
                 heading: "Where your data goes",
                 body: "Every project gets its own folder under **~/Documents/Skyformac Projects/**, with one subfolder per session holding that session's actual capture files and thumbnails. Renaming a project or session in the browser never moves its folder on disk."
             ),
             HelpSection(
-                id: "setting.activeSession", heading: "Making a session active",
-                body: "Click **Set as Active Session** in a session's detail pane. While a session is active, exporting a frame (Export As…) or finishing a SER recording also files a copy into that session's timeline, in addition to the usual Export History — you don't have to do anything differently while capturing."
+                id: "setting.runSession", heading: "Running a session",
+                body: "Click a session that has no captures yet and it **runs** immediately — the window switches straight to the camera view, with that session as the capture destination. Click one that's already been run and you see its history instead (its timeline, in the detail column); **Run This Session** there starts it again whenever picking it back up is what you actually want. While exporting a frame (Export As…) or finishing a SER recording during a run, a copy also files into that session's timeline, in addition to the usual Export History."
+            ),
+            HelpSection(
+                heading: "While a session is running",
+                body: "The toolbar's project/session menu (and the menu bar's **Session** menu) covers the rest of the loop without a trip back to the browser: **End Session** (returns to the browser, on the same project), **Open Next Session** (jumps straight to the next one), **New Session in Project**, and **Delete This Session**. **Switch Project** leaves the project context behind entirely."
             ),
             HelpSection(
                 heading: "Timeline",
@@ -514,15 +522,11 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Location, tags, and notes",
-                body: "Both projects and sessions can track a location — **Use Current Location** for a GPS fix, or **Enter Manually…** for hand-typed coordinates — plus free-text tags and dated notes. The search field in the sidebar matches name, goal, tags, planned objects, and note text."
+                body: "Both projects and sessions can track a location — **Use Current Location** for a GPS fix, or **Enter Manually…** for hand-typed coordinates — plus free-text tags and dated notes, settable from the browser without needing to run the session first. The search field in the sidebar matches name, goal, tags, planned objects, and note text."
             ),
             HelpSection(
                 id: "setting.aiPlanning", heading: "Ask AI to Plan…",
                 body: "Type a one-line goal and this sends it to a **local Ollama server** (nothing leaves your machine) for a suggested name, goal, and session list. Nothing is created until you review the suggestion and click **Create Sessions**/**Apply**. Requires Ollama running locally — see [ollama.com](https://ollama.com) — the button still works without it, it just reports it couldn't reach the server."
-            ),
-            HelpSection(
-                heading: "First run",
-                body: "Opening the app with zero projects on disk creates an empty untitled one and opens this browser automatically. Nothing is saved to disk until you actually give it a name — closing the app without naming it leaves no trace."
             ),
         ]
     )

@@ -1,17 +1,18 @@
 import SwiftUI
 
-/// The iMovie-style "library" window for the Projects feature: a three-column browser —
-/// projects, that project's sessions, the selected session's own detail/timeline — presented as
-/// a sheet from `ContentView` (this app is deliberately single-window; see `SkyformacApp`'s doc
-/// comments) rather than a second `Scene`.
+/// The iMovie-style "library" for the Projects feature — and, since `RootView` shows this
+/// whenever no session is running, the app's actual main-window content until one is: a
+/// three-column browser (projects, that project's sessions, the selected session's own detail/
+/// timeline). Creating a project is the one thing that still happens in a small modal
+/// (`NewProjectSheet`) — everything else here is the main window itself, not a sheet.
 struct ProjectsBrowserView: View {
     var cameraManager: CameraManager
-    @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
     @State private var selectedProjectID: Project.ID?
     @State private var selectedSessionID: Session.ID?
     @State private var showArchived = false
+    @State private var isShowingNewProjectSheet = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
@@ -36,7 +37,8 @@ struct ProjectsBrowserView: View {
         NavigationSplitView {
             ProjectSidebarView(
                 projects: visibleProjects, searchText: $searchText, showArchived: $showArchived,
-                selection: $selectedProjectID, library: library
+                selection: $selectedProjectID, activeProjectID: cameraManager.activeProject?.id,
+                onNewProject: { isShowingNewProjectSheet = true }
             )
         } content: {
             if let project = selectedProject {
@@ -44,7 +46,10 @@ struct ProjectsBrowserView: View {
                     project: project, cameraManager: cameraManager, selectedSessionID: $selectedSessionID
                 )
             } else {
-                ContentUnavailableView("No Project Selected", systemImage: "folder")
+                ContentUnavailableView(
+                    "No Project Selected", systemImage: "folder",
+                    description: Text(library.projects.isEmpty ? "Create a project to get started." : "Select a project from the list.")
+                )
             }
         } detail: {
             if let project = selectedProject, let session = selectedSession {
@@ -53,20 +58,24 @@ struct ProjectsBrowserView: View {
                 ContentUnavailableView("No Session Selected", systemImage: "calendar")
             }
         }
-        .navigationTitle("Projects")
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Close") { dismiss() }
+        .navigationTitle("Skyformac Projects")
+        .frame(minWidth: 980, minHeight: 620)
+        .sheet(isPresented: $isShowingNewProjectSheet) {
+            NewProjectSheet(cameraManager: cameraManager) { project in
+                selectedProjectID = project.id
             }
         }
-        .frame(minWidth: 1240, idealWidth: 1440, minHeight: 640, idealHeight: 780)
         .onAppear {
-            library.ensureAtLeastOneProjectExists()
-            if let pending = cameraManager.pendingProjectSelectionID {
-                selectedProjectID = pending
-                cameraManager.pendingProjectSelectionID = nil
-            } else if selectedProjectID == nil {
-                selectedProjectID = library.projects.first?.id
+            if selectedProjectID == nil {
+                selectedProjectID = cameraManager.activeProject?.id ?? library.projects.first?.id
+            }
+            if selectedSessionID == nil, let lastEnded = cameraManager.lastEndedSessionID {
+                selectedSessionID = lastEnded
+                cameraManager.lastEndedSessionID = nil
+            }
+            if cameraManager.isCreatingNewProjectRequested {
+                cameraManager.isCreatingNewProjectRequested = false
+                isShowingNewProjectSheet = true
             }
         }
     }
@@ -77,12 +86,13 @@ private struct ProjectSidebarView: View {
     @Binding var searchText: String
     @Binding var showArchived: Bool
     @Binding var selection: Project.ID?
-    let library: ProjectsLibrary
+    let activeProjectID: Project.ID?
+    var onNewProject: () -> Void
 
     var body: some View {
         List(selection: $selection) {
             ForEach(projects) { project in
-                ProjectRow(project: project).tag(project.id)
+                ProjectRow(project: project, isOpen: project.id == activeProjectID).tag(project.id)
             }
         }
         .searchable(text: $searchText, prompt: "Search goal, objects, tags…")
@@ -91,30 +101,75 @@ private struct ProjectSidebarView: View {
                 Toggle("Show Archived", systemImage: "archivebox", isOn: $showArchived)
             }
             ToolbarItem {
-                Button("New Project", systemImage: "plus") {
-                    let project = library.createProject()
-                    selection = project.id
-                }
+                Button("New Project…", systemImage: "plus", action: onNewProject)
             }
         }
-        .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 260)
     }
 }
 
 private struct ProjectRow: View {
     let project: Project
+    let isOpen: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(project.name.isEmpty ? "Untitled Project" : project.name)
-                .font(.headline)
-                .foregroundStyle(project.name.isEmpty ? .secondary : .primary)
-            if !project.goal.isEmpty {
-                Text(project.goal).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(project.name.isEmpty ? "Untitled Project" : project.name)
+                    .font(.headline)
+                if !project.goal.isEmpty {
+                    Text(project.goal).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Text("\(project.sessions.count) session\(project.sessions.count == 1 ? "" : "s")")
+                    .font(.caption2).foregroundStyle(.tertiary)
             }
-            Text("\(project.sessions.count) session\(project.sessions.count == 1 ? "" : "s")")
-                .font(.caption2).foregroundStyle(.tertiary)
+            if isOpen {
+                Spacer()
+                Image(systemName: "record.circle.fill").foregroundStyle(.red).font(.caption)
+            }
         }
         .opacity(project.isArchived ? 0.5 : 1)
+    }
+}
+
+/// The one modal in the Projects feature: collects a required name (and an optional goal) before
+/// creating anything — there's no more "unnamed project" that exists in the browser waiting to be
+/// named later, since the project name needs to be visible everywhere from the moment it exists.
+private struct NewProjectSheet: View {
+    var cameraManager: CameraManager
+    var onCreate: (Project) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var goal = ""
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("New Project").font(.headline)
+            TextField("Name", text: $name, prompt: Text("e.g. Messier Marathon"))
+                .onSubmit(create)
+            TextField("Goal (optional)", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
+            Spacer()
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Create") { create() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 360, height: 200)
+    }
+
+    private func create() {
+        guard !trimmedName.isEmpty else { return }
+        let project = cameraManager.projectsLibrary.createProject(name: trimmedName, goal: goal)
+        try? cameraManager.projectsLibrary.save(project)
+        onCreate(project)
+        dismiss()
     }
 }

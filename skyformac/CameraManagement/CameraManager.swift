@@ -1063,37 +1063,98 @@ final class CameraManager {
 
     // MARK: - Active project/session
 
-    /// Where captures go once a project/session is active — see `recordActiveSessionCapture`.
-    /// Not `@ObservationIgnored`: `ProjectsBrowserView` etc. observe `activeProject`/`activeSession`
-    /// directly, but `projectStore` itself never changes after init, so it doesn't need to.
+    /// `activeSession == nil` is the one gate `RootView` checks to decide whether to show the
+    /// Projects browser or the camera `ContentView` — a session's actual *execution* is the
+    /// camera UI, browsing a project and its sessions (even with a project "open" as context via
+    /// `activeProject` alone) stays in the browser. Not `@ObservationIgnored`:
+    /// `RootView`/`ProjectsBrowserView` etc. observe both directly, but `projectStore` itself
+    /// never changes after init, so it doesn't need to.
     let projectStore: ProjectStore
     let locationProvider: CoreLocationProvider
     let projectsLibrary: ProjectsLibrary
     let ollamaPlanner: OllamaPlanner
     var activeProject: Project?
     var activeSession: Session?
-    var isProjectsBrowserPresented = false
-    /// Set by `newProject()` right before opening the browser, so `ProjectsBrowserView` selects
-    /// the just-created project instead of whatever it last had selected (or the top of the
-    /// list) — consumed (set back to `nil`) the moment the browser reads it.
-    var pendingProjectSelectionID: Project.ID?
+    /// Set by `endActiveSession()` right before clearing `activeSession`, so
+    /// `ProjectsBrowserView.onAppear` can re-select that same session (showing its now-updated
+    /// history) instead of landing on the project's session list with nothing selected. Consumed
+    /// (set back to `nil`) the moment it does.
+    var lastEndedSessionID: Session.ID?
+    /// Set by `newProject()`/File → "New Project…" to ask `ProjectsBrowserView` to open its
+    /// creation sheet as soon as it (re)appears — consumed (set back to `false`) the moment it
+    /// does. `newProject()` itself doesn't create anything; the sheet collects a name first (see
+    /// `NewProjectSheet` — creating a project always requires one now, there's no more
+    /// unnamed-until-later project).
+    var isCreatingNewProjectRequested = false
 
-    /// Makes `session` (within `project`) the destination for future captures — see
-    /// `recordActiveSessionCapture`. Passing `session: nil` keeps the project active but stops
-    /// filing captures into any particular session's folder (they'll still hit
-    /// `ProjectsLibrary`'s in-memory copy of `project` once a session is picked again).
+    /// Makes `session` (within `project`) the destination for future captures, and — since a
+    /// non-`nil` `session` becomes `activeSession` — what `RootView` shows the camera UI for
+    /// (running it). Passing `session: nil` stays in the browser: with a non-`nil` `project` that
+    /// just sets which project new sessions/location edits apply to by default; `project: nil`
+    /// (e.g. `ContentView`'s "Switch Project" action, or the File menu) drops that too.
     func setActive(project: Project?, session: Session?) {
         activeProject = project
         activeSession = session
     }
 
-    /// "File → New Project…" — creates a new (purely in-memory, unnamed until saved — see
-    /// `ProjectsLibrary`) project and opens the browser straight to it, the same starting point
-    /// as the toolbar's "Projects…" button but for someone who'd rather use the menu bar.
+    /// Stops running the active session and returns to the Projects browser — but, unlike
+    /// `setActive(project:nil, session:nil)`, keeps `activeProject` set, so the browser reopens
+    /// with that same project (and, via `lastEndedSessionID`, that same session's now-updated
+    /// history) already showing instead of the top of the project list.
+    func endActiveSession() {
+        lastEndedSessionID = activeSession?.id
+        activeSession = nil
+    }
+
+    /// `true` once there's a session immediately after the active one in `activeProject.sessions`
+    /// (list order — the same order the browser shows them in) — callers use this to disable
+    /// "Open Next Session" rather than have it silently do nothing.
+    var hasNextSession: Bool {
+        guard let project = activeProject, let session = activeSession,
+              let index = project.sessions.firstIndex(where: { $0.id == session.id })
+        else { return false }
+        return index + 1 < project.sessions.count
+    }
+
+    /// Moves straight to the next session in the active project without a trip back through the
+    /// browser — a no-op (not a wraparound) once there is none; see `hasNextSession`.
+    func openNextSession() {
+        guard let project = activeProject, let session = activeSession,
+              let index = project.sessions.firstIndex(where: { $0.id == session.id }),
+              index + 1 < project.sessions.count
+        else { return }
+        activeSession = project.sessions[index + 1]
+    }
+
+    /// Adds a new session to the active project — the same "New Session" default name
+    /// `ProjectDetailPane`'s own "Add Session" button uses — without leaving whatever's currently
+    /// running; the new session shows up once the browser is reopened, it doesn't become active
+    /// on its own.
+    @discardableResult
+    func createSessionInActiveProject() -> Session? {
+        guard let project = activeProject else { return nil }
+        let session = Session.newSession(name: "New Session")
+        guard let updated = try? projectsLibrary.addSession(session, to: project) else { return nil }
+        activeProject = updated
+        return session
+    }
+
+    /// Deletes the active session (there's nothing left to run) and returns to the browser on the
+    /// same project, same as `endActiveSession()`.
+    func deleteActiveSession() {
+        guard let project = activeProject, let session = activeSession else { return }
+        try? projectsLibrary.deleteSession(session.id, in: project)
+        activeProject = projectsLibrary.projects.first { $0.id == project.id }
+        activeSession = nil
+    }
+
+    /// "File → New Project…" — returns to the Projects browser (if a session was running) and
+    /// asks it to open its creation sheet immediately, the same starting point as the
+    /// toolbar/sidebar "New Project" button but for someone who'd rather use the menu bar.
     func newProject() {
-        let project = projectsLibrary.createProject()
-        pendingProjectSelectionID = project.id
-        isProjectsBrowserPresented = true
+        activeProject = nil
+        activeSession = nil
+        isCreatingNewProjectRequested = true
     }
 
     private var serRecordingURL: URL?
@@ -1107,57 +1168,52 @@ final class CameraManager {
         self.projectsLibrary = ProjectsLibrary(store: projectStore)
         self.ollamaPlanner = ollamaPlanner
         refreshCameraList()
-        // iMovie-style first-run: with no projects on disk at all (a fresh install, or every
-        // project was since deleted), greet the user with the browser already open on a fresh
-        // untitled project instead of a camera view with no obvious way to discover Projects.
-        // Existing users with real projects see their usual camera view — the browser stays an
-        // opt-in sheet, matching every other secondary view in this app.
-        if projectsLibrary.projects.isEmpty {
-            projectsLibrary.ensureAtLeastOneProjectExists()
-            isProjectsBrowserPresented = true
-        }
+        // `activeProject` starts `nil` on every launch, full stop — there's no "resume last
+        // project" persistence, deliberately: it's what makes the Projects browser the app's
+        // actual landing screen every time (see `RootView`), the same "session state always
+        // starts fresh" philosophy `AppSettings`'s doc comment already applies to
+        // `isLiveStackingEnabled`/`darkFrame`/etc.
     }
 
     /// Fetches a GPS fix and saves it on whichever of `activeSession`/`activeProject` (session
     /// takes precedence — a project's own `location` is meant as more of a "usual site" default,
     /// see `GeoLocation`'s doc comment) is currently active. A no-op with no active project.
-    func useCurrentLocationForActiveSession() {
-        guard var project = activeProject else { return }
+    func useCurrentLocation(for project: Project, session: Session?) {
         locationProvider.requestCurrentLocation { [weak self] location in
             guard let self, let location else { return }
-            if var session = self.activeSession, let index = project.sessions.firstIndex(where: { $0.id == session.id }) {
-                session.location = location
-                project.sessions[index] = session
-                self.activeSession = session
-            } else {
-                project.location = location
-            }
-            self.activeProject = project
-            try? self.projectsLibrary.save(project)
+            self.applyLocation(location, to: project, session: session)
         }
     }
 
-    /// Sets a hand-entered location (see `GeoLocation.manual`) on the active session, or the
-    /// active project if no session is active. Returns `false` (and does nothing) for an
-    /// out-of-range latitude/longitude, or when no project is active at all.
+    /// Sets a hand-entered location (see `GeoLocation.manual`) on `session` if given, else on
+    /// `project` itself. Returns `false` (and does nothing) for an out-of-range latitude/longitude.
     @discardableResult
-    func setManualLocationForActiveSession(latitude: Double, longitude: Double, name: String?) -> Bool {
-        guard var project = activeProject, let location = GeoLocation.manual(latitude: latitude, longitude: longitude, name: name)
-        else { return false }
-        if var session = activeSession, let index = project.sessions.firstIndex(where: { $0.id == session.id }) {
-            session.location = location
-            project.sessions[index] = session
-            activeSession = session
+    func setManualLocation(for project: Project, session: Session?, latitude: Double, longitude: Double, name: String?) -> Bool {
+        guard let location = GeoLocation.manual(latitude: latitude, longitude: longitude, name: name) else { return false }
+        applyLocation(location, to: project, session: session)
+        return true
+    }
+
+    /// Shared by both location setters above — persists `location` on `session` (if given) or
+    /// `project`, via `ProjectsLibrary` (not `setActive`: setting a location must never itself
+    /// open a project into the camera view, so this only mirrors the edit into
+    /// `activeProject`/`activeSession` when `project` already happens to be the open one).
+    private func applyLocation(_ location: GeoLocation, to project: Project, session: Session?) {
+        var updated = project
+        if let session, let index = updated.sessions.firstIndex(where: { $0.id == session.id }) {
+            updated.sessions[index].location = location
         } else {
-            project.location = location
+            updated.location = location
         }
-        activeProject = project
         do {
-            try projectsLibrary.save(project)
+            try projectsLibrary.save(updated)
         } catch {
             lastErrorMessage = String(describing: error)
+            return
         }
-        return true
+        guard activeProject?.id == updated.id else { return }
+        activeProject = updated
+        if let session { activeSession = updated.sessions.first(where: { $0.id == session.id }) }
     }
 
     /// Re-scans for connected ASI cameras. Safe to call with zero cameras attached.

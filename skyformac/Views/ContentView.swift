@@ -13,6 +13,17 @@ struct ContentView: View {
     /// the actual sensor image never does.
     private var nightTint: Color { cameraManager.isNightModeEnabled ? .red : .white }
 
+    /// The open project's (and, if one's active, session's) name — shown in the window's own
+    /// title bar. Falls back to a generic title only in the (never actually reachable, since
+    /// `RootView` gates this whole view on `activeProject` being non-`nil`) case it's somehow
+    /// `nil` here anyway.
+    private var windowTitle: String {
+        guard let project = cameraManager.activeProject else { return "skyformac" }
+        let projectName = project.name.isEmpty ? "Untitled Project" : project.name
+        guard let session = cameraManager.activeSession else { return projectName }
+        return "\(projectName) — \(session.name)"
+    }
+
     var body: some View {
         Group {
             if cameraManager.isPreviewFullScreenEnabled {
@@ -40,12 +51,6 @@ struct ContentView: View {
             set: { cameraManager.isAcquisitionWizardPresented = $0 }
         )) {
             AcquisitionWizardView(cameraManager: cameraManager)
-        }
-        .sheet(isPresented: Binding(
-            get: { cameraManager.isProjectsBrowserPresented },
-            set: { cameraManager.isProjectsBrowserPresented = $0 }
-        )) {
-            ProjectsBrowserView(cameraManager: cameraManager)
         }
     }
 
@@ -173,7 +178,29 @@ struct ContentView: View {
             }
         }
         .compositingGroup()
+        .navigationTitle(windowTitle)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                // The active project's and session's name — always visible here and in the
+                // window title bar itself (see `windowTitle`), never tucked away behind a sheet
+                // you have to reopen to remember what you're running. Also every session-lifecycle
+                // action: this app has no camera UI without a running session (see `RootView`),
+                // so managing that session (ending it, moving to the next one, adding another,
+                // deleting this one) has to be reachable from right here, not just the browser.
+                Menu {
+                    Button("End Session", systemImage: "stop.circle") { cameraManager.endActiveSession() }
+                    Button("Open Next Session", systemImage: "arrow.right.circle") { cameraManager.openNextSession() }
+                        .disabled(!cameraManager.hasNextSession)
+                    Button("New Session in Project", systemImage: "plus.circle") { cameraManager.createSessionInActiveProject() }
+                    Divider()
+                    Button("Delete This Session", systemImage: "trash", role: .destructive) { cameraManager.deleteActiveSession() }
+                    Divider()
+                    Button("Switch Project", systemImage: "folder") { cameraManager.setActive(project: nil, session: nil) }
+                } label: {
+                    Label(windowTitle, systemImage: "folder")
+                }
+                .help("Session actions — end, open the next one, add a new session, delete this one, or switch project")
+            }
             ToolbarItem(placement: .principal) {
                 imageTypePicker
             }
@@ -192,12 +219,6 @@ struct ContentView: View {
                     ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
                     : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
                 .accessibilityIdentifier("RenderPathToggle")
-            }
-            ToolbarItem {
-                Button("Projects…", systemImage: "folder") {
-                    cameraManager.isProjectsBrowserPresented = true
-                }
-                .help("Browse observation projects and sessions — plan, capture, and review their timelines")
             }
             ToolbarItem {
                 Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(

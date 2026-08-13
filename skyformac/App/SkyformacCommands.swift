@@ -31,8 +31,9 @@ struct SkyformacCommands: Commands {
             Divider()
             Button("New Project…") { cameraManager.newProject() }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
-            Button("Open Projects…") { cameraManager.isProjectsBrowserPresented = true }
+            Button("Switch Project…") { cameraManager.setActive(project: nil, session: nil) }
                 .keyboardShortcut("o", modifiers: .command)
+                .disabled(cameraManager.activeProject == nil)
 
             Divider()
             Button("Export as FITS…") { cameraManager.exportCurrentFrame(as: .fits) }
@@ -75,6 +76,23 @@ struct SkyformacCommands: Commands {
             Button("Load Preset…") { cameraManager.loadAndApplyAcquisitionPreset() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
                 .disabled(cameraManager.connectedCamera == nil)
+        }
+
+        CommandMenu("Session") {
+            Button("End Session") { cameraManager.endActiveSession() }
+                .keyboardShortcut(".", modifiers: .command)
+                .disabled(cameraManager.activeSession == nil)
+            Button("Open Next Session") { cameraManager.openNextSession() }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .shift])
+                .disabled(!cameraManager.hasNextSession)
+
+            Divider()
+
+            Button("New Session in Project") { cameraManager.createSessionInActiveProject() }
+                .keyboardShortcut("n", modifiers: [.command, .control])
+                .disabled(cameraManager.activeProject == nil)
+            Button("Delete This Session") { cameraManager.deleteActiveSession() }
+                .disabled(cameraManager.activeSession == nil)
         }
 
         CommandMenu("Sidebar Tab") {

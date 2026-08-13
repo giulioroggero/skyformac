@@ -22,22 +22,15 @@ final class ProjectsLibrary {
         projects = store.loadAllProjects().sorted { $0.createdDate > $1.createdDate }
     }
 
-    /// Adds a new, purely in-memory project — nothing is written to disk until a later `save(_:)`
-    /// call finds it has a non-empty name. Mirrors iMovie's "you always have a project open, you
-    /// just haven't named/saved it yet" first-run behavior (see `ensureAtLeastOneProjectExists`).
+    /// Adds a new, purely in-memory project. `NewProjectSheet` is the only caller — it always
+    /// passes a non-empty `name`, so the very next `save(_:)` call (which it also makes) persists
+    /// it immediately; `createProject`/`save` stay separate calls anyway so tests can create
+    /// without touching disk when that's all they need.
     @discardableResult
     func createProject(name: String = "", goal: String = "") -> Project {
         let project = Project.newProject(name: name, goal: goal)
         projects.insert(project, at: 0)
         return project
-    }
-
-    /// Called once at app launch: if there are no projects at all yet (a fresh install, or every
-    /// prior project was deleted), creates the empty untitled one so the browser is never just
-    /// blank with no way to start.
-    func ensureAtLeastOneProjectExists() {
-        guard projects.isEmpty else { return }
-        createProject()
     }
 
     /// Persists `project` — but only once it has a real name; an unnamed project is updated in

@@ -9,25 +9,6 @@ struct ProjectsLibraryTests {
         return (ProjectsLibrary(store: ProjectStore(rootDirectory: root)), root)
     }
 
-    @Test func ensureAtLeastOneProjectExistsCreatesAnUnnamedProjectWhenEmpty() {
-        let (library, root) = makeLibrary()
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        #expect(library.projects.isEmpty)
-        library.ensureAtLeastOneProjectExists()
-        #expect(library.projects.count == 1)
-        #expect(library.projects.first?.name == "")
-    }
-
-    @Test func ensureAtLeastOneProjectExistsIsANoOpWhenProjectsAlreadyExist() {
-        let (library, root) = makeLibrary()
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        library.createProject(name: "Existing")
-        library.ensureAtLeastOneProjectExists()
-        #expect(library.projects.count == 1)
-    }
-
     @Test func savingAnUnnamedProjectNeverTouchesDisk() throws {
         let (library, root) = makeLibrary()
         defer { try? FileManager.default.removeItem(at: root) }

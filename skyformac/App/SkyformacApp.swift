@@ -18,9 +18,10 @@ struct SkyformacApp: App {
     var body: some Scene {
         // Single-window app on purpose — Help is a `.sheet` on `ContentView` (driven by
         // `cameraManager.isHelpPresented`), not a second `Window` scene, so there's never a
-        // second entry in the Window menu/Mission Control to manage.
+        // second entry in the Window menu/Mission Control to manage. `RootView` swaps between the
+        // Projects browser and `ContentView` in place, in this same window, for the same reason.
         WindowGroup {
-            ContentView()
+            RootView()
                 .environment(cameraManager)
         }
         .defaultSize(width: 1100, height: 720)

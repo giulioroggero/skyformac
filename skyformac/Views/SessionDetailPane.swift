@@ -33,10 +33,11 @@ struct SessionDetailPane: View {
                     .onChange(of: plannedObjectsText) { _, _ in savePlannedObjects() }
                 LocationEditorView(project: project, session: session, cameraManager: cameraManager)
                 HStack {
-                    Button(isActive ? "This Session Is Active" : "Set as Active Session", systemImage: "record.circle") {
+                    Button(isActive ? "Running Now" : "Run This Session", systemImage: "record.circle") {
                         cameraManager.setActive(project: project, session: session)
                     }
                     .disabled(isActive)
+                    .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
                     Spacer()
                     Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningSession = true }
                 }

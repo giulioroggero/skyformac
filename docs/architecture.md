@@ -81,12 +81,15 @@ What's in each part of the codebase, folder by folder.
 - **`skyformac/App/`** — `SkyformacApp` (the `@main` entry point) and
   `SkyformacCommands` (menu bar commands: export, camera connect/rescan,
   toolbar toggles, all with keyboard shortcuts).
-- **`skyformac/Views/`** — SwiftUI. `ControlsPanelView` has a `ControlMode`
-  picker (General/Planetary/Deep Sky/All Tools) filtering which of its tool
-  sections show, via `ToolSection`. `ProjectsBrowserView` (a three-column
-  `NavigationSplitView` — projects, sessions, session detail — presented as
-  a sheet, not a second `Scene`, per `SkyformacApp`'s single-window design)
-  plus `ProjectDetailPane`/`SessionDetailPane`/`TimelineStripView`/
+- **`skyformac/Views/`** — SwiftUI. `RootView` is `SkyformacApp`'s actual
+  `WindowGroup` content — it swaps between `ProjectsBrowserView` and
+  `ContentView` in the same window based on `CameraManager.activeSession`,
+  never a second `Scene` (per `SkyformacApp`'s single-window design).
+  `ControlsPanelView` has a `ControlMode` picker (General/Planetary/Deep
+  Sky/All Tools) filtering which of its tool sections show, via
+  `ToolSection`. `ProjectsBrowserView` (a three-column `NavigationSplitView`
+  — projects, sessions, session detail) plus
+  `ProjectDetailPane`/`SessionDetailPane`/`TimelineStripView`/
   `AIPlanSheets` are the Projects feature's UI, built on
   `skyformac/Projects/`'s model layer.
 - **`skyformacTests/`** — unit tests (Swift Testing) covering every piece of

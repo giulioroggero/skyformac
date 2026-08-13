@@ -290,12 +290,21 @@ the spec's five features are declined rather than faked)
 
 **Observation Projects**
 (see [`docs/design-notes.md`](design-notes.md) for the folder-per-project/
-session persistence design and the first-run/autosave flow)
-- **Projects and sessions** — a project groups observation sessions under a
-  shared goal and optional planned date range; each session plans its own
-  goal, objects (e.g. "M13, M57, Saturn"), and date. Create, rename, add
-  sessions to, archive, and delete either one from the Projects browser
-  (toolbar → "Projects…").
+session persistence design and the browser-as-main-window architecture)
+- **The Projects browser is the app's main window** — there's no camera UI
+  reachable without a running session: the window shows the projects
+  browser (project → session → history) whenever no session is active, and
+  switches to the camera view only once one is actually running. A project
+  groups sessions under a shared goal and optional planned date range; each
+  session plans its own goal, objects (e.g. "M13, M57, Saturn"), and date.
+- **Create/run/manage** — "New Project…" (sidebar, toolbar, or ⌘⇧N) is the
+  one modal in the feature — it requires a name up front, so the project's
+  name is always visible from the moment it exists. Clicking a session that
+  has no captures yet runs it directly (switches to the camera view);
+  clicking one that's already been run shows its history instead. While
+  running, the toolbar's project/session menu (and `CommandMenu("Session")`)
+  covers End Session, Open Next Session, New Session in Project, and
+  Delete This Session without a trip back to the browser.
 - **One folder per project/session** — every project gets its own folder
   under `~/Documents/Skyformac Projects/`, with one subfolder per session
   holding that session's actual capture files, a `Thumbnails/` folder, and
@@ -306,11 +315,12 @@ session persistence design and the first-run/autosave flow)
   already being exported), the iMovie-style browsing this feature is built
   around.
 - **Active session capture filing** — exporting a frame or finishing a SER
-  recording while a session is active also files a copy of it into that
+  recording while a session is running also files a copy of it into that
   session's timeline, alongside the normal Export History.
 - **Location** — GPS (`CoreLocationProvider`, one fix per request) or
   hand-entered coordinates, tracked independently on a project and each of
-  its sessions.
+  its sessions — settable from the browser without needing to run the
+  session first.
 - **Tags, notes, and search** — free-text annotations and tags on both
   projects and sessions; a single search box matches name, goal, tags,
   planned/observed objects, and note text, optionally narrowed to a date
@@ -319,9 +329,6 @@ session persistence design and the first-run/autosave flow)
   local Ollama server (`OllamaPlanner`) and shows the suggested session(s)
   before anything is created; no cloud dependency, matches this app's
   everything-runs-locally stance.
-- **First run** — opening the app with zero projects on disk creates an
-  empty untitled one and opens the Projects browser automatically; nothing
-  is written to disk until it's actually named.
 
 **Monitoring & UI**
 - **All-Sky / rig monitor** — picture-in-picture feed from a secondary webcam

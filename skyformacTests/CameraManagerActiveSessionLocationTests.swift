@@ -10,53 +10,61 @@ struct CameraManagerActiveSessionLocationTests {
         return (manager, root)
     }
 
-    @Test func setManualLocationDoesNothingWithNoActiveProject() {
-        let (manager, root) = makeManager()
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        #expect(!manager.setManualLocationForActiveSession(latitude: 45, longitude: 7, name: "Backyard"))
-    }
-
     @Test func setManualLocationRejectsOutOfRangeCoordinates() {
         let (manager, root) = makeManager()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        manager.activeProject = Project.newProject(name: "Test Project")
-        #expect(!manager.setManualLocationForActiveSession(latitude: 200, longitude: 7, name: nil))
+        let project = Project.newProject(name: "Test Project")
+        #expect(!manager.setManualLocation(for: project, session: nil, latitude: 200, longitude: 7, name: nil))
     }
 
-    @Test func setManualLocationOnAProjectWithNoActiveSessionSetsTheProjectLocation() throws {
+    @Test func setManualLocationOnAProjectWithNoSessionSetsTheProjectLocation() throws {
         let (manager, root) = makeManager()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        manager.activeProject = Project.newProject(name: "Test Project")
-        #expect(manager.setManualLocationForActiveSession(latitude: 45.07, longitude: 7.68, name: "Backyard"))
-
-        let location = try #require(manager.activeProject?.location)
-        #expect(location.source == .manual)
-        #expect(location.displayName == "Backyard")
+        let project = Project.newProject(name: "Test Project")
+        #expect(manager.setManualLocation(for: project, session: nil, latitude: 45.07, longitude: 7.68, name: "Backyard"))
 
         let reloaded = manager.projectStore.loadAllProjects().first
         #expect(reloaded?.location?.displayName == "Backyard")
     }
 
-    @Test func setManualLocationWithAnActiveSessionSetsTheSessionLocationNotTheProjectLocation() throws {
+    @Test func setManualLocationWithASessionSetsTheSessionLocationNotTheProjectLocation() throws {
         let (manager, root) = makeManager()
         defer { try? FileManager.default.removeItem(at: root) }
 
         var project = Project.newProject(name: "Test Project")
         let session = Session.newSession(name: "Night 1")
         project.sessions = [session]
-        manager.activeProject = project
-        manager.activeSession = session
 
-        #expect(manager.setManualLocationForActiveSession(latitude: 45.07, longitude: 7.68, name: "Dark Sky Site"))
-
-        #expect(manager.activeProject?.location == nil)
-        let sessionLocation = try #require(manager.activeSession?.location)
-        #expect(sessionLocation.displayName == "Dark Sky Site")
+        #expect(manager.setManualLocation(for: project, session: session, latitude: 45.07, longitude: 7.68, name: "Dark Sky Site"))
 
         let reloaded = manager.projectStore.loadAllProjects().first
+        #expect(reloaded?.location == nil)
         #expect(reloaded?.sessions.first?.location?.displayName == "Dark Sky Site")
+    }
+
+    @Test func setManualLocationMirrorsIntoActiveProjectWhenThatProjectIsOpen() throws {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = Project.newProject(name: "Open Project")
+        manager.setActive(project: project, session: nil)
+
+        #expect(manager.setManualLocation(for: project, session: nil, latitude: 45.07, longitude: 7.68, name: "Backyard"))
+
+        #expect(manager.activeProject?.location?.displayName == "Backyard")
+    }
+
+    @Test func setManualLocationDoesNotOpenAnUnrelatedProject() throws {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = Project.newProject(name: "Not Open")
+        #expect(manager.activeProject == nil)
+
+        #expect(manager.setManualLocation(for: project, session: nil, latitude: 45.07, longitude: 7.68, name: "Backyard"))
+
+        #expect(manager.activeProject == nil)
     }
 }

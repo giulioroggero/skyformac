@@ -1678,15 +1678,62 @@ made along the way.
     wrapped in prose or a ` ```json ` fence (smaller local models don't reliably follow "respond
     with only JSON") by taking the substring between the first `{` and the last `}` rather than
     parsing the whole reply as JSON directly.
-  - **`ProjectsLibrary`** is what makes the first-run flow (an app launch with zero projects on
-    disk auto-creates an empty untitled one, and opens the Projects browser directly, per
-    `CameraManager.init`) actually work: `save(_:)` updates the in-memory list unconditionally but
-    only calls `ProjectStore.save` — touching disk at all — once a project has a non-empty name.
-    An unnamed project's edits (adding a session, say) are never lost, but nothing about it exists
-    as a file until it's named, so a user who opens the app and closes it again without naming
-    anything leaves zero trace on disk.
-  - **`ProjectsBrowserView`** is a fourth `.sheet` on `ContentView`, not a second `Scene` —
+  - **`ProjectsLibrary.save(_:)`** updates its in-memory list unconditionally but only calls
+    `ProjectStore.save` — touching disk at all — once a project has a non-empty name. (Originally
+    this backed an auto-created "empty untitled project" at every launch with zero projects on
+    disk; that's since been replaced by `NewProjectSheet` always collecting a name up front — see
+    the later entry below — but `save`'s own "don't persist the unnamed case" guard stayed, since
+    a project can still exist purely in a view's local state for a moment before its first save.)
+  - **`ProjectsBrowserView`** was originally a fourth `.sheet` on `ContentView`, not a second
+    `Scene` —
     `SkyformacApp` disables window tabbing and removes the default "New Window" command
     specifically to stay single-window (see the Histogram/Curves detachable-panel entry above for
     the same constraint solved with an `NSPanel` instead), so a Projects "window" had to be a sheet
     like Help/Export/the Acquisition Wizard rather than a new top-level window.
+
+- **Observation Projects, take two: the browser becomes the main window, running a session
+  becomes the one thing that switches to the camera view.** The sheet-based Projects browser
+  above worked, but buried the actual hierarchy this feature is about — project → session →
+  session *execution* — behind a modal you had to remember to open, with the camera view as the
+  app's real default. Inverted that: the app now can't show any camera UI without a session
+  actually running.
+  - **`RootView`** (new) is `SkyformacApp`'s `WindowGroup` content now, not `ContentView` directly
+    — it swaps between `ProjectsBrowserView` and `ContentView` in the same window based on one
+    condition: `CameraManager.activeSession == nil`. Browsing projects, seeing a project's own
+    history/sessions, even having a project "open" as context (`activeProject` set,
+    `activeSession` still `nil`) all stay on the browser side of that gate — only a session
+    actually running moves to the camera view. This is what "the application cannot run without a
+    project" turned into structurally: there's no code path into `ContentView` that doesn't go
+    through a real `Session`.
+  - **Creating a project always goes through `NewProjectSheet`** now — the one remaining modal in
+    the whole feature. There's no more unnamed project sitting in the browser waiting to be named
+    later (see the corrected `ProjectsLibrary.save` note above); a name is required before anything
+    exists at all, which is also what makes "the project name must always be visible" trivially
+    true — it's never blank to begin with. `CameraManager.newProject()` just clears
+    `activeProject`/`activeSession` and sets a one-shot `isCreatingNewProjectRequested` flag for
+    `ProjectsBrowserView.onAppear` to consume, rather than creating anything itself.
+  - **Clicking a session in `ProjectDetailPane` branches on whether it has any captures yet** —
+    empty (`session.captures.isEmpty`) means "never run," so the click calls
+    `CameraManager.setActive(project:session:)` directly (which flips `RootView`'s gate and runs
+    it); non-empty selects it in the browser instead, showing its timeline as history in
+    `SessionDetailPane` — "Run This Session" there still starts/resumes it on purpose, for
+    whenever picking up a previously-run session to capture more is genuinely what's wanted.
+  - **`CameraManager.endActiveSession()`** clears only `activeSession`, not `activeProject` —
+    landing back on the *same* project's session list (via `lastEndedSessionID`, which
+    `ProjectsBrowserView.onAppear` reads once to re-select that session too) rather than the top
+    of the whole project list. `setActive(project: nil, session: nil)` ("Switch Project") is the
+    version that actually leaves the project context behind.
+  - **`openNextSession()`/`createSessionInActiveProject()`/`deleteActiveSession()`** exist so the
+    "end session, open the next one, add another, delete this one" cycle a real observing run
+    needs doesn't require a trip back through the browser for each step — all reachable from
+    `ContentView`'s toolbar menu and the new `CommandMenu("Session")` in `SkyformacCommands`.
+  - **Location editing had to stop calling `setActive` as a side effect.** The original
+    `useCurrentLocationForActiveSession()`/`setManualLocationForActiveSession(...)` mutated
+    whatever `activeProject`/`activeSession` already were — harmless when the browser was a sheet
+    over the (unaffected) camera view, but now that `activeSession` is the thing that switches the
+    whole window, `LocationEditorView` calling `setActive` before setting a location would have
+    yanked the user into the camera view just for filling in coordinates on a project they were
+    only browsing. Both are now `useCurrentLocation(for:session:)`/`setManualLocation(for:session:
+    latitude:longitude:name:)`, taking the project/session explicitly instead of relying on
+    whatever's currently active, and only mirroring the edit into `activeProject`/`activeSession`
+    when that happens to already be the open one.
