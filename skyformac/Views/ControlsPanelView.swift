@@ -925,7 +925,7 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private var serRecordingSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Writes every incoming frame, undiscarded, into a single .ser video — the standard format AutoStakkert!3, PIPP, and similar tools expect for their own frame alignment/stacking. Pair with a small Capture ROI above for the classic high-FPS planetary workflow.")
+            Text("Writes every incoming frame into a single .ser video — the standard format AutoStakkert!3, PIPP, and similar tools expect for their own frame alignment/stacking. Pair with a small Capture ROI above for the classic high-FPS planetary workflow. A frame with no real signal at all (every pixel identical — a lost auto-crop lock, a momentary sensor glitch) is skipped rather than written, since a downstream tool's own stacking normalization can fail outright on one.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -936,6 +936,11 @@ struct ControlsPanelView: View {
                 ) {
                     Text(String(format: "Recording… %.0fs / %.0fs · %d frames", cameraManager.serRecordingElapsedSeconds, serRecordingDurationSeconds, cameraManager.serRecordedFrameCount))
                         .font(.caption)
+                }
+                if cameraManager.serSkippedFrameCount > 0 {
+                    Text("\(cameraManager.serSkippedFrameCount) blank frame(s) skipped")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
                 }
                 Button("Stop Recording", role: .destructive) { cameraManager.stopSERRecording() }
             } else {

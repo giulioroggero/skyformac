@@ -892,6 +892,11 @@ final class CameraManager {
     @ObservationIgnored private var serWriter: SERWriter?
     private(set) var isRecordingSERVideo = false
     private(set) var serRecordedFrameCount = 0
+    /// Frames that arrived while recording but weren't written — see `SERWriter.write`'s
+    /// `SERError.blankFrame` doc comment for why a frame can genuinely deserve this instead of
+    /// being written (it isn't a sign anything else is wrong; a real blank frame just never
+    /// makes it into a file every downstream stacking tool can rely on being free of them).
+    private(set) var serSkippedFrameCount = 0
     private(set) var serRecordingElapsedSeconds: Double = 0
     private var serRecordingStartDate: Date?
     private var serRecordingTargetSeconds: Double = 0
@@ -916,6 +921,7 @@ final class CameraManager {
             return
         }
         serRecordedFrameCount = 0
+        serSkippedFrameCount = 0
         serRecordingElapsedSeconds = 0
         serRecordingTargetSeconds = durationSeconds
         serRecordingStartDate = Date()
@@ -947,6 +953,10 @@ final class CameraManager {
         do {
             try serWriter.write(frame)
             serRecordedFrameCount += 1
+        } catch SERWriter.SERError.blankFrame {
+            // Not a real failure — see `SERWriter.write`'s doc comment. Recording continues;
+            // this frame just never makes it into the file.
+            serSkippedFrameCount += 1
         } catch {
             lastErrorMessage = String(describing: error)
             stopSERRecording()

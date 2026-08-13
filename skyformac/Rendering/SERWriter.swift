@@ -19,6 +19,10 @@ final class SERWriter {
         case unsupportedImageType
         case fileCreationFailed
         case frameMismatch
+        /// Every sample byte in the frame is identical — a genuinely blank/flat frame (a Vision
+        /// auto-crop ROI briefly tracking empty sky, a momentary sensor read glitch), not just a
+        /// dim or blurry one. See `write(_:)`'s doc comment for why this is checked at all.
+        case blankFrame
     }
 
     /// SER's `ColorID` field — matches the sensor's actual Bayer pattern (or plain mono/RGB) so a
@@ -98,13 +102,33 @@ final class SERWriter {
     /// given — a mid-recording ROI or format change would otherwise silently corrupt the file
     /// (every frame after the change would be the wrong size for what the header promised), so
     /// this refuses instead.
+    ///
+    /// Also refuses a frame whose bytes are all identical — a real captured frame, even a dim or
+    /// badly out-of-focus one, always has *some* pixel-to-pixel variance (photon shot noise alone
+    /// guarantees it); a perfectly flat frame is degenerate for some other upstream reason (a
+    /// Vision auto-crop ROI momentarily tracking blank sky with nothing bright in it, or a
+    /// transient sensor read glitch), not real signal. Writing one into the file anyway wouldn't
+    /// corrupt the container itself, but this exact case is what made a real recorded `.ser` file
+    /// unusable in Siril: its stacking normalization step computes each frame's MAD (median
+    /// absolute deviation) before combining, and refuses outright — "MAD is null. Statistics
+    /// cannot be computed." — the moment it hits one. Skipping it here means every frame that
+    /// *does* make it into the file is guaranteed usable by that (or any similar) downstream tool.
     func write(_ frame: CapturedFrame) throws {
         let expectedByteCount = width * height * bytesPerPixel * planeCount
         guard frame.width == width, frame.height == height, frame.data.count >= expectedByteCount
         else { throw SERError.frameMismatch }
-        try fileHandle.write(contentsOf: frame.data.prefix(expectedByteCount))
+        let pixelBytes = frame.data.prefix(expectedByteCount)
+        guard Self.hasVariance(pixelBytes) else { throw SERError.blankFrame }
+        try fileHandle.write(contentsOf: pixelBytes)
         frameCount += 1
         frameTimestamps.append(Self.dotNetTicks(for: Date()))
+    }
+
+    /// `false` only when every single byte is identical — early-exits on the first difference, so
+    /// a real (non-degenerate) frame costs only a few comparisons regardless of resolution.
+    private static func hasVariance(_ data: Data.SubSequence) -> Bool {
+        guard let first = data.first else { return false }
+        return data.contains { $0 != first }
     }
 
     /// Writes the timestamp trailer, patches the header's `FrameCount` field (unknown until now —

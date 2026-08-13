@@ -1543,3 +1543,21 @@ made along the way.
   from inside `PreviewView` itself, so those still get the dark-adaptation tint while the image
   underneath them doesn't. `MeshDriftOverlayView`/`AllSkyMonitorView` are likewise left untinted,
   for the same "it's image content, not chrome" reasoning.
+- **A real recorded `.ser` file failed to load in Siril's stacking normalization** ("MAD is null.
+  Statistics cannot be computed." on many scattered frames throughout an otherwise cleanly-loaded
+  566-frame sequence). The container format itself was fine — Siril parsed the frame count and
+  dimensions correctly, so this wasn't a header/offset bug. The actual cause: some individual
+  *frames* were genuinely flat (every pixel byte identical) — a real captured frame, even a badly
+  blurred one, always has some pixel-to-pixel variance from photon shot noise alone, so a
+  perfectly flat one is degenerate for some other upstream reason (a Vision auto-crop ROI
+  momentarily tracking blank sky with nothing bright in it, or a transient sensor read glitch) —
+  and Siril's MAD-based per-frame normalization has no tolerance for one at all.
+  - **Fix**: `SERWriter.write` now scans each frame's raw bytes for any variance at all
+    (`hasVariance`, early-exiting on the first differing byte — negligible cost for any real
+    frame) and throws a new `SERError.blankFrame` instead of writing one that has none.
+    `CameraManager.recordSERFrameIfNeeded` catches that specific case separately from every other
+    `SERWriter` error — it increments a new `serSkippedFrameCount` (shown next to the recording
+    progress) and keeps recording, rather than treating it as the fatal error every *other*
+    `SERError` case still is. The result: every frame that actually makes it into a `.ser` file
+    is now guaranteed to have real per-frame statistics, so this exact failure can't recur
+    regardless of what upstream condition produced the blank frame in the first place.

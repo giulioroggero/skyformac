@@ -365,10 +365,11 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.serRecording", heading: "Record SER Video (planetary/lunar)",
-                body: "ZWO cameras only. Writes every incoming frame, undiscarded, into a single `.ser` video file for a set duration — the standard raw-video container AutoStakkert!3, PIPP, and similar dedicated stacking tools expect, so their own frame alignment and best-frame selection has the full, unfiltered video to work with.",
+                body: "ZWO cameras only. Writes every incoming frame into a single `.ser` video file for a set duration — the standard raw-video container AutoStakkert!3, PIPP, and similar dedicated stacking tools expect, so their own frame alignment and best-frame selection has the full video to work with.",
                 bullets: [
                     "The classic workflow this exists for: set a small **Capture ROI** above for high FPS, a short Live Exposure with Gain adjusted so the histogram sits around 50-60%, record a few minutes of SER video, then align/stack the sharpest 20-30% of frames in AutoStakkert!3 and sharpen with wavelets in RegiStax or AstroSurface — none of which skyformac itself does; it produces the raw input those tools expect.",
-                    "Different from **Record to Disk** (Deep Sky tab): that one gates on a sharpness threshold and writes individual FITS files for unattended, self-curating recording. This one writes everything, because the whole point is handing a dedicated tool the complete video to make its own, better-informed frame selection from.",
+                    "Different from **Record to Disk** (Deep Sky tab): that one gates on a sharpness threshold and writes individual FITS files for unattended, self-curating recording. This one writes everything *usable*, because the whole point is handing a dedicated tool as complete a video as possible to make its own, better-informed frame selection from.",
+                    "The one thing it does skip: a frame with literally no signal at all — every pixel byte identical (a lost auto-crop lock briefly framing blank sky, a momentary sensor read glitch). A real frame, even a badly blurred one, always has some pixel-to-pixel variance; a perfectly flat one is what made a real recorded file fail to load in Siril at all (its stacking normalization computes each frame's statistical spread first and refuses outright — \"MAD is null\" — the moment it hits one). Skipped frames show as a small count next to the recording progress, not silently.",
                 ]
             ),
             HelpSection(

@@ -134,6 +134,63 @@ struct SERWriterTests {
         try writer.close()
     }
 
+    @Test func blankFrameIsRejectedAndNotWritten() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let firstFrame = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RAW8, data: Data([1, 2, 3, 4]))
+        let writer = try SERWriter(
+            firstFrame: firstFrame, isColorCamera: false, bayerPattern: ASI_BAYER_RG, instrumentName: "Test Camera", url: url
+        )
+        // Every byte identical — no real signal at all, the exact shape of frame that made
+        // Siril's stacking normalization fail outright ("MAD is null") on a real recorded file.
+        let blank = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RAW8, data: Data(repeating: 42, count: 4))
+        #expect(throws: SERWriter.SERError.blankFrame) {
+            try writer.write(blank)
+        }
+        try writer.close()
+
+        let fileData = try Data(contentsOf: url)
+        #expect(int32LE(fileData, at: 38) == 0) // FrameCount — the blank frame was never counted.
+        #expect(fileData.count == 178) // header only; no frame bytes, no timestamp trailer entry.
+    }
+
+    @Test func frameWithRealVarianceIsWrittenEvenIfDim() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let firstFrame = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RAW8, data: Data(repeating: 0, count: 4))
+        let writer = try SERWriter(
+            firstFrame: firstFrame, isColorCamera: false, bayerPattern: ASI_BAYER_RG, instrumentName: "Test Camera", url: url
+        )
+        // Dim (mostly zero) but not perfectly flat — a single differing pixel is real signal,
+        // not a blank frame, and must still be written.
+        let dim = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RAW8, data: Data([0, 0, 0, 1]))
+        try writer.write(dim)
+        try writer.close()
+
+        let fileData = try Data(contentsOf: url)
+        #expect(int32LE(fileData, at: 38) == 1)
+    }
+
+    @Test func blankFrameDuringARecordingDoesNotStopSubsequentWrites() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let firstFrame = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RAW8, data: Data([1, 2, 3, 4]))
+        let writer = try SERWriter(
+            firstFrame: firstFrame, isColorCamera: false, bayerPattern: ASI_BAYER_RG, instrumentName: "Test Camera", url: url
+        )
+        let blank = CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RAW8, data: Data(repeating: 0, count: 4))
+        try writer.write(firstFrame)
+        #expect(throws: SERWriter.SERError.blankFrame) { try writer.write(blank) }
+        try writer.write(firstFrame)
+        try writer.close()
+
+        let fileData = try Data(contentsOf: url)
+        #expect(int32LE(fileData, at: 38) == 2) // Only the 2 real frames counted, blank skipped.
+    }
+
     @Test func unsupportedImageTypeThrows() {
         let url = tempURL()
         // `ASI_IMG_END` (-1) is the SDK's own "no such format" sentinel (used to mark the end of
