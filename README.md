@@ -1,5 +1,9 @@
 # Skyformac
 
+![Live stacking Saturn in Skyformac](examples/saturn-live-stacking.gif)
+
+![M57 (Ring Nebula), live view](examples/M57%20-%20live.png)
+
 Repository: [github.com/giulioroggero/skyformac](https://github.com/giulioroggero/skyformac)
 
 Skyformac is a native macOS astrophotography capture app for ZWO ASI cameras —
@@ -260,6 +264,9 @@ source, or the optional All-Sky Monitor, requests separate camera access the
 first time each is used; declining either leaves the rest of the app unaffected.
 
 ## Examples
+
+The full, kept-up-to-date catalog of every picture/video is
+[`EXAMPLES.md`](EXAMPLES.md) — below is just the original first-light session.
 
 First real first-light test session — August 10, 2026, from a not-so-dark
 suburban sky, on a Maksutov 125/1500mm on an alt-azimuth mount, with a ZWO ASI
