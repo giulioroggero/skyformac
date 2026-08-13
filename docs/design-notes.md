@@ -1761,3 +1761,28 @@ made along the way.
     `cameraManager.activeProject`/`lastEndedSessionID` (`[.project(id)]`, or
     `[.project(id), .sessionHistory(id, sessionID)]`) each time the browser reappears, since a
     fresh `NavigationStack` starts with an empty path otherwise.
+
+- **Home page: thumbnail cards by default, a sortable table as the alternative.** A plain `List`
+  of one-line rows didn't show enough about a project to actually recognize it or judge its
+  progress at a glance — no cover image, no capture count, no sense of when it was last touched.
+  - **`ProjectStore.mostRecentThumbnailURL(for:)`** walks every session's `captures`, picks the
+    single newest one that actually has a `thumbnailFileName` (a capture can lack one — see
+    `CaptureRecord`'s doc comment — so this skips those rather than picking a thumbnail-less
+    "most recent" and rendering nothing), and resolves it to the actual file. Pure/testable
+    against a plain `ProjectStore` + hand-built `Project`, no real captures needed.
+  - **`Project.totalCaptureCount`/`lastActivityDate`** (new computed properties, same spot as
+    `allPlannedObjects`) are what both the grid card and the table actually show beyond the name —
+    session count alone didn't say anything about how much had actually happened, or when.
+    `lastActivityDate` falls back to `createdDate` for a project with no captures yet, so sorting
+    a fresh project doesn't require special-casing a missing value.
+  - **`ProjectsHomeViewMode`** (`.thumbnail`/`.table`) is an `@AppStorage` choice, the same
+    "picked once, remembered across relaunches, but defaults sensibly for a fresh install" pattern
+    `ControlsPanelView`'s own sidebar-tab picker already uses — thumbnail is the default here
+    specifically because it's the more recognizable, more "browsing a photo library" view this
+    feature is modeled on (iMovie), with the table as the deliberate power-user alternative for
+    comparing many projects by their numbers instead.
+  - **The table's row double-click, not row selection, is what opens a project** —
+    `.contextMenu(forSelectionType:primaryAction:)`'s `primaryAction` closure, the same "select
+    highlights, double-click opens" convention Finder's own list/column views use, rather than a
+    single click immediately navigating away (which would make browsing/comparing rows in the
+    table annoying, since every click would leave the page).

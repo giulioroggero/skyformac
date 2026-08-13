@@ -147,6 +147,20 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
         Array(Set(sessions.flatMap(\.plannedObjects))).sorted()
     }
 
+    /// Every capture across every session — what the Home page's card/table shows as "how much
+    /// has actually happened" alongside the raw session count.
+    var totalCaptureCount: Int {
+        sessions.reduce(0) { $0 + $1.captures.count }
+    }
+
+    /// The most recent moment anything happened on this project — the latest capture date across
+    /// every session, falling back to `createdDate` for one with no captures yet at all. Used to
+    /// sort/show "last activity" on the Home page instead of everything just sitting in creation
+    /// order forever.
+    var lastActivityDate: Date {
+        sessions.flatMap(\.captures).map(\.date).max() ?? createdDate
+    }
+
     /// Stable, folder-safe project directory name — see `Session.makeFolderName`'s doc comment
     /// for the identical reasoning (decoupled from `name`, computed once, never recomputed).
     static func makeFolderName(name: String, id: UUID) -> String {
@@ -161,13 +175,5 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
             location: nil, tags: [], notes: [], sessions: [], isArchived: false,
             folderName: makeFolderName(name: name, id: id)
         )
-    }
-
-    /// Untitled, empty, and not yet written to disk — what `ContentView`/`ProjectsBrowserView`
-    /// hands the user on first launch with zero saved projects, per the "she can decide to save
-    /// it giving a name" flow. Naming and saving it for the first time is what actually creates
-    /// its folder — see `ProjectStore.save`.
-    static func newUntitled() -> Project {
-        newProject(name: "")
     }
 }

@@ -219,4 +219,80 @@ struct ProjectStoreTests {
         ]
         #expect(project.allPlannedObjects == ["M13", "M57", "Saturn"])
     }
+
+    @Test func totalCaptureCountSumsAcrossEverySession() {
+        var project = Project.newProject(name: "Count Test")
+        var sessionA = Session.newSession(name: "A")
+        sessionA.captures = [
+            CaptureRecord(date: Date(), fileName: "a.png", thumbnailFileName: nil, kind: .png),
+            CaptureRecord(date: Date(), fileName: "b.png", thumbnailFileName: nil, kind: .png),
+        ]
+        var sessionB = Session.newSession(name: "B")
+        sessionB.captures = [CaptureRecord(date: Date(), fileName: "c.fits", thumbnailFileName: nil, kind: .fits)]
+        project.sessions = [sessionA, sessionB]
+
+        #expect(project.totalCaptureCount == 3)
+    }
+
+    @Test func lastActivityDateIsTheMostRecentCaptureDate() {
+        var project = Project.newProject(name: "Activity Test")
+        let older = Date(timeIntervalSince1970: 1000)
+        let newer = Date(timeIntervalSince1970: 2000)
+        var session = Session.newSession(name: "A")
+        session.captures = [
+            CaptureRecord(date: older, fileName: "a.png", thumbnailFileName: nil, kind: .png),
+            CaptureRecord(date: newer, fileName: "b.png", thumbnailFileName: nil, kind: .png),
+        ]
+        project.sessions = [session]
+
+        #expect(project.lastActivityDate == newer)
+    }
+
+    @Test func lastActivityDateFallsBackToCreatedDateWithNoCaptures() {
+        let project = Project.newProject(name: "No Captures Yet")
+        #expect(project.lastActivityDate == project.createdDate)
+    }
+
+    @Test func mostRecentThumbnailURLIsNilWithNoCaptures() {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = Project.newProject(name: "No Captures")
+        #expect(store.mostRecentThumbnailURL(for: project) == nil)
+    }
+
+    @Test func mostRecentThumbnailURLPicksTheNewestCaptureAcrossSessions() {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Multi Session Thumbnails")
+        let older = Date(timeIntervalSince1970: 1000)
+        let newer = Date(timeIntervalSince1970: 2000)
+        var sessionA = Session.newSession(name: "A")
+        sessionA.captures = [CaptureRecord(date: older, fileName: "a.png", thumbnailFileName: "a.jpg", kind: .png)]
+        var sessionB = Session.newSession(name: "B")
+        sessionB.captures = [CaptureRecord(date: newer, fileName: "b.png", thumbnailFileName: "b.jpg", kind: .png)]
+        project.sessions = [sessionA, sessionB]
+
+        let url = store.mostRecentThumbnailURL(for: project)
+        #expect(url?.lastPathComponent == "b.jpg")
+        #expect(url?.deletingLastPathComponent() == store.thumbnailsFolderURL(for: sessionB, in: project))
+    }
+
+    @Test func mostRecentThumbnailURLSkipsCapturesWithNoThumbnail() {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Mixed Thumbnails")
+        let older = Date(timeIntervalSince1970: 1000)
+        let newer = Date(timeIntervalSince1970: 2000)
+        var session = Session.newSession(name: "A")
+        session.captures = [
+            CaptureRecord(date: older, fileName: "a.png", thumbnailFileName: "a.jpg", kind: .png),
+            CaptureRecord(date: newer, fileName: "b.fits", thumbnailFileName: nil, kind: .fits),
+        ]
+        project.sessions = [session]
+
+        #expect(store.mostRecentThumbnailURL(for: project)?.lastPathComponent == "a.jpg")
+    }
 }

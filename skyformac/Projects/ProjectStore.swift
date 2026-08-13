@@ -41,6 +41,23 @@ final class ProjectStore {
         sessionFolderURL(for: session, in: project).appendingPathComponent("Thumbnails", isDirectory: true)
     }
 
+    /// The thumbnail belonging to `project`'s single most recent capture (across every session)
+    /// that actually has one — `nil` for a project with no captures yet, or where every capture so
+    /// far failed to generate a thumbnail. What the Home page's grid card shows as the project's
+    /// own "cover image," the same way a photo album shows its most recent photo.
+    func mostRecentThumbnailURL(for project: Project) -> URL? {
+        var best: (session: Session, capture: CaptureRecord)?
+        for session in project.sessions {
+            for capture in session.captures where capture.thumbnailFileName != nil {
+                if best == nil || capture.date > best!.capture.date {
+                    best = (session, capture)
+                }
+            }
+        }
+        guard let best, let name = best.capture.thumbnailFileName else { return nil }
+        return thumbnailsFolderURL(for: best.session, in: project).appendingPathComponent(name)
+    }
+
     private func projectMetadataURL(for project: Project) -> URL {
         projectFolderURL(for: project).appendingPathComponent("project.json")
     }

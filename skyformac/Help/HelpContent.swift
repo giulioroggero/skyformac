@@ -505,6 +505,10 @@ enum HelpContent {
                 body: "**New Project…** (Home page toolbar, or ⌘⇧N from the File menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
             ),
             HelpSection(
+                heading: "Thumbnails or a table",
+                body: "The Home page's toolbar switches between a grid of cover-thumbnail cards (the default — each project shows its most recent capture, session count, capture count, location, tags, and when it was last touched) and a sortable table for comparing a lot of projects by their numbers at once. Double-click a table row to open it, the same way a single click just selects without leaving the page."
+            ),
+            HelpSection(
                 heading: "Where your data goes",
                 body: "Every project gets its own folder under **~/Documents/Skyformac Projects/**, with one subfolder per session holding that session's actual capture files and thumbnails. Renaming a project or session in the browser never moves its folder on disk."
             ),

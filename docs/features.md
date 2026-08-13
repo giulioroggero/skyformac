@@ -305,6 +305,14 @@ session persistence design and the browser-as-main-window architecture)
   running, the toolbar's project/session menu (and `CommandMenu("Session")`)
   covers End Session, Open Next Session, New Session in Project, and
   Delete This Session without a trip back to the browser.
+- **Home page: thumbnail cards or a table, your choice** — a toolbar toggle
+  switches between a grid of cover-thumbnail cards (default, generated from
+  each project's single most recent capture with a thumbnail — see
+  `ProjectStore.mostRecentThumbnailURL`) and a sortable `Table` (name, goal,
+  session/capture counts, location, tags, last activity) for comparing a
+  lot of projects by their numbers instead. Either way each project shows
+  its session count, total capture count, location, tags, and last
+  activity date, not just its name.
 - **One folder per project/session** — every project gets its own folder
   under `~/Documents/Skyformac Projects/`, with one subfolder per session
   holding that session's actual capture files, a `Thumbnails/` folder, and
