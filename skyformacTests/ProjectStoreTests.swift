@@ -295,4 +295,93 @@ struct ProjectStoreTests {
 
         #expect(store.mostRecentThumbnailURL(for: project)?.lastPathComponent == "a.jpg")
     }
+
+    @Test func mostRecentThumbnailURLForOneSessionIgnoresOtherSessions() {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Two Sessions")
+        var sessionA = Session.newSession(name: "A")
+        sessionA.captures = [CaptureRecord(date: Date(timeIntervalSince1970: 1000), fileName: "a.png", thumbnailFileName: "a.jpg", kind: .png)]
+        var sessionB = Session.newSession(name: "B")
+        sessionB.captures = [CaptureRecord(date: Date(timeIntervalSince1970: 2000), fileName: "b.png", thumbnailFileName: "b.jpg", kind: .png)]
+        project.sessions = [sessionA, sessionB]
+
+        #expect(store.mostRecentThumbnailURL(for: sessionA, in: project)?.lastPathComponent == "a.jpg")
+        #expect(store.mostRecentThumbnailURL(for: sessionB, in: project)?.lastPathComponent == "b.jpg")
+    }
+
+    @Test func sessionFirstAndLastCaptureDatesAndDuration() {
+        var session = Session.newSession(name: "A")
+        let start = Date(timeIntervalSince1970: 1000)
+        let end = Date(timeIntervalSince1970: 4600)
+        session.captures = [
+            CaptureRecord(date: start, fileName: "a.png", thumbnailFileName: nil, kind: .png),
+            CaptureRecord(date: end, fileName: "b.png", thumbnailFileName: nil, kind: .png),
+        ]
+
+        #expect(session.firstCaptureDate == start)
+        #expect(session.lastCaptureDate == end)
+        #expect(session.duration == 3600)
+    }
+
+    @Test func sessionWithFewerThanTwoCapturesHasNoDuration() {
+        var session = Session.newSession(name: "A")
+        #expect(session.duration == nil)
+        session.captures = [CaptureRecord(date: Date(), fileName: "a.png", thumbnailFileName: nil, kind: .png)]
+        #expect(session.duration == nil)
+    }
+
+    @Test func sessionCaptureCountByKindGroupsCorrectly() {
+        var session = Session.newSession(name: "A")
+        session.captures = [
+            CaptureRecord(date: Date(), fileName: "a.png", thumbnailFileName: nil, kind: .png),
+            CaptureRecord(date: Date(), fileName: "b.png", thumbnailFileName: nil, kind: .png),
+            CaptureRecord(date: Date(), fileName: "c.fits", thumbnailFileName: nil, kind: .fits),
+        ]
+        #expect(session.captureCountByKind == [.png: 2, .fits: 1])
+    }
+
+    @Test func projectCaptureCountByKindAggregatesAcrossSessions() {
+        var project = Project.newProject(name: "Kinds")
+        var sessionA = Session.newSession(name: "A")
+        sessionA.captures = [CaptureRecord(date: Date(), fileName: "a.png", thumbnailFileName: nil, kind: .png)]
+        var sessionB = Session.newSession(name: "B")
+        sessionB.captures = [
+            CaptureRecord(date: Date(), fileName: "b.png", thumbnailFileName: nil, kind: .png),
+            CaptureRecord(date: Date(), fileName: "c.fits", thumbnailFileName: nil, kind: .fits),
+        ]
+        project.sessions = [sessionA, sessionB]
+
+        #expect(project.captureCountByKind == [.png: 2, .fits: 1])
+    }
+
+    @Test func projectFirstActivityDateIsTheEarliestCapture() {
+        var project = Project.newProject(name: "Activity")
+        let older = Date(timeIntervalSince1970: 1000)
+        let newer = Date(timeIntervalSince1970: 2000)
+        var session = Session.newSession(name: "A")
+        session.captures = [
+            CaptureRecord(date: newer, fileName: "a.png", thumbnailFileName: nil, kind: .png),
+            CaptureRecord(date: older, fileName: "b.png", thumbnailFileName: nil, kind: .png),
+        ]
+        project.sessions = [session]
+
+        #expect(project.firstActivityDate == older)
+    }
+
+    @Test func projectFirstActivityDateIsNilWithNoCaptures() {
+        let project = Project.newProject(name: "No Activity")
+        #expect(project.firstActivityDate == nil)
+    }
+
+    @Test func projectActiveAndArchivedSessionCounts() {
+        var project = Project.newProject(name: "Counts")
+        var archived = Session.newSession(name: "Archived")
+        archived.isArchived = true
+        project.sessions = [Session.newSession(name: "Active 1"), Session.newSession(name: "Active 2"), archived]
+
+        #expect(project.activeSessionsCount == 2)
+        #expect(project.archivedSessionsCount == 1)
+    }
 }

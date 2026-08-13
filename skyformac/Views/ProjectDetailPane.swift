@@ -38,6 +38,10 @@ struct ProjectDetailPane: View {
                 LocationEditorView(project: project, session: nil, cameraManager: cameraManager)
             }
 
+            Section("Stats") {
+                StatsGridView(stats: projectStats)
+            }
+
             Section("Tags") {
                 TagsEditorView(tags: project.tags) { tags in
                     var updated = project
@@ -56,7 +60,7 @@ struct ProjectDetailPane: View {
 
             Section {
                 ForEach(project.sessions) { session in
-                    SessionRow(project: project, session: session, cameraManager: cameraManager)
+                    SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
                         .contentShape(Rectangle())
                         // A session that's never been run yet has no history to show — tapping it
                         // runs it directly (switches the whole window to the camera view, see
@@ -106,39 +110,140 @@ struct ProjectDetailPane: View {
     private func addSession() {
         try? library.addSession(Session.newSession(name: "New Session"), to: project)
     }
+
+    /// Sessions count (split active/archived) plus a per-kind capture breakdown — "how much has
+    /// actually happened on this project," not just its name and goal.
+    private var projectStats: [StatItem] {
+        var stats = [
+            StatItem(label: "Sessions", value: "\(project.sessions.count)"),
+            StatItem(label: "Archived", value: "\(project.archivedSessionsCount)"),
+            StatItem(label: "Captures", value: "\(project.totalCaptureCount)"),
+        ]
+        if let first = project.firstActivityDate {
+            stats.append(StatItem(label: "First Activity", value: first.formatted(date: .abbreviated, time: .omitted)))
+        }
+        stats.append(StatItem(label: "Last Activity", value: project.lastActivityDate.formatted(date: .abbreviated, time: .omitted)))
+        for kind in CaptureRecord.Kind.allCases {
+            if let count = project.captureCountByKind[kind] {
+                stats.append(StatItem(label: kind.displayName, value: "\(count)"))
+            }
+        }
+        return stats
+    }
 }
 
-private struct SessionRow: View {
+/// A session as shown in the Project Detail page's session list — a cover thumbnail (its own
+/// most recent capture, if any), status, aim, objects, and when it ran, instead of just a name
+/// and a capture count.
+private struct SessionCard: View {
     let project: Project
     let session: Session
     var cameraManager: CameraManager
+    let store: ProjectStore
 
     private var isActive: Bool { cameraManager.activeSession?.id == session.id }
+    private var hasRun: Bool { !session.captures.isEmpty }
+    private var thumbnailURL: URL? { store.mostRecentThumbnailURL(for: session, in: project) }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(session.name)
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(.quaternary)
+                if let thumbnailURL, let image = NSImage(contentsOf: thumbnailURL) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                } else {
+                    Image(systemName: "calendar").foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 60, height: 60)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(session.name).font(.headline)
                     if isActive {
                         Image(systemName: "record.circle.fill").foregroundStyle(.red).font(.caption)
                     }
+                    statusBadge
                 }
-                .font(.headline)
+                if !session.goal.isEmpty {
+                    Text(session.goal).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
                 if !session.plannedObjects.isEmpty {
-                    Text(session.plannedObjects.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
+                    Text(session.plannedObjects.joined(separator: ", ")).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
                 }
+                HStack(spacing: 10) {
+                    if let planned = session.plannedDate {
+                        Label(planned.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
+                    } else if let last = session.lastCaptureDate {
+                        Label(last.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                    }
+                    Label("\(session.captures.count)", systemImage: "camera")
+                    if let location = session.location ?? project.location {
+                        Label(location.displayName, systemImage: "location").lineLimit(1)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .labelStyle(.titleAndIcon)
             }
+
             Spacer()
-            Text("\(session.captures.count)").font(.caption).foregroundStyle(.tertiary)
-            Button(isActive ? "Running" : "Run") {
+
+            Button(isActive ? "Running" : (hasRun ? "Resume" : "Run")) {
                 cameraManager.setActive(project: project, session: session)
             }
             .disabled(isActive)
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
+        .padding(.vertical, 4)
         .opacity(session.isArchived ? 0.5 : 1)
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        if session.isArchived {
+            Text("Archived")
+                .font(.caption2)
+                .padding(.horizontal, 6).padding(.vertical, 1)
+                .background(.quaternary, in: Capsule())
+        } else if !hasRun {
+            Text("Not Run Yet")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+        }
+    }
+}
+
+/// One label/value pair in a `StatsGridView` — `label` doubles as the `ForEach` identity, since
+/// every stat shown at once (project- or session-level) always has a distinct one.
+struct StatItem: Identifiable {
+    var id: String { label }
+    let label: String
+    let value: String
+}
+
+/// A compact grid of label/value pairs — shared by the Project Detail and Session History
+/// pages' Stats sections, so "how much has actually happened" always looks the same regardless
+/// of which level it's summarizing.
+struct StatsGridView: View {
+    let stats: [StatItem]
+    private let columns = [GridItem(.adaptive(minimum: 100, maximum: 160), spacing: 12)]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+            ForEach(stats) { stat in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stat.value).font(.headline)
+                    Text(stat.label).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

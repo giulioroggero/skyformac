@@ -49,7 +49,7 @@ struct Annotation: Codable, Equatable, Identifiable, Sendable {
 /// machine (or just renamed on disk) still resolves correctly as long as the relative layout
 /// underneath it stays intact.
 struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
-    enum Kind: String, Codable, Sendable {
+    enum Kind: String, Codable, Sendable, Hashable, CaseIterable {
         case fits, png, tiff, serVideo, recording
 
         var icon: String {
@@ -58,6 +58,18 @@ struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
             case .png, .tiff: return "photo"
             case .serVideo: return "film"
             case .recording: return "record.circle"
+            }
+        }
+
+        /// What the Stats section labels each count with — `rawValue` alone reads fine for most
+        /// (`fits`, `png`, `tiff`) but not the camelCase ones.
+        var displayName: String {
+            switch self {
+            case .fits: return "FITS"
+            case .png: return "PNG"
+            case .tiff: return "TIFF"
+            case .serVideo: return "SER Video"
+            case .recording: return "Recording"
             }
         }
     }
@@ -119,6 +131,26 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
             folderName: makeFolderName(name: name, id: id)
         )
     }
+
+    /// `nil` for a session with no captures yet — the History section shows "Never run" instead
+    /// of a range starting nowhere.
+    var firstCaptureDate: Date? { captures.map(\.date).min() }
+
+    /// The same date `Project.lastActivityDate` uses for this one session specifically.
+    var lastCaptureDate: Date? { captures.map(\.date).max() }
+
+    /// How long capturing actually spanned, start to finish — `nil` with fewer than two captures
+    /// (a single capture, or none, has no meaningful duration to show).
+    var duration: TimeInterval? {
+        guard let first = firstCaptureDate, let last = lastCaptureDate, last > first else { return nil }
+        return last.timeIntervalSince(first)
+    }
+
+    /// How many captures of each kind — what the Stats section actually breaks down, rather than
+    /// just a single total.
+    var captureCountByKind: [CaptureRecord.Kind: Int] {
+        Dictionary(grouping: captures, by: \.kind).mapValues(\.count)
+    }
 }
 
 /// A set of observation sessions grouped by a goal — a week of "Messier marathon" nights, a trip
@@ -160,6 +192,22 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
     var lastActivityDate: Date {
         sessions.flatMap(\.captures).map(\.date).max() ?? createdDate
     }
+
+    /// The earliest anything happened — `nil` for a project with no captures at all yet (unlike
+    /// `lastActivityDate`, there's no sensible single-date fallback for "first," since
+    /// `createdDate` would just always equal it for a project that's never captured anything).
+    var firstActivityDate: Date? {
+        sessions.flatMap(\.captures).map(\.date).min()
+    }
+
+    /// How many captures of each kind across every session — the Stats section's breakdown,
+    /// `totalCaptureCount`'s components.
+    var captureCountByKind: [CaptureRecord.Kind: Int] {
+        Dictionary(grouping: sessions.flatMap(\.captures), by: \.kind).mapValues(\.count)
+    }
+
+    var activeSessionsCount: Int { sessions.filter { !$0.isArchived }.count }
+    var archivedSessionsCount: Int { sessions.filter(\.isArchived).count }
 
     /// Stable, folder-safe project directory name — see `Session.makeFolderName`'s doc comment
     /// for the identical reasoning (decoupled from `name`, computed once, never recomputed).

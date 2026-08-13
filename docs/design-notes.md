@@ -1786,3 +1786,53 @@ made along the way.
     highlights, double-click opens" convention Finder's own list/column views use, rather than a
     single click immediately navigating away (which would make browsing/comparing rows in the
     table annoying, since every click would leave the page).
+
+- **Session cards, richer History, and Stats on both pages.** The Project Detail page's session
+  list was a name and a capture count; the Session History page had no sense of *when* anything
+  happened beyond the raw editable fields used to plan it — `plannedDate` existed on the model
+  from day one but had genuinely no UI anywhere.
+  - **`Session.firstCaptureDate`/`lastCaptureDate`/`duration`/`captureCountByKind`** and
+    `Project.firstActivityDate`/`captureCountByKind`/`active`/`archivedSessionsCount` (new
+    computed properties, same style as `totalCaptureCount`/`lastActivityDate`) are what both
+    `SessionCard` and the new History/Stats sections actually show. `duration` is `nil` below two
+    captures — a single capture (or none) has nothing meaningful to measure between.
+  - **`StatsGridView`/`StatItem`** (new, in `ProjectDetailPane.swift` since that's the first of
+    the two pages that needed it) is one small adaptive-grid component shared by both the Project
+    Detail and Session History Stats sections, so "how much has actually happened" looks the same
+    at either level instead of two bespoke layouts.
+  - **`CaptureRecord.Kind` gained `Hashable`/`CaseIterable`/`displayName`** — `Hashable` because
+    the per-kind breakdown is a `[Kind: Int]` dictionary (`Dictionary(grouping:by:)`),
+    `CaseIterable` so the Stats sections can iterate every kind in a fixed order rather than
+    whatever order a dictionary happens to produce, and `displayName` because `rawValue` alone
+    reads fine for `fits`/`png`/`tiff` but not the camelCase `serVideo`.
+  - **A session's planned date is now actually editable** — a `Toggle` gates a `DatePicker`
+    (`SessionDetailPane`'s own `hasPlannedDate`/`plannedDate` `@State`, synced from/back to
+    `session.plannedDate`), the same "off by default, reveals a control when turned on" shape
+    used nowhere else in this feature yet but common enough elsewhere in the app (e.g. Calibration
+    toggles revealing their own controls).
+  - **History deliberately uses "Aim"/"Objects"/"Position"** as its own labels (not `goal`/
+    `plannedObjects`/`location`, the model's actual field names) — this section's job is to read
+    as a record of what a session actually was, in the terms an observer would use to describe it,
+    not a dump of the underlying schema.
+
+- **Fixed the Ollama API call actually failing on a real machine.** `OllamaPlanner` shipped
+  defaulting to `model: "llama3.2"` — a specific model name that has to be separately
+  `ollama pull`ed, which most real installs simply haven't done (confirmed against a real running
+  Ollama instance during this fix: `curl .../api/generate -d '{"model":"llama3.2",...}'` → HTTP
+  404, `{"error":"model 'llama3.2' not found"}`, while the exact same request with an actually-
+  installed model returned 200 with a normal `response` field). Every prior test used a fake
+  transport that never actually depended on any specific model existing, so this never showed up
+  until someone tried it against a real server.
+  - **`model` is now `String?`, defaulting to `nil`** — "auto-detect": `resolveModel()` calls the
+    new `installedModels()` (`/api/tags`) and uses whichever model is first, rather than trusting
+    a hardcoded name to exist. An explicit `model` still skips that round trip entirely (see
+    `generateRequestUsesTheConfiguredModelAndPOSTsJSON`'s `requestedPaths` assertion) — this is
+    strictly an improved default, not a removed capability.
+  - **`OllamaError.badResponse` gained an associated `message: String?`**, populated from the
+    server's own `{"error": "..."}` body when it has one (`URLSession.send`) — the old plain
+    `.badResponse` case couldn't distinguish "wrong model name" from "server isn't running" from
+    "internal server error," all three of which need different next steps from the user. A new
+    `noModelsInstalled` case covers the one gap even a correct auto-detect can't fix: zero models
+    pulled at all.
+  - **`OllamaError.userFacingMessage`** is what `AIPlanSheets` actually shows now, instead of
+    `String(describing: error)`'s `badResponse(message: Optional("..."))`-shaped debug dump.

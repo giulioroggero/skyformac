@@ -318,6 +318,22 @@ session persistence design and the browser-as-main-window architecture)
   holding that session's actual capture files, a `Thumbnails/` folder, and
   the project's own `project.json` metadata. Renaming a project/session
   never moves its folder.
+- **Session cards, not plain rows** — the Project Detail page's session list
+  shows each one as a card: its own cover thumbnail, a Not Run Yet/Archived
+  status badge, aim, objects, planned date (or last capture time), capture
+  count, and location, with Run/Resume right there — enough to tell sessions
+  apart and judge their status without opening each one.
+- **Session History: the full record** — date/time (created, planned, first
+  and last capture, duration), position, aim, and objects, plus a per-kind
+  capture breakdown, laid out as a proper historical record rather than just
+  the same editable fields used to plan it. A session's planned date is now
+  itself editable (`Toggle` + `DatePicker`) — previously write-only in the
+  data model with no UI at all.
+- **Stats on both levels** — the Project Detail page shows session counts
+  (active/archived), total captures, first/last activity, and a per-kind
+  breakdown (FITS/PNG/TIFF/SER Video/Recording); the Session History page
+  shows the same breakdown scoped to that one session (`StatsGridView`,
+  shared by both).
 - **Timelines with thumbnails** — every session shows its captures as a
   filmstrip (date + a small JPEG thumbnail generated from the same image
   already being exported), the iMovie-style browsing this feature is built
@@ -336,7 +352,10 @@ session persistence design and the browser-as-main-window architecture)
 - **AI-assisted planning** — "Ask AI to Plan…" sends a one-line goal to a
   local Ollama server (`OllamaPlanner`) and shows the suggested session(s)
   before anything is created; no cloud dependency, matches this app's
-  everything-runs-locally stance.
+  everything-runs-locally stance. The model to use is auto-detected from
+  whatever's actually installed (`ollama list`) rather than a hardcoded
+  name that may not be pulled — errors surface the server's own explanation
+  (a missing model, an unreachable server) instead of a generic failure.
 
 **Monitoring & UI**
 - **All-Sky / rig monitor** — picture-in-picture feed from a secondary webcam

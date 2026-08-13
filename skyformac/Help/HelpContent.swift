@@ -521,6 +521,18 @@ enum HelpContent {
                 body: "The toolbar's project/session menu (and the menu bar's **Session** menu) covers the rest of the loop without a trip back to the browser: **End Session** (returns to the browser, on the same project), **Open Next Session** (jumps straight to the next one), **New Session in Project**, and **Delete This Session**. **Switch Project** leaves the project context behind entirely."
             ),
             HelpSection(
+                heading: "Session cards",
+                body: "The Project Detail page shows each session as a card — its own cover thumbnail, a status badge (**Not Run Yet**/**Archived**), aim, objects, planned date or last capture time, capture count, and location — not just a name."
+            ),
+            HelpSection(
+                heading: "Session History: the full record",
+                body: "A session's History page lays out its actual historical record — Created/Planned/First Capture/Last Capture/Duration, Position, Aim, and Objects — separately from the editable fields above it that plan the session in the first place. A **Stats** section breaks down its captures by kind (FITS/PNG/TIFF/SER Video/Recording) once there are any."
+            ),
+            HelpSection(
+                heading: "Project Stats",
+                body: "The Project Detail page has its own Stats section: session counts (active/archived), total captures, first/last activity dates, and the same per-kind breakdown — a project-wide view of the same numbers each session card shows individually."
+            ),
+            HelpSection(
                 heading: "Timeline",
                 body: "Each session shows its captures as a filmstrip of thumbnails, newest first. Right-click a thumbnail to reveal the actual file in Finder."
             ),
@@ -530,7 +542,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.aiPlanning", heading: "Ask AI to Plan…",
-                body: "Type a one-line goal and this sends it to a **local Ollama server** (nothing leaves your machine) for a suggested name, goal, and session list. Nothing is created until you review the suggestion and click **Create Sessions**/**Apply**. Requires Ollama running locally — see [ollama.com](https://ollama.com) — the button still works without it, it just reports it couldn't reach the server."
+                body: "Type a one-line goal and this sends it to a **local Ollama server** (nothing leaves your machine) for a suggested name, goal, and session list. Nothing is created until you review the suggestion and click **Create Sessions**/**Apply**. The model is auto-detected from whatever's actually installed (`ollama list`) — no model needs to be configured by hand. Requires Ollama running with at least one model pulled — see [ollama.com](https://ollama.com) — the button still works without it, it just reports exactly what's wrong (server unreachable, or no models installed)."
             ),
         ]
     )

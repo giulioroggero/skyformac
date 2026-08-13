@@ -58,6 +58,15 @@ final class ProjectStore {
         return thumbnailsFolderURL(for: best.session, in: project).appendingPathComponent(name)
     }
 
+    /// Same idea as `mostRecentThumbnailURL(for:)`, scoped to one `session` — what a session card
+    /// on the Project Detail page shows as its own cover image.
+    func mostRecentThumbnailURL(for session: Session, in project: Project) -> URL? {
+        guard let best = session.captures.filter({ $0.thumbnailFileName != nil }).max(by: { $0.date < $1.date }),
+              let name = best.thumbnailFileName
+        else { return nil }
+        return thumbnailsFolderURL(for: session, in: project).appendingPathComponent(name)
+    }
+
     private func projectMetadataURL(for project: Project) -> URL {
         projectFolderURL(for: project).appendingPathComponent("project.json")
     }
