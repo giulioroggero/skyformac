@@ -112,7 +112,11 @@ RAW8 preview, dynamic controls, RAW16 + debayer + histogram). On top of that:
 - **Lucky imaging** — burst capture, sharpness-ranked (Laplacian variance,
   CPU or GPU), keeping and stacking only the sharpest fraction. Works for a
   webcam/iPhone source too (`SharpnessScorer`/`FrameArithmetic` both have an
-  RGB24 case — no debayer needed, the frame is already color).
+  RGB24 case — no debayer needed, the frame is already color). Pause/Resume
+  and Cancel work mid-burst; "Save Stacked Image…" saves the result
+  directly; "Browse Frames…" lists every captured frame by sharpness rank
+  (the same ranking `stackBest` uses internally) and previews/saves one
+  specific frame instead of only the averaged stack.
 - **FITS/PNG/TIFF export**, for the current frame or a live stack. Color-camera
   FITS exports embed a `BAYERPAT` header card so downstream tools (and
   skyformac's own reader, below) know how to debayer them.

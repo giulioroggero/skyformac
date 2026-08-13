@@ -217,7 +217,10 @@ raw data:
   AutoStakkert!3/PIPP/RegiStax expect to do their own alignment and
   best-frame selection from.
 - **Lucky Imaging** — burst capture, keeping only the sharpest fraction,
-  stacked.
+  stacked. Pause/Resume and Cancel Burst work mid-capture; **Save Stacked
+  Image…** saves the result directly; **Browse Frames…** lists every
+  captured frame by sharpness rank and previews/saves one specific frame
+  instead of only the averaged stack.
 - One "Disable All Planetary Features" checkbox falls back to the camera's
   own unmodified output in a single click.
 

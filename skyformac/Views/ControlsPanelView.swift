@@ -125,6 +125,7 @@ struct ControlsPanelView: View {
     @State private var showDarkFrameSection = false
     @State private var showLiveStackSection = false
     @State private var showLuckyImagingSection = false
+    @State private var showLuckyImagingFrameBrowser = false
     @State private var showExportSection = false
     @State private var showExportedFilesSection = false
     @State private var showRecordingSection = false
@@ -1699,7 +1700,7 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private var luckyImagingSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Captures a burst, scores each frame's sharpness, and stacks only the best fraction — for beating atmospheric seeing on the Moon/planets. No frame alignment.")
+            Text("Captures a burst, scores every frame's sharpness (variance-of-Laplacian, the same metric behind OpenCV's own focus-measure), and \"Stack\" averages together whichever fraction scored sharpest — for beating atmospheric seeing on the Moon/planets. No frame alignment between kept frames.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -1731,6 +1732,28 @@ struct ControlsPanelView: View {
                         .font(.caption)
                 }
 
+                if !cameraManager.isLuckyImagingBurstComplete {
+                    HStack {
+                        Button {
+                            cameraManager.isLuckyImagingPaused.toggle()
+                        } label: {
+                            Label(
+                                cameraManager.isLuckyImagingPaused ? "Resume" : "Pause",
+                                systemImage: cameraManager.isLuckyImagingPaused ? "play.fill" : "pause.fill"
+                            )
+                        }
+                        .help(cameraManager.isLuckyImagingPaused
+                            ? "Resumes adding new incoming frames to this burst."
+                            : "Stops adding new frames to this burst without losing what's already captured — pauses, doesn't cancel.")
+                        Button("Cancel Burst", role: .destructive) { cameraManager.discardLuckyImagingSession() }
+                    }
+                    if cameraManager.isLuckyImagingPaused {
+                        Text("Paused — \(progress.captured) frame(s) captured so far are kept.")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+
                 if cameraManager.isLuckyImagingBurstComplete {
                     HStack {
                         Text(String(format: "Keep best %.0f%%", luckyKeepFraction * 100))
@@ -1741,8 +1764,24 @@ struct ControlsPanelView: View {
                         Button("Stack") { cameraManager.stackLuckyImagingBest(fraction: luckyKeepFraction) }
                         Button("Discard", role: .destructive) { cameraManager.discardLuckyImagingSession() }
                     }
+                    HStack {
+                        Button {
+                            cameraManager.exportCurrentFrame(as: .png)
+                        } label: {
+                            Label("Save Stacked Image…", systemImage: "square.and.arrow.down")
+                        }
+                        .help("Saves the stacked result exactly as it looks right now (debayered/stretched, same as the live preview) as a PNG — a quick snapshot, not the raw sensor data FITS export above writes. Click \"Stack\" first if you haven't yet.")
+                        Button("Browse Frames…") { showLuckyImagingFrameBrowser = true }
+                            .help("Lists every captured frame, sharpest first — select one to preview it directly (replacing the live preview) instead of only ever seeing the averaged stack, and save that exact frame instead.")
+                    }
+                } else if progress.captured > 0 {
+                    Button("Browse Frames…") { showLuckyImagingFrameBrowser = true }
+                        .help("Lists every frame captured so far, sharpest first — select one to preview it directly. The burst keeps capturing in the background if it isn't paused.")
                 }
             }
+        }
+        .sheet(isPresented: $showLuckyImagingFrameBrowser) {
+            LuckyImagingFrameBrowserView(cameraManager: cameraManager)
         }
     }
 

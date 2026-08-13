@@ -1046,6 +1046,10 @@ final class CameraManager {
         luckyImagingSession.map { ($0.capturedCount, $0.targetFrameCount) }
     }
     var isLuckyImagingBurstComplete: Bool { luckyImagingSession?.isComplete ?? false }
+    /// Pauses adding new frames to the current burst without losing what's already captured —
+    /// the same "freeze without discarding" idea `isLiveStackPaused` already gives Live Stack.
+    /// Reset to `false` whenever a new burst starts (`startLuckyImagingBurst`).
+    var isLuckyImagingPaused = false
 
     private var frameConsumerTask: Task<Void, Never>?
     private var focusAssistTask: Task<Void, Never>?
@@ -1656,7 +1660,7 @@ final class CameraManager {
         recordIfNeeded(processed)
         recordSERFrameIfNeeded(processed)
 
-        if let camera = connectedCamera, let session = luckyImagingSession, !session.isComplete {
+        if let camera = connectedCamera, let session = luckyImagingSession, !session.isComplete, !isLuckyImagingPaused {
             session.add(processed, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
         }
         scheduleQualityScoreIfNeeded(processed)
@@ -2035,6 +2039,7 @@ final class CameraManager {
     /// captures don't count — only the continuous `ingest` path does) get scored and held.
     func startLuckyImagingBurst(frameCount: Int) {
         luckyImagingSession = LuckyImagingSession(targetFrameCount: frameCount)
+        isLuckyImagingPaused = false
     }
 
     /// Stacks the sharpest `fraction` of the current burst and shows it as `currentFrame`.
@@ -2048,6 +2053,21 @@ final class CameraManager {
 
     func discardLuckyImagingSession() {
         luckyImagingSession = nil
+        isLuckyImagingPaused = false
+    }
+
+    /// Shows one specific captured frame from the current burst (by its rank when sorted
+    /// sharpest first, matching `LuckyImagingFrameBrowserView`'s own list order) as
+    /// `currentFrame`, for inspecting or saving it directly instead of only ever seeing
+    /// `stackLuckyImagingBest`'s averaged result. Doesn't end or otherwise change the burst
+    /// itself — it keeps capturing new frames in the background if it isn't complete yet.
+    func showLuckyImagingFrame(atSortedIndex index: Int) {
+        guard let session = luckyImagingSession else { return }
+        let sorted = session.framesSortedByScore
+        guard sorted.indices.contains(index) else { return }
+        currentFrame = sorted[index].frame
+        frameID &+= 1
+        refreshCurrentImage()
     }
 
     // MARK: - Export

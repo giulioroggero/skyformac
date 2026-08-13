@@ -109,4 +109,26 @@ struct LuckyImagingSessionTests {
         let session = LuckyImagingSession(targetFrameCount: 4)
         #expect(session.stackBest(fraction: 0.5) == nil)
     }
+
+    /// The exact ranking `stackBest` relies on internally to pick its "sharpest fraction," and
+    /// what `LuckyImagingFrameBrowserView` lists frames in — this is worth a dedicated test since
+    /// a wrong sort order would silently pick the *worst* frames instead of the best ones.
+    @Test func framesSortedByScoreIsDescending() {
+        let session = LuckyImagingSession(targetFrameCount: 5)
+        for value in [10, 200, 50, 3, 90] as [UInt8] {
+            session.add(frame(value: value), isColorCamera: false, bayerPattern: ASI_BAYER_RG)
+        }
+        let sorted = session.framesSortedByScore
+        #expect(sorted.count == 5)
+        for i in 1..<sorted.count {
+            #expect(sorted[i - 1].score >= sorted[i].score)
+        }
+        // Same multiset of frames, just reordered — sorting shouldn't drop or duplicate any.
+        #expect(Set(sorted.map { $0.frame.data }) == Set(session.scoredFrames.map { $0.frame.data }))
+    }
+
+    @Test func targetFrameCountIsClampedToAtLeastOne() {
+        #expect(LuckyImagingSession(targetFrameCount: 0).targetFrameCount == 1)
+        #expect(LuckyImagingSession(targetFrameCount: -5).targetFrameCount == 1)
+    }
 }

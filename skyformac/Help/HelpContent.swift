@@ -376,7 +376,12 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.luckyImaging", heading: "Lucky Imaging",
-                body: "Captures a burst, scores every frame's sharpness, and stacks only the sharpest fraction — the classic technique for beating atmospheric seeing on the Moon/planets. Works with a ZWO camera or an iPhone/webcam source equally."
+                body: "Captures a burst, scores every frame's sharpness (variance-of-Laplacian — the same focus-measure technique OpenCV's own `cv2.Laplacian(...).var()` uses), and \"Stack\" averages together whichever fraction ranked sharpest — the classic technique for beating atmospheric seeing on the Moon/planets. Works with a ZWO camera or an iPhone/webcam source equally.",
+                bullets: [
+                    "**Pause**/**Resume** (while a burst is still capturing) stops adding new frames without losing what's already captured, the same \"freeze without discarding\" idea Live Stack's own Pause gives it. **Cancel Burst** discards everything captured so far and stops.",
+                    "**Save Stacked Image…** (after clicking Stack) saves the stacked result exactly as it looks right now as a PNG — the same quick-snapshot convenience Live Stack's own \"Save Stacked Image…\" already gives it.",
+                    "**Browse Frames…** lists every frame captured so far, sharpest first, with its score — selecting one shows that *exact* frame in the live preview (not an average) so it can be inspected or saved on its own, instead of only ever seeing the averaged stack. Available once any frames exist, not just once the burst finishes — the burst keeps capturing in the background if it isn't paused.",
+                ]
             ),
             HelpSection(
                 id: "setting.disablePlanetary", heading: "Disable All Planetary Features",

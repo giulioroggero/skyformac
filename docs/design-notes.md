@@ -1619,3 +1619,24 @@ made along the way.
     `applyPlanetaryPreset`/the Wizard's own telescope picker both read/write — a preference, not
     session state, since the telescope behind the camera doesn't change between sessions nearly
     as often as anything else this app tracks.
+- **Lucky Imaging: Pause/Cancel mid-burst, Save, and a frame browser.** Previously a burst could
+  only be stopped by letting it run to completion — there was no way to abort one early — and
+  once stacked, the result only ever became `currentFrame`/the live preview with no dedicated way
+  to save it (the generic Export section technically already worked on it, since it's the same
+  `currentFrame`, but nothing in the Lucky Imaging section itself pointed at that).
+  - **`CameraManager.isLuckyImagingPaused`** gates the existing `ingest()` call that feeds frames
+    into `luckyImagingSession.add(...)` — the same "freeze without discarding" shape
+    `isLiveStackPaused` already gives Live Stack. "Cancel Burst" (shown while capturing, not just
+    after completion) reuses the existing `discardLuckyImagingSession()`.
+  - **"Save Stacked Image…"** next to Stack/Discard is the exact same `exportCurrentFrame(as:
+    .png)` call Live Stack's own "Save Stacked Image…" button already makes — `stackLuckyImagingBest`
+    already sets `currentFrame` to the averaged result, so this was really a missing *button*, not
+    a missing capability.
+  - **`LuckyImagingSession.framesSortedByScore`** (sharpest first — the same ranking `stackBest`
+    itself uses internally to decide which fraction to keep) backs a new "Browse Frames…" sheet
+    (`LuckyImagingFrameBrowserView`), listing every captured frame by rank/score. Selecting one
+    calls `CameraManager.showLuckyImagingFrame(atSortedIndex:)` — a real side effect (replaces
+    `currentFrame`, same as `stackLuckyImagingBest`), not a thumbnail popup — so a specific frame
+    can be inspected or saved directly instead of only ever seeing the averaged stack. Available
+    once any frames exist, not just once the burst completes, since browsing what's captured so
+    far is useful either way (the burst keeps running in the background if it isn't paused).

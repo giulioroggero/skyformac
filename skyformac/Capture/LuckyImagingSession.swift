@@ -24,6 +24,12 @@ final class LuckyImagingSession {
     var capturedCount: Int { scoredFrames.count }
     var isComplete: Bool { scoredFrames.count >= targetFrameCount }
 
+    /// Every captured frame so far, sharpest first — the exact ranking `stackBest` itself uses
+    /// to decide which fraction to keep, surfaced here too so `LuckyImagingFrameBrowserView` can
+    /// list them for manually inspecting or saving one specific frame instead of only ever seeing
+    /// the averaged stack.
+    var framesSortedByScore: [ScoredFrame] { scoredFrames.sorted { $0.score > $1.score } }
+
     /// Scores and stores `frame`. No-op once `isComplete`.
     func add(_ frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN) {
         guard !isComplete else { return }
