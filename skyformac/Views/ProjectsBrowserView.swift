@@ -23,6 +23,7 @@ struct ProjectsBrowserView: View {
 
     @State private var path: [ProjectsRoute] = []
     @State private var isShowingNewProjectSheet = false
+    @State private var isShowingQuickStartSheet = false
     @State private var searchText = ""
     @State private var showArchived = false
 
@@ -41,7 +42,8 @@ struct ProjectsBrowserView: View {
                 projects: visibleProjects, searchText: $searchText, showArchived: $showArchived,
                 activeProjectID: cameraManager.activeProject?.id, store: cameraManager.projectStore,
                 onSelectProject: { path.append(.project($0.id)) },
-                onNewProject: { isShowingNewProjectSheet = true }
+                onNewProject: { isShowingNewProjectSheet = true },
+                onQuickStart: { isShowingQuickStartSheet = true }
             )
             .navigationDestination(for: ProjectsRoute.self) { route in
                 destination(for: route)
@@ -51,6 +53,9 @@ struct ProjectsBrowserView: View {
             NewProjectSheet(cameraManager: cameraManager) { project in
                 path = [.project(project.id)]
             }
+        }
+        .sheet(isPresented: $isShowingQuickStartSheet) {
+            QuickStartSheet(cameraManager: cameraManager)
         }
         .onAppear {
             // Reopening the browser (via "End Session", say) lands back exactly where that
@@ -67,6 +72,10 @@ struct ProjectsBrowserView: View {
             if cameraManager.isCreatingNewProjectRequested {
                 cameraManager.isCreatingNewProjectRequested = false
                 isShowingNewProjectSheet = true
+            }
+            if cameraManager.isQuickStartRequested {
+                cameraManager.isQuickStartRequested = false
+                isShowingQuickStartSheet = true
             }
         }
         .frame(minWidth: 820, minHeight: 600)
@@ -113,6 +122,7 @@ private struct ProjectsHomeView: View {
     let store: ProjectStore
     var onSelectProject: (Project) -> Void
     var onNewProject: () -> Void
+    var onQuickStart: () -> Void
 
     /// Persisted like `ControlsPanelView`'s own sidebar-tab choice — a view mode picked once
     /// shouldn't reset back to the default every relaunch — but thumbnail is what a fresh install
@@ -150,6 +160,10 @@ private struct ProjectsHomeView: View {
             }
             ToolbarItem {
                 Toggle("Show Archived", systemImage: "archivebox", isOn: $showArchived)
+            }
+            ToolbarItem {
+                Button("Quick Start…", systemImage: "bolt.fill", action: onQuickStart)
+                    .help("Pick a common target (a planet, the Moon, a Messier object) — creates a project and session for it and opens the camera view")
             }
             ToolbarItem {
                 Button("New Project…", systemImage: "plus", action: onNewProject)
@@ -331,5 +345,67 @@ private struct NewProjectSheet: View {
         try? cameraManager.projectsLibrary.save(project)
         onCreate(project)
         dismiss()
+    }
+}
+
+/// Home page's "Quick Start" — pick a common target (a planet, the Moon, a curated deep-sky
+/// object) and skip manually creating a project/session for a one-off outing: selecting a row
+/// calls `CameraManager.quickStart(with:)` (creates both, applies the target's recommended setup)
+/// and dismisses straight into the camera view — see `RootView`, which switches there the moment
+/// `activeSession` becomes non-`nil`. Reuses `AcquisitionTarget.all`, the same curated
+/// planetary/deep-sky list the Acquisition Wizard already offers, rather than a second list.
+private struct QuickStartSheet: View {
+    var cameraManager: CameraManager
+    @Environment(\.dismiss) private var dismiss
+
+    private var planetaryTargets: [AcquisitionTarget] { AcquisitionTarget.all.filter { if case .planetary = $0 { true } else { false } } }
+    private var deepSkyTargets: [AcquisitionTarget] { AcquisitionTarget.all.filter { if case .deepSky = $0 { true } else { false } } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Quick Start").font(.headline)
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+            .padding()
+
+            List {
+                Section("Planets & Moon") {
+                    ForEach(planetaryTargets) { target in
+                        QuickStartRow(target: target) { select(target) }
+                    }
+                }
+                Section("Deep Sky") {
+                    ForEach(deepSkyTargets) { target in
+                        QuickStartRow(target: target) { select(target) }
+                    }
+                }
+            }
+        }
+        .frame(width: 420, height: 480)
+    }
+
+    private func select(_ target: AcquisitionTarget) {
+        cameraManager.quickStart(with: target)
+        dismiss()
+    }
+}
+
+private struct QuickStartRow: View {
+    let target: AcquisitionTarget
+    var onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 10) {
+                Image(systemName: target.icon).frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(target.name).font(.body)
+                    Text(target.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 }

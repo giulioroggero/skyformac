@@ -2,10 +2,11 @@ import SwiftUI
 
 /// The Projects browser's "Project Detail" page — pushed onto the browser's `NavigationStack`
 /// when a project is tapped on the Home page. Shows the project's own metadata (name/goal/tags/
-/// location/notes) plus its session list; tapping a session either runs it directly (no history
-/// yet) or pushes on to `onShowSessionHistory`'s "Session History" page. Every edit calls
-/// `ProjectsLibrary.save` directly — see that type's doc comment for why an unnamed project's
-/// edits never hit disk until it's named.
+/// location/notes) plus its session list; tapping a session always pushes on to
+/// `onShowSessionHistory`'s Session page — the camera view only opens via an explicit
+/// "Run"/"Resume" button, never just by tapping a row. Every edit calls `ProjectsLibrary.save`
+/// directly — see that type's doc comment for why an unnamed project's edits never hit disk
+/// until it's named.
 struct ProjectDetailPane: View {
     let project: Project
     var cameraManager: CameraManager
@@ -62,19 +63,11 @@ struct ProjectDetailPane: View {
                 ForEach(project.sessions) { session in
                     SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
                         .contentShape(Rectangle())
-                        // A session that's never been run yet has no history to show — tapping it
-                        // runs it directly (switches the whole window to the camera view, see
-                        // `RootView`) instead of pushing another page. One that's already been
-                        // run pushes on to its Session History page instead — "Run This Session"
-                        // there still starts it again/resumes capturing into it, for whenever
-                        // that's actually wanted.
-                        .onTapGesture {
-                            if session.captures.isEmpty {
-                                cameraManager.setActive(project: project, session: session)
-                            } else {
-                                onShowSessionHistory(session)
-                            }
-                        }
+                        // Tapping a session always opens its own Session page (detail/history) —
+                        // the camera view only ever opens via an explicit "Run"/"Resume"/"Run
+                        // This Session" button (on the card itself, or on the Session page),
+                        // never just by tapping the row.
+                        .onTapGesture { onShowSessionHistory(session) }
                         .contextMenu {
                             Button(session.isArchived ? "Unarchive" : "Archive") {
                                 try? library.setArchived(!session.isArchived, forSessionID: session.id, in: project)

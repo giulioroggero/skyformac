@@ -297,14 +297,27 @@ session persistence design and the browser-as-main-window architecture)
   switches to the camera view only once one is actually running. A project
   groups sessions under a shared goal and optional planned date range; each
   session plans its own goal, objects (e.g. "M13, M57, Saturn"), and date.
-- **Create/run/manage** — "New Project…" (Home page toolbar, or ⌘⇧N) is the
-  one modal in the feature — it requires a name up front, so the project's
-  name is always visible from the moment it exists. Clicking a session that
-  has no captures yet runs it directly (switches to the camera view);
-  clicking one that's already been run shows its history instead. While
-  running, the toolbar's project/session menu (and `CommandMenu("Session")`)
-  covers End Session, Open Next Session, New Session in Project, and
-  Delete This Session without a trip back to the browser.
+- **Create/run/manage** — "New Project…" (Home page toolbar, or the menu
+  bar's **Project** menu) is the one modal in the feature — it requires a
+  name up front, so the project's name is always visible from the moment it
+  exists. Clicking any session — run or not — opens its own Session page;
+  the camera view only ever opens via an explicit "Run"/"Resume"/"Run This
+  Session" button, never just by tapping a row. The **Project** menu (menu
+  bar) consolidates every management action — New Project, Quick Start, Go
+  Home, Open Project Page, End Session, Open Next Session, New Session in
+  Project, Delete This Session — in one place.
+- **Quick Start** — pick a common target (a planet, the Moon, or a curated
+  Messier object — the same list the Acquisition Wizard offers) from the
+  Home page toolbar or the **Project** menu, and skip creating a project and
+  session by hand: both are created automatically (named after the target,
+  its own recommended gain/exposure/mode applied — immediately if a camera's
+  already connected, otherwise the moment one connects), and the camera view
+  opens straight away with the normal camera-selection flow still in place.
+- **Breadcrumb navigation in the camera view** — Home / Project name /
+  Session name, each independently clickable: Home returns to the project
+  list, the project name to that project's own page (keeping the session's
+  history), the session name to its own Session page. The window title bar
+  shows the same "Project — Session" text.
 - **Home page: thumbnail cards or a table, your choice** — a toolbar toggle
   switches between a grid of cover-thumbnail cards (default, generated from
   each project's single most recent capture with a thumbnail — see

@@ -29,13 +29,6 @@ struct SkyformacCommands: Commands {
 
         CommandGroup(after: .newItem) {
             Divider()
-            Button("New Project…") { cameraManager.newProject() }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-            Button("Switch Project…") { cameraManager.setActive(project: nil, session: nil) }
-                .keyboardShortcut("o", modifiers: .command)
-                .disabled(cameraManager.activeProject == nil)
-
-            Divider()
             Button("Export as FITS…") { cameraManager.exportCurrentFrame(as: .fits) }
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(cameraManager.currentFrame == nil)
@@ -78,16 +71,30 @@ struct SkyformacCommands: Commands {
                 .disabled(cameraManager.connectedCamera == nil)
         }
 
-        CommandMenu("Session") {
+        // Every project/session management action in one place — creating, opening, navigating,
+        // and tearing down, rather than split across the File menu and a separate "Session" menu.
+        CommandMenu("Project") {
+            Button("New Project…") { cameraManager.newProject() }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+            Button("Quick Start…") { cameraManager.requestQuickStart() }
+                .keyboardShortcut("u", modifiers: .command)
+            Button("Go Home") { cameraManager.setActive(project: nil, session: nil) }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Open Project Page") { cameraManager.showProjectDetail() }
+                .keyboardShortcut("o", modifiers: .command)
+                .disabled(cameraManager.activeProject == nil)
+
+            Divider()
+
             Button("End Session") { cameraManager.endActiveSession() }
                 .keyboardShortcut(".", modifiers: .command)
                 .disabled(cameraManager.activeSession == nil)
             Button("Open Next Session") { cameraManager.openNextSession() }
                 .keyboardShortcut(.rightArrow, modifiers: [.command, .shift])
                 .disabled(!cameraManager.hasNextSession)
-
-            Divider()
-
             Button("New Session in Project") { cameraManager.createSessionInActiveProject() }
                 .keyboardShortcut("n", modifiers: [.command, .control])
                 .disabled(cameraManager.activeProject == nil)

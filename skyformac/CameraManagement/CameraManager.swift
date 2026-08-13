@@ -1086,6 +1086,18 @@ final class CameraManager {
     /// `NewProjectSheet` — creating a project always requires one now, there's no more
     /// unnamed-until-later project).
     var isCreatingNewProjectRequested = false
+    /// Same idea as `isCreatingNewProjectRequested`, for the Home page's "Quick Start" sheet
+    /// instead — set by `requestQuickStart()` (the Project menu's "Quick Start…" item).
+    var isQuickStartRequested = false
+
+    /// "Project → Quick Start…" — returns to the Projects browser (if a session was running) and
+    /// asks it to open the Quick Start sheet immediately, the same starting point as the Home
+    /// page's own "Quick Start" toolbar button.
+    func requestQuickStart() {
+        activeProject = nil
+        activeSession = nil
+        isQuickStartRequested = true
+    }
 
     /// Makes `session` (within `project`) the destination for future captures, and — since a
     /// non-`nil` `session` becomes `activeSession` — what `RootView` shows the camera UI for
@@ -1100,9 +1112,18 @@ final class CameraManager {
     /// Stops running the active session and returns to the Projects browser — but, unlike
     /// `setActive(project:nil, session:nil)`, keeps `activeProject` set, so the browser reopens
     /// with that same project (and, via `lastEndedSessionID`, that same session's now-updated
-    /// history) already showing instead of the top of the project list.
+    /// history) already showing instead of the top of the project list. What the camera view's
+    /// breadcrumb goes to when the *session* name is pressed.
     func endActiveSession() {
         lastEndedSessionID = activeSession?.id
+        activeSession = nil
+    }
+
+    /// What the camera view's breadcrumb goes to when the *project* name (not the session name)
+    /// is pressed — same as `endActiveSession()` in that it keeps `activeProject` and drops
+    /// `activeSession`, but deliberately doesn't set `lastEndedSessionID`, so the browser lands on
+    /// the project's own Detail page rather than jumping straight into this session's History.
+    func showProjectDetail() {
         activeSession = nil
     }
 
@@ -1155,6 +1176,38 @@ final class CameraManager {
         activeProject = nil
         activeSession = nil
         isCreatingNewProjectRequested = true
+    }
+
+    /// Set by `quickStart(with:)` when no camera is connected yet — `applyAcquisitionPreset`
+    /// itself silently no-ops without one (see its own guard), so without this the whole point of
+    /// picking a Quick Start target (its recommended starting gain/exposure and Live
+    /// Stack/Lucky Imaging mode) would be lost the moment the user still had to go connect a
+    /// camera afterward, which Quick Start's entire premise requires. Applied and cleared by
+    /// `connect(to:)` the next time a camera actually connects.
+    var pendingAcquisitionPreset: AcquisitionPreset?
+
+    /// The Projects Home page's "Quick Start" — skips manually creating a project and session for
+    /// a one-off "just go observe Saturn tonight" outing: creates both (named after `target`, its
+    /// summary as the goal, `target`'s own name as the session's one planned object), applies its
+    /// recommended camera setup (immediately if a camera's already connected, otherwise as soon as
+    /// one does — see `pendingAcquisitionPreset`), and opens the camera view — where camera
+    /// selection itself still happens exactly as it always does, Quick Start doesn't skip that.
+    @discardableResult
+    func quickStart(with target: AcquisitionTarget) -> Session {
+        var project = Project.newProject(name: target.name, goal: target.summary)
+        let session = Session.newSession(name: target.name, goal: target.summary, plannedObjects: [target.name])
+        project.sessions = [session]
+        try? projectsLibrary.save(project)
+
+        let preset = target.recommendedPreset(telescope: telescopeProfile)
+        if connectedCamera != nil {
+            applyAcquisitionPreset(preset)
+        } else {
+            pendingAcquisitionPreset = preset
+        }
+
+        setActive(project: project, session: session)
+        return session
     }
 
     private var serRecordingURL: URL?
@@ -1353,6 +1406,15 @@ final class CameraManager {
             refreshGainOffsetPresets()
             startDiagnosticsPolling()
             await startPreview(using: engine)
+
+            // A Quick Start picked before any camera was connected left its recommended setup
+            // with nothing to apply to yet — `applyAcquisitionPreset` itself silently no-ops
+            // without a connected camera. Apply it now that one just did, then forget it (a later
+            // reconnect shouldn't replay a Quick Start setup from an earlier session).
+            if let pendingAcquisitionPreset {
+                applyAcquisitionPreset(pendingAcquisitionPreset)
+                self.pendingAcquisitionPreset = nil
+            }
         } catch {
             connectionState = .error(String(describing: error))
             lastErrorMessage = String(describing: error)

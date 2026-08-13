@@ -101,4 +101,58 @@ struct CameraManagerSessionLifecycleTests {
         #expect(manager.activeProject?.sessions.isEmpty == true)
         #expect(manager.projectStore.loadAllProjects().first?.sessions.isEmpty == true)
     }
+
+    @Test func showProjectDetailClearsOnlyTheSessionNotTheProject() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(1)
+        manager.setActive(project: project, session: project.sessions[0])
+
+        manager.showProjectDetail()
+
+        #expect(manager.activeSession == nil)
+        #expect(manager.activeProject?.id == project.id)
+        // Unlike endActiveSession(), this doesn't remember the session — it's the "go up to the
+        // project page" action, not "come back to this session's history."
+        #expect(manager.lastEndedSessionID == nil)
+    }
+
+    @Test func requestQuickStartClearsActiveStateAndSetsTheFlag() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.setActive(project: makeProjectWithSessions(1), session: nil)
+
+        manager.requestQuickStart()
+
+        #expect(manager.activeProject == nil)
+        #expect(manager.activeSession == nil)
+        #expect(manager.isQuickStartRequested)
+    }
+
+    @Test func quickStartCreatesAProjectAndSessionNamedAfterTheTargetAndOpensIt() throws {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let session = manager.quickStart(with: .planetary(.saturn))
+
+        #expect(session.name == "Saturn")
+        #expect(session.plannedObjects == ["Saturn"])
+        #expect(manager.activeSession?.id == session.id)
+        #expect(manager.activeProject?.name == "Saturn")
+
+        let reloaded = manager.projectStore.loadAllProjects().first
+        #expect(reloaded?.name == "Saturn")
+        #expect(reloaded?.sessions.first?.name == "Saturn")
+    }
+
+    @Test func quickStartDefersItsPresetWithNoCameraConnected() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(manager.connectedCamera == nil)
+
+        _ = manager.quickStart(with: .deepSky(.m13))
+
+        #expect(manager.pendingAcquisitionPreset != nil)
+        #expect(manager.pendingAcquisitionPreset?.targetID == AcquisitionTarget.deepSky(.m13).id)
+    }
 }

@@ -1836,3 +1836,43 @@ made along the way.
     pulled at all.
   - **`OllamaError.userFacingMessage`** is what `AIPlanSheets` actually shows now, instead of
     `String(describing: error)`'s `badResponse(message: Optional("..."))`-shaped debug dump.
+
+- **Quick Start, a breadcrumb, and a consolidated Project menu.** Three related corrections
+  after actually walking through the Projects flow: sessions need to be reachable without an
+  extra "should I create a project first?" step for a spontaneous outing; tapping a not-yet-run
+  session was jumping straight to the camera view with no chance to look at it first; and
+  project/session actions were split awkwardly across the File menu, a separate "Session" menu,
+  and a dropdown hidden behind the camera view's project/session label.
+  - **`CameraManager.quickStart(with: AcquisitionTarget)`** creates a project and session named
+    after the target (goal = the target's own summary, the session's one planned object = the
+    target's name), saves it immediately (the name is never empty, so `ProjectsLibrary.save`
+    persists on the spot), and applies `target.recommendedPreset(telescope:)` — reusing the exact
+    same curated list (`AcquisitionTarget.all`) and recommendation logic the Acquisition Wizard
+    already has, rather than a second target list or a second "what settings for this object"
+    table.
+  - **`applyAcquisitionPreset` silently no-ops without a connected camera** (its own existing
+    guard) — which would have quietly thrown away Quick Start's entire point (the recommended
+    gain/exposure/mode) for anyone who hadn't already connected a camera before picking a target,
+    which is the common case coming straight from the Home page. `pendingAcquisitionPreset`
+    holds the preset in that case and `connect(to:)` applies (then clears) it the moment a camera
+    actually connects — Quick Start doesn't skip camera selection, it just doesn't lose the
+    recommendation while waiting for it.
+  - **Tapping a session in `ProjectDetailPane` always opens its Session page now** — no more
+    branching on `session.captures.isEmpty` to jump straight to the camera view for a never-run
+    one. The camera view opens *only* via an explicit Run/Resume button (the session card's own,
+    or "Run This Session" on the Session page) — tapping a row is navigation, pressing a button
+    is an action, and conflating the two meant an accidental tap on an empty session silently
+    started recording into it.
+  - **The camera view's toolbar item became an actual breadcrumb** (`ContentView.breadcrumb`) —
+    Home / Project name / Session name, three independently pressable crumbs, replacing a single
+    `Menu` labeled with the window title. `CameraManager.showProjectDetail()` (new) is what
+    pressing the *project* name calls — same shape as `endActiveSession()` (clears
+    `activeSession`, keeps `activeProject`) but deliberately doesn't set `lastEndedSessionID`, so
+    the browser lands on the Project Detail page rather than jumping into the session's own
+    History the way pressing the *session* name (still `endActiveSession()`) does.
+  - **Every project/session action moved into one `CommandMenu("Project")`** — New Project, Quick
+    Start, Go Home, Open Project Page, End Session, Open Next Session, New Session in Project,
+    Delete This Session — replacing the File menu's project items and the standalone "Session"
+    menu. Caught (and fixed) a real pre-existing shortcut collision while consolidating: "New
+    Project…" and the toolbar's "Night Mode" toggle had both been bound to ⌘⇧N; New Project moved
+    to ⌘⇧P.

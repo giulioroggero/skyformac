@@ -272,18 +272,27 @@ without one. The Home page's toolbar switches between a grid of cover-
 thumbnail cards (default, one per project, generated from its most recent
 capture) and a sortable table (name, goal, session/capture counts, location,
 tags, last activity) — either way each project shows more than just its
-name. "New Project…" (Home page toolbar, or ⌘⇧N) is the only modal in
-the feature — it requires a name up front, so the project's name is always
-visible. Clicking a session with no captures yet **runs** it (switches
-straight to the camera view); clicking one that's already been run shows its
-history instead. Each session gets its own folder for captures and settings,
-a timeline of thumbnails, tags, notes, and GPS or hand-entered location.
-Exporting a frame or finishing a SER recording while a session is running
-also files a copy into that session's timeline. While running, the toolbar's
-project/session menu covers ending the session, opening the next one, adding
-a new one, or deleting it — no trip back to the browser required. "Ask AI to
-Plan…" sends a one-line goal to a local Ollama server and shows the
-suggested session(s) before creating anything.
+name. "New Project…" (Home page toolbar, or the menu bar's **Project** menu)
+is the only modal in the feature — it requires a name up front, so the
+project's name is always visible. **Quick Start** (Home page toolbar or the
+Project menu) skips that for a one-off outing: pick a planet, the Moon, or a
+curated deep-sky object and both a project and session are created
+automatically, with the target's recommended camera setup applied, straight
+into the camera view.
+
+Clicking any session — run or not — opens its own Session page; the camera
+view only ever opens via an explicit Run/Resume button, never just by
+tapping a row. Each session gets its own folder for captures and settings, a
+timeline of thumbnails, tags, notes, and GPS or hand-entered location, plus a
+full History (date/time, position, aim, objects) and a capture-count Stats
+breakdown. Exporting a frame or finishing a SER recording while a session is
+running also files a copy into that session's timeline. While running, a
+breadcrumb (Home / Project name / Session name) replaces the window's usual
+title-bar navigation, and the menu bar's **Project** menu covers every
+project/session action — ending the session, opening the next one, adding a
+new one, deleting it, switching projects — without a trip back to the
+browser. "Ask AI to Plan…" sends a one-line goal to a local Ollama server and
+shows the suggested session(s) before creating anything.
 
 ### Permissions
 

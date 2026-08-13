@@ -24,6 +24,31 @@ struct ContentView: View {
         return "\(projectName) — \(session.name)"
     }
 
+    /// Home (the project list) / Project name (this project's own page) / Session name (this
+    /// session's own page) — three independently clickable crumbs, since each is a genuinely
+    /// different destination: "Home" drops the project entirely, the project name keeps it but
+    /// drops the session (`showProjectDetail()`), the session name keeps both and remembers to
+    /// reopen this exact session's history (`endActiveSession()`). Only ever missing the session
+    /// crumb (never the project one) since `RootView` gates this whole view on a session running.
+    @ViewBuilder
+    private var breadcrumb: some View {
+        HStack(spacing: 4) {
+            Button("Home") { cameraManager.setActive(project: nil, session: nil) }
+            if let project = cameraManager.activeProject {
+                Text("›").foregroundStyle(.tertiary)
+                Button(project.name.isEmpty ? "Untitled Project" : project.name) {
+                    cameraManager.showProjectDetail()
+                }
+                if let session = cameraManager.activeSession {
+                    Text("›").foregroundStyle(.tertiary)
+                    Button(session.name) { cameraManager.endActiveSession() }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+    }
+
     var body: some View {
         Group {
             if cameraManager.isPreviewFullScreenEnabled {
@@ -181,25 +206,12 @@ struct ContentView: View {
         .navigationTitle(windowTitle)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                // The active project's and session's name — always visible here and in the
-                // window title bar itself (see `windowTitle`), never tucked away behind a sheet
-                // you have to reopen to remember what you're running. Also every session-lifecycle
-                // action: this app has no camera UI without a running session (see `RootView`),
-                // so managing that session (ending it, moving to the next one, adding another,
-                // deleting this one) has to be reachable from right here, not just the browser.
-                Menu {
-                    Button("End Session", systemImage: "stop.circle") { cameraManager.endActiveSession() }
-                    Button("Open Next Session", systemImage: "arrow.right.circle") { cameraManager.openNextSession() }
-                        .disabled(!cameraManager.hasNextSession)
-                    Button("New Session in Project", systemImage: "plus.circle") { cameraManager.createSessionInActiveProject() }
-                    Divider()
-                    Button("Delete This Session", systemImage: "trash", role: .destructive) { cameraManager.deleteActiveSession() }
-                    Divider()
-                    Button("Switch Project", systemImage: "folder") { cameraManager.setActive(project: nil, session: nil) }
-                } label: {
-                    Label(windowTitle, systemImage: "folder")
-                }
-                .help("Session actions — end, open the next one, add a new session, delete this one, or switch project")
+                // Home / Project / Session, each independently clickable — pressing the project
+                // name goes to its Project page, the session name to its own Session page, Home
+                // all the way back to the project list. Every project/session *management* action
+                // (end, next, new, delete, switch) lives in the menu bar's "Project" menu instead
+                // of here — this row is navigation, not a dropdown of actions.
+                breadcrumb
             }
             ToolbarItem(placement: .principal) {
                 imageTypePicker

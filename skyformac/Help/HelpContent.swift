@@ -502,7 +502,11 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.newProject", heading: "Creating a project",
-                body: "**New Project…** (Home page toolbar, or ⌘⇧N from the File menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
+                body: "**New Project…** (Home page toolbar, or the menu bar's **Project** menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
+            ),
+            HelpSection(
+                id: "setting.quickStart", heading: "Quick Start",
+                body: "For a one-off outing, skip creating a project and session by hand entirely: **Quick Start** (Home page toolbar, or the Project menu) offers a curated list of planets, the Moon, and well-known deep-sky objects — the same list the Acquisition Wizard uses. Picking one creates both, applies that target's recommended gain/exposure/mode (immediately if a camera's already connected, otherwise the moment one does), and opens the camera view — camera selection itself still happens exactly as it always does."
             ),
             HelpSection(
                 heading: "Thumbnails or a table",
@@ -514,11 +518,11 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.runSession", heading: "Running a session",
-                body: "Click a session that has no captures yet and it **runs** immediately — the window switches straight to the camera view, with that session as the capture destination. Click one that's already been run and you see its history page instead (its timeline); **Run This Session** there starts it again whenever picking it back up is what you actually want. While exporting a frame (Export As…) or finishing a SER recording during a run, a copy also files into that session's timeline, in addition to the usual Export History."
+                body: "Click any session — run or not — and its own Session page opens (its History and, once it has any, its timeline). The camera view only ever opens via an explicit button: **Run**/**Resume** on the session's card, or **Run This Session** on its own page. While exporting a frame (Export As…) or finishing a SER recording during a run, a copy also files into that session's timeline, in addition to the usual Export History."
             ),
             HelpSection(
-                heading: "While a session is running",
-                body: "The toolbar's project/session menu (and the menu bar's **Session** menu) covers the rest of the loop without a trip back to the browser: **End Session** (returns to the browser, on the same project), **Open Next Session** (jumps straight to the next one), **New Session in Project**, and **Delete This Session**. **Switch Project** leaves the project context behind entirely."
+                heading: "The breadcrumb, and the Project menu",
+                body: "While a session is running, the toolbar shows **Home** / the project's name / the session's name — each independently clickable: Home returns to the project list, the project name to that project's own page, the session name back to its own page. The menu bar's **Project** menu covers every action: New Project, Quick Start, Go Home, Open Project Page, End Session, Open Next Session, New Session in Project, and Delete This Session — none of them require a trip back to the browser."
             ),
             HelpSection(
                 heading: "Session cards",
