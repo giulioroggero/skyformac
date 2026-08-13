@@ -28,6 +28,7 @@ enum AppSettings {
         case isStreakMaskingEnabled
         case exportHistory
         case smartLiveStackQualityFraction
+        case telescopeProfile
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -70,6 +71,19 @@ enum AppSettings {
                 : 0.5
         }
         set { UserDefaults.standard.set(newValue, forKey: Key.smartLiveStackQualityFraction.rawValue) }
+    }
+
+    /// Which telescope `PlanetaryPreset`'s starting exposure is scaled for — see
+    /// `PlanetaryPreset.startingExposureSeconds(for:)`. Defaults to `TelescopeProfile.reference`
+    /// (a Maksutov 127mm/1500mm, what those base numbers are already tuned for) when never
+    /// explicitly set, or when the stored raw value doesn't match any current case (an older
+    /// build's now-renamed/removed profile).
+    static var telescopeProfile: TelescopeProfile {
+        get {
+            UserDefaults.standard.string(forKey: Key.telescopeProfile.rawValue)
+                .flatMap(TelescopeProfile.init(rawValue:)) ?? .reference
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.telescopeProfile.rawValue) }
     }
 
     static var isFocusAssistEnabled: Bool {

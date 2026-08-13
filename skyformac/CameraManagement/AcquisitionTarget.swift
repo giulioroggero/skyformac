@@ -187,7 +187,11 @@ enum AcquisitionTarget: Identifiable, Hashable {
     /// objects, and the Moon's `.both` mode) — genuinely long, multi-minute-plus integrations are
     /// exactly where field rotation/differential drift a single global shift can't correct
     /// becomes real, unlike a Lucky Imaging burst that's over in seconds.
-    func recommendedPreset(name presetName: String? = nil) -> AcquisitionPreset {
+    /// `telescope` only affects a `.planetary` target's starting exposure (via `PlanetaryPreset
+    /// .startingExposureSeconds(for:)`) — a `.deepSky` object's own starting exposure already
+    /// spans several seconds, far longer than any telescope's focal-ratio difference alone would
+    /// meaningfully move it, and gain/integration time there are the levers that actually matter.
+    func recommendedPreset(name presetName: String? = nil, telescope: TelescopeProfile = .reference) -> AcquisitionPreset {
         let mode = recommendedMode
         switch self {
         case .planetary(let preset):
@@ -196,7 +200,7 @@ enum AcquisitionTarget: Identifiable, Hashable {
                 targetID: id,
                 mode: mode,
                 gain: preset.startingGain,
-                exposureSeconds: preset.startingExposureSeconds,
+                exposureSeconds: preset.startingExposureSeconds(for: telescope),
                 roiWidth: preset.roi?.width,
                 roiHeight: preset.roi?.height,
                 isDriftReductionEnabled: false,

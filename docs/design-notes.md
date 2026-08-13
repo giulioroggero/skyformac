@@ -1591,3 +1591,31 @@ made along the way.
   - "Disable All ___ Features" and the Acquisition Wizard button stay at the top of their tab in
     all three cases, outside Advanced — they're not settings to reach for less often, they're the
     fastest way to undo or set up everything else on the tab at once.
+- **Telescope-specific planetary presets.** `PlanetaryPreset`'s numbers were tuned for one
+  specific reference setup ("a modern ~2µm-pixel planetary camera behind a modest f/10-f/12
+  Mak/SCT") and had no way to account for a different telescope — reported as the Wizard's Saturn
+  preset not matching what actually worked on a real Maksutov 127mm/1500mm session.
+  - **`TelescopeProfile`** (next to `PlanetaryPreset` in `CameraManager.swift`) is a small curated
+    list of common amateur telescope configurations (a few Maksutovs, SCTs, Newtonians,
+    refractors) — aperture + focal length, from which `focalRatio` (`focalLength/aperture`, the
+    same f/number a camera lens's own f/stop is) is derived. `.maksutov127` (127mm/1500mm, f/11.8)
+    is `.reference` — squarely inside the "f/10-f/12" range `PlanetaryPreset`'s numbers already
+    assumed, so scaling by it is a no-op.
+  - **`PlanetaryPreset.startingExposureSeconds(for:)`/`exposureRangeSeconds(for:)`** scale by
+    `(telescope.focalRatio / reference.focalRatio)²` — illuminance per pixel scales with
+    `1/focalRatio²`, the same relationship an ordinary camera's exposure triangle already uses for
+    f/stop — clamped to a sane absolute range (0.05ms...5s) so an extreme enough scope can't scale
+    this into a nonsensical starting point. Deliberately doesn't also scale `startingGain` —
+    exposure alone already captures the relationship, and touching gain too would double-
+    compensate for it.
+  - **Explicitly not the whole story**: camera sensitivity (a different sensor's own ADU-per-
+    photon response) is a separate, likely *larger* factor than telescope focal ratio for how far
+    off a generic starting point can be from what a specific rig actually needs — this only
+    accounts for the optical side, and the real recorded discrepancy that prompted this feature
+    was plausibly mostly a camera difference, not a telescope one. These stay starting points to
+    fine-tune against the live histogram either way, same as before.
+  - **`CameraManager.telescopeProfile`** (persisted via `AppSettings`, defaulting to `.reference`
+    when never set or when a stored value doesn't match any current case) is what
+    `applyPlanetaryPreset`/the Wizard's own telescope picker both read/write — a preference, not
+    session state, since the telescope behind the camera doesn't change between sessions nearly
+    as often as anything else this app tracks.

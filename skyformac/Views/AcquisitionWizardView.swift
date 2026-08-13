@@ -62,6 +62,25 @@ struct AcquisitionWizardView: View {
         HStack {
             Text("Acquisition Wizard").font(.headline)
             Spacer()
+            // Only actually changes anything for a `.planetary` target's starting exposure (see
+            // `AcquisitionTarget.recommendedPreset(name:telescope:)`'s doc comment) — shown
+            // regardless of which target is currently selected, since switching telescopes mid-
+            // session (or before picking a target at all) should still stick for whichever
+            // planetary target gets picked next.
+            Picker("Telescope", selection: Binding(
+                get: { cameraManager.telescopeProfile },
+                set: { newValue in
+                    cameraManager.telescopeProfile = newValue
+                    if let selectedTarget, case .planetary = selectedTarget {
+                        workingPreset?.exposureSeconds = selectedTarget.recommendedPreset(telescope: newValue).exposureSeconds
+                    }
+                }
+            )) {
+                ForEach(TelescopeProfile.allCases) { telescope in
+                    Text(telescope.rawValue).tag(telescope)
+                }
+            }
+            .frame(width: 260)
             Button("Load Preset…") {
                 cameraManager.loadAcquisitionPreset { preset, target in
                     workingPreset = preset
@@ -83,7 +102,7 @@ struct AcquisitionWizardView: View {
                 selectedTarget = newTarget
                 loadedFromUnknownTarget = false
                 guard let newTarget else { return }
-                let preset = newTarget.recommendedPreset()
+                let preset = newTarget.recommendedPreset(telescope: cameraManager.telescopeProfile)
                 workingPreset = preset
                 presetName = preset.name
             }

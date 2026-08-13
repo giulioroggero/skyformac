@@ -185,7 +185,11 @@ raw data:
 - **Planetary Presets** (ZWO only) — one tap sets RAW8, a small **Capture
   ROI**, and a safe starting exposure/gain for Saturn/Jupiter/Mars/Venus/the
   Moon, tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC)
-  behind an f/10-f/12 Mak/SCT.
+  behind a reference Maksutov 127mm/1500mm (f/11.8). A **Telescope** picker
+  (a curated list of common Maksutovs/SCTs/Newtonians/refractors) scales
+  the starting exposure for a different telescope's focal ratio — camera
+  sensitivity isn't accounted for, so these stay starting points to
+  fine-tune against the live histogram either way.
 - **Acquisition Wizard** (⌘⇧W) — pick a target (Moon, Venus, Mars, Jupiter,
   Saturn, or a curated deep-sky list: M13/M56/M31/M42/M45/M51/M57/M27/M81/M8)
   and set up ROI, gain, exposure, and Live Stack/Reduce Drift/Smart Live

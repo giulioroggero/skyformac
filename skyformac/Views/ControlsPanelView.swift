@@ -717,9 +717,19 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private var planetaryPresetsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("One tap sets RAW8, a small Capture ROI, and a safe starting exposure/gain for a specific target — raise Gain/Exposure from there while watching the histogram (under the live preview) until its peak sits in the target range below. Tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC) behind a modest f/10-f/12 Mak/SCT, which needs no Barlow at that pairing.")
+            Text("One tap sets RAW8, a small Capture ROI, and a safe starting exposure/gain for a specific target — raise Gain/Exposure from there while watching the histogram (under the live preview) until its peak sits in the target range below. Tuned around a modern ~2µm-pixel planetary camera (e.g. ASI678MC); exposure below is scaled for the selected telescope's focal ratio (f/number) relative to a Maksutov 127mm/1500mm (f/11.8, this app's own reference) — gain and camera sensitivity aren't accounted for, so these stay starting points to fine-tune against the live histogram, not exact values.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+            Picker("Telescope", selection: Binding(
+                get: { cameraManager.telescopeProfile },
+                set: { cameraManager.telescopeProfile = $0 }
+            )) {
+                ForEach(TelescopeProfile.allCases) { telescope in
+                    Text(telescope.rawValue).tag(telescope)
+                }
+            }
+            .help("Which telescope the exposure ranges below are scaled for — aperture and focal length (so, focal ratio) are what actually matter, not the telescope \"type\" as such.")
 
             ForEach(PlanetaryPreset.allCases) { preset in
                 Button {
@@ -736,9 +746,9 @@ struct ControlsPanelView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Text(String(
-                            format: "%.0f-%.0f ms · Gain %d-%d · up to %.0fs · histogram %.0f-%.0f%%",
-                            preset.exposureRangeSeconds.lowerBound * 1000,
-                            preset.exposureRangeSeconds.upperBound * 1000,
+                            format: "%.1f-%.1f ms · Gain %d-%d · up to %.0fs · histogram %.0f-%.0f%%",
+                            preset.exposureRangeSeconds(for: cameraManager.telescopeProfile).lowerBound * 1000,
+                            preset.exposureRangeSeconds(for: cameraManager.telescopeProfile).upperBound * 1000,
                             preset.gainRange.lowerBound,
                             preset.gainRange.upperBound,
                             preset.recommendedMaxDurationSeconds,

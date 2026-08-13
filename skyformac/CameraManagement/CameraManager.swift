@@ -117,6 +117,82 @@ enum PlanetaryPreset: String, CaseIterable, Identifiable {
     }
 }
 
+/// A common telescope configuration, for scaling `PlanetaryPreset`'s starting exposure to how
+/// much light it actually delivers per pixel — see `PlanetaryPreset.startingExposureSeconds
+/// (for:)` for the actual relationship. Aperture and focal length are what matter, not telescope
+/// "type" as such: a bigger aperture gathers more light for the same exposure, a longer focal
+/// length spreads that light over more sensor pixels (higher magnification) instead, and it's
+/// the *ratio* of the two — the focal ratio, f/number, exactly the same quantity a camera lens's
+/// own f/stop is — that actually determines brightness per pixel.
+enum TelescopeProfile: String, CaseIterable, Identifiable {
+    case maksutov90 = "Maksutov 90mm f/13.9 (1250mm)"
+    case maksutov102 = "Maksutov 102mm f/12.7 (1300mm)"
+    case maksutov127 = "Maksutov 127mm f/11.8 (1500mm)"
+    case maksutov150 = "Maksutov 150mm f/12 (1800mm)"
+    case sct8 = "8\" SCT f/10 (2032mm)"
+    case sct925 = "9.25\" SCT f/10 (2350mm)"
+    case newtonian130 = "Newtonian 130mm f/5 (650mm)"
+    case newtonian200 = "Newtonian 200mm f/5 (1000mm)"
+    case refractor80 = "Refractor 80mm f/7.5 (600mm)"
+    case refractor102 = "Refractor 102mm f/6.9 (700mm)"
+
+    var id: String { rawValue }
+
+    /// (aperture mm, focal length mm) — real, commonly-sold specs for each listed configuration.
+    private var dimensions: (aperture: Double, focalLength: Double) {
+        switch self {
+        case .maksutov90: return (90, 1250)
+        case .maksutov102: return (102, 1300)
+        case .maksutov127: return (127, 1500)
+        case .maksutov150: return (150, 1800)
+        case .sct8: return (203, 2032)
+        case .sct925: return (235, 2350)
+        case .newtonian130: return (130, 650)
+        case .newtonian200: return (200, 1000)
+        case .refractor80: return (80, 600)
+        case .refractor102: return (102, 700)
+        }
+    }
+
+    var apertureMillimeters: Double { dimensions.aperture }
+    var focalLengthMillimeters: Double { dimensions.focalLength }
+    var focalRatio: Double { focalLengthMillimeters / apertureMillimeters }
+
+    /// What `PlanetaryPreset`'s existing numbers are already tuned for — a Maksutov 127mm/1500mm
+    /// (f/11.8), squarely inside the "f/10-f/12" range `PlanetaryPreset`'s own doc comment
+    /// describes. Scaling by this specific case is a no-op.
+    static let reference: TelescopeProfile = .maksutov127
+}
+
+extension PlanetaryPreset {
+    /// `startingExposureSeconds` scaled for `telescope`'s focal ratio relative to
+    /// `TelescopeProfile.reference` — illuminance per pixel scales with `1/focalRatio²` (the same
+    /// relationship an ordinary camera's exposure triangle already uses for f/stop), so a faster
+    /// (lower f/number) scope needs proportionally less exposure for the same target brightness,
+    /// a slower one more. Clamped to a sane absolute range (0.05ms...5s) since an extreme enough
+    /// scope could otherwise scale this into a nonsensical starting point.
+    ///
+    /// Deliberately doesn't also scale `startingGain` — exposure alone already captures the same
+    /// physical relationship, and touching gain too would double-compensate for it. Camera
+    /// sensitivity (a different sensor's own ADU-per-photon response) is a separate, likely
+    /// larger factor this can't account for at all — these are still starting points to fine-tune
+    /// against the live histogram, not exact values for any specific telescope/camera pairing.
+    func startingExposureSeconds(for telescope: TelescopeProfile) -> Double {
+        let scale = pow(telescope.focalRatio / TelescopeProfile.reference.focalRatio, 2)
+        return min(max(startingExposureSeconds * scale, 0.00005), 5.0)
+    }
+
+    /// `exposureRangeSeconds`, scaled the same way `startingExposureSeconds(for:)` scales the
+    /// low end of it — for displaying the actual range a given telescope should expect, not the
+    /// reference telescope's own range regardless of which one is actually selected.
+    func exposureRangeSeconds(for telescope: TelescopeProfile) -> ClosedRange<Double> {
+        let scale = pow(telescope.focalRatio / TelescopeProfile.reference.focalRatio, 2)
+        let low = min(max(exposureRangeSeconds.lowerBound * scale, 0.00005), 5.0)
+        let high = min(max(exposureRangeSeconds.upperBound * scale, 0.00005), 5.0)
+        return low...max(high, low)
+    }
+}
+
 struct SmartExposureRecommendation: Sendable {
     let readNoiseElectrons: Double
     let skyRateElectronsPerSecond: Double
@@ -1331,6 +1407,15 @@ final class CameraManager {
         }
     }
 
+    /// Which telescope `applyPlanetaryPreset`/`AcquisitionTarget.recommendedPreset()` scale their
+    /// starting exposure for — see `PlanetaryPreset.startingExposureSeconds(for:)`. A preference,
+    /// not session state (unlike e.g. `polarAlignmentStage`) — the telescope behind the camera
+    /// doesn't change between sessions nearly as often as anything else this app tracks, so it's
+    /// worth remembering across a relaunch the same way the render path or Focus Assist are.
+    var telescopeProfile = AppSettings.telescopeProfile {
+        didSet { AppSettings.telescopeProfile = telescopeProfile }
+    }
+
     /// Applies one bright solar-system target's starting ROI/exposure/gain in a single step, and
     /// switches to RAW8 if the camera supports it (the recommended format for this workflow —
     /// undebayered means more frames/second, and color reconstruction is AutoStakkert!3's job,
@@ -1353,7 +1438,7 @@ final class CameraManager {
         changeCaptureROI(width: preset.roi?.width, height: preset.roi?.height)
 
         if let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
-            let microseconds = Int(preset.startingExposureSeconds * 1_000_000)
+            let microseconds = Int(preset.startingExposureSeconds(for: telescopeProfile) * 1_000_000)
             setControlValue(ASI_EXPOSURE, value: min(max(microseconds, exposureCap.minValue), exposureCap.maxValue))
         }
         if let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
