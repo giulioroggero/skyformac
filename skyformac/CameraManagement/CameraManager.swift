@@ -1094,6 +1094,15 @@ final class CameraManager {
         self.projectsLibrary = ProjectsLibrary(store: projectStore)
         self.ollamaPlanner = ollamaPlanner
         refreshCameraList()
+        // iMovie-style first-run: with no projects on disk at all (a fresh install, or every
+        // project was since deleted), greet the user with the browser already open on a fresh
+        // untitled project instead of a camera view with no obvious way to discover Projects.
+        // Existing users with real projects see their usual camera view — the browser stays an
+        // opt-in sheet, matching every other secondary view in this app.
+        if projectsLibrary.projects.isEmpty {
+            projectsLibrary.ensureAtLeastOneProjectExists()
+            isProjectsBrowserPresented = true
+        }
     }
 
     /// Fetches a GPS fix and saves it on whichever of `activeSession`/`activeProject` (session
