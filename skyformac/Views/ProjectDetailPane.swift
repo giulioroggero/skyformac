@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// The Projects browser's middle column: one project's own metadata (name/goal/tags/location/
-/// notes) plus the list of its sessions. Every edit calls `ProjectsLibrary.save` directly — see
-/// that type's doc comment for why an unnamed project's edits never hit disk until it's named.
+/// The Projects browser's "Project Detail" page — pushed onto the browser's `NavigationStack`
+/// when a project is tapped on the Home page. Shows the project's own metadata (name/goal/tags/
+/// location/notes) plus its session list; tapping a session either runs it directly (no history
+/// yet) or pushes on to `onShowSessionHistory`'s "Session History" page. Every edit calls
+/// `ProjectsLibrary.save` directly — see that type's doc comment for why an unnamed project's
+/// edits never hit disk until it's named.
 struct ProjectDetailPane: View {
     let project: Project
     var cameraManager: CameraManager
-    @Binding var selectedSessionID: Session.ID?
+    var onShowSessionHistory: (Session) -> Void
 
     @State private var name: String
     @State private var goal: String
@@ -16,10 +19,10 @@ struct ProjectDetailPane: View {
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
-    init(project: Project, cameraManager: CameraManager, selectedSessionID: Binding<Session.ID?>) {
+    init(project: Project, cameraManager: CameraManager, onShowSessionHistory: @escaping (Session) -> Void) {
         self.project = project
         self.cameraManager = cameraManager
-        self._selectedSessionID = selectedSessionID
+        self.onShowSessionHistory = onShowSessionHistory
         self._name = State(initialValue: project.name)
         self._goal = State(initialValue: project.goal)
     }
@@ -54,30 +57,26 @@ struct ProjectDetailPane: View {
             Section {
                 ForEach(project.sessions) { session in
                     SessionRow(project: project, session: session, cameraManager: cameraManager)
-                        .tag(session.id)
                         .contentShape(Rectangle())
-                        // A session that's never been run yet has no history to show — clicking
-                        // it runs it directly (opens the camera view) instead of just selecting
-                        // it, matching "click a not-yet-run session to run it" from the Projects
-                        // workflow. One that's already been run selects it here instead, so its
-                        // history (the Timeline section in `SessionDetailPane`) shows up in the
-                        // detail column — "Run This Session" there still starts it again/resumes
-                        // capturing into it, for whenever that's actually wanted.
+                        // A session that's never been run yet has no history to show — tapping it
+                        // runs it directly (switches the whole window to the camera view, see
+                        // `RootView`) instead of pushing another page. One that's already been
+                        // run pushes on to its Session History page instead — "Run This Session"
+                        // there still starts it again/resumes capturing into it, for whenever
+                        // that's actually wanted.
                         .onTapGesture {
                             if session.captures.isEmpty {
                                 cameraManager.setActive(project: project, session: session)
                             } else {
-                                selectedSessionID = session.id
+                                onShowSessionHistory(session)
                             }
                         }
-                        .listRowBackground(selectedSessionID == session.id ? Color.accentColor.opacity(0.15) : nil)
                         .contextMenu {
                             Button(session.isArchived ? "Unarchive" : "Archive") {
                                 try? library.setArchived(!session.isArchived, forSessionID: session.id, in: project)
                             }
                             Button("Delete", role: .destructive) {
                                 try? library.deleteSession(session.id, in: project)
-                                if selectedSessionID == session.id { selectedSessionID = nil }
                             }
                         }
                 }
@@ -105,10 +104,7 @@ struct ProjectDetailPane: View {
     }
 
     private func addSession() {
-        let session = Session.newSession(name: "New Session")
-        if let updated = try? library.addSession(session, to: project) {
-            selectedSessionID = updated.sessions.first(where: { $0.id == session.id })?.id
-        }
+        try? library.addSession(Session.newSession(name: "New Session"), to: project)
     }
 }
 

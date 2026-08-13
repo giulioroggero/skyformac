@@ -87,11 +87,11 @@ What's in each part of the codebase, folder by folder.
   never a second `Scene` (per `SkyformacApp`'s single-window design).
   `ControlsPanelView` has a `ControlMode` picker (General/Planetary/Deep
   Sky/All Tools) filtering which of its tool sections show, via
-  `ToolSection`. `ProjectsBrowserView` (a three-column `NavigationSplitView`
-  — projects, sessions, session detail) plus
-  `ProjectDetailPane`/`SessionDetailPane`/`TimelineStripView`/
-  `AIPlanSheets` are the Projects feature's UI, built on
-  `skyformac/Projects/`'s model layer.
+  `ToolSection`. `ProjectsBrowserView` (a `NavigationStack` drill-down —
+  Home → Project Detail (`ProjectDetailPane`) → Session History
+  (`SessionDetailPane`), each a pushed page rather than a persistent
+  column) plus `TimelineStripView`/`AIPlanSheets` are the Projects
+  feature's UI, built on `skyformac/Projects/`'s model layer.
 - **`skyformacTests/`** — unit tests (Swift Testing) covering every piece of
   pixel/geometry/signal-processing math in the app: debayer, the stretch LUT,
   `ASI_ERROR_CODE` mapping, frame arithmetic, live-stack averaging,

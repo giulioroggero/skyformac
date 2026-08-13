@@ -502,7 +502,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.newProject", heading: "Creating a project",
-                body: "**New Project…** (sidebar, toolbar, or ⌘⇧N from the File menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
+                body: "**New Project…** (Home page toolbar, or ⌘⇧N from the File menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
             ),
             HelpSection(
                 heading: "Where your data goes",
@@ -510,7 +510,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.runSession", heading: "Running a session",
-                body: "Click a session that has no captures yet and it **runs** immediately — the window switches straight to the camera view, with that session as the capture destination. Click one that's already been run and you see its history instead (its timeline, in the detail column); **Run This Session** there starts it again whenever picking it back up is what you actually want. While exporting a frame (Export As…) or finishing a SER recording during a run, a copy also files into that session's timeline, in addition to the usual Export History."
+                body: "Click a session that has no captures yet and it **runs** immediately — the window switches straight to the camera view, with that session as the capture destination. Click one that's already been run and you see its history page instead (its timeline); **Run This Session** there starts it again whenever picking it back up is what you actually want. While exporting a frame (Export As…) or finishing a SER recording during a run, a copy also files into that session's timeline, in addition to the usual Export History."
             ),
             HelpSection(
                 heading: "While a session is running",

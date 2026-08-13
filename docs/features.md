@@ -297,7 +297,7 @@ session persistence design and the browser-as-main-window architecture)
   switches to the camera view only once one is actually running. A project
   groups sessions under a shared goal and optional planned date range; each
   session plans its own goal, objects (e.g. "M13, M57, Saturn"), and date.
-- **Create/run/manage** — "New Project…" (sidebar, toolbar, or ⌘⇧N) is the
+- **Create/run/manage** — "New Project…" (Home page toolbar, or ⌘⇧N) is the
   one modal in the feature — it requires a name up front, so the project's
   name is always visible from the moment it exists. Clicking a session that
   has no captures yet runs it directly (switches to the camera view);

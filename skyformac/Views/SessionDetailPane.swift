@@ -73,7 +73,7 @@ struct SessionDetailPane: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(session.name)
+        .navigationTitle("\(project.name.isEmpty ? "Untitled Project" : project.name) — \(session.name)")
         .sheet(isPresented: $isPlanningSession) {
             AIPlanSessionSheet(project: project, session: session, cameraManager: cameraManager)
         }

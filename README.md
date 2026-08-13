@@ -268,7 +268,7 @@ explanation.
 The Projects browser — an iMovie-style library of **projects** grouping
 **sessions** under a shared goal ("see M13, M57, Saturn") — is the app's main
 window whenever no session is running: there's no camera view to switch to
-without one. "New Project…" (sidebar, toolbar, or ⌘⇧N) is the only modal in
+without one. "New Project…" (Home page toolbar, or ⌘⇧N) is the only modal in
 the feature — it requires a name up front, so the project's name is always
 visible. Clicking a session with no captures yet **runs** it (switches
 straight to the camera view); clicking one that's already been run shows its

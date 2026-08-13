@@ -1715,7 +1715,7 @@ made along the way.
   - **Clicking a session in `ProjectDetailPane` branches on whether it has any captures yet** —
     empty (`session.captures.isEmpty`) means "never run," so the click calls
     `CameraManager.setActive(project:session:)` directly (which flips `RootView`'s gate and runs
-    it); non-empty selects it in the browser instead, showing its timeline as history in
+    it); non-empty pushes its Session History page instead, showing its timeline in
     `SessionDetailPane` — "Run This Session" there still starts/resumes it on purpose, for
     whenever picking up a previously-run session to capture more is genuinely what's wanted.
   - **`CameraManager.endActiveSession()`** clears only `activeSession`, not `activeProject` —
@@ -1737,3 +1737,27 @@ made along the way.
     latitude:longitude:name:)`, taking the project/session explicitly instead of relying on
     whatever's currently active, and only mirroring the edit into `activeProject`/`activeSession`
     when that happens to already be the open one.
+
+- **Observation Projects, take three: a drill-down stack of pages, not a three-column browser.**
+  The `NavigationSplitView` from take two showed the project list, a project's detail, and a
+  session's history all at once, side by side — a real macOS pattern, but not what was actually
+  asked for: "project list is the home page, project detail is a subpage with all sessions,
+  camera management is a session page in a project." Replaced the whole `ProjectsBrowserView`
+  body with a plain `NavigationStack` over three pages instead — Home → Project Detail → Session
+  History — each one pushed and popped like a real drill-down, with `ContentView` (running a
+  session) as the thing that replaces the entire stack rather than living inside it.
+  - **Routes carry IDs, not `Project`/`Session` values.** A private `ProjectsRoute` enum
+    (`.project(Project.ID)`, `.sessionHistory(Project.ID, Session.ID)`) is what
+    `NavigationStack(path:)` actually stores; `ProjectsBrowserView.destination(for:)` re-fetches
+    the current `Project`/`Session` from `projectsLibrary.projects` on every push instead of
+    carrying a value-type snapshot that could go stale (renaming a project while its own session
+    history page is open, say, needs the pushed pages to see the rename too).
+  - **`ProjectDetailPane` lost its `@Binding var selectedSessionID`** in favor of an
+    `onShowSessionHistory: (Session) -> Void` closure the parent uses to push — the whole "which
+    session is selected" concept a persistent multi-column layout needs doesn't exist once
+    there's no longer a third column sitting there waiting for a selection.
+  - **Ending a session (or finishing "New Project…") restores the right spot in the stack**, not
+    just the right selection in a column: `ProjectsBrowserView.onAppear` rebuilds `path` from
+    `cameraManager.activeProject`/`lastEndedSessionID` (`[.project(id)]`, or
+    `[.project(id), .sessionHistory(id, sessionID)]`) each time the browser reappears, since a
+    fresh `NavigationStack` starts with an empty path otherwise.
