@@ -263,6 +263,18 @@ In-app **Help** (⌘?) covers every one of these in detail, with full-text
 search and a "?" shortcut next to each setting that jumps straight to its
 explanation.
 
+### Projects browser
+
+Toolbar → "Projects…" opens an iMovie-style library: **projects** group
+**sessions** under a shared goal ("see M13, M57, Saturn"), each with its own
+folder for captures and settings, a timeline of thumbnails, tags, notes, and
+GPS or hand-entered location. Exporting a frame or finishing a SER recording
+while a session is active also files a copy into that session's timeline.
+"Ask AI to Plan…" sends a one-line goal to a local Ollama server and shows
+the suggested session(s) before creating anything. Opening the app with zero
+projects on disk creates an empty untitled one and opens this browser
+automatically — nothing is saved until it's actually named.
+
 ### Permissions
 
 First connection to a USB ASI camera may prompt via System Settings → Privacy &

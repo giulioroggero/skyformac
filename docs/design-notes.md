@@ -1640,3 +1640,53 @@ made along the way.
     can be inspected or saved directly instead of only ever seeing the averaged stack. Available
     once any frames exist, not just once the burst completes, since browsing what's captured so
     far is useful either way (the burst keeps running in the background if it isn't paused).
+
+- **Observation Projects: folder-per-project persistence, rename-safety, and the first-run flow.**
+  This app previously had no concept of an observing session spanning more than "whatever's
+  currently in `currentFrame`/Export History" — nothing tied a night's captures to a goal, an
+  object list, or a place. The whole feature had no precedent beyond `AcquisitionPreset`'s "one
+  JSON file per preset" convention, extended to a folder-per-item level.
+  - **`Project`/`Session` (`skyformac/Projects/ObservationModels.swift`)** are plain `Codable`
+    structs; `ProjectStore` writes one `project.json` per project (the whole nested session tree
+    in one file, not a database — the realistic number of a person's own projects/sessions is
+    small enough that reading every `project.json` on launch is trivial). Each gets its own
+    folder under `~/Documents/Skyformac Projects/`, with a session subfolder for its actual
+    capture files and a `Thumbnails/` folder.
+  - **`folderName` is computed once at creation (`makeFolderName(name:id:)`, a sanitized name +
+    an 8-char UUID suffix) and never recomputed from a later rename** — the one design choice
+    this feature couldn't skip. Without it, renaming a project would mean moving its entire
+    folder (every capture file, every thumbnail) on every keystroke of a text field, which is
+    both slow and fragile (a half-renamed folder if the app crashes mid-move). Decoupling display
+    name from folder name makes rename a pure metadata edit.
+  - **`ThumbnailGenerator`** downscales whatever `CGImage` a capture path already has in hand
+    (the same image being exported/recorded, not a second decode pass) to a small JPEG via
+    `CGContext`/`CGImageDestination` — no third-party imaging library, matching every other
+    pixel-pushing piece of this app.
+  - **Active-session capture filing copies, not moves.** `CameraManager.recordActiveSessionCapture`
+    (wired into `exportCurrentFrame`'s `finishExport` and `stopSERRecording`) calls
+    `ProjectStore.recordCapture(copyingFileAt:...)` rather than the move-based
+    `recordCapture(movingFileAt:...)` used for capture paths that don't already have a
+    user-chosen destination — the exported/recorded file already lives wherever the user picked
+    via `NSSavePanel` (or the SER destination), and moving it out from under that would break the
+    Export History entry pointing at it. The session folder gets its own curated copy instead.
+  - **`CoreLocationProvider`** wraps `CLLocationManager` behind a small `LocationRequesting`
+    protocol so its permission/fix-request logic is unit-testable without a real
+    `NSLocationWhenInUseUsageDescription` prompt in a headless test process — the same shape
+    `OllamaTransport` uses for `OllamaPlanner`'s HTTP call, for the same reason (no real network
+    request in tests, and no real Ollama server needed either).
+  - **`OllamaPlanner`** asks a local Ollama server for a plan and tolerates the response being
+    wrapped in prose or a ` ```json ` fence (smaller local models don't reliably follow "respond
+    with only JSON") by taking the substring between the first `{` and the last `}` rather than
+    parsing the whole reply as JSON directly.
+  - **`ProjectsLibrary`** is what makes the first-run flow (an app launch with zero projects on
+    disk auto-creates an empty untitled one, and opens the Projects browser directly, per
+    `CameraManager.init`) actually work: `save(_:)` updates the in-memory list unconditionally but
+    only calls `ProjectStore.save` — touching disk at all — once a project has a non-empty name.
+    An unnamed project's edits (adding a session, say) are never lost, but nothing about it exists
+    as a file until it's named, so a user who opens the app and closes it again without naming
+    anything leaves zero trace on disk.
+  - **`ProjectsBrowserView`** is a fourth `.sheet` on `ContentView`, not a second `Scene` —
+    `SkyformacApp` disables window tabbing and removes the default "New Window" command
+    specifically to stay single-window (see the Histogram/Curves detachable-panel entry above for
+    the same constraint solved with an `NSPanel` instead), so a Projects "window" had to be a sheet
+    like Help/Export/the Acquisition Wizard rather than a new top-level window.

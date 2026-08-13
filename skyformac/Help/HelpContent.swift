@@ -61,6 +61,7 @@ enum HelpContent {
         usingIPhone,
         usingZWO,
         configurationReference,
+        projects,
         deepSkyObservation,
         planetaryObservation,
         troubleshooting,
@@ -485,6 +486,43 @@ enum HelpContent {
             HelpSection(
                 id: "setting.allSkyMonitor", heading: "All-Sky Monitor",
                 body: "⌘⇧A — an independent picture-in-picture feed from a second webcam/iPhone, for watching clouds or cables while the main camera does deep-sky work."
+            ),
+        ]
+    )
+
+    // MARK: - Projects
+
+    static let projects = HelpTopic(
+        id: "projects",
+        title: "Projects",
+        icon: "folder.fill.badge.gearshape",
+        sections: [
+            HelpSection(
+                body: "A **project** groups observation sessions under a shared goal — a Messier marathon, tracking Saturn through opposition, a single trip to a dark-sky site. Each **session** is one planned outing (\"see M13, M57, Saturn\") with its own goal, object list, and date. Toolbar → **Projects…** opens the browser."
+            ),
+            HelpSection(
+                heading: "Where your data goes",
+                body: "Every project gets its own folder under **~/Documents/Skyformac Projects/**, with one subfolder per session holding that session's actual capture files and thumbnails. Renaming a project or session in the browser never moves its folder on disk."
+            ),
+            HelpSection(
+                id: "setting.activeSession", heading: "Making a session active",
+                body: "Click **Set as Active Session** in a session's detail pane. While a session is active, exporting a frame (Export As…) or finishing a SER recording also files a copy into that session's timeline, in addition to the usual Export History — you don't have to do anything differently while capturing."
+            ),
+            HelpSection(
+                heading: "Timeline",
+                body: "Each session shows its captures as a filmstrip of thumbnails, newest first. Right-click a thumbnail to reveal the actual file in Finder."
+            ),
+            HelpSection(
+                heading: "Location, tags, and notes",
+                body: "Both projects and sessions can track a location — **Use Current Location** for a GPS fix, or **Enter Manually…** for hand-typed coordinates — plus free-text tags and dated notes. The search field in the sidebar matches name, goal, tags, planned objects, and note text."
+            ),
+            HelpSection(
+                id: "setting.aiPlanning", heading: "Ask AI to Plan…",
+                body: "Type a one-line goal and this sends it to a **local Ollama server** (nothing leaves your machine) for a suggested name, goal, and session list. Nothing is created until you review the suggestion and click **Create Sessions**/**Apply**. Requires Ollama running locally — see [ollama.com](https://ollama.com) — the button still works without it, it just reports it couldn't reach the server."
+            ),
+            HelpSection(
+                heading: "First run",
+                body: "Opening the app with zero projects on disk creates an empty untitled one and opens this browser automatically. Nothing is saved to disk until you actually give it a name — closing the app without naming it leaves no trace."
             ),
         ]
     )

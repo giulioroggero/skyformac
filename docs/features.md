@@ -288,6 +288,41 @@ the spec's five features are declined rather than faked)
   need a trained Core ML model that doesn't exist yet; see the spec's
   Implementation Notes.
 
+**Observation Projects**
+(see [`docs/design-notes.md`](design-notes.md) for the folder-per-project/
+session persistence design and the first-run/autosave flow)
+- **Projects and sessions** — a project groups observation sessions under a
+  shared goal and optional planned date range; each session plans its own
+  goal, objects (e.g. "M13, M57, Saturn"), and date. Create, rename, add
+  sessions to, archive, and delete either one from the Projects browser
+  (toolbar → "Projects…").
+- **One folder per project/session** — every project gets its own folder
+  under `~/Documents/Skyformac Projects/`, with one subfolder per session
+  holding that session's actual capture files, a `Thumbnails/` folder, and
+  the project's own `project.json` metadata. Renaming a project/session
+  never moves its folder.
+- **Timelines with thumbnails** — every session shows its captures as a
+  filmstrip (date + a small JPEG thumbnail generated from the same image
+  already being exported), the iMovie-style browsing this feature is built
+  around.
+- **Active session capture filing** — exporting a frame or finishing a SER
+  recording while a session is active also files a copy of it into that
+  session's timeline, alongside the normal Export History.
+- **Location** — GPS (`CoreLocationProvider`, one fix per request) or
+  hand-entered coordinates, tracked independently on a project and each of
+  its sessions.
+- **Tags, notes, and search** — free-text annotations and tags on both
+  projects and sessions; a single search box matches name, goal, tags,
+  planned/observed objects, and note text, optionally narrowed to a date
+  range.
+- **AI-assisted planning** — "Ask AI to Plan…" sends a one-line goal to a
+  local Ollama server (`OllamaPlanner`) and shows the suggested session(s)
+  before anything is created; no cloud dependency, matches this app's
+  everything-runs-locally stance.
+- **First run** — opening the app with zero projects on disk creates an
+  empty untitled one and opens the Projects browser automatically; nothing
+  is written to disk until it's actually named.
+
 **Monitoring & UI**
 - **All-Sky / rig monitor** — picture-in-picture feed from a secondary webcam
   or a nearby iPhone via Continuity Camera, independent of the main ZWO
@@ -319,10 +354,10 @@ the spec's five features are declined rather than faked)
   is deliberately single-window, no separate Help `Window` scene) covering
   5-minute quick starts for both capture sources, how-to guides for
   iPhone/ZWO, a full configuration reference (what every control does, with
-  example values), deep-sky and planetary observation workflows,
-  troubleshooting, Q&A, and license/credits (with a link to the GitHub
-  repository). Plain structured content (`HelpContent.swift`) rendered with
-  real SwiftUI typography, not a bundled webpage.
+  example values), a Projects topic, deep-sky and planetary observation
+  workflows, troubleshooting, Q&A, and license/credits (with a link to the
+  GitHub repository). Plain structured content (`HelpContent.swift`)
+  rendered with real SwiftUI typography, not a bundled webpage.
 
 **Testing**
 - `skyformacTests` — 137 unit tests (Swift Testing) across 31 suites, covering

@@ -57,6 +57,20 @@ What's in each part of the codebase, folder by folder.
   gnomonic pixel<->sky projection), `CatalogRepository` (read-only SQLite
   access to the bundled astronomical catalog), and `LiveWCSSolver` (fits a
   `WCSFrame` from real star correspondences — see design-notes.md).
+- **`skyformac/Projects/`** — the Projects feature's model and services,
+  independent of any UI: `ObservationModels.swift` (`Project`, `Session`,
+  `GeoLocation`, `Annotation`, `CaptureRecord` — all `Codable`, with a
+  `folderName` computed once at creation and never recomputed from a later
+  rename), `ProjectStore` (filesystem persistence — one folder per
+  project/session, one `project.json` per project, no database),
+  `ProjectsLibrary` (the `@Observable` in-memory list the browser UI reads,
+  the thing that makes an unnamed project's edits never touch disk),
+  `ThumbnailGenerator` (`CGContext`/`CGImageDestination` JPEG downscaling,
+  no third-party imaging library), `CoreLocationProvider` (GPS behind an
+  injectable `LocationRequesting` protocol so it's testable without real
+  Core Location permissions), `ProjectSearch` (free-text + date-range
+  search), and `OllamaPlanner` (talks to a local Ollama server behind an
+  `OllamaTransport` protocol for the same reason).
 - **`skyformac/Resources/`**:
   - `SkyCatalog/` — `messier.json` (110 Messier objects, extracted from
     Stellarium's real DSO catalog at `stellarium/nebulae/default/catalog.txt`)
@@ -69,7 +83,12 @@ What's in each part of the codebase, folder by folder.
   toolbar toggles, all with keyboard shortcuts).
 - **`skyformac/Views/`** — SwiftUI. `ControlsPanelView` has a `ControlMode`
   picker (General/Planetary/Deep Sky/All Tools) filtering which of its tool
-  sections show, via `ToolSection`.
+  sections show, via `ToolSection`. `ProjectsBrowserView` (a three-column
+  `NavigationSplitView` — projects, sessions, session detail — presented as
+  a sheet, not a second `Scene`, per `SkyformacApp`'s single-window design)
+  plus `ProjectDetailPane`/`SessionDetailPane`/`TimelineStripView`/
+  `AIPlanSheets` are the Projects feature's UI, built on
+  `skyformac/Projects/`'s model layer.
 - **`skyformacTests/`** — unit tests (Swift Testing) covering every piece of
   pixel/geometry/signal-processing math in the app: debayer, the stretch LUT,
   `ASI_ERROR_CODE` mapping, frame arithmetic, live-stack averaging,
@@ -78,7 +97,10 @@ What's in each part of the codebase, folder by folder.
   live-WCS solving, frame cropping, planet detection/tracking, polar-alignment
   rotation-center solving, HFD/focus tracking, the exposure-length optimizer,
   flat-field correction, the calibration library, the CPU image enhancer, the
-  all-sky brightness/motion analyzer, and disk-space checking.
+  all-sky brightness/motion analyzer, disk-space checking, and the Projects
+  feature (folder persistence and rename-safety, thumbnail generation,
+  active-session capture filing, GPS/manual location, free-text search, and
+  Ollama plan parsing against a fake transport).
 - **`skyformacUITests/`** — XCUITest UI-level tests driving the actual SwiftUI
   view tree (launch, sidebar contents, the toolbar renderer toggle) — these
   exercise the real accessibility-tree/view hierarchy, not just the
