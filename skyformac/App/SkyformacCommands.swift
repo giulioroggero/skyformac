@@ -29,6 +29,12 @@ struct SkyformacCommands: Commands {
 
         CommandGroup(after: .newItem) {
             Divider()
+            Button("New Project…") { cameraManager.newProject() }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            Button("Open Projects…") { cameraManager.isProjectsBrowserPresented = true }
+                .keyboardShortcut("o", modifiers: .command)
+
+            Divider()
             Button("Export as FITS…") { cameraManager.exportCurrentFrame(as: .fits) }
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(cameraManager.currentFrame == nil)

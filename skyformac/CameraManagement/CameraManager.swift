@@ -1073,6 +1073,10 @@ final class CameraManager {
     var activeProject: Project?
     var activeSession: Session?
     var isProjectsBrowserPresented = false
+    /// Set by `newProject()` right before opening the browser, so `ProjectsBrowserView` selects
+    /// the just-created project instead of whatever it last had selected (or the top of the
+    /// list) — consumed (set back to `nil`) the moment the browser reads it.
+    var pendingProjectSelectionID: Project.ID?
 
     /// Makes `session` (within `project`) the destination for future captures — see
     /// `recordActiveSessionCapture`. Passing `session: nil` keeps the project active but stops
@@ -1081,6 +1085,15 @@ final class CameraManager {
     func setActive(project: Project?, session: Session?) {
         activeProject = project
         activeSession = session
+    }
+
+    /// "File → New Project…" — creates a new (purely in-memory, unnamed until saved — see
+    /// `ProjectsLibrary`) project and opens the browser straight to it, the same starting point
+    /// as the toolbar's "Projects…" button but for someone who'd rather use the menu bar.
+    func newProject() {
+        let project = projectsLibrary.createProject()
+        pendingProjectSelectionID = project.id
+        isProjectsBrowserPresented = true
     }
 
     private var serRecordingURL: URL?

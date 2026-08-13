@@ -59,10 +59,15 @@ struct ProjectsBrowserView: View {
                 Button("Close") { dismiss() }
             }
         }
-        .frame(minWidth: 900, minHeight: 560)
+        .frame(minWidth: 1240, idealWidth: 1440, minHeight: 640, idealHeight: 780)
         .onAppear {
             library.ensureAtLeastOneProjectExists()
-            if selectedProjectID == nil { selectedProjectID = library.projects.first?.id }
+            if let pending = cameraManager.pendingProjectSelectionID {
+                selectedProjectID = pending
+                cameraManager.pendingProjectSelectionID = nil
+            } else if selectedProjectID == nil {
+                selectedProjectID = library.projects.first?.id
+            }
         }
     }
 }

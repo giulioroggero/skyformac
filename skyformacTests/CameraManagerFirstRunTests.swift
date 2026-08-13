@@ -26,4 +26,20 @@ struct CameraManagerFirstRunTests {
         #expect(manager.projectsLibrary.projects.count == 1)
         #expect(manager.projectsLibrary.projects.first?.name == "Existing Project")
     }
+
+    @Test func newProjectCreatesAndSelectsAnUnnamedProjectAndOpensTheBrowser() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ProjectStore(rootDirectory: root)
+        try store.save(Project.newProject(name: "Existing Project"))
+        let manager = CameraManager(projectStore: store)
+        #expect(!manager.isProjectsBrowserPresented)
+
+        manager.newProject()
+
+        #expect(manager.isProjectsBrowserPresented)
+        #expect(manager.projectsLibrary.projects.count == 2)
+        let created = try #require(manager.projectsLibrary.projects.first { $0.id == manager.pendingProjectSelectionID })
+        #expect(created.name == "")
+    }
 }
