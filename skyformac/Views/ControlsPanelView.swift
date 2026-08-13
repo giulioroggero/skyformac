@@ -149,6 +149,16 @@ struct ControlsPanelView: View {
     @State private var showSERRecordingSection = false
     @AppStorage("serRecordingDurationSeconds") private var serRecordingDurationSeconds: Double = 180
 
+    /// Each tab's own "Advanced" catch-all — collapsed by default, so the handful of settings
+    /// actually reached for most often (per tab: Camera Controls' Gain/Live Exposure/Sensor
+    /// Temperature/Export; Planetary's Lucky Imaging/Record SER Video; Deep Sky's Live Stack/
+    /// Record to Disk) aren't competing for attention with everything else that tab also offers.
+    /// Nothing moved into "Advanced" is disabled or hidden entirely — same functionality, same
+    /// help links, just collapsed one level further than before.
+    @State private var showCameraAdvancedSection = false
+    @State private var showPlanetaryAdvancedSection = false
+    @State private var showDeepSkyAdvancedSection = false
+
     var body: some View {
         HStack(spacing: 0) {
             ScrollView {
@@ -256,6 +266,21 @@ struct ControlsPanelView: View {
 
     // MARK: - Tab contents
 
+    /// Gain, Live Exposure, and Sensor Temperature — the three dynamic controls actually reached
+    /// for on every session, in that fixed order regardless of whatever order the camera itself
+    /// reports its `ASI_CONTROL_CAPS` in. Everything else the camera reports (offset, cooler,
+    /// flip, binning, bandwidth, ...) is real and still fully controllable, just under "Advanced"
+    /// below instead of competing with these three for attention.
+    private var commonControls: [ZWOControlCaps] {
+        let order: [ASI_CONTROL_TYPE] = [ASI_GAIN, ASI_EXPOSURE, ASI_TEMPERATURE]
+        return order.compactMap { type in cameraManager.controls.first { $0.controlType.rawValue == type.rawValue } }
+    }
+
+    private var advancedControls: [ZWOControlCaps] {
+        let commonIDs = Set(commonControls.map(\.id))
+        return cameraManager.controls.filter { !commonIDs.contains($0.id) }
+    }
+
     @ViewBuilder
     private var cameraControlsTabContent: some View {
         Text("Controls").font(.headline)
@@ -265,52 +290,64 @@ struct ControlsPanelView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            ForEach(cameraManager.controls) { cap in
+            ForEach(commonControls) { cap in
                 controlRow(cap)
                 Divider()
             }
         }
 
-        if let dropped = cameraManager.droppedFrameCount {
-            HStack {
-                Label("\(dropped) dropped frames", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
-                    .font(.caption)
-                    .foregroundStyle(dropped > 0 ? .orange : .secondary)
-                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.droppedFrames")
-            }
-            .help("Frames the camera captured but this app failed to read off the USB connection in time — a rising count usually means Bandwidth (below, if your camera reports it) is set too high for your USB port/cable.")
-            Divider()
-        }
-
-        if cameraManager.gainOffsetPresets != nil || cameraManager.lmhGainOffsetPresets != nil {
-            DisclosureGroup(isExpanded: $showGainOffsetPresetsSection) {
-                gainOffsetPresetsSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Gain/Offset Presets", cameraManager: cameraManager, sectionID: "setting.gainOffsetPresets")
-            }
-            Divider()
-        }
-
         if cameraManager.connectedCamera != nil {
-            singleExposureSection
-            Divider()
-
-            if cameraManager.isExternalWebcam {
-                DisclosureGroup("iPhone / Webcam", isExpanded: $showIPhoneWebcamSection) {
-                    iPhoneWebcamSection
-                }
-                Divider()
-            }
-
             DisclosureGroup("Export", isExpanded: $showExportSection) {
                 exportSection
             }
             Divider()
+        }
 
-            DisclosureGroup(isExpanded: $showExportedFilesSection) {
-                exportedFilesSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Exported Files", cameraManager: cameraManager, sectionID: "setting.exportedFiles")
+        DisclosureGroup("Advanced", isExpanded: $showCameraAdvancedSection) {
+            VStack(alignment: .leading, spacing: 14) {
+                if let dropped = cameraManager.droppedFrameCount {
+                    HStack {
+                        Label("\(dropped) dropped frames", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                            .font(.caption)
+                            .foregroundStyle(dropped > 0 ? .orange : .secondary)
+                        HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.droppedFrames")
+                    }
+                    .help("Frames the camera captured but this app failed to read off the USB connection in time — a rising count usually means Bandwidth (below, if your camera reports it) is set too high for your USB port/cable.")
+                    Divider()
+                }
+
+                if cameraManager.gainOffsetPresets != nil || cameraManager.lmhGainOffsetPresets != nil {
+                    DisclosureGroup(isExpanded: $showGainOffsetPresetsSection) {
+                        gainOffsetPresetsSection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Gain/Offset Presets", cameraManager: cameraManager, sectionID: "setting.gainOffsetPresets")
+                    }
+                    Divider()
+                }
+
+                if cameraManager.connectedCamera != nil {
+                    singleExposureSection
+                    Divider()
+
+                    if cameraManager.isExternalWebcam {
+                        DisclosureGroup("iPhone / Webcam", isExpanded: $showIPhoneWebcamSection) {
+                            iPhoneWebcamSection
+                        }
+                        Divider()
+                    }
+
+                    DisclosureGroup(isExpanded: $showExportedFilesSection) {
+                        exportedFilesSection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Exported Files", cameraManager: cameraManager, sectionID: "setting.exportedFiles")
+                    }
+                    if !advancedControls.isEmpty { Divider() }
+                }
+
+                ForEach(advancedControls) { cap in
+                    controlRow(cap)
+                    Divider()
+                }
             }
         }
     }
@@ -432,34 +469,7 @@ struct ControlsPanelView: View {
             acquisitionWizardButton
             Divider()
 
-            DisclosureGroup(isExpanded: $showFocusAssistSection) {
-                focusAssistSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Focus Assist", cameraManager: cameraManager, sectionID: "setting.focusAssist")
-            }
-            Divider()
-            DisclosureGroup(isExpanded: $showPlanetarySection) {
-                planetarySection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Planetary Auto-Center", cameraManager: cameraManager, sectionID: "setting.planetaryAutoCenter")
-            }
-            Divider()
-
             if !cameraManager.isExternalWebcam {
-                DisclosureGroup(isExpanded: $showPlanetaryPresetsSection) {
-                    planetaryPresetsSection
-                } label: {
-                    HelpLinkedDisclosureLabel(title: "Planetary Presets", cameraManager: cameraManager, sectionID: "setting.planetaryPresets")
-                }
-                Divider()
-
-                DisclosureGroup(isExpanded: $showCaptureROISection) {
-                    captureROISection
-                } label: {
-                    HelpLinkedDisclosureLabel(title: "Capture ROI (higher FPS)", cameraManager: cameraManager, sectionID: "setting.captureROI")
-                }
-                Divider()
-
                 DisclosureGroup(isExpanded: $showSERRecordingSection) {
                     serRecordingSection
                 } label: {
@@ -472,6 +482,39 @@ struct ControlsPanelView: View {
                 luckyImagingSection
             } label: {
                 HelpLinkedDisclosureLabel(title: "Lucky Imaging", cameraManager: cameraManager, sectionID: "setting.luckyImaging")
+            }
+            Divider()
+
+            DisclosureGroup("Advanced", isExpanded: $showPlanetaryAdvancedSection) {
+                VStack(alignment: .leading, spacing: 14) {
+                    DisclosureGroup(isExpanded: $showFocusAssistSection) {
+                        focusAssistSection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Focus Assist", cameraManager: cameraManager, sectionID: "setting.focusAssist")
+                    }
+                    Divider()
+                    DisclosureGroup(isExpanded: $showPlanetarySection) {
+                        planetarySection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Planetary Auto-Center", cameraManager: cameraManager, sectionID: "setting.planetaryAutoCenter")
+                    }
+
+                    if !cameraManager.isExternalWebcam {
+                        Divider()
+                        DisclosureGroup(isExpanded: $showPlanetaryPresetsSection) {
+                            planetaryPresetsSection
+                        } label: {
+                            HelpLinkedDisclosureLabel(title: "Planetary Presets", cameraManager: cameraManager, sectionID: "setting.planetaryPresets")
+                        }
+                        Divider()
+
+                        DisclosureGroup(isExpanded: $showCaptureROISection) {
+                            captureROISection
+                        } label: {
+                            HelpLinkedDisclosureLabel(title: "Capture ROI (higher FPS)", cameraManager: cameraManager, sectionID: "setting.captureROI")
+                        }
+                    }
+                }
             }
         }
     }
@@ -495,38 +538,6 @@ struct ControlsPanelView: View {
             acquisitionWizardButton
             Divider()
 
-            DisclosureGroup(isExpanded: $showFocusAssistSection) {
-                focusAssistSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Focus Assist", cameraManager: cameraManager, sectionID: "setting.focusAssist")
-            }
-            Divider()
-            DisclosureGroup(isExpanded: $showSmartExposureSection) {
-                smartExposureSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Smart Exposure", cameraManager: cameraManager, sectionID: "setting.smartExposure")
-            }
-            Divider()
-            DisclosureGroup(isExpanded: $showPolarAlignmentSection) {
-                polarAlignmentSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Polar Alignment", cameraManager: cameraManager, sectionID: "setting.polarAlignment")
-            }
-            Divider()
-            if cameraManager.connectedCamera?.hasST4Port == true {
-                DisclosureGroup(isExpanded: $showST4GuidingSection) {
-                    st4GuidingSection
-                } label: {
-                    HelpLinkedDisclosureLabel(title: "ST4 Guiding", cameraManager: cameraManager, sectionID: "setting.st4Guiding")
-                }
-                Divider()
-            }
-            DisclosureGroup(isExpanded: $showDarkFrameSection) {
-                darkFrameSection
-            } label: {
-                HelpLinkedDisclosureLabel(title: "Calibration (Dark/Flat)", cameraManager: cameraManager, sectionID: "setting.calibration")
-            }
-            Divider()
             DisclosureGroup(isExpanded: $showLiveStackSection) {
                 liveStackSection
             } label: {
@@ -537,6 +548,43 @@ struct ControlsPanelView: View {
                 recordingSection
             } label: {
                 HelpLinkedDisclosureLabel(title: "Record to Disk (GPU sharpness gate)", cameraManager: cameraManager, sectionID: "setting.recordToDisk")
+            }
+            Divider()
+
+            DisclosureGroup("Advanced", isExpanded: $showDeepSkyAdvancedSection) {
+                VStack(alignment: .leading, spacing: 14) {
+                    DisclosureGroup(isExpanded: $showFocusAssistSection) {
+                        focusAssistSection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Focus Assist", cameraManager: cameraManager, sectionID: "setting.focusAssist")
+                    }
+                    Divider()
+                    DisclosureGroup(isExpanded: $showSmartExposureSection) {
+                        smartExposureSection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Smart Exposure", cameraManager: cameraManager, sectionID: "setting.smartExposure")
+                    }
+                    Divider()
+                    DisclosureGroup(isExpanded: $showPolarAlignmentSection) {
+                        polarAlignmentSection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Polar Alignment", cameraManager: cameraManager, sectionID: "setting.polarAlignment")
+                    }
+                    if cameraManager.connectedCamera?.hasST4Port == true {
+                        Divider()
+                        DisclosureGroup(isExpanded: $showST4GuidingSection) {
+                            st4GuidingSection
+                        } label: {
+                            HelpLinkedDisclosureLabel(title: "ST4 Guiding", cameraManager: cameraManager, sectionID: "setting.st4Guiding")
+                        }
+                    }
+                    Divider()
+                    DisclosureGroup(isExpanded: $showDarkFrameSection) {
+                        darkFrameSection
+                    } label: {
+                        HelpLinkedDisclosureLabel(title: "Calibration (Dark/Flat)", cameraManager: cameraManager, sectionID: "setting.calibration")
+                    }
+                }
             }
         }
     }

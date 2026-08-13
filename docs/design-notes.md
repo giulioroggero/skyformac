@@ -1571,3 +1571,23 @@ made along the way.
   `VStack`: name, then (for the ZWO row) its spec line, then the buttons in their own row —
   avoids the name truncating or the spec line wrapping awkwardly next to the buttons, which is
   exactly what a longer camera/device name did before.
+- **Each tab's own "Advanced" catch-all.** As each of Camera Controls/Planetary/Deep Sky
+  accumulated more sections over this whole session, the handful actually reached for on every
+  session (Gain/Live Exposure/Sensor Temperature/Export; Lucky Imaging/Record SER Video; Live
+  Stack/Record to Disk) ended up competing for scroll-past attention with everything else that
+  tab also offers. Nothing moved into a new "Advanced" `DisclosureGroup` (collapsed by default,
+  one level further than before) lost any functionality or its help link — this is purely a
+  visual/navigation grouping, decided per tab:
+  - **Camera Controls**: `commonControls`/`advancedControls` split `cameraManager.controls`
+    itself — `ASI_GAIN`/`ASI_EXPOSURE`/`ASI_TEMPERATURE` stay visible (in that fixed order,
+    regardless of whatever order the camera reports its `ASI_CONTROL_CAPS` in), every other
+    dynamic control (offset, cooler, flip, binning, bandwidth, ...) moves into Advanced, alongside
+    the dropped-frame counter, Gain/Offset Presets, Single Exposure, iPhone/Webcam, and Exported
+    Files. Export stays visible outside Advanced.
+  - **Planetary**: Lucky Imaging and Record SER Video stay visible; Focus Assist, Planetary
+    Auto-Center, Planetary Presets, and Capture ROI move into Advanced.
+  - **Deep Sky**: Live Stack and Record to Disk stay visible; Focus Assist, Smart Exposure, Polar
+    Alignment, ST4 Guiding, and Calibration (Dark/Flat) move into Advanced.
+  - "Disable All ___ Features" and the Acquisition Wizard button stay at the top of their tab in
+    all three cases, outside Advanced — they're not settings to reach for less often, they're the
+    fastest way to undo or set up everything else on the tab at once.
