@@ -1525,3 +1525,21 @@ made along the way.
   filling — `luckyImagingSession` stays alive (ready for `stackLuckyImagingBest`, possibly more
   than once with different fractions) until explicitly discarded — with its detail text saying
   "ready to stack" rather than implying a capture is still running.
+- **Exposure countdown.** `captureSingleExposure`/`captureDarkFrame`/`captureFlatFrame` all set
+  `CameraManager.capturingExposureStartDate`/`capturingExposureDurationSeconds` right alongside
+  the existing `isCapturingExposure`, and clear all three together in the same `defer` block each
+  already had. `ControlsPanelView`'s new `ExposureCountdownView` reads them via
+  `TimelineView(.periodic(from: start, by: 0.1))` (redraws on its own schedule, no `Timer`/
+  `@State` tick counter needed) and shows `max(0, duration - elapsed)` next to whichever Capture
+  button is running — previously just an indeterminate `ProgressView` spinner, which gave no
+  sense of how much longer a multi-second-or-longer exposure had left.
+- **Night mode no longer tints the live image itself.** Previously one blanket `.colorMultiply`
+  wrapped the *entire* window content (`ContentView.mainContent`/`fullScreenPreview`), including
+  the actual live video — defeating the whole point of looking at it (true star colors, a
+  correctly white-balanced RGB24 frame all read as pure red instead). Fixed by removing that one
+  blanket modifier and applying `.colorMultiply` individually to everything *except* `PreviewView`:
+  the sidebar, Controls panel, and Histogram/Curves tabs from `ContentView`, plus `PreviewView`'s
+  *own* overlay chrome (zoom badge, corner controls, zoom bar — via its own `nightTint` property)
+  from inside `PreviewView` itself, so those still get the dark-adaptation tint while the image
+  underneath them doesn't. `MeshDriftOverlayView`/`AllSkyMonitorView` are likewise left untinted,
+  for the same "it's image content, not chrome" reasoning.

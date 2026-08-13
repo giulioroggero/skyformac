@@ -62,12 +62,20 @@ struct PreviewView: View {
         return nil
     }
 
+    /// Night mode tints everything *around* the live image red (preserves dark adaptation
+    /// reading labels/sliders/badges), but never the image itself — the actual point of this app
+    /// is seeing the real sensor data (true star colors, a correctly white-balanced RGB24 frame),
+    /// which a red multiply would destroy. `ContentView` applies the same tint to everything else
+    /// in the window (sidebar, Controls panel, Histogram/Curves) individually rather than as one
+    /// blanket modifier over the whole content area, for the identical reason.
+    private var nightTint: Color { cameraManager.isNightModeEnabled ? .red : .white }
+
     var body: some View {
         preview
             .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
-            .overlay(alignment: .bottomLeading) { zoomBadge }
-            .overlay(alignment: .topTrailing) { cornerControls }
-            .overlay(alignment: .bottom) { zoomControlBar }
+            .overlay(alignment: .bottomLeading) { zoomBadge.colorMultiply(nightTint) }
+            .overlay(alignment: .topTrailing) { cornerControls.colorMultiply(nightTint) }
+            .overlay(alignment: .bottom) { zoomControlBar.colorMultiply(nightTint) }
             .onExitCommand { onExitFullScreen?() }
     }
 

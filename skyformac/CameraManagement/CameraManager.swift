@@ -316,6 +316,12 @@ final class CameraManager {
     /// from `captureSingleExposure`.
     private(set) var isLiveViewActive = true
     private(set) var isCapturingExposure = false
+    /// Wall-clock start time + requested length of whichever exposure is currently running
+    /// (`captureSingleExposure`/`captureDarkFrame`/`captureFlatFrame` all set these alongside
+    /// `isCapturingExposure`) — lets the UI show a real countdown instead of only an
+    /// indeterminate spinner, which gave no sense of how much longer a long exposure had left.
+    private(set) var capturingExposureStartDate: Date?
+    private(set) var capturingExposureDurationSeconds: Double?
 
     var isFocusAssistEnabled = AppSettings.isFocusAssistEnabled {
         didSet {
@@ -1780,8 +1786,14 @@ final class CameraManager {
         frameConsumerTask = nil
         isLiveViewActive = false
         isCapturingExposure = true
+        capturingExposureStartDate = Date()
+        capturingExposureDurationSeconds = seconds
         lastErrorMessage = nil
-        defer { isCapturingExposure = false }
+        defer {
+            isCapturingExposure = false
+            capturingExposureStartDate = nil
+            capturingExposureDurationSeconds = nil
+        }
 
         let exposureMicroseconds = Int(seconds * 1_000_000)
 
@@ -1811,8 +1823,14 @@ final class CameraManager {
         frameConsumerTask = nil
         isLiveViewActive = false
         isCapturingExposure = true
+        capturingExposureStartDate = Date()
+        capturingExposureDurationSeconds = seconds
         lastErrorMessage = nil
-        defer { isCapturingExposure = false }
+        defer {
+            isCapturingExposure = false
+            capturingExposureStartDate = nil
+            capturingExposureDurationSeconds = nil
+        }
 
         let exposureMicroseconds = Int(seconds * 1_000_000)
 
@@ -2297,9 +2315,15 @@ final class CameraManager {
         frameConsumerTask = nil
         isLiveViewActive = false
         isCapturingExposure = true
+        capturingExposureStartDate = Date()
+        capturingExposureDurationSeconds = seconds
         lastErrorMessage = nil
 
-        defer { isCapturingExposure = false }
+        defer {
+            isCapturingExposure = false
+            capturingExposureStartDate = nil
+            capturingExposureDurationSeconds = nil
+        }
 
         if camera.cameraID == -2 {
             // Webcam: no controllable hardware exposure — `frameConsumerTask?.cancel()` above

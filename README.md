@@ -104,7 +104,10 @@ the right — each with a one-click jump to its controls and a one-click Stop.
 - **GPU / CPU** toggle (⌘M) — switches between the Metal (GPU compute shader)
   and CGImage (CPU) render paths for debayer/stretch/histogram. GPU is the
   default; denoise, wavelet sharpening, and GPU live stacking need it on.
-- **Night Mode** (⌘⇧N) — a red-only UI tint, to preserve dark adaptation.
+- **Night Mode** (⌘⇧N) — a red-only tint on the surrounding UI (sidebar,
+  Controls panel, Histogram/Curves, the preview's own overlay chrome) to
+  preserve dark adaptation, deliberately leaving the live image itself
+  untinted — the whole point of the app is seeing the real sensor data.
 - **All-Sky Monitor** (⌘⇧A) — a picture-in-picture feed from a secondary
   webcam or nearby iPhone, independent of the main capture pipeline, for
   keeping an eye on clouds or cabling. Has its own brightness/motion alerts.
@@ -138,7 +141,9 @@ genuinely serves either:
   **Gain/Offset Presets** (ZWO's own Highest Dynamic Range/Unity Gain/Lowest
   Read Noise recommendations) and a live dropped-frame counter.
 - **Single Exposure** — a log-scale slider spanning microseconds to tens of
-  seconds (real ASI exposure ranges don't fit a linear slider).
+  seconds (real ASI exposure ranges don't fit a linear slider), with a live
+  countdown next to Capture (and Calibration's Capture Dark/Capture Flat,
+  timed the same way) so a long exposure's remaining time is never a guess.
 - **iPhone / Webcam** (webcam sources only) — Lock Focus (freezes the
   device's own autofocus, which otherwise fights afocal projection) and
   Night Mode (10s/60s frame-stacked simulated long exposure).

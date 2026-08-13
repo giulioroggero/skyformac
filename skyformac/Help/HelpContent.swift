@@ -239,7 +239,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.singleExposure", heading: "Single Exposure",
-                body: "Its own section, not a dynamic control — one dedicated timed capture, independent of Live Exposure; see **Using: ZWO Camera** for exactly how the two differ.",
+                body: "Its own section, not a dynamic control — one dedicated timed capture, independent of Live Exposure; see **Using: ZWO Camera** for exactly how the two differ. While it's running, a live countdown next to the Capture button (and next to Capture Dark/Capture Flat in Calibration, which time exactly the same way) shows how much longer is left — the indeterminate spinner alone didn't give any sense of that for a long exposure.",
                 bullets: ["Example: 30-300 seconds for one deep-sky sub-exposure at low gain."]
             ),
             HelpSection(
@@ -472,7 +472,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.nightModeApp", heading: "Night Mode (app-wide red tint)",
-                body: "⌘⇧N — tints the whole app red-only, to preserve dark adaptation. Not the same as the iPhone/webcam source's own **Night Mode** capture feature — see **How to Use: iPhone**."
+                body: "⌘⇧N — tints the sidebar, Controls panel, Histogram/Curves, and the live preview's own overlay chrome (zoom badge, corner buttons) red-only, to preserve dark adaptation. Deliberately does *not* tint the live image itself — the actual point of this app is seeing the real sensor data (true star colors, a correctly white-balanced RGB24 frame), which a red tint over the image would destroy. Not the same as the iPhone/webcam source's own **Night Mode** capture feature — see **How to Use: iPhone**."
             ),
             HelpSection(
                 id: "setting.allSkyMonitor", heading: "All-Sky Monitor",

@@ -648,6 +648,10 @@ struct ControlsPanelView: View {
                 }
                 .disabled(cameraManager.isCapturingExposure)
 
+                if cameraManager.isCapturingExposure {
+                    ExposureCountdownView(cameraManager: cameraManager)
+                }
+
                 if !cameraManager.isLiveViewActive {
                     Button("Resume Live View") { cameraManager.resumeLiveView() }
                 }
@@ -1389,8 +1393,13 @@ struct ControlsPanelView: View {
             Text(helpText).font(.caption2).foregroundStyle(.secondary)
 
             ExposureField(seconds: seconds)
-            Button(captureLabel) { Task { await onCapture() } }
-                .disabled(cameraManager.isCapturingExposure)
+            HStack {
+                Button(captureLabel) { Task { await onCapture() } }
+                    .disabled(cameraManager.isCapturingExposure)
+                if cameraManager.isCapturingExposure {
+                    ExposureCountdownView(cameraManager: cameraManager)
+                }
+            }
 
             if frames.isEmpty {
                 Text("None captured yet.").font(.caption2).foregroundStyle(.tertiary)
@@ -2025,6 +2034,28 @@ private struct ExposureField: View {
             return String(format: "%.1f ms", seconds * 1_000)
         } else {
             return String(format: "%.2f s", seconds)
+        }
+    }
+}
+
+/// A live countdown ("12.3s left") for whichever exposure `CameraManager.isCapturingExposure`
+/// is currently running (`captureSingleExposure`/`captureDarkFrame`/`captureFlatFrame` all set
+/// `capturingExposureStartDate`/`capturingExposureDurationSeconds` alongside it) — replaces what
+/// used to be an indeterminate-only spinner, which gave no sense of how much longer a
+/// multi-second-or-longer exposure had left. `TimelineView(.periodic(...))` redraws this on its
+/// own schedule instead of needing a `Timer`/`@State` tick counter of its own.
+private struct ExposureCountdownView: View {
+    var cameraManager: CameraManager
+
+    var body: some View {
+        if let start = cameraManager.capturingExposureStartDate,
+           let duration = cameraManager.capturingExposureDurationSeconds {
+            TimelineView(.periodic(from: start, by: 0.1)) { context in
+                let remaining = max(0, duration - context.date.timeIntervalSince(start))
+                Text(String(format: "%.1fs left", remaining))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }

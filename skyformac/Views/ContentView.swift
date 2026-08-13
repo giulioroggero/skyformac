@@ -7,6 +7,12 @@ struct ContentView: View {
     /// `.onChange` below rather than left dangling once its window closes.
     @State private var histogramPanelController: HistogramCurvesPanelController?
 
+    /// Applied individually to every part of the window *except* the live preview (which tints
+    /// only its own overlay chrome, not the image itself — see `PreviewView.nightTint`'s doc
+    /// comment) — sidebar, Controls panel, Histogram/Curves all get the red dark-adaptation tint;
+    /// the actual sensor image never does.
+    private var nightTint: Color { cameraManager.isNightModeEnabled ? .red : .white }
+
     var body: some View {
         Group {
             if cameraManager.isPreviewFullScreenEnabled {
@@ -51,7 +57,9 @@ struct ContentView: View {
         )
         .ignoresSafeArea()
         .background(Color.black)
-        .colorMultiply(cameraManager.isNightModeEnabled ? .red : .white)
+        // No `.colorMultiply` here — `PreviewView` already tints its own overlay chrome (zoom
+        // badge, corner controls) red in night mode internally, deliberately leaving the actual
+        // live image untouched. See its `nightTint` doc comment.
         // `PreviewView`'s own `.onExitCommand` only fires while it (or a descendant) is actually
         // first responder — not guaranteed here, since nothing in this fullscreen presentation
         // necessarily holds keyboard focus. A hidden button with an explicit `.keyboardShortcut`
@@ -70,6 +78,7 @@ struct ContentView: View {
             set: { cameraManager.isCameraListSidebarVisible = $0 != .detailOnly }
         )) {
             CameraListView(cameraManager: cameraManager)
+                .colorMultiply(nightTint)
                 // `max` matters here, not just `min`/`ideal` — the "detail" side (the HSplitView
                 // below, `PreviewView`/`ControlsPanelView`) has its own real minimum width
                 // (480 + 320 = 800pt). Without a cap here, dragging this sidebar wider than what
@@ -114,50 +123,50 @@ struct ContentView: View {
                     // combined histogram, or clips taller content, like "By Channel" mode's extra
                     // sliders — `HistogramView`'s own `ScrollView` is the fallback for that latter
                     // case, not the normal case).
-                    if cameraManager.isHistogramPanelDetached {
-                        HStack {
-                            Text("Histogram & Curves are in a separate window.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button("Dock") { cameraManager.isHistogramPanelDetached = false }
-                                .controlSize(.small)
-                        }
-                        .padding(8)
-                    } else {
-                        VStack(spacing: 0) {
+                    Group {
+                        if cameraManager.isHistogramPanelDetached {
                             HStack {
+                                Text("Histogram & Curves are in a separate window.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 Spacer()
-                                Button {
-                                    cameraManager.isHistogramPanelDetached = true
-                                } label: {
-                                    Image(systemName: "arrow.up.left.and.arrow.down.right.rectangle")
+                                Button("Dock") { cameraManager.isHistogramPanelDetached = false }
+                                    .controlSize(.small)
+                            }
+                            .padding(8)
+                        } else {
+                            VStack(spacing: 0) {
+                                HStack {
+                                    Spacer()
+                                    Button {
+                                        cameraManager.isHistogramPanelDetached = true
+                                    } label: {
+                                        Image(systemName: "arrow.up.left.and.arrow.down.right.rectangle")
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .help("Detach Histogram & Curves into their own floating window — it can overlap the main window, stay open while you work elsewhere, and be docked back with the same button (or by closing it).")
                                 }
-                                .buttonStyle(.borderless)
-                                .help("Detach Histogram & Curves into their own floating window — it can overlap the main window, stay open while you work elsewhere, and be docked back with the same button (or by closing it).")
+                                .padding(.horizontal, 8)
+                                .padding(.top, 4)
+                                TabView {
+                                    HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
+                                        .tabItem { Text("Histogram") }
+                                    CurvesView(cameraManager: cameraManager)
+                                        .tabItem { Text("Curves") }
+                                }
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.top, 4)
-                            TabView {
-                                HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
-                                    .tabItem { Text("Histogram") }
-                                CurvesView(cameraManager: cameraManager)
-                                    .tabItem { Text("Curves") }
-                            }
+                            .frame(minHeight: 150, maxHeight: 260)
                         }
-                        .frame(minHeight: 150, maxHeight: 260)
                     }
+                    .colorMultiply(nightTint)
                 }
                 .frame(maxHeight: .infinity)
                 ControlsPanelView(cameraManager: cameraManager)
                     .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
+                    .colorMultiply(nightTint)
             }
         }
-        // Night mode: preserves dark adaptation by rendering the whole content area in red only
-        // (green/blue channels zeroed via component-wise color multiplication). Applied to the
-        // SwiftUI content, not the native window toolbar chrome above it.
         .compositingGroup()
-        .colorMultiply(cameraManager.isNightModeEnabled ? .red : .white)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 imageTypePicker
