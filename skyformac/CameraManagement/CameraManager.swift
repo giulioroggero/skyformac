@@ -1002,6 +1002,7 @@ final class CameraManager {
         serRecordingTargetSeconds = durationSeconds
         serRecordingStartDate = Date()
         isRecordingSERVideo = true
+        serRecordingURL = url
         recordExport(url: url, kind: .serVideo)
     }
 
@@ -1017,6 +1018,10 @@ final class CameraManager {
             lastErrorMessage = String(describing: error)
         }
         serWriter = nil
+        if let url = serRecordingURL {
+            recordActiveSessionCapture(url: url, kind: .serVideo, image: currentDisplayImage())
+        }
+        serRecordingURL = nil
     }
 
     private func recordSERFrameIfNeeded(_ frame: CapturedFrame) {
@@ -1056,7 +1061,19 @@ final class CameraManager {
     private var enhancementTask: Task<Void, Never>?
     private var qualityScoreTask: Task<Void, Never>?
 
-    init() {
+    // MARK: - Active project/session
+
+    /// Where captures go once a project/session is active — see `recordActiveSessionCapture`.
+    /// Not `@ObservationIgnored`: `ProjectsBrowserView` etc. observe `activeProject`/`activeSession`
+    /// directly, but `projectStore` itself never changes after init, so it doesn't need to.
+    let projectStore: ProjectStore
+    var activeProject: Project?
+    var activeSession: Session?
+
+    private var serRecordingURL: URL?
+
+    init(projectStore: ProjectStore = ProjectStore()) {
+        self.projectStore = projectStore
         refreshCameraList()
     }
 
@@ -2110,14 +2127,17 @@ final class CameraManager {
                     to: url
                 )
                 recordExport(url: url, kind: .fits)
+                recordActiveSessionCapture(url: url, kind: .fits, image: imageForExport())
             case .png:
                 guard let image = imageForExport() else { return }
                 try ImageExporter.writePNG(image, to: url)
                 recordExport(url: url, kind: .png)
+                recordActiveSessionCapture(url: url, kind: .png, image: image)
             case .tiff:
                 guard let image = imageForExport() else { return }
                 try ImageExporter.writeTIFF(image, to: url)
                 recordExport(url: url, kind: .tiff)
+                recordActiveSessionCapture(url: url, kind: .tiff, image: image)
             }
         } catch {
             lastErrorMessage = String(describing: error)
@@ -2146,6 +2166,26 @@ final class CameraManager {
     private func imageForExport() -> CGImage? {
         guard let frame = frameForExport(), let camera = connectedCamera else { return currentDisplayImage() }
         return renderedCurrentImage(frame: frame, camera: camera)
+    }
+
+    // MARK: - Active session capture recording
+
+    /// Best-effort: files the just-written `url` into the active session's own folder (a copy —
+    /// `url` itself is left alone, since it's usually exactly where the user chose to save it via
+    /// an `NSSavePanel`) with a thumbnail generated from `image`, if any. A no-op when no
+    /// project/session is active. Failures here (disk full, permissions) surface through
+    /// `lastErrorMessage` but never undo the export/recording that already succeeded.
+    private func recordActiveSessionCapture(url: URL, kind: CaptureRecord.Kind, image: CGImage?) {
+        guard var project = activeProject, let session = activeSession else { return }
+        let thumbnail = image.flatMap(ThumbnailGenerator.makeThumbnail(from:))
+        do {
+            try projectStore.recordCapture(copyingFileAt: url, kind: kind, thumbnail: thumbnail, into: session, project: &project)
+        } catch {
+            lastErrorMessage = String(describing: error)
+            return
+        }
+        activeProject = project
+        activeSession = project.sessions.first(where: { $0.id == session.id })
     }
 
     // MARK: - Exported Files: history + opening a file back up for viewing

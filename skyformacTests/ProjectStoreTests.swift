@@ -156,6 +156,29 @@ struct ProjectStoreTests {
         #expect(FileManager.default.fileExists(atPath: thumbnailURL.path))
     }
 
+    @Test func recordCaptureCopyingLeavesTheSourceFileInPlace() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Copy Project")
+        let session = Session.newSession(name: "Copy Session")
+        project.sessions = [session]
+        try store.save(project)
+
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ser")
+        try Data([1, 2, 3]).write(to: sourceURL)
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let record = try store.recordCapture(
+            copyingFileAt: sourceURL, kind: .serVideo, thumbnail: nil, into: session, project: &project
+        )
+
+        #expect(FileManager.default.fileExists(atPath: sourceURL.path)) // left in place, not moved
+        let destination = store.sessionFolderURL(for: session, in: project).appendingPathComponent(record.fileName)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        #expect(project.sessions.first?.captures.first?.kind == .serVideo)
+    }
+
     @Test func recordCaptureWithoutAThumbnailStillRecords() throws {
         let (store, root) = makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

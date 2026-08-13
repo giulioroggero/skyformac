@@ -135,13 +135,39 @@ final class ProjectStore {
         movingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?,
         into session: Session, project: inout Project
     ) throws -> CaptureRecord {
+        try recordCapture(
+            at: sourceURL, kind: kind, thumbnail: thumbnail, into: session, project: &project,
+            transfer: fileManager.moveItem
+        )
+    }
+
+    /// Same as `recordCapture(movingFileAt:...)`, except `sourceURL` is left untouched — used for
+    /// capture paths (single-frame export, SER recording) where the original file already lives
+    /// wherever the user chose to save it (an `NSSavePanel` destination) and that location must
+    /// keep working afterwards; the session folder gets its own curated copy for the timeline
+    /// instead of stealing the user's file out from under them.
+    @discardableResult
+    func recordCapture(
+        copyingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?,
+        into session: Session, project: inout Project
+    ) throws -> CaptureRecord {
+        try recordCapture(
+            at: sourceURL, kind: kind, thumbnail: thumbnail, into: session, project: &project,
+            transfer: fileManager.copyItem
+        )
+    }
+
+    private func recordCapture(
+        at sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?,
+        into session: Session, project: inout Project, transfer: (URL, URL) throws -> Void
+    ) throws -> CaptureRecord {
         let sessionFolder = sessionFolderURL(for: session, in: project)
         try fileManager.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
         let destinationURL = sessionFolder.appendingPathComponent(sourceURL.lastPathComponent)
         if fileManager.fileExists(atPath: destinationURL.path) {
             try? fileManager.removeItem(at: destinationURL)
         }
-        try fileManager.moveItem(at: sourceURL, to: destinationURL)
+        try transfer(sourceURL, destinationURL)
 
         var thumbnailFileName: String?
         if let thumbnail {
