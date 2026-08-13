@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E06CA48D0F91C0D87E7D2FED /* ObservationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C1927858D0564ECE3183F6 /* ObservationModels.swift */; };
+		09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */; };
+		47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */; };
 		0224F37EA5218C04135476C7 /* libASICamera2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; };
 		056885C6201C1236C8D50051 /* SkyformacCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */; };
 		099973C00C3E99A41739F432 /* AllSkyAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFBC991708FDCE0EA4CC1E /* AllSkyAnalyzer.swift */; };
@@ -78,6 +81,8 @@
 		5DF765BF9356195732AC093B /* HistogramComputerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */; };
 		FF70AA111387FD2A10BD035C /* ToneCurveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16AE84B8AF673E7F0D7D3F7 /* ToneCurveTests.swift */; };
 		B8C2B9353B13C8021C102763 /* MeshDriftFieldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E39F6EC7FB9C903D7B724386 /* MeshDriftFieldTests.swift */; };
+		A3DA25A264CCEEA4F2096A48 /* ProjectStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BCC1BF45D0CE9438E957E4 /* ProjectStoreTests.swift */; };
+		ED1C47D4DB674FE120277FDA /* ThumbnailGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35D7B41848345E7370201B3 /* ThumbnailGeneratorTests.swift */; };
 		C4F70E862029FEA852476B6C /* PlanetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */; };
 		C50F2712D4496D9621959232 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
 		C5CC3B605C7E28E7339A565F /* ControlsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB59E4D2F2C11CC773741644 /* ControlsPanelView.swift */; };
@@ -174,6 +179,8 @@
 		6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramComputerTests.swift; sourceTree = "<group>"; };
 		E16AE84B8AF673E7F0D7D3F7 /* ToneCurveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ToneCurveTests.swift; sourceTree = "<group>"; };
 		E39F6EC7FB9C903D7B724386 /* MeshDriftFieldTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeshDriftFieldTests.swift; sourceTree = "<group>"; };
+		B2BCC1BF45D0CE9438E957E4 /* ProjectStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectStoreTests.swift; sourceTree = "<group>"; };
+		F35D7B41848345E7370201B3 /* ThumbnailGeneratorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGeneratorTests.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
 		0C438170FE21AEABA0E72DB0 /* PreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
 		6F70DB4F88F8011F407D7B23 /* HelpContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpContent.swift; sourceTree = "<group>"; };
@@ -226,6 +233,9 @@
 		7F9D8736D4BFB3C577283F37 /* SkyformacUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyformacUITests.swift; sourceTree = "<group>"; };
 		80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrameArithmeticTests.swift; sourceTree = "<group>"; };
 		8294B26F98035A7FF1A95728 /* CameraManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		A1C1927858D0564ECE3183F6 /* ObservationModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationModels.swift; sourceTree = "<group>"; };
+		33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
+		4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGenerator.swift; sourceTree = "<group>"; };
 		87791B80E37FA5FFFEEAC02C /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		885BBDC0D43C6A0B4ED42B32 /* StarDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarDetector.swift; sourceTree = "<group>"; };
 		927F74D973300405CE8F799C /* StreakDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreakDetector.swift; sourceTree = "<group>"; };
@@ -372,6 +382,7 @@
 				E1448426A192927641665057 /* Capture */,
 				060654094E86409BAB7E5842 /* Catalog */,
 				7715B9BE9102829B7DA3AB4B /* CameraManagement */,
+				DCA9F074B73F76E29F376093 /* Projects */,
 				F686233B66886BE49FFDED53 /* Rendering */,
 				95BE520F0A0C515EC3EFE9EB /* Views */,
 				3564C26F8A18E14E35E3DFE0 /* Help */,
@@ -421,6 +432,8 @@
 				6EA15EFC33B68164EA00EF21 /* HistogramComputerTests.swift */,
 				E16AE84B8AF673E7F0D7D3F7 /* ToneCurveTests.swift */,
 				E39F6EC7FB9C903D7B724386 /* MeshDriftFieldTests.swift */,
+				B2BCC1BF45D0CE9438E957E4 /* ProjectStoreTests.swift */,
+				F35D7B41848345E7370201B3 /* ThumbnailGeneratorTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
 				A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */,
@@ -499,6 +512,17 @@
 			);
 			name = CameraManagement;
 			path = CameraManagement;
+			sourceTree = "<group>";
+		};
+		DCA9F074B73F76E29F376093 /* Projects */ = {
+			isa = PBXGroup;
+			children = (
+				A1C1927858D0564ECE3183F6 /* ObservationModels.swift */,
+				33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */,
+				4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */,
+			);
+			name = Projects;
+			path = Projects;
 			sourceTree = "<group>";
 		};
 		7E9DAD47D8C0FDE2F143E30E /* Resources */ = {
@@ -778,6 +802,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				996DB3C1418971AAAEC7AAC9 /* SkyformacApp.swift in Sources */,
+				E06CA48D0F91C0D87E7D2FED /* ObservationModels.swift in Sources */,
+				09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */,
+				47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */,
 				D750D67E465DFF02A0CA1F62 /* ZWOError.swift in Sources */,
 				B50020272473177E2E598EFF /* CTupleConversions.swift in Sources */,
 				A05020090FAE2338A11DB166 /* ZWOCameraInfo.swift in Sources */,
@@ -868,6 +895,8 @@
 				5DF765BF9356195732AC093B /* HistogramComputerTests.swift in Sources */,
 				FF70AA111387FD2A10BD035C /* ToneCurveTests.swift in Sources */,
 				B8C2B9353B13C8021C102763 /* MeshDriftFieldTests.swift in Sources */,
+				A3DA25A264CCEEA4F2096A48 /* ProjectStoreTests.swift in Sources */,
+				ED1C47D4DB674FE120277FDA /* ThumbnailGeneratorTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,
 				7649C405BE01EB99C5A51847 /* MetalFrameRendererTests.swift in Sources */,
