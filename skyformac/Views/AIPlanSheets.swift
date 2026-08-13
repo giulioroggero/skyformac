@@ -68,6 +68,8 @@ struct AIPlanProjectSheet: View {
         defer { isLoading = false }
         do {
             suggestion = try await cameraManager.ollamaPlanner.planProject(goal: goalText)
+        } catch let error as OllamaError {
+            errorMessage = error.userFacingMessage
         } catch {
             errorMessage = "Couldn't get a plan from Ollama — make sure it's running locally. (\(String(describing: error)))"
         }
@@ -147,6 +149,8 @@ struct AIPlanSessionSheet: View {
         defer { isLoading = false }
         do {
             suggestion = try await cameraManager.ollamaPlanner.planSession(goal: goalText)
+        } catch let error as OllamaError {
+            errorMessage = error.userFacingMessage
         } catch {
             errorMessage = "Couldn't get a plan from Ollama — make sure it's running locally. (\(String(describing: error)))"
         }

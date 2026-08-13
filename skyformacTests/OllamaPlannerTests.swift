@@ -6,13 +6,22 @@ private final class FakeTransport: OllamaTransport, @unchecked Sendable {
     var responseText: String?
     var statusCode: Int = 200
     var error: Error?
+    /// What `/api/tags` reports as installed — defaults to one model so tests that don't care
+    /// about model resolution (most of them) still resolve one without extra setup.
+    var installedModels: [String] = ["llama3.2"]
     private(set) var lastRequest: URLRequest?
+    private(set) var requestedPaths: [String] = []
 
     func send(_ request: URLRequest) async throws -> Data {
         lastRequest = request
+        requestedPaths.append(request.url?.path ?? "")
         if let error { throw error }
-        guard statusCode == 200 else { throw OllamaError.badResponse }
-        let envelope: [String: Any] = ["model": "llama3.2", "response": responseText ?? "", "done": true]
+        guard statusCode == 200 else { throw OllamaError.badResponse(message: "HTTP \(statusCode)") }
+        if request.url?.path == "/api/tags" {
+            let models = installedModels.map { ["name": $0] }
+            return try JSONSerialization.data(withJSONObject: ["models": models])
+        }
+        let envelope: [String: Any] = ["model": installedModels.first ?? "llama3.2", "response": responseText ?? "", "done": true]
         return try JSONSerialization.data(withJSONObject: envelope)
     }
 }
@@ -29,6 +38,38 @@ struct OllamaPlannerTests {
         transport.error = URLError(.cannotConnectToHost)
         let planner = OllamaPlanner(transport: transport)
         #expect(!(await planner.isAvailable()))
+    }
+
+    @Test func installedModelsListsEveryReportedName() async throws {
+        let transport = FakeTransport()
+        transport.installedModels = ["qwen3.5:4b", "gemma4:e2b"]
+        let planner = OllamaPlanner(transport: transport)
+
+        #expect(try await planner.installedModels() == ["qwen3.5:4b", "gemma4:e2b"])
+    }
+
+    @Test func planSessionAutoResolvesTheFirstInstalledModelWhenNoneIsConfigured() async throws {
+        let transport = FakeTransport()
+        transport.installedModels = ["qwen3.5:4b", "gemma4:e2b"]
+        transport.responseText = #"{"name": "n", "goal": "g", "plannedObjects": []}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        _ = try await planner.planSession(goal: "see saturn")
+
+        let request = try #require(transport.lastRequest)
+        let body = try #require(request.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        #expect(json?["model"] as? String == "qwen3.5:4b")
+    }
+
+    @Test func planSessionThrowsNoModelsInstalledWhenTheServerHasNone() async {
+        let transport = FakeTransport()
+        transport.installedModels = []
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.noModelsInstalled) {
+            try await planner.planSession(goal: "see saturn")
+        }
     }
 
     @Test func planSessionParsesAPlainJSONResponse() async throws {
@@ -55,6 +96,21 @@ struct OllamaPlannerTests {
         let plan = try await planner.planSession(goal: "see saturn")
         #expect(plan.name == "Saturn Watch")
         #expect(plan.plannedObjects == ["Saturn"])
+    }
+
+    @Test func planSessionExtractsJSONAfterAThinkingBlock() async throws {
+        // Reasoning models (qwen3.5, deepseek-r1, ...) can prepend their own chain-of-thought
+        // ahead of the final answer even with the model's own "thinking" field separate — this
+        // covers the case where some of that leaks into "response" too.
+        let transport = FakeTransport()
+        transport.responseText = """
+        <think>The user wants a plan for Saturn. Let me consider the goal...</think>
+        {"name": "Saturn Watch", "goal": "Track the rings", "plannedObjects": ["Saturn"]}
+        """
+        let planner = OllamaPlanner(transport: transport)
+
+        let plan = try await planner.planSession(goal: "see saturn")
+        #expect(plan.name == "Saturn Watch")
     }
 
     @Test func planSessionThrowsInvalidPlanJSONWhenNoJSONIsPresent() async {
@@ -99,7 +155,7 @@ struct OllamaPlannerTests {
         transport.statusCode = 500
         let planner = OllamaPlanner(transport: transport)
 
-        await #expect(throws: OllamaError.badResponse) {
+        await #expect(throws: OllamaError.badResponse(message: "HTTP 500")) {
             try await planner.planSession(goal: "see saturn")
         }
     }
@@ -117,5 +173,7 @@ struct OllamaPlannerTests {
         let body = try #require(request.httpBody)
         let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
         #expect(json?["model"] as? String == "custom-model")
+        // An explicitly configured model skips the /api/tags round trip entirely.
+        #expect(!transport.requestedPaths.contains("/api/tags"))
     }
 }

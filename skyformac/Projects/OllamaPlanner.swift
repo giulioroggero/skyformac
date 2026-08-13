@@ -11,19 +11,39 @@ extension URLSession: OllamaTransport {
     func send(_ request: URLRequest) async throws -> Data {
         let (data, response) = try await data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw OllamaError.badResponse
+            // Ollama's own error responses are JSON with a plain "error" string (e.g. `{"error":
+            // "model 'llama3.2' not found"}` for a model that was never pulled) — surfacing that
+            // verbatim is the difference between a user seeing exactly what's wrong and just
+            // "couldn't reach Ollama" for a server that answered just fine.
+            let serverMessage = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
+            let status = (response as? HTTPURLResponse)?.statusCode
+            throw OllamaError.badResponse(message: serverMessage ?? status.map { "HTTP \($0)" })
         }
         return data
     }
 }
 
 enum OllamaError: Error, Equatable {
-    /// The Ollama server itself returned a non-2xx status, or wasn't reachable at all.
-    case badResponse
+    /// The Ollama server itself returned a non-2xx status, or wasn't reachable at all —
+    /// `message` is the server's own explanation when it gave one (see `URLSession.send`).
+    case badResponse(message: String?)
     /// The server responded, but the model's own text didn't contain the JSON plan asked for —
     /// most likely a smaller/less-capable local model ignoring the "respond with only JSON"
     /// instruction, which no amount of retrying the same prompt reliably fixes.
     case invalidPlanJSON
+    /// `model` was left `nil` (auto-detect) but the server reports zero installed models — there
+    /// is nothing to fall back to; the user needs to `ollama pull` something first.
+    case noModelsInstalled
+
+    /// What `AIPlanSheets` actually shows — a plain sentence rather than `String(describing:)`'s
+    /// `badResponse(message: Optional("..."))`-shaped debug dump.
+    var userFacingMessage: String {
+        switch self {
+        case .badResponse(let message): message ?? "Couldn't reach the Ollama server."
+        case .invalidPlanJSON: "The model's reply didn't contain a usable plan — try again, or try a different model."
+        case .noModelsInstalled: "No models are installed. Run `ollama pull <model>` first."
+        }
+    }
 }
 
 /// Asks a local Ollama server (no cloud dependency — matches this app's "everything runs on the
@@ -44,10 +64,15 @@ struct OllamaPlanner: Sendable {
     }
 
     var baseURL: URL
-    var model: String
+    /// `nil` (the default) means "ask the server which models are actually installed and use the
+    /// first one" — a specific hardcoded model name reliably 404s on any machine that hasn't
+    /// pulled that exact model, which is most of them; every real Ollama install already has at
+    /// least one model the user actually chose themselves. Set this explicitly to pin a
+    /// particular model instead.
+    var model: String?
     var transport: OllamaTransport
 
-    init(baseURL: URL = URL(string: "http://localhost:11434")!, model: String = "llama3.2", transport: OllamaTransport = URLSession.shared) {
+    init(baseURL: URL = URL(string: "http://localhost:11434")!, model: String? = nil, transport: OllamaTransport = URLSession.shared) {
         self.baseURL = baseURL
         self.model = model
         self.transport = transport
@@ -55,10 +80,27 @@ struct OllamaPlanner: Sendable {
 
     /// `true` once the server answers at all — used to gray out the "Ask AI to plan this" button
     /// rather than let the user hit it and wait for a timeout when Ollama just isn't running.
+    /// Reachable-but-empty (zero models installed) still counts as "available" here; that's
+    /// `planSession`/`planProject`'s `noModelsInstalled` to report once actually asked for a plan.
     func isAvailable() async -> Bool {
         var request = URLRequest(url: baseURL.appendingPathComponent("api/tags"))
         request.httpMethod = "GET"
         return (try? await transport.send(request)) != nil
+    }
+
+    /// Every model name the server currently reports as installed (`ollama list`, over HTTP) —
+    /// exposed mainly so a future model picker doesn't have to re-derive this, though
+    /// `resolveModel()` is what actually uses it today.
+    func installedModels() async throws -> [String] {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/tags"))
+        request.httpMethod = "GET"
+        let data = try await transport.send(request)
+        guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let models = envelope["models"] as? [[String: Any]]
+        else {
+            return []
+        }
+        return models.compactMap { $0["name"] as? String }
     }
 
     func planSession(goal: String, notes: String = "") async throws -> SessionPlanSuggestion {
@@ -81,26 +123,36 @@ struct OllamaPlanner: Sendable {
         }
     }
 
+    /// `model` if explicitly set, otherwise the first name `installedModels()` reports — throws
+    /// `noModelsInstalled` rather than falling through to a name that's likely to 404 anyway.
+    private func resolveModel() async throws -> String {
+        if let model { return model }
+        guard let first = try await installedModels().first else { throw OllamaError.noModelsInstalled }
+        return first
+    }
+
     private func generate(prompt: String) async throws -> String {
+        let resolvedModel = try await resolveModel()
         var request = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "model": model, "prompt": prompt, "stream": false,
+            "model": resolvedModel, "prompt": prompt, "stream": false,
         ])
         let data = try await transport.send(request)
         guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let response = envelope["response"] as? String
         else {
-            throw OllamaError.badResponse
+            throw OllamaError.badResponse(message: nil)
         }
         return response
     }
 
     /// Ollama's own reply is plain text, not guaranteed-valid JSON on its own even when the
-    /// prompt asks for "only JSON" — smaller models routinely wrap it in a sentence or a
-    /// ` ```json ` fence. Taking the substring between the first `{` and the last `}` recovers
-    /// the actual object in every case that matters without needing a real parser to find it.
+    /// prompt asks for "only JSON" — smaller models routinely wrap it in a sentence, a
+    /// ` ```json ` fence, or (reasoning models) a `<think>...</think>` block ahead of the actual
+    /// answer. Taking the substring between the first `{` and the last `}` recovers the actual
+    /// object in every case that matters without needing a real parser to find it.
     private static func extractJSONObject(from text: String) -> Data? {
         guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start <= end else { return nil }
         return String(text[start...end]).data(using: .utf8)
