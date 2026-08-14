@@ -302,7 +302,9 @@ session persistence design and the browser-as-main-window architecture)
   (e.g. "M13, M57, Saturn"), and date.
 - **Home is an orientation dashboard, not just a project list** — resume the
   most recently active session in one click, jump to a common task (Quick
-  Start, New Project, All Projects, Equipment, Insights, Settings), see the
+  Start, New Project, All Projects, Equipment, Insights — Settings is
+  reachable from the toolbar/⌘, instead, not its own "Common Tasks" tile),
+  see the
   last few touched projects and sessions, a monthly activity chart, the
   most-captured object/most-used equipment at a glance, and a few curated
   "try this next" suggestions (`DashboardHomeView`) — computed by the
@@ -597,7 +599,7 @@ session persistence design and the browser-as-main-window architecture)
   overlays are on survive a relaunch; session state (calibration frames,
   live-stack accumulation, in-progress polar alignment) intentionally starts
   fresh every time.
-- **Settings window** (⌘, or the Home page's own "Settings" tile) — a
+- **Settings window** (⌘, or the Home page's own toolbar button) — a
   central `SettingsView` sheet for the preferences most worth reviewing in
   one place: the Projects folder location (defaults to `~/Documents/
   Skyformac Projects`; **Choose Folder…** picks anywhere else, takes effect

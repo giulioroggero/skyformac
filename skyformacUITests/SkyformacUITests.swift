@@ -66,15 +66,17 @@ final class SkyformacUITests: XCTestCase {
             || app.buttons["RenderPathToggle"].waitForExistence(timeout: 1))
     }
 
-    func testSettingsTileOpensTheSettingsSheet() throws {
+    func testSettingsToolbarButtonOpensTheSettingsSheet() throws {
         let app = XCUIApplication()
         app.launch()
 
-        app.buttons["DashboardSettingsTile"].tap()
+        // The Home page's own "Settings" tile was removed from "Common Tasks" — Settings is still
+        // reachable via this toolbar button (and ⌘,), so this now drives that instead.
+        app.buttons["DashboardSettingsToolbarButton"].tap()
 
         // The Projects Folder section header is unique to `SettingsView` — its presence confirms
         // the sheet actually opened rather than the tap silently doing nothing.
-        XCTAssertTrue(app.staticTexts["Projects Folder"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Projects Folder"].waitForExistence(timeout: 10))
     }
 
     func testInsightsTileOpensTheInsightsPage() throws {

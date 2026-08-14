@@ -105,8 +105,6 @@ struct DashboardHomeView: View {
                             ActionCard(title: "Equipment", icon: "wrench.and.screwdriver", tint: .gray, subtitle: "Cameras, mounts, and gear", action: onShowEquipment)
                             ActionCard(title: "Insights", icon: "chart.bar", tint: .purple, subtitle: "What you actually do most", action: onShowInsights)
                                 .accessibilityIdentifier("DashboardInsightsTile")
-                            ActionCard(title: "Settings", icon: "gearshape", tint: .secondary, subtitle: "Projects folder and preferences", action: onShowSettings)
-                                .accessibilityIdentifier("DashboardSettingsTile")
                         }
                     }
                 }
@@ -219,6 +217,7 @@ struct DashboardHomeView: View {
         .toolbar {
             ToolbarItem {
                 Button("Settings…", systemImage: "gearshape", action: onShowSettings)
+                    .accessibilityIdentifier("DashboardSettingsToolbarButton")
             }
         }
         .frame(minWidth: 820, minHeight: 600)
