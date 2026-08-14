@@ -504,6 +504,29 @@ final class CameraManager {
         return suggestions
     }
 
+    /// "Add the skill for the AI that suggests project sessions" — unlike `fetchSuggestedNextObjects`
+    /// (a bare object name), this proposes a whole session: name, goal, target objects, and which
+    /// project to attach it to. Driven by the user-editable `AppSettings.sessionSuggestionSkill`
+    /// text. `nil` when Ollama isn't reachable or the model's reply isn't usable — there's no
+    /// wizard-list equivalent to fall back to for a full session plan, so the caller (the Dashboard)
+    /// simply doesn't show the card rather than showing something synthesized.
+    func fetchSuggestedNextSession() async -> OllamaPlanner.SuggestedSessionPlan? {
+        guard await ollamaPlanner.isAvailable() else { return nil }
+        return try? await ollamaPlanner.suggestNextSession(context: assistantContext(), skill: AppSettings.sessionSuggestionSkill)
+    }
+
+    /// Applies a `fetchSuggestedNextSession()` result exactly the way `confirmAssistantAction()`'s
+    /// own `.createSession` case does — case-insensitively matching an existing project by name, or
+    /// creating a new one — so accepting a suggested session behaves identically to the AI panel
+    /// proposing (and the user approving) the same action.
+    func acceptSuggestedSession(_ plan: OllamaPlanner.SuggestedSessionPlan) {
+        let matchedProject = projectsLibrary.projects.first { $0.name.caseInsensitiveCompare(plan.projectName) == .orderedSame }
+        let targetProject = matchedProject ?? Project.newProject(name: plan.projectName, goal: "")
+        if matchedProject == nil { try? projectsLibrary.save(targetProject) }
+        let session = Session.newSession(name: plan.name, goal: plan.goal, plannedObjects: plan.plannedObjects)
+        try? projectsLibrary.addSession(session, to: targetProject)
+    }
+
     /// "In camera mode the AI is only detached" — called by `activeSession`'s own `didSet`
     /// whenever it actually crosses the nil ↔ non-nil boundary (browser ↔ camera view).
     /// Entering camera mode force-detaches a currently-docked panel, remembering that it was

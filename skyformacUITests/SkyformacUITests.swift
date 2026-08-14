@@ -85,8 +85,10 @@ final class SkyformacUITests: XCTestCase {
 
         // macOS `NavigationStack` titles don't surface as an XCUITest `NavigationBar` element the
         // way they do on iOS, so this checks for "Overview" — `InsightsView`'s own first
-        // `PageSection` title, unique to that page — instead.
-        XCTAssertTrue(app.staticTexts["Overview"].waitForExistence(timeout: 5))
+        // `PageSection` title, unique to that page — instead. A 10s timeout (matching the other
+        // navigation tests in this file) rather than 5s: a one-off CI-runner scheduling delay was
+        // observed missing a 5s window even though the section renders synchronously.
+        XCTAssertTrue(app.staticTexts["Overview"].waitForExistence(timeout: 10))
     }
 
     func testAllProjectsTileOpensTheProjectsList() throws {
@@ -96,7 +98,7 @@ final class SkyformacUITests: XCTestCase {
         app.buttons["DashboardAllProjectsTile"].tap()
 
         // "Filters" is `ProjectsHomeView`'s own toolbar button, unique to that page.
-        XCTAssertTrue(app.buttons["Filters"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Filters"].waitForExistence(timeout: 10))
     }
 
     func testAssistantPanelIsVisibleByDefaultOnTheDashboard() throws {

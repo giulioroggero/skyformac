@@ -127,7 +127,10 @@ struct AtlasView: View {
                         // A sky atlas conventionally reads right-to-left (RA increases eastward,
                         // but the sky is viewed from inside the celestial sphere) — reversed here
                         // to match that convention rather than an ordinary left-to-right chart.
-                        .chartXScale(domain: 360...0)
+                        // NOTE: a `ClosedRange` (`360...0`) traps at runtime since it requires
+                        // lowerBound <= upperBound — Charts' array-domain form is the supported way
+                        // to reverse a continuous axis, by giving the bounds in descending order.
+                        .chartXScale(domain: [360, 0])
                         .chartYScale(domain: -90...90)
                         .chartXAxisLabel("Right Ascension (°)")
                         .chartYAxisLabel("Declination (°)")

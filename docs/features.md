@@ -312,7 +312,17 @@ session persistence design and the browser-as-main-window architecture)
   list shows immediately, then is silently replaced if the AI responds) — all
   before ever drilling into the full project list, which moved one level
   down to its
-  own **Projects** page (what used to be Home).
+  own **Projects** page (what used to be Home). Home also shows a
+  **Suggested Session** card when Ollama proposes a full next session (not
+  just an object — a name, goal, target objects, and which project to
+  attach it to, existing or new): **Create** applies it exactly the way an
+  approved AI-panel action would, **Dismiss** just clears the card. Driven
+  by a user-editable "skill" (Settings → **AI Skill: Suggest Next
+  Session**, a free-text field of standing instructions like "favor
+  deep-sky over planetary" or "consider my dual-scope rig") folded into
+  every request — no synthesized fallback here, since a full session plan
+  has no wizard-list equivalent the way object suggestions do; the card
+  simply doesn't appear until Ollama actually answers.
 - **Insights** (Home page's own tile, or the Project menu) is a dedicated,
   read-only page over every capture across every project: total
   projects/sessions/captures, a monthly activity chart, and breakdowns of

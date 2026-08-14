@@ -34,6 +34,7 @@ enum AppSettings {
         case customEquipmentDirectoryPath
         case ollamaServerURLString
         case ollamaModel
+        case sessionSuggestionSkill
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -260,4 +261,21 @@ enum AppSettings {
         get { UserDefaults.standard.string(forKey: Key.ollamaModel.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.ollamaModel.rawValue) }
     }
+
+    /// The instructions folded into every "suggest my next session" request
+    /// (`OllamaPlanner.suggestNextSession(context:skill:)`) — a user-editable "skill," not a fixed
+    /// prompt, so preferences like "favor deep-sky over planetary" or "consider my dual-scope rig"
+    /// can be tuned from Settings without a code change. Falls back to `defaultSessionSuggestionSkill`
+    /// whenever nothing's been customized yet or the user resets it.
+    static var sessionSuggestionSkill: String {
+        get { UserDefaults.standard.string(forKey: Key.sessionSuggestionSkill.rawValue) ?? defaultSessionSuggestionSkill }
+        set { UserDefaults.standard.set(newValue, forKey: Key.sessionSuggestionSkill.rawValue) }
+    }
+
+    static let defaultSessionSuggestionSkill = """
+    Prefer objects that fit well with the observer's equipment and favorite/highly-rated past \
+    projects and sessions. Favor a good variety over repeating the same target, unless a repeat \
+    under better conditions is clearly worthwhile. Attach the session to an existing project when \
+    one genuinely fits its goal; otherwise propose a new project.
+    """
 }

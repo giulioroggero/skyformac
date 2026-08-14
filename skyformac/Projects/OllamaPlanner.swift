@@ -214,6 +214,29 @@ struct OllamaPlanner: Sendable {
         return decoded.objects
     }
 
+    /// A full next-session suggestion — name, goal, target objects, *and* which project it belongs
+    /// to (an existing one by exact name, or a new one) — rather than just a bare object name the
+    /// way `suggestNextObjects` does. Driven by a user-editable "skill" (`AppSettings
+    /// .sessionSuggestionSkill`) folded into the prompt as standing instructions, so the caller
+    /// controls the model's preferences without a code change.
+    struct SuggestedSessionPlan: Codable, Equatable, Sendable {
+        var projectName: String
+        var name: String
+        var goal: String
+        var plannedObjects: [String]
+    }
+
+    func suggestNextSession(context: String, skill: String) async throws -> SuggestedSessionPlan {
+        let text = try await generate(prompt: Self.suggestNextSessionPrompt(context: context, skill: skill))
+        guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.invalidPlanJSON }
+        guard let decoded = try? JSONDecoder().decode(SuggestedSessionPlan.self, from: json),
+              !decoded.name.isEmpty, !decoded.projectName.isEmpty
+        else {
+            throw OllamaError.invalidPlanJSON
+        }
+        return decoded
+    }
+
     /// The sidebar assistant's own entry point — "provide insight, create projects and sessions,
     /// suggest camera configuration, suggest what to see next," all through one classification
     /// call: the model either just answers, or proposes exactly one `AssistantAction` alongside a
@@ -388,6 +411,21 @@ struct OllamaPlanner: Sendable {
         "Saturn", "NGC 7000"), not vague descriptions.
         Respond with ONLY a JSON object, no other text, matching exactly this shape:
         {"objects": ["object1", "object2"]}
+        """
+    }
+
+    private static func suggestNextSessionPrompt(context: String, skill: String) -> String {
+        """
+        You are an assistant helping an amateur astronomer plan their next full observing session \
+        — not just a single object, but a named session with a goal, target objects, and a project \
+        to attach it to.
+        \(skill)
+        \(context)
+        If an existing project's goal genuinely fits this session, propose attaching to it by its \
+        exact existing name; otherwise propose a short new project name.
+        Respond with ONLY a JSON object, no other text, matching exactly this shape:
+        {"projectName": "...", "name": "short session title", "goal": "one sentence goal", \
+        "plannedObjects": ["object1"]}
         """
     }
 }

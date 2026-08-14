@@ -27,6 +27,12 @@ struct DashboardHomeView: View {
     /// wizard." Never shows an empty state while the AI call is in flight.
     @State private var ideas: [String] = []
 
+    /// "Add the skill for the AI that suggests project sessions" — a whole session proposal
+    /// (name, goal, objects, target project), computed via `CameraManager.fetchSuggestedNextSession()`.
+    /// Unlike `ideas`, there's no synchronous fallback to show first: a full session plan has no
+    /// wizard-list equivalent, so the card simply doesn't appear until (if) Ollama actually answers.
+    @State private var suggestedSession: OllamaPlanner.SuggestedSessionPlan?
+
     /// The single most recently active session across every project — what "resume the last
     /// session" actually resumes. Falls back to `nil` (the card just doesn't show) when nothing's
     /// ever been captured anywhere, rather than picking an arbitrary "most recent" with nothing
@@ -162,6 +168,30 @@ struct DashboardHomeView: View {
                     }
                 }
 
+                if let suggestedSession {
+                    PageSection(title: "Suggested Session") {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(suggestedSession.name) — \(suggestedSession.projectName)").font(.headline)
+                                Text(suggestedSession.goal).font(.caption).foregroundStyle(.secondary)
+                                if !suggestedSession.plannedObjects.isEmpty {
+                                    Text("Objects: \(suggestedSession.plannedObjects.joined(separator: ", "))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            Spacer()
+                            Button("Dismiss") { self.suggestedSession = nil }
+                                .buttonStyle(.borderless)
+                            Button("Create") {
+                                cameraManager.acceptSuggestedSession(suggestedSession)
+                                self.suggestedSession = nil
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                }
+
                 if !insights.suggestedNextObjects.isEmpty {
                     PageSection(title: "Ideas for Next Time") {
                         ForEach(ideas.prefix(3), id: \.self) { object in
@@ -182,6 +212,9 @@ struct DashboardHomeView: View {
         .task(id: insights.suggestedNextObjects) {
             ideas = insights.suggestedNextObjects
             ideas = await cameraManager.fetchSuggestedNextObjects(fallback: insights.suggestedNextObjects)
+        }
+        .task {
+            suggestedSession = await cameraManager.fetchSuggestedNextSession()
         }
         .toolbar {
             ToolbarItem {

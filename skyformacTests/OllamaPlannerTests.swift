@@ -390,4 +390,53 @@ struct OllamaPlannerTests {
         let objects = try await planner.suggestNextObjects(context: "some context")
         #expect(objects == ["M31"])
     }
+
+    // MARK: - suggestNextSession
+
+    @Test func suggestNextSessionParsesTheFullPlan() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"""
+        {"projectName": "Messier Marathon", "name": "M13 and M57", "goal": "Two nice globulars/nebulae", "plannedObjects": ["M13", "M57"]}
+        """#
+        let planner = OllamaPlanner(transport: transport)
+
+        let plan = try await planner.suggestNextSession(context: "some context", skill: "favor deep sky")
+
+        #expect(plan == OllamaPlanner.SuggestedSessionPlan(
+            projectName: "Messier Marathon", name: "M13 and M57", goal: "Two nice globulars/nebulae", plannedObjects: ["M13", "M57"]
+        ))
+    }
+
+    @Test func suggestNextSessionFoldsTheSkillTextIntoThePrompt() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"projectName": "P", "name": "S", "goal": "G", "plannedObjects": []}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        _ = try await planner.suggestNextSession(context: "some context", skill: "always favor planetary targets")
+
+        let body = transport.lastRequest.flatMap { $0.httpBody }
+        let prompt = body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["prompt"] as? String
+        #expect(prompt?.contains("always favor planetary targets") == true)
+        #expect(prompt?.contains("some context") == true)
+    }
+
+    @Test func suggestNextSessionThrowsInvalidPlanJSONWhenNoJSONIsPresent() async {
+        let transport = FakeTransport()
+        transport.responseText = "I'm not sure."
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.invalidPlanJSON) {
+            try await planner.suggestNextSession(context: "some context", skill: "")
+        }
+    }
+
+    @Test func suggestNextSessionThrowsInvalidPlanJSONWhenNameOrProjectNameIsMissing() async {
+        let transport = FakeTransport()
+        transport.responseText = #"{"projectName": "", "name": "S", "goal": "G", "plannedObjects": []}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.invalidPlanJSON) {
+            try await planner.suggestNextSession(context: "some context", skill: "")
+        }
+    }
 }

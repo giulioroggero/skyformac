@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var ollamaTestResult: OllamaTestResult?
     @State private var serverURLText = AppSettings.ollamaServerURL.absoluteString
     @State private var selectedModel: String? = AppSettings.ollamaModel
+    @State private var sessionSuggestionSkill = AppSettings.sessionSuggestionSkill
 
     private var currentProjectsFolder: URL {
         customPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? ProjectStore.defaultRootDirectory()
@@ -163,10 +164,30 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                Section("AI Skill: Suggest Next Session") {
+                    TextEditor(text: $sessionSuggestionSkill)
+                        .font(.body)
+                        .frame(minHeight: 90)
+                        .onChange(of: sessionSuggestionSkill) { _, newValue in
+                            AppSettings.sessionSuggestionSkill = newValue
+                        }
+                    HStack {
+                        Spacer()
+                        Button("Reset to Default") {
+                            sessionSuggestionSkill = AppSettings.defaultSessionSuggestionSkill
+                            AppSettings.sessionSuggestionSkill = AppSettings.defaultSessionSuggestionSkill
+                        }
+                        .disabled(sessionSuggestionSkill == AppSettings.defaultSessionSuggestionSkill)
+                    }
+                    Text("Standing instructions folded into every \"suggest my next session\" request — tune what the AI favors (equipment, target types, repeat vs. variety) without touching a single prompt in code.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .formStyle(.grouped)
         }
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: 580)
     }
 
     /// Applies whatever's currently typed into the server URL field — invalid/empty text is

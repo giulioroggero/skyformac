@@ -2318,3 +2318,40 @@ made along the way.
     `Chart`/`PointMark` has no built-in per-point tap gesture, so tapping is resolved manually via
     `chartOverlay`/`GeometryReader` + `proxy.value(at:as: (Double, Double).self)` translated through
     `geometry[proxy.plotAreaFrame]`, then a plain nearest-neighbor scan over the plotted points.
+
+- **Fixed an Atlas-view crash, cleared a CI Node-version warning, stabilized a flaky UI test, and
+  added a configurable AI "skill" for suggesting whole next sessions.** Four independent fixes
+  from the same round of feedback.
+  - **The Atlas crash**: `.chartXScale(domain: 360...0)` (`AtlasView.swift`) constructs a
+    `ClosedRange<Double>`, which traps at runtime with a precondition failure since `ClosedRange`
+    requires `lowerBound <= upperBound` — the moment the chart had any plotted point to render,
+    the whole app exited. Swift Charts' actual supported way to reverse a continuous axis is the
+    array-domain overload (`.chartXScale(domain: [360, 0])`), which has no such ordering
+    requirement — the fix is a one-line domain-type change, same visual result.
+  - **CI Node warning**: `actions/checkout@v4` runs on Node 20, which GitHub Actions now forces
+    onto Node 24 with a deprecation warning on every run; `actions/checkout@v5` genuinely runs on
+    Node 24 (its `action.yml` changed `runs.using` from `node20` to `node24`), so bumping the tag
+    is the actual fix rather than a workaround.
+  - **Flaky `testInsightsTileOpensTheInsightsPage`**: confirmed the "Overview" section renders
+    synchronously off `InsightsData.build(...)` — computed before `InsightsView.body` ever runs —
+    and is completely unaffected by the view's own `.task(id:)` Ollama call (that only updates the
+    separate "Ideas for Next Time" section, after the page has already appeared). The one observed
+    CI failure was ordinary runner-scheduling jitter against a 5s timeout tighter than every other
+    navigation test in the same file already uses (10s) — widened to match, not a logic fix.
+  - **Configurable AI skill for suggesting sessions** — "ideas for next time" (task from the
+    earlier round) suggests a bare object name; this is a step up: `OllamaPlanner
+    .suggestNextSession(context:skill:)` proposes a whole session (name, goal, target objects, and
+    which project to attach it to — an existing one by exact name, or a new one), returned as
+    `SuggestedSessionPlan`. What makes it a "skill" rather than a fixed prompt is `AppSettings
+    .sessionSuggestionSkill` — free-text standing instructions ("favor deep-sky over planetary,"
+    "consider my dual-scope rig") folded into every request, editable in Settings under a new **AI
+    Skill: Suggest Next Session** section (a multi-line `TextEditor` + Reset to Default, mirroring
+    the Equipment Folder section's own reset pattern) — so preferences can be tuned without a code
+    change. `CameraManager.fetchSuggestedNextSession()` returns `nil` (not a synthesized fallback)
+    when Ollama's unavailable or the reply's unusable: unlike a bare object name, a full session
+    plan has no wizard-list equivalent to fall back to, so the Dashboard's new "Suggested Session"
+    card simply doesn't appear rather than showing something made up. Accepting a suggestion
+    (`CameraManager.acceptSuggestedSession(_:)`) reuses `confirmAssistantAction()`'s own
+    `.createSession` mechanism verbatim — case-insensitive match against an existing project by
+    name, or create one — so accepting behaves identically to approving the same action from the
+    AI panel, rather than a second, subtly different code path.

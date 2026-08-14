@@ -128,4 +128,71 @@ struct CameraManagerOllamaConfigurationTests {
 
         #expect(result == ["Saturn"])
     }
+
+    // MARK: - fetchSuggestedNextSession / acceptSuggestedSession
+
+    @Test func fetchSuggestedNextSessionReturnsThePlanWhenOllamaIsAvailable() async {
+        let transport = FakeOllamaTransport()
+        transport.responseText = #"{"projectName": "Messier Marathon", "name": "M13 Night", "goal": "See M13", "plannedObjects": ["M13"]}"#
+        let (manager, root) = makeManager(withOllamaTransport: transport)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = await manager.fetchSuggestedNextSession()
+
+        #expect(plan == OllamaPlanner.SuggestedSessionPlan(
+            projectName: "Messier Marathon", name: "M13 Night", goal: "See M13", plannedObjects: ["M13"]
+        ))
+    }
+
+    @Test func fetchSuggestedNextSessionReturnsNilWhenOllamaIsUnreachable() async {
+        let transport = FakeOllamaTransport()
+        transport.isUnreachable = true
+        let (manager, root) = makeManager(withOllamaTransport: transport)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = await manager.fetchSuggestedNextSession()
+
+        #expect(plan == nil)
+    }
+
+    @Test func fetchSuggestedNextSessionReturnsNilWhenTheReplyIsUnusable() async {
+        let transport = FakeOllamaTransport()
+        transport.responseText = "not JSON at all"
+        let (manager, root) = makeManager(withOllamaTransport: transport)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let plan = await manager.fetchSuggestedNextSession()
+
+        #expect(plan == nil)
+    }
+
+    @Test func acceptSuggestedSessionCreatesANewProjectWhenNoneMatches() throws {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let plan = OllamaPlanner.SuggestedSessionPlan(
+            projectName: "Brand New Project", name: "First Night", goal: "See M13", plannedObjects: ["M13"]
+        )
+
+        manager.acceptSuggestedSession(plan)
+
+        let project = try #require(manager.projectsLibrary.projects.first { $0.name == "Brand New Project" })
+        let session = try #require(project.sessions.first { $0.name == "First Night" })
+        #expect(session.goal == "See M13")
+        #expect(session.plannedObjects == ["M13"])
+    }
+
+    @Test func acceptSuggestedSessionAttachesToAnExistingProjectCaseInsensitively() throws {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try manager.projectsLibrary.save(Project.newProject(name: "existing project", goal: "Deep sky"))
+        let plan = OllamaPlanner.SuggestedSessionPlan(
+            projectName: "Existing Project", name: "Second Night", goal: "See M57", plannedObjects: ["M57"]
+        )
+
+        manager.acceptSuggestedSession(plan)
+
+        #expect(manager.projectsLibrary.projects.count == 1)
+        let project = try #require(manager.projectsLibrary.projects.first)
+        #expect(project.sessions.contains { $0.name == "Second Night" })
+    }
 }
