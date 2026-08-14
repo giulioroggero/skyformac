@@ -1,6 +1,144 @@
 # Architecture
 
-What's in each part of the codebase, folder by folder.
+What's in each part of the codebase, folder by folder — plus a high-level block
+diagram, the tech stack, and the primary sequence diagrams for the flows that
+matter most. Diagrams are [Mermaid](https://mermaid.js.org/), which GitHub
+renders natively in Markdown — no extra tooling needed to view them.
+
+## High-level architecture
+
+```mermaid
+graph TB
+    subgraph UI["SwiftUI Views (skyformac/Views/, Help/)"]
+        RootView["RootView<br/>(single-window swap)"]
+        Dashboard["DashboardHomeView<br/>+ ProjectsBrowserView<br/>(Home → Projects → Project → Session)"]
+        ContentView["ContentView<br/>(live camera session)"]
+        ControlsPanel["ControlsPanelView<br/>(Camera / Improve / Planetary / Deep Sky)"]
+        Preview["PreviewView / MTKView"]
+        Insights["InsightsView / SettingsView / EquipmentPage / RecallParametersView"]
+    end
+
+    subgraph VM["View model (skyformac/CameraManagement/)"]
+        CameraManager["CameraManager<br/>(@Observable @MainActor)"]
+        AppSettings["AppSettings<br/>(typed UserDefaults)"]
+    end
+
+    subgraph Capture["Capture (skyformac/Capture/)"]
+        CaptureEngine["CaptureEngine (actor)<br/>ASIGetVideoData poll loop"]
+        WebcamEngine["WebcamCaptureEngine<br/>(AVCaptureSession)"]
+        LiveStacker["LiveStacker / LuckyImagingSession<br/>CalibrationLibrary"]
+        AllSky["AllSkyMonitor / AllSkyAnalyzer"]
+    end
+
+    subgraph Bridge["Bridging (skyformac/Bridging/)"]
+        ZWOSDK["ZWOSDK / ZWOError / ZWOCameraInfo"]
+    end
+
+    subgraph Vendor["Vendor/ZWO/"]
+        Dylib["libASICamera2.dylib<br/>(vendored, universal binary)"]
+    end
+
+    subgraph Rendering["Rendering (skyformac/Rendering/)"]
+        GPUPath["MetalFrameRenderer + Shaders.metal<br/>(debayer/stretch/denoise/sharpen/live-stack)"]
+        CPUPath["CGImageRenderer + Debayer + HistogramComputer"]
+        PixelMath["FrameArithmetic, SharpnessScorer, FITSWriter,<br/>ImageExporter, PolarAlignmentSolver, PlanetTracker, …"]
+    end
+
+    subgraph CatalogArea["Catalog (skyformac/Catalog/)"]
+        WCS["WCSProjection / LiveWCSSolver"]
+        CatalogRepo["CatalogRepository<br/>(SQLite, read-only)"]
+    end
+
+    subgraph ProjectsArea["Projects (skyformac/Projects/)"]
+        ProjectsLibrary["ProjectsLibrary<br/>(@Observable in-memory list)"]
+        ProjectStore["ProjectStore<br/>(filesystem persistence, JSON)"]
+        InsightsData["InsightsData / ProjectSearch"]
+        OllamaPlanner["OllamaPlanner"]
+        EquipmentLibrary["EquipmentLibrary"]
+    end
+
+    subgraph ResourcesArea["Resources (bundled, read-only)"]
+        SkyCatalog["SkyCatalog/*.json<br/>(Messier + bright stars)"]
+        AstroSqlite["AstroCatalog/astro_catalog.sqlite"]
+    end
+
+    subgraph External["External systems"]
+        Ollama["Local Ollama server<br/>(HTTP, localhost)"]
+        FS["~/Documents/Skyformac Projects/<br/>(or a custom folder)"]
+        CoreLocationSvc["Core Location"]
+        ContinuityCamera["Continuity Camera / USB webcam"]
+    end
+
+    RootView --> Dashboard
+    RootView --> ContentView
+    ContentView --> ControlsPanel
+    ContentView --> Preview
+    Dashboard --> Insights
+    Dashboard --> ProjectsLibrary
+
+    ControlsPanel --> CameraManager
+    Preview --> CameraManager
+    Insights --> ProjectsLibrary
+    Insights --> EquipmentLibrary
+
+    CameraManager --> AppSettings
+    CameraManager --> CaptureEngine
+    CameraManager --> WebcamEngine
+    CameraManager --> LiveStacker
+    CameraManager --> AllSky
+    CameraManager --> GPUPath
+    CameraManager --> CPUPath
+    CameraManager --> WCS
+    CameraManager --> ProjectsLibrary
+    CameraManager --> OllamaPlanner
+
+    CaptureEngine --> ZWOSDK
+    ZWOSDK --> Dylib
+
+    WebcamEngine --> ContinuityCamera
+    GPUPath --> PixelMath
+    CPUPath --> PixelMath
+    WCS --> CatalogRepo
+    CatalogRepo --> AstroSqlite
+    CameraManager -.-> SkyCatalog
+
+    ProjectsLibrary --> ProjectStore
+    ProjectsLibrary --> InsightsData
+    ProjectStore --> FS
+    OllamaPlanner --> Ollama
+    CameraManager --> CoreLocationSvc
+```
+
+Everything under **Capture**, **Rendering**, **Catalog**, and **Projects** is
+plain Swift with no SwiftUI/AppKit import — pure model/service code, directly
+unit-testable without a camera, a window, or a filesystem fixture beyond a
+temp directory. `CameraManager` is the one `@Observable`/`@MainActor` view
+model gluing all of it to the UI layer; views themselves hold no business
+logic beyond layout and local `@State`.
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Language | Swift 6.0 (strict concurrency checking on) |
+| UI | SwiftUI, with a handful of AppKit bridges (`NSViewRepresentable` for `MTKView`, `NSSavePanel`/`NSOpenPanel`, window tabbing control) |
+| Charts | Swift **Charts** (`InsightsView`, `DashboardHomeView` — monthly activity and breakdown bar charts) |
+| GPU compute | **Metal** + `Shaders.metal` (compute kernels for debayer, display stretch, denoise, wavelet sharpen, histogram, live-stack accumulation) |
+| CPU fallback | `Accelerate`/`CoreGraphics`/`ImageIO` (`CGImageRenderer`, `Debayer`, `ImageEnhancer`) — same output, no GPU dependency |
+| Camera hardware | Vendored **ZWO ASI Camera SDK** (`libASICamera2.dylib`, a proprietary C library, universal arm64+x86_64) behind a thin Swift bridge (`ZWOSDK`) — no raw C struct/pointer crosses out of `skyformac/Bridging/` |
+| Webcam/iPhone capture | `AVFoundation` (`AVCaptureSession`) — Continuity Camera and any USB webcam, feeding the same `CapturedFrame` pipeline as a ZWO camera |
+| Concurrency | Swift's actor model — `CaptureEngine` is an `actor` so every blocking ZWO SDK call is structurally isolated off `@MainActor`, compiler-enforced rather than just documented |
+| Star/planet detection | Apple's **Vision** framework (on-device, no bundled third-party CV library) |
+| Location | `CoreLocation`, behind an injectable `LocationRequesting` protocol so it's testable without real permissions |
+| Local persistence | Plain JSON files, one folder per project/session (`ProjectStore`) — deliberately no database; `UserDefaults` for app preferences (`AppSettings`) |
+| Bundled catalogs | `SQLite3` (C API) for the astronomical catalog HUD (`CatalogRepository`, read-only); JSON for the Messier/bright-star list (`SkyCatalog`) |
+| AI planning | A **local Ollama** server over HTTP (`OllamaPlanner`, behind an `OllamaTransport` protocol) — no cloud dependency, prefers `qwen3:8b` if installed |
+| File formats produced | FITS (`FITSWriter`, hand-written), PNG/TIFF (`ImageExporter`), SER video |
+| Testing | **Swift Testing** (`skyformacTests`, 400+ unit tests) and **XCUITest** (`skyformacUITests`, real accessibility-tree UI tests) |
+| CI | GitHub Actions (`.github/workflows/ci.yml`), `macos-15` runners, `make build`/`make test` on every push/PR |
+| Build | Xcode 26+ / `xcodebuild`, wrapped by a `Makefile` |
+
+## Folder-by-folder
 
 - **`Vendor/ZWO/`** — vendored ZWO SDK: `include/ASICamera2.h` and a universal
   (arm64 + x86_64) `libASICamera2.dylib`, `lipo`'d together from the official
@@ -28,10 +166,12 @@ What's in each part of the codebase, folder by folder.
     Messier + bright-star data `StarPatternRecognizer` matches against).
 - **`skyformac/CameraManagement/`** — `CameraManager`, the `@Observable`
   `@MainActor` view model that owns camera discovery/lifecycle, the dynamic
-  control set, and the capture pipeline entry point (`ingest`).
-  `AppSettings.swift` is the typed `UserDefaults` wrapper for preferences that
-  survive a relaunch (render path, enhancement toggles, which overlays are
-  on) — session state (calibration frames, live-stack accumulation,
+  control set, the capture pipeline entry point (`ingest`), and the Projects
+  feature's own entry points (`quickStart(with:)`, `recallParameters(_:)`,
+  `recordActiveSessionCapture`). `AppSettings.swift` is the typed
+  `UserDefaults` wrapper for preferences that survive a relaunch (render
+  path, enhancement toggles, which overlays are on, the Projects folder
+  location) — session state (calibration frames, live-stack accumulation,
   in-progress polar alignment) deliberately isn't persisted, it always starts
   fresh.
 - **`skyformac/Rendering/`** — both render paths:
@@ -68,9 +208,12 @@ What's in each part of the codebase, folder by folder.
   `ThumbnailGenerator` (`CGContext`/`CGImageDestination` JPEG downscaling,
   no third-party imaging library), `CoreLocationProvider` (GPS behind an
   injectable `LocationRequesting` protocol so it's testable without real
-  Core Location permissions), `ProjectSearch` (free-text + date-range
-  search), and `OllamaPlanner` (talks to a local Ollama server behind an
-  `OllamaTransport` protocol for the same reason).
+  Core Location permissions), `ProjectSearch` (free-text + date-range +
+  tag/object/equipment filtering), `InsightsData` (a pure, clock-injected
+  aggregator over every capture, feeding the Insights page and Dashboard),
+  `EquipmentModels.swift`/`EquipmentLibrary` (named equipment systems,
+  backed by `AppSettings`), and `OllamaPlanner` (talks to a local Ollama
+  server behind an `OllamaTransport` protocol for the same reason).
 - **`skyformac/Resources/`**:
   - `SkyCatalog/` — `messier.json` (110 Messier objects, extracted from
     Stellarium's real DSO catalog at `stellarium/nebulae/default/catalog.txt`)
@@ -78,20 +221,33 @@ What's in each part of the codebase, folder by folder.
     J2000 coordinates) — what `SkyCatalog.swift` loads.
   - `AstroCatalog/astro_catalog.sqlite` — the bundled catalog
     `CatalogRepository` queries; rebuilt by `scripts/build_astro_catalog.py`.
-- **`skyformac/App/`** — `SkyformacApp` (the `@main` entry point) and
+- **`skyformac/App/`** — `SkyformacApp` (the `@main` entry point, one
+  `WindowGroup` with automatic window tabbing explicitly disabled) and
   `SkyformacCommands` (menu bar commands: export, camera connect/rescan,
-  toolbar toggles, all with keyboard shortcuts).
+  Settings, the **Project** menu, toolbar toggles, all with keyboard
+  shortcuts). `AppLog` is the app-wide in-memory log (`skyformac → Show
+  Log…`) that most error paths feed automatically via
+  `CameraManager.lastErrorMessage`'s `didSet`.
+- **`skyformac/Help/`** — `HelpContent.swift`: plain structured content
+  (topics/sections) rendered with real SwiftUI typography by `HelpView`
+  (`skyformac/Views/`), not a bundled webpage; supports full-text search
+  across every section.
 - **`skyformac/Views/`** — SwiftUI. `RootView` is `SkyformacApp`'s actual
   `WindowGroup` content — it swaps between `ProjectsBrowserView` and
   `ContentView` in the same window based on `CameraManager.activeSession`,
   never a second `Scene` (per `SkyformacApp`'s single-window design).
-  `ControlsPanelView` has a `ControlMode` picker (General/Planetary/Deep
-  Sky/All Tools) filtering which of its tool sections show, via
-  `ToolSection`. `ProjectsBrowserView` (a `NavigationStack` drill-down —
-  Home → Project Detail (`ProjectDetailPane`) → Session History
-  (`SessionDetailPane`), each a pushed page rather than a persistent
-  column) plus `TimelineStripView`/`AIPlanSheets` are the Projects
-  feature's UI, built on `skyformac/Projects/`'s model layer.
+  `ControlsPanelView` has a sidebar-tab picker (Camera Controls / Improve /
+  Planetary / Deep Sky) filtering which of its tool sections show.
+  `ProjectsBrowserView` (a `NavigationStack` drill-down) roots at
+  `DashboardHomeView` — an orientation dashboard (resume the last session,
+  common-task shortcuts, recent projects, an activity chart, suggestions) —
+  and pushes **Projects** (the full project grid/table) → **Project Detail**
+  (`ProjectDetailPane`) → **Session** (`SessionDetailPane`, history/timeline)
+  → **Capture** (`CaptureDetailPage`), plus side routes for **Equipment**
+  (`EquipmentPage`), **Insights** (`InsightsView`), Archived, and Recently
+  Deleted. `RecallParametersView` and `SettingsView` are `.sheet`s attached
+  to `RootView` itself so they work from either the browser or the live
+  camera view. All built on `skyformac/Projects/`'s model layer.
 - **`skyformacTests/`** — unit tests (Swift Testing) covering every piece of
   pixel/geometry/signal-processing math in the app: debayer, the stretch LUT,
   `ASI_ERROR_CODE` mapping, frame arithmetic, live-stack averaging,
@@ -102,9 +258,126 @@ What's in each part of the codebase, folder by folder.
   flat-field correction, the calibration library, the CPU image enhancer, the
   all-sky brightness/motion analyzer, disk-space checking, and the Projects
   feature (folder persistence and rename-safety, thumbnail generation,
-  active-session capture filing, GPS/manual location, free-text search, and
+  active-session capture filing with its full parameter snapshot, GPS/manual
+  location, search/filtering, equipment systems, Insights aggregation, and
   Ollama plan parsing against a fake transport).
 - **`skyformacUITests/`** — XCUITest UI-level tests driving the actual SwiftUI
-  view tree (launch, sidebar contents, the toolbar renderer toggle) — these
+  view tree (launch into the Dashboard, Quick Start into the camera view, the
+  toolbar renderer toggle, opening Settings/Insights/Projects) — these
   exercise the real accessibility-tree/view hierarchy, not just the
   underlying logic.
+
+## Primary sequence diagrams
+
+### Camera connect and live frame pipeline
+
+The path from pressing **Connect** to a frame actually appearing on screen —
+the poll loop runs on `CaptureEngine`'s own actor so a blocking SDK call can
+never freeze the UI, and the render path branches on the GPU/CPU toggle.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CM as CameraManager<br/>(@MainActor)
+    participant CE as CaptureEngine<br/>(actor)
+    participant SDK as ZWOSDK
+    participant GPU as MetalFrameRenderer
+    participant CPU as CGImageRenderer
+    participant UI as PreviewView
+
+    User->>CM: connect(to: camera)
+    CM->>CE: openAndEnumerateControls()
+    CM->>CE: startStreaming(imageType)
+    CE->>CE: setROIFormat / applyStartPosition
+    CE->>CE: pollLoop() [async loop, off @MainActor]
+    loop every frame
+        CE->>SDK: ASIGetVideoData(buffer) [background queue]
+        SDK-->>CE: raw sensor bytes
+        CE-->>CM: yield CapturedFrame (AsyncStream)
+        CM->>CM: ingest(rawFrame)
+        CM->>CM: applyDarkSubtraction(frame)
+        opt Live Stack enabled (CPU path)
+            CM->>CM: LiveStacker.add(processed)
+        end
+        CM->>CM: refreshCurrentImage()
+        alt useMetalRenderer == true
+            CM->>GPU: process(frame) [debayer/stretch/denoise/live-stack kernels]
+            GPU-->>UI: render to MTKView drawable
+        else useMetalRenderer == false
+            CM->>CPU: makeDisplayImage(frame, stretch, bayerPattern)
+            CPU-->>CM: CGImage
+            CM-->>UI: currentImage updated
+        end
+    end
+```
+
+### Capture export and Project/Session recording
+
+Exporting a frame (or finishing an SER recording) both writes the actual
+file and — if a session is active — files a detailed record of the action
+into that session's timeline, snapshotting the object, location, equipment,
+and every acquisition parameter in effect at that moment.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CM as CameraManager
+    participant Panel as NSSavePanel
+    participant Writer as FITSWriter / ImageExporter
+    participant PS as ProjectStore
+    participant PL as ProjectsLibrary
+
+    User->>CM: exportCurrentFrame(as: .fits/.png/.tiff)
+    CM->>Panel: present save panel
+    Panel-->>CM: chosen URL
+    alt kind == .fits
+        CM->>Writer: FITSWriter.write(frame, ... , to: url)
+    else kind == .png / .tiff
+        CM->>Writer: ImageExporter.writePNG/writeTIFF(image, to: url)
+    end
+    opt a session is active
+        CM->>CM: recordActiveSessionCapture(url, kind, image)
+        CM->>PS: recordCapture(copyingFileAt: url, kind:, thumbnail:,<br/>note:, object:, location:, equipmentSystemID:, preset:)
+        PS->>PS: copy file into session folder
+        PS->>PS: generate + write thumbnail (if image given)
+        PS->>PS: session.captures.append(CaptureRecord)
+        PS->>PS: save(project) [writes project.json]
+        PS-->>CM: CaptureRecord
+        CM->>PL: syncInMemory(project)
+    end
+```
+
+### Quick Start: from a curated target to a running session
+
+Skips manually creating a project/session — the recommended preset applies
+right away if a camera's already connected, or is held pending until one is,
+the same mechanism **Recall Parameters** reuses for reapplying a past
+action's settings.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Dash as DashboardHomeView
+    participant CM as CameraManager
+    participant PL as ProjectsLibrary
+    participant Root as RootView
+
+    User->>Dash: pick a target (Quick Start sheet)
+    Dash->>CM: quickStart(with: target)
+    CM->>CM: project = Project.newProject(name: target.name)
+    CM->>CM: session = Session.newSession(plannedObjects: [target.name])
+    CM->>PL: save(project)
+    CM->>CM: preset = target.recommendedPreset(telescope:)
+    alt connectedCamera != nil
+        CM->>CM: applyAcquisitionPreset(preset)
+    else no camera yet
+        CM->>CM: pendingAcquisitionPreset = preset
+    end
+    CM->>CM: setActive(project:, session:) [activeSession != nil]
+    Root->>Root: swap ProjectsBrowserView → ContentView
+    opt camera connects afterwards
+        User->>CM: connect(to: camera)
+        CM->>CM: applyAcquisitionPreset(pendingAcquisitionPreset)
+        CM->>CM: pendingAcquisitionPreset = nil
+    end
+```
