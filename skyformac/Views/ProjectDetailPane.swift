@@ -186,12 +186,13 @@ private struct SessionCard: View {
 
             Spacer()
 
-            Button(isActive ? "Running" : (hasRun ? "Resume" : "Run")) {
+            Button(isActive ? "Running" : (hasRun ? "Resume" : "Run"), systemImage: "play.fill") {
                 cameraManager.setActive(project: project, session: session)
             }
             .disabled(isActive)
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.borderedProminent)
+            .tint(.accentColor)
+            .controlSize(.regular)
         }
         .padding(.vertical, 4)
         .opacity(session.isArchived ? 0.5 : 1)

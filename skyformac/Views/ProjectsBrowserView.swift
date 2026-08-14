@@ -134,7 +134,10 @@ private struct ProjectsHomeView: View {
         Group {
             switch viewMode {
             case .thumbnail:
-                ProjectsThumbnailGrid(projects: projects, activeProjectID: activeProjectID, store: store, onSelect: onSelectProject)
+                ProjectsThumbnailGrid(
+                    projects: projects, activeProjectID: activeProjectID, store: store,
+                    onSelect: onSelectProject, onNewProject: onNewProject, onQuickStart: onQuickStart
+                )
             case .table:
                 ProjectsTableView(projects: projects, activeProjectID: activeProjectID, onSelect: onSelectProject)
             }
@@ -173,18 +176,28 @@ private struct ProjectsHomeView: View {
 }
 
 /// The default view: a grid of cards, each with a cover thumbnail (the project's single most
-/// recent capture with one — see `ProjectStore.mostRecentThumbnailURL`) and its key stats.
+/// recent capture with one — see `ProjectStore.mostRecentThumbnailURL`) and its key stats. Two
+/// action tiles — **New Project** and **Quick Start** — lead the grid, the same size and shape as
+/// every project card, so starting something new is exactly as visible as any existing project,
+/// not just a small toolbar button easy to miss.
 private struct ProjectsThumbnailGrid: View {
     let projects: [Project]
     let activeProjectID: Project.ID?
     let store: ProjectStore
     var onSelect: (Project) -> Void
+    var onNewProject: () -> Void
+    var onQuickStart: () -> Void
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 16)]
 
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
+                ActionCard(title: "New Project", icon: "plus", tint: .accentColor, action: onNewProject)
+                ActionCard(
+                    title: "Quick Start", icon: "bolt.fill", tint: .orange,
+                    subtitle: "A planet, the Moon, or a deep-sky object — ready to run", action: onQuickStart
+                )
                 ForEach(projects) { project in
                     ProjectCard(project: project, isOpen: project.id == activeProjectID, store: store)
                         .contentShape(Rectangle())
@@ -193,6 +206,39 @@ private struct ProjectsThumbnailGrid: View {
             }
             .padding(16)
         }
+    }
+}
+
+/// A "New Project"/"Quick Start"-shaped tile — same footprint as a `ProjectCard` (so the grid
+/// reads as one consistent row of tiles, not an outlier), a big tinted icon standing in for a
+/// cover thumbnail, and a dashed border marking it as "start something," not an existing project.
+private struct ActionCard: View {
+    let title: String
+    let icon: String
+    let tint: Color
+    var subtitle: String?
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(tint.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.1)))
+                    Image(systemName: icon)
+                        .font(.system(size: 36))
+                        .foregroundStyle(tint)
+                }
+                .frame(height: 130)
+
+                Text(title).font(.headline)
+                Text(subtitle ?? "Start something new").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            .padding(10)
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
     }
 }
 
