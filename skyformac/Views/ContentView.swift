@@ -152,6 +152,18 @@ struct ContentView: View {
                                     .padding(12)
                             }
                         }
+                    // A second, harder-to-miss "End Session" directly under the live view itself
+                    // — the toolbar's own copy (next to the breadcrumb) can scroll out of view or
+                    // just not be where the eye is while watching the preview; this one always is.
+                    HStack {
+                        Spacer()
+                        Button("End Session", systemImage: "stop.circle.fill") {
+                            cameraManager.endActiveSession()
+                        }
+                        .buttonStyle(.bordered)
+                        Spacer()
+                    }
+                    .padding(.vertical, 6)
                     // No explicit `.frame(height:)` here on purpose — `.layoutPriority(1)` above
                     // makes the preview claim any extra vertical space first, so this only ever
                     // gets exactly what its currently-selected tab's own content actually needs
@@ -208,10 +220,17 @@ struct ContentView: View {
             ToolbarItem(placement: .navigation) {
                 // Home / Project / Session, each independently clickable — pressing the project
                 // name goes to its Project page, the session name to its own Session page, Home
-                // all the way back to the project list. Every project/session *management* action
-                // (end, next, new, delete, switch) lives in the menu bar's "Project" menu instead
-                // of here — this row is navigation, not a dropdown of actions.
-                breadcrumb
+                // all the way back to the project list. Every other project/session *management*
+                // action (next, new, delete, switch) lives in the menu bar's "Project" menu
+                // instead of here — this row is navigation, not a dropdown of actions. "End
+                // Session" is the one exception, called out as its own button right next to the
+                // breadcrumb (and again below the preview) since it's the single action anyone
+                // actually running a session needs constantly, not just occasionally.
+                HStack(spacing: 8) {
+                    breadcrumb
+                    Button("End Session", systemImage: "stop.circle") { cameraManager.endActiveSession() }
+                        .help("Stop running this session and return to its Project page")
+                }
             }
             ToolbarItem(placement: .principal) {
                 imageTypePicker
