@@ -114,4 +114,24 @@ struct AcquisitionTargetTests {
         #expect(AcquisitionMode.current(isLiveStackingEnabled: false, hasLuckyImagingSession: false) == .luckyImaging)
         #expect(AcquisitionMode.current(isLiveStackingEnabled: false, hasLuckyImagingSession: true) == .luckyImaging)
     }
+
+    @Test func summaryLineIncludesEveryPresentField() {
+        let preset = AcquisitionPreset(
+            name: "Test", targetID: "", mode: .liveStack, gain: 100, exposureSeconds: 2.0,
+            roiWidth: 800, roiHeight: 600, isDriftReductionEnabled: false, isSmartLiveStackEnabled: false
+        )
+        let summary = preset.summaryLine
+        #expect(summary.contains("Live Stack"))
+        #expect(summary.contains("Gain 100"))
+        #expect(summary.contains("2s") || summary.contains("2.0s"))
+        #expect(summary.contains("ROI 800×600"))
+    }
+
+    @Test func summaryLineOmitsAbsentFields() {
+        let preset = AcquisitionPreset(
+            name: "Test", targetID: "", mode: .luckyImaging, gain: nil, exposureSeconds: nil,
+            roiWidth: nil, roiHeight: nil, isDriftReductionEnabled: false, isSmartLiveStackEnabled: false
+        )
+        #expect(preset.summaryLine == "Lucky Imaging")
+    }
 }

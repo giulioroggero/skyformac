@@ -82,6 +82,28 @@ struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
     var thumbnailFileName: String?
     var kind: Kind
     var note: String?
+    /// What was actually being observed — a snapshot of the owning session's own
+    /// `plannedObjects.first` at the moment of capture, kept here too (not just derived from the
+    /// session) so this record still says what it was even if the session's plan changes later,
+    /// and so `InsightsView`/search can group/filter every capture across every session by object
+    /// without re-walking each one's session for it.
+    var object: String?
+    /// Where this was actually taken from — a snapshot of the session's (or its project's)
+    /// effective location at capture time, for the same "still true even if it changes later"
+    /// reason as `object` above.
+    var location: GeoLocation?
+    /// The equipment system actually in use at capture time — a snapshot of
+    /// `Session.effectiveEquipmentSystemID(inProject:)`, not a live reference, since a session's
+    /// (or its project's) assigned system can change afterwards without this record's own history
+    /// changing with it.
+    var equipmentSystemID: UUID?
+    /// Every camera/acquisition parameter actually in effect for this one action — gain,
+    /// exposure, ROI, Live Stack/Lucky Imaging mode and their own sub-settings — reusing
+    /// `AcquisitionPreset` rather than a second parallel "capture parameters" type, since it
+    /// already models exactly this shape (see `CameraManager.currentAcquisitionPreset(name:)`).
+    /// This is what "recall the parameters from a previous action" (`applyAcquisitionPreset`)
+    /// and the Insights page's "most common parameters" both read from.
+    var preset: AcquisitionPreset?
 }
 
 /// One observing session within a `Project` — "see M13, M57, Saturn" tonight, for example.
@@ -141,6 +163,27 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
     /// either level).
     func effectiveEquipmentSystemID(inProject project: Project) -> UUID? {
         equipmentSystemID ?? project.equipmentSystemID
+    }
+
+    /// This session's own location if it has one, otherwise its project's — the same inheritance
+    /// shape `effectiveEquipmentSystemID(inProject:)` uses, factored out here since three separate
+    /// views were each already writing `session.location ?? project.location` by hand.
+    func effectiveLocation(inProject project: Project) -> GeoLocation? {
+        location ?? project.location
+    }
+
+    /// A fresh session that reuses everything about how `self` is set up — goal, planned
+    /// objects, location, tags, and equipment — but starts with a clean slate otherwise: no
+    /// captures, no notes, a new id/folder, and `name`/`plannedDate` supplied by the caller
+    /// rather than copied, since "reuse this session's setup for a new outing" always means a
+    /// new date and (usually) a new name, not the old session's own. What "create a new session
+    /// reusing an existing one, without its actions" actually does.
+    func duplicatedForReuse(name: String, plannedDate: Date? = nil) -> Session {
+        var copy = Session.newSession(name: name, goal: goal, plannedObjects: plannedObjects, plannedDate: plannedDate)
+        copy.location = location
+        copy.tags = tags
+        copy.equipmentSystemID = equipmentSystemID
+        return copy
     }
 
     /// `nil` for a session with no captures yet — the History section shows "Never run" instead

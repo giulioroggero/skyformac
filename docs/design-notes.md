@@ -2008,3 +2008,103 @@ made along the way.
     toolbar button then a target row) instead of assuming the camera view is what greets a launch,
     plus a new `testAppLaunchesIntoTheProjectsBrowser` asserting what a fresh launch actually shows
     now.
+
+- **A detailed per-capture action record, Recall Parameters, New Session Like This, an Insights
+  page, a new orientation Dashboard as the app's actual Home, README badges/header, a Settings
+  window, and removing the unhelpful SDK connection badge.** A large round covering several
+  related requests at once.
+  - **`CaptureRecord` gained `object`/`location`/`equipmentSystemID`/`preset`** — a full snapshot
+    of what was actually going on at the moment of capture, not just the file/thumbnail/note it
+    already had. `preset` reuses `AcquisitionPreset` rather than inventing a second "capture
+    parameters" shape, since it already models exactly gain/exposure/ROI/mode. All four are
+    snapshots, not live references — a session's plan, location, or equipment can change
+    afterwards without rewriting this record's own history, matching the reasoning
+    `Session.effectiveEquipmentSystemID(inProject:)` already established for "resolved at the
+    time, not re-resolved forever." Threaded through all three `ProjectStore.recordCapture`
+    variants (new optional params, all defaulting to `nil` so every existing call site — three in
+    `ProjectStoreTests` — still compiles unchanged) and populated at the one real call site,
+    `CameraManager.recordActiveSessionCapture`, from `session.plannedObjects.first`,
+    `session.effectiveLocation(inProject:)` (new — same inheritance shape as the equipment one,
+    factored out since three views were each already writing `session.location ?? project
+    .location` by hand), `session.effectiveEquipmentSystemID(inProject:)`, and
+    `currentAcquisitionPreset(name:)`.
+  - **`AcquisitionPreset.summaryLine`** ("Live Stack · Gain 100 · 2.0s · ROI 800×600") is a shared
+    one-line formatter — both the Recall Parameters picker and the Insights page's mode breakdown
+    need to show a preset's parameters legibly, and neither should format this by hand twice.
+  - **Recall Parameters** (`RecallParametersView`, new) lists every past capture with a `preset`
+    attached, newest first, across every project — not just the current one, since a useful past
+    setup might be from a different project entirely. Selecting one calls the new
+    `CameraManager.recallParameters(_:)`, which applies immediately if a camera's connected or
+    holds it in the existing `pendingAcquisitionPreset` otherwise — the exact same
+    immediate-or-pending shape `quickStart(with:)` already used for its own recommended preset,
+    reused rather than inventing a second "apply now or later" mechanism. Reachable from the
+    Session page (before running) and the Project menu (⌘⇧R) — a `.sheet` on `RootView` itself, so
+    it works from either the browser or the live camera view.
+  - **`Session.duplicatedForReuse(name:plannedDate:)`** (new) is "create a new session reusing an
+    existing one, without its actions" — copies goal/plannedObjects/location/tags/equipmentSystemID,
+    starts with empty captures/notes and a fresh id/folder. `SessionDetailPane`'s "New Session Like
+    This…" button (a small `NewSessionFromExistingSheet` for just the new name/planned date) uses
+    it via the already-existing `ProjectsLibrary.addSession(_:to:)`, then navigates straight to the
+    new session's own page via a new `onSessionCreated` callback threaded through
+    `ProjectsBrowserView`'s routing. Deliberately no "no equipment" sentinel — same known
+    simplification `equipmentSystemID: UUID?`'s inheritance model already accepted; a duplicated
+    session can only inherit or pick a different system, not explicitly opt out if its source had
+    one.
+  - **Insights** (`InsightsData` — a plain, `@MainActor`-free, `now`-injected pure aggregator, so
+    it stays unit-testable without touching the filesystem or a clock; `InsightsView`, the Charts-
+    based page) answers "what have I actually been doing" — total projects/sessions/captures, a
+    monthly activity bar chart (`Charts.BarMark`), and breakdowns (by object, by equipment system,
+    by acquisition mode, each reduced to a shared `NamedCount` so one chart-rendering helper covers
+    all three) built from every capture across every active project. `suggestedNextObjects` —
+    catalog objects (`ObservedObjectCatalog`) never actually captured — is deliberately computed
+    even with zero captures at all (an empty "already captured" set just means nothing gets
+    filtered out), so a brand-new install still gets "try this" ideas immediately rather than only
+    after some activity exists.
+  - **`CameraManager.quickStart(forObjectName:)`** (new) is what a suggestion's own "Quick Start…"
+    button calls — `ObservedObjectCatalog`'s object list is wider than `AcquisitionTarget.all`'s
+    small curated set (the full bundled Messier/bright-star catalog vs. ten hand-picked deep-sky
+    objects), so a suggestion doesn't always have a matching target with a recommended preset.
+    Resolves to `quickStart(with:)` when a target does match by name; otherwise falls back to a
+    plain project/session named after the object with no preset to apply (there's no target to
+    derive one from).
+  - **`DashboardHomeView`** (new) is now the Projects `NavigationStack`'s actual root, replacing
+    `ProjectsHomeView` there — the full project grid/table (everything `ProjectsHomeView` already
+    was) moved one level down as a new `.projectsList` route, reachable via the Dashboard's "All
+    Projects" tile. New hierarchy: **Home** (Dashboard) → **Projects** → **Project Detail** →
+    **Session**. The Dashboard surfaces: "Resume Where You Left Off" (the single most-recently-
+    active session across every project, found via a plain loop rather than a chained
+    `flatMap`/`max` — the chained version type-checked far too slowly for the compiler to accept in
+    reasonable time, a real, not cosmetic, problem caught before it ever reached `make build`);
+    "Common Tasks" (`ActionCard`/`ProjectCard`, both un-`private`d from `ProjectsBrowserView.swift`
+    so `DashboardHomeView` — a separate file — can reuse them rather than duplicating either);
+    "Recent Projects"; "Highlighted Sessions" (the next several most-recently-active sessions,
+    excluding whichever one is already the "Resume" card so nothing repeats); an activity chart and
+    top-object/top-equipment summary teasing the full Insights page; and "Ideas for Next Time."
+    "Go Home"/the breadcrumb's "Home" crumb both already just cleared `activeSession`/reset
+    `path` — no changes needed there, since an empty `path` now naturally shows the Dashboard
+    instead of the old `ProjectsHomeView` root.
+  - **A UI test regression found immediately by this restructuring**: the Dashboard's own "Ideas
+    for Next Time" section renders "Quick Start…" buttons per suggested object even on a fresh
+    install (see `suggestedNextObjects`'s doc comment above) — which meant a label-prefix-matching
+    UI test for the Dashboard's main Quick Start tile could ambiguously match one of *those*
+    instead, silently short-circuiting straight into a session for whatever object happened to
+    sort first, never opening the expected sheet. Fixed by giving the actual tile its own
+    `.accessibilityIdentifier("DashboardQuickStartTile")` (and matching identifiers for the
+    All Projects/Insights/Settings tiles) rather than relying on label text at all — the more
+    robust fix, not just a workaround for this one collision.
+  - **`SettingsView`** (new) — a `.sheet` on `RootView`, ⌘, or the Dashboard's own "Settings" tile.
+    Currently the Projects folder location (`AppSettings.customProjectsRootDirectoryPath`, read by
+    `ProjectStore.defaultRootDirectory()`) — deliberately takes effect next launch, not live,
+    since moving a folder full of a user's real capture files out from under an already-running
+    `ProjectStore` is exactly the kind of silent-destructive-side-effect this app avoids elsewhere
+    — plus the renderer/Night Mode toggles already in the camera toolbar, gathered here too so
+    there's one place to review every persisted preference.
+  - **Removed the "SDK x.x.x" connection-status toolbar item** (`ContentView.statusText`/
+    `statusLabel`/`statusColor`, deleted entirely) — reported as not useful; the camera list
+    sidebar and per-camera connect/disconnect controls already show connection state contextually
+    where it matters.
+  - **README** gained a badge row (CI, platform, Swift version, license, latest release) above a
+    centered `<h1>Skyformac</h1>` title, a centered link row to the repo's other pages
+    (Features/Architecture/Design Notes/Examples/Contributing/License/Releases/Issues), and the
+    hero GIF now renders via `<img width="100%">` instead of a plain Markdown image tag, so it
+    fills the page width instead of showing at its native pixel size.

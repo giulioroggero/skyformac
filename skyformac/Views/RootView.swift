@@ -26,5 +26,20 @@ struct RootView: View {
         )) {
             LogViewerView()
         }
+        // Same "works no matter which of the two is currently showing" reasoning as the log
+        // sheet above — Recall Parameters is useful both from the Session page (before running)
+        // and the live camera view (mid-session), and Settings from either as well.
+        .sheet(isPresented: Binding(
+            get: { cameraManager.isRecallParametersPresented },
+            set: { cameraManager.isRecallParametersPresented = $0 }
+        )) {
+            RecallParametersView(cameraManager: cameraManager)
+        }
+        .sheet(isPresented: Binding(
+            get: { cameraManager.isSettingsPresented },
+            set: { cameraManager.isSettingsPresented = $0 }
+        )) {
+            SettingsView(cameraManager: cameraManager)
+        }
     }
 }

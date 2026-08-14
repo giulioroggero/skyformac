@@ -30,6 +30,7 @@ enum AppSettings {
         case smartLiveStackQualityFraction
         case telescopeProfile
         case equipmentSystems
+        case customProjectsRootDirectoryPath
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -205,5 +206,19 @@ enum AppSettings {
             guard let data = try? JSONEncoder().encode(newValue) else { return }
             UserDefaults.standard.set(data, forKey: Key.equipmentSystems.rawValue)
         }
+    }
+
+    // MARK: - Projects folder
+
+    /// A user-chosen folder to keep project/session data in instead of the default
+    /// `~/Documents/Skyformac Projects` (`ProjectStore.defaultRootDirectory()`) — `nil` when
+    /// never changed. Read once at launch (`ProjectStore()`'s own default argument), so changing
+    /// this in Settings takes effect the next time the app starts, not live — moving a folder
+    /// full of a user's real capture files out from under an already-running `ProjectStore`
+    /// (open file handles, an active session mid-write) is exactly the kind of "silently do
+    /// something destructive" this app avoids elsewhere.
+    static var customProjectsRootDirectoryPath: String? {
+        get { UserDefaults.standard.string(forKey: Key.customProjectsRootDirectoryPath.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.customProjectsRootDirectoryPath.rawValue) }
     }
 }

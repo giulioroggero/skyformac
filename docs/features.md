@@ -293,10 +293,29 @@ the spec's five features are declined rather than faked)
 session persistence design and the browser-as-main-window architecture)
 - **The Projects browser is the app's main window** — there's no camera UI
   reachable without a running session: the window shows the projects
-  browser (project → session → history) whenever no session is active, and
-  switches to the camera view only once one is actually running. A project
-  groups sessions under a shared goal and optional planned date range; each
-  session plans its own goal, objects (e.g. "M13, M57, Saturn"), and date.
+  browser whenever no session is active, and switches to the camera view
+  only once one is actually running. The hierarchy is **Home** (an
+  orientation dashboard — see below) → **Projects** (every project) →
+  **Project Detail** → **Session** (history/timeline, or the live camera
+  session once running). A project groups sessions under a shared goal and
+  optional planned date range; each session plans its own goal, objects
+  (e.g. "M13, M57, Saturn"), and date.
+- **Home is an orientation dashboard, not just a project list** — resume the
+  most recently active session in one click, jump to a common task (Quick
+  Start, New Project, All Projects, Equipment, Insights, Settings), see the
+  last few touched projects and sessions, a monthly activity chart, the
+  most-captured object/most-used equipment at a glance, and a few curated
+  "try this next" suggestions (`DashboardHomeView`) — all before ever
+  drilling into the full project list, which moved one level down to its
+  own **Projects** page (what used to be Home).
+- **Insights** (Home page's own tile, or the Project menu) is a dedicated,
+  read-only page over every capture across every project: total
+  projects/sessions/captures, a monthly activity chart, and breakdowns of
+  the most-captured objects, most-used equipment systems, and most common
+  acquisition mode — plus the same "try this next" suggestions the Home
+  page teases (`InsightsData.build`, `InsightsView`). Answers "what have I
+  actually been doing" at a glance instead of piecing it together project
+  by project.
 - **Create/run/manage** — "New Project…" (Home page toolbar, or the menu
   bar's **Project** menu) is the one modal in the feature — it requires a
   name up front, so the project's name is always visible from the moment it
@@ -366,13 +385,31 @@ session persistence design and the browser-as-main-window architecture)
   capture kind (FITS/PNG/TIFF/SER Video/Recording) and, if present, its own
   plain-English note underneath the date — the iMovie-style browsing this
   feature is built around.
-- **Plain-English capture notes** — every capture automatically gets a short
-  human-readable note of what actually happened when it was taken —
-  "Captured Saturn in Live Stack as FITS," "Recorded M13 as an SER video for
-  30 sec" — built from the session's planned object, which acquisition mode
-  was active (Live Stack/Lucky Imaging/plain), and (for SER) how long it ran
+- **Plain-English capture notes, and a full record for later analysis** —
+  every capture automatically gets a short human-readable note of what
+  actually happened when it was taken — "Captured Saturn in Live Stack as
+  FITS," "Recorded M13 as an SER video for 30 sec" — built from the
+  session's planned object, which acquisition mode was active (Live
+  Stack/Lucky Imaging/plain), and (for SER) how long it ran
   (`CameraManager.captureActionNote(for:session:)`). Shown on the timeline
-  thumbnail and the Capture page.
+  thumbnail and the Capture page. Alongside the note, every capture also
+  records a snapshot of the object observed, the effective location, the
+  effective equipment system, and every camera/acquisition parameter in
+  effect at that moment (gain, exposure, ROI, mode — reusing
+  `AcquisitionPreset`) — the detailed record both **Recall Parameters** and
+  **Insights** read from, and that stays accurate even if the session's own
+  plan/equipment/location changes afterwards.
+- **Recall Parameters** (Session page, or the Project menu) — pick any past
+  capture with parameters attached and reapply its exact gain, exposure,
+  ROI, and mode to speed up setting up a similar shot again
+  (`CameraManager.recallParameters(_:)`) — applied immediately if a camera's
+  already connected, or held pending until one connects, the same
+  immediate-or-pending shape Quick Start's own recommended preset uses.
+- **New Session Like This…** (Session page) — creates a new session that
+  reuses the current one's goal, planned objects, location, and equipment,
+  but starts with zero captures/notes of its own
+  (`Session.duplicatedForReuse(name:plannedDate:)`) — for repeating a setup
+  on a different night without re-entering everything by hand.
 - **Active session capture filing** — exporting a frame or finishing a SER
   recording while a session is running also files a copy of it into that
   session's timeline, alongside the normal Export History.
@@ -388,21 +425,22 @@ session persistence design and the browser-as-main-window architecture)
   (`EquipmentCatalog` — ZWO, Celestron, Sky-Watcher, QHYCCD, Canon, Orion,
   Tele Vue, Explore Scientific, iOptron, Baader, Anker, and more) or a custom
   one by hand; a system can hold more than one item of the same category (a
-  main scope and a guide scope, two cameras). Reachable from the Home page
-  toolbar (`EquipmentPage`/`EquipmentSystemEditorPage`). A project can be
-  assigned a system (Project Detail page's Equipment section); each of its
-  sessions inherits that by default and can override it with a different
-  system of its own (Session page's Equipment section shows "Inherit from
-  Project (name)" alongside every system) — see
+  main scope and a guide scope, two cameras). Reachable from the Home page's
+  own "Equipment" tile (`EquipmentPage`/`EquipmentSystemEditorPage`). A
+  project can be assigned a system (Project Detail page's Equipment
+  section); each of its sessions inherits that by default and can override
+  it with a different system of its own (Session page's Equipment section
+  shows "Inherit from Project (name)" alongside every system) — see
   `Session.effectiveEquipmentSystemID(inProject:)`.
 - **Tags, notes, and search** — free-text annotations and tags on both
   projects and sessions; a single search box matches name, goal, tags,
-  planned/observed objects, and note text, optionally narrowed with the Home
-  page's Filters popover to an exact tag, an exact observed object (drawn
-  from `PlanetaryPreset`, the bundled Messier/bright-star catalog, and every
-  object either has actually planned — `ObservedObjectCatalog`), an
-  equipment system (matched against a session's own *effective*, inheritance
-  resolved system), and/or a date range — all combined with the free-text
+  planned/observed objects, and note text, optionally narrowed with the
+  Projects page's own Filters popover to an exact tag, an exact observed
+  object (drawn from `PlanetaryPreset`, the bundled Messier/bright-star
+  catalog, and every object either has actually planned —
+  `ObservedObjectCatalog`), an equipment system (matched against a session's
+  own *effective*, inheritance resolved system), and/or a date range — all
+  combined with the free-text
   search (`ProjectSearch.search`).
 - **AI-assisted planning** — "Ask AI to Plan…" sends a one-line goal to a
   local Ollama server (`OllamaPlanner`) and shows the suggested session(s)
@@ -447,6 +485,12 @@ session persistence design and the browser-as-main-window architecture)
   overlays are on survive a relaunch; session state (calibration frames,
   live-stack accumulation, in-progress polar alignment) intentionally starts
   fresh every time.
+- **Settings window** (⌘, or the Home page's own "Settings" tile) — a
+  central `SettingsView` sheet for the preferences most worth reviewing in
+  one place: the Projects folder location (defaults to `~/Documents/
+  Skyformac Projects`; **Choose Folder…** picks anywhere else, takes effect
+  the next launch — existing files aren't moved automatically), plus the
+  renderer/night-mode toggles already in the camera view's own toolbar.
 
 **Help**
 - **In-app Help** (Help menu, ⌘?) — a sheet on the app's one window (this app
@@ -465,7 +509,7 @@ session persistence design and the browser-as-main-window architecture)
   for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 398 unit tests (Swift Testing) across 64 suites, covering
+- `skyformacTests` — 416 unit tests (Swift Testing) across 67 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

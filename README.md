@@ -1,6 +1,23 @@
-# Skyformac
+[![CI](https://github.com/giulioroggero/skyformac/actions/workflows/ci.yml/badge.svg)](https://github.com/giulioroggero/skyformac/actions/workflows/ci.yml)
+[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue.svg)](#requirements)
+[![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
+[![Release](https://img.shields.io/github/v/release/giulioroggero/skyformac?include_prereleases)](https://github.com/giulioroggero/skyformac/releases)
 
-![Live stacking Saturn in Skyformac](examples/saturn-live-stacking.gif)
+<h1 align="center">Skyformac</h1>
+
+<p align="center">
+  <a href="docs/features.md">Features</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="docs/design-notes.md">Design Notes</a> ·
+  <a href="EXAMPLES.md">Examples</a> ·
+  <a href="specs/README.md">Contributing</a> ·
+  <a href="LICENSE.md">License</a> ·
+  <a href="https://github.com/giulioroggero/skyformac/releases">Releases</a> ·
+  <a href="https://github.com/giulioroggero/skyformac/issues">Issues</a>
+</p>
+
+<img src="examples/saturn-live-stacking.gif" alt="Live stacking Saturn in Skyformac" width="100%">
 
 ![M57 (Ring Nebula), live view](examples/M57%20-%20live.png)
 

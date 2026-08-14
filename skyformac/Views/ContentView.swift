@@ -24,7 +24,7 @@ struct ContentView: View {
         return "\(projectName) — \(session.name)"
     }
 
-    /// Home (the project list) / Project name (this project's own page) / Session name (this
+    /// Home (the orientation dashboard) / Project name (this project's own page) / Session name (this
     /// session's own page) — three independently clickable crumbs, since each is a genuinely
     /// different destination: "Home" drops the project entirely, the project name keeps it but
     /// drops the session (`showProjectDetail()`), the session name keeps both and remembers to
@@ -273,9 +273,6 @@ struct ContentView: View {
                     .help("Stop the iPhone/webcam feed and return to the disconnected state")
                 }
             }
-            ToolbarItem(placement: .status) {
-                statusText
-            }
         }
         .alert(
             "Camera Error",
@@ -337,38 +334,6 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 160)
-        }
-    }
-
-    private var statusText: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-            Text(statusLabel)
-                .font(.caption)
-            Text("SDK \(ZWOSDK.sdkVersion())")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var statusLabel: String {
-        switch cameraManager.connectionState {
-        case .disconnected: return "Disconnected"
-        case .connecting: return "Connecting…"
-        case .connected: return "Connected"
-        case .streaming: return "Streaming"
-        case .error: return "Error"
-        }
-    }
-
-    private var statusColor: Color {
-        switch cameraManager.connectionState {
-        case .disconnected: return .gray
-        case .connecting: return .yellow
-        case .connected, .streaming: return .green
-        case .error: return .red
         }
     }
 

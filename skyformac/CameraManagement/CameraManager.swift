@@ -334,6 +334,8 @@ final class CameraManager {
         }
     }
     var isLogViewerPresented = false
+    var isRecallParametersPresented = false
+    var isSettingsPresented = false
 
     /// ZWO's own recommended gain/offset reference points for the connected camera model — see
     /// `ZWOSDK.GainOffsetPresets`'s doc comment. `nil` when no camera's connected, or the
@@ -1220,6 +1222,40 @@ final class CameraManager {
 
         setActive(project: project, session: session)
         return session
+    }
+
+    /// The Insights page's "try this next" suggestions come from `ObservedObjectCatalog`, a wider
+    /// list (the full bundled Messier/bright-star catalog plus every planet) than
+    /// `AcquisitionTarget.all`'s own small curated set — so a suggestion doesn't always have a
+    /// matching target with a recommended preset. Uses `quickStart(with:)` when one does; falls
+    /// back to a plain project/session named after `objectName` (no recommended camera setup to
+    /// apply, since there's no target to derive one from) otherwise.
+    @discardableResult
+    func quickStart(forObjectName objectName: String) -> Session {
+        if let target = AcquisitionTarget.all.first(where: { $0.name == objectName }) {
+            return quickStart(with: target)
+        }
+        AppLog.shared.log("Quick Start: \(objectName)")
+        var project = Project.newProject(name: objectName, goal: "Observe \(objectName)")
+        let session = Session.newSession(name: objectName, goal: "Observe \(objectName)", plannedObjects: [objectName])
+        project.sessions = [session]
+        try? projectsLibrary.save(project)
+        setActive(project: project, session: session)
+        return session
+    }
+
+    /// "Recall the parameters used in a previous action" — applies `preset` (a past
+    /// `CaptureRecord.preset` snapshot) to speed up setting up a similar shot again, exactly the
+    /// same immediate-or-pending shape `quickStart(with:)` already uses for its own recommended
+    /// preset: right away if a camera's already connected, otherwise held until the next
+    /// `connect(to:)` actually applies it.
+    func recallParameters(_ preset: AcquisitionPreset) {
+        AppLog.shared.log("Recalled parameters: \(preset.summaryLine)")
+        if connectedCamera != nil {
+            applyAcquisitionPreset(preset)
+        } else {
+            pendingAcquisitionPreset = preset
+        }
     }
 
     private var serRecordingURL: URL?
@@ -2395,6 +2431,9 @@ final class CameraManager {
         do {
             try projectStore.recordCapture(
                 copyingFileAt: url, kind: kind, thumbnail: thumbnail, note: captureActionNote(for: kind, session: session),
+                object: session.plannedObjects.first, location: session.effectiveLocation(inProject: project),
+                equipmentSystemID: session.effectiveEquipmentSystemID(inProject: project),
+                preset: currentAcquisitionPreset(name: captureActionNote(for: kind, session: session)),
                 into: session, project: &project
             )
         } catch {

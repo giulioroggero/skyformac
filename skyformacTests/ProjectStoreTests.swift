@@ -179,6 +179,34 @@ struct ProjectStoreTests {
         #expect(project.sessions.first?.captures.first?.kind == .serVideo)
     }
 
+    @Test func recordCaptureStoresObjectLocationEquipmentAndPreset() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Detailed Project")
+        let session = Session.newSession(name: "Detailed Session")
+        project.sessions = [session]
+        try store.save(project)
+
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".fits")
+        try Data([1, 2, 3]).write(to: sourceURL)
+
+        let location = GeoLocation(latitude: 45, longitude: 9, name: "Backyard", source: .manual)
+        let equipmentID = UUID()
+        let preset = AcquisitionPreset(name: "Test", targetID: "", mode: .liveStack, gain: 100, isDriftReductionEnabled: false, isSmartLiveStackEnabled: false)
+
+        let record = try store.recordCapture(
+            movingFileAt: sourceURL, kind: .fits, thumbnail: nil, object: "Saturn", location: location,
+            equipmentSystemID: equipmentID, preset: preset, into: session, project: &project
+        )
+
+        #expect(record.object == "Saturn")
+        #expect(record.location == location)
+        #expect(record.equipmentSystemID == equipmentID)
+        #expect(record.preset == preset)
+        #expect(project.sessions.first?.captures.first?.object == "Saturn")
+    }
+
     @Test func recordCaptureWithoutAThumbnailStillRecords() throws {
         let (store, root) = makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

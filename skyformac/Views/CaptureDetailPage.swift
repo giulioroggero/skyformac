@@ -104,7 +104,7 @@ struct CaptureDetailPage: View {
             StatItem(label: "Aim", value: session.goal.isEmpty ? "—" : session.goal),
             StatItem(label: "Objects", value: session.plannedObjects.isEmpty ? "—" : session.plannedObjects.joined(separator: ", ")),
         ]
-        if let location = session.location ?? project.location {
+        if let location = session.effectiveLocation(inProject: project) {
             stats.append(StatItem(label: "Position", value: location.displayName))
         }
         return stats

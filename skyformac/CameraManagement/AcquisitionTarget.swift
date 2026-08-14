@@ -268,4 +268,17 @@ struct AcquisitionPreset: Codable, Identifiable, Equatable {
     /// comment) — offered as an opt-in row in the Wizard editor for any Live-Stack-using target,
     /// not auto-enabled for any of them.
     var isMeshDriftCorrectionEnabled: Bool?
+
+    /// A short, one-line human summary of the parameters actually set — "Live Stack · Gain 100 ·
+    /// 2.0s · ROI 800×600" — shared by the Recall Parameters picker and the Insights page's own
+    /// "most common parameters" breakdown, rather than each formatting this by hand.
+    var summaryLine: String {
+        var parts = [mode.label]
+        if let gain { parts.append("Gain \(gain)") }
+        if let exposureSeconds { parts.append("\(exposureSeconds.formatted(.number.precision(.fractionLength(0...2))))s") }
+        if let roiWidth, let roiHeight { parts.append("ROI \(roiWidth)×\(roiHeight)") }
+        if let serDurationSeconds { parts.append("SER \(Int(serDurationSeconds))s") }
+        if let luckyBurstCount { parts.append("Burst \(luckyBurstCount)") }
+        return parts.joined(separator: " · ")
+    }
 }

@@ -5,6 +5,7 @@ import SwiftUI
 /// destination re-fetches the current value from `CameraManager.projectsLibrary` on every body
 /// evaluation instead of holding a snapshot that could go stale (a rename two pages back, say).
 private enum ProjectsRoute: Hashable {
+    case projectsList
     case project(Project.ID)
     case sessionHistory(Project.ID, Session.ID)
     case capture(Project.ID, Session.ID, CaptureRecord.ID)
@@ -12,6 +13,7 @@ private enum ProjectsRoute: Hashable {
     case recentlyDeleted
     case equipment
     case equipmentSystem(EquipmentSystem.ID)
+    case insights
 }
 
 /// The iMovie-style library for the Projects feature and — since `RootView` shows this whenever
@@ -48,18 +50,26 @@ struct ProjectsBrowserView: View {
         return base.filter { matchingIDs.contains($0.id) }
     }
 
+    private var insightsData: InsightsData {
+        InsightsData.build(
+            projects: library.activeProjects, equipmentSystems: cameraManager.equipmentLibrary.systems,
+            knownObjects: ObservedObjectCatalog.allKnownObjectNames(projects: library.activeProjects), now: Date()
+        )
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
-            ProjectsHomeView(
-                projects: visibleProjects, searchText: $searchText, filter: $filter,
-                activeProjectID: cameraManager.activeProject?.id, store: cameraManager.projectStore,
-                equipmentLibrary: cameraManager.equipmentLibrary, allProjects: library.activeProjects,
+            DashboardHomeView(
+                cameraManager: cameraManager, projects: library.activeProjects.filter { !$0.isArchived },
+                insights: insightsData,
+                onOpenProjects: { path.append(.projectsList) },
                 onSelectProject: { path.append(.project($0.id)) },
+                onOpenSession: { project, session in path.append(contentsOf: [.project(project.id), .sessionHistory(project.id, session.id)]) },
                 onNewProject: { isShowingNewProjectSheet = true },
                 onQuickStart: { isShowingQuickStartSheet = true },
-                onShowArchived: { path.append(.archived) },
-                onShowRecentlyDeleted: { path.append(.recentlyDeleted) },
-                onShowEquipment: { path.append(.equipment) }
+                onShowEquipment: { path.append(.equipment) },
+                onShowInsights: { path.append(.insights) },
+                onShowSettings: { cameraManager.isSettingsPresented = true }
             )
             .navigationDestination(for: ProjectsRoute.self) { route in
                 destination(for: route)
@@ -100,6 +110,18 @@ struct ProjectsBrowserView: View {
     @ViewBuilder
     private func destination(for route: ProjectsRoute) -> some View {
         switch route {
+        case .projectsList:
+            ProjectsHomeView(
+                projects: visibleProjects, searchText: $searchText, filter: $filter,
+                activeProjectID: cameraManager.activeProject?.id, store: cameraManager.projectStore,
+                equipmentLibrary: cameraManager.equipmentLibrary, allProjects: library.activeProjects,
+                onSelectProject: { path.append(.project($0.id)) },
+                onNewProject: { isShowingNewProjectSheet = true },
+                onQuickStart: { isShowingQuickStartSheet = true },
+                onShowArchived: { path.append(.archived) },
+                onShowRecentlyDeleted: { path.append(.recentlyDeleted) },
+                onShowEquipment: { path.append(.equipment) }
+            )
         case .project(let projectID):
             if let project = library.projects.first(where: { $0.id == projectID }) {
                 ProjectDetailPane(
@@ -117,7 +139,8 @@ struct ProjectsBrowserView: View {
                 SessionDetailPane(
                     project: project, session: session, cameraManager: cameraManager,
                     onBack: { path.removeLast() },
-                    onSelectCapture: { capture in path.append(.capture(projectID, sessionID, capture.id)) }
+                    onSelectCapture: { capture in path.append(.capture(projectID, sessionID, capture.id)) },
+                    onSessionCreated: { newSession in path.append(.sessionHistory(projectID, newSession.id)) }
                 )
             } else {
                 ContentUnavailableView("Session No Longer Exists", systemImage: "calendar")
@@ -160,6 +183,14 @@ struct ProjectsBrowserView: View {
             } else {
                 ContentUnavailableView("Equipment System No Longer Exists", systemImage: "wrench.and.screwdriver")
             }
+        case .insights:
+            InsightsView(
+                data: insightsData,
+                onBack: { path.removeLast() },
+                onSuggestQuickStart: { objectName in
+                    cameraManager.quickStart(forObjectName: objectName)
+                }
+            )
         }
     }
 }
@@ -451,7 +482,7 @@ private struct ProjectsThumbnailGrid: View {
 /// A "New Project"/"Quick Start"-shaped tile — same footprint as a `ProjectCard` (so the grid
 /// reads as one consistent row of tiles, not an outlier), a big tinted icon standing in for a
 /// cover thumbnail, and a dashed border marking it as "start something," not an existing project.
-private struct ActionCard: View {
+struct ActionCard: View {
     let title: String
     let icon: String
     let tint: Color
@@ -481,7 +512,7 @@ private struct ActionCard: View {
     }
 }
 
-private struct ProjectCard: View {
+struct ProjectCard: View {
     let project: Project
     let isOpen: Bool
     let store: ProjectStore

@@ -230,7 +230,7 @@ private struct SessionCard: View {
                         Label(last.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
                     }
                     Label("\(session.captures.count)", systemImage: "camera")
-                    if let location = session.location ?? project.location {
+                    if let location = session.effectiveLocation(inProject: project) {
                         Label(location.displayName, systemImage: "location").lineLimit(1)
                     }
                 }

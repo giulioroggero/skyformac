@@ -14,6 +14,8 @@ struct SessionDetailPane: View {
     var onBack: () -> Void
     /// Pushes the tapped timeline thumbnail's own full-width Capture page.
     var onSelectCapture: (CaptureRecord) -> Void
+    /// Pushes the newly-created session's own page — see "New Session Like This…" below.
+    var onSessionCreated: (Session) -> Void
 
     @State private var name: String
     @State private var goal: String
@@ -21,19 +23,22 @@ struct SessionDetailPane: View {
     @State private var hasPlannedDate: Bool
     @State private var plannedDate: Date
     @State private var isPlanningSession = false
+    @State private var isCreatingSessionFromThis = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     private var isActive: Bool { cameraManager.activeSession?.id == session.id }
 
     init(
         project: Project, session: Session, cameraManager: CameraManager,
-        onBack: @escaping () -> Void, onSelectCapture: @escaping (CaptureRecord) -> Void
+        onBack: @escaping () -> Void, onSelectCapture: @escaping (CaptureRecord) -> Void,
+        onSessionCreated: @escaping (Session) -> Void
     ) {
         self.project = project
         self.session = session
         self.cameraManager = cameraManager
         self.onBack = onBack
         self.onSelectCapture = onSelectCapture
+        self.onSessionCreated = onSessionCreated
         self._name = State(initialValue: session.name)
         self._goal = State(initialValue: session.goal)
         self._plannedObjectsText = State(initialValue: session.plannedObjects.joined(separator: ", "))
@@ -66,6 +71,14 @@ struct SessionDetailPane: View {
                         .controlSize(.large)
                         .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
                         Spacer()
+                        Button("Recall Parameters…", systemImage: "clock.arrow.circlepath") {
+                            cameraManager.isRecallParametersPresented = true
+                        }
+                        .help("Reuse the camera parameters from a previous action to speed up setting this one up")
+                        Button("New Session Like This…", systemImage: "plus.square.on.square") {
+                            isCreatingSessionFromThis = true
+                        }
+                        .help("Create a new session with this one's goal, objects, location, and equipment — without any of its captures")
                         Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningSession = true }
                     }
                 }
@@ -142,6 +155,15 @@ struct SessionDetailPane: View {
         .sheet(isPresented: $isPlanningSession) {
             AIPlanSessionSheet(project: project, session: session, cameraManager: cameraManager)
         }
+        .sheet(isPresented: $isCreatingSessionFromThis) {
+            NewSessionFromExistingSheet(session: session) { name, plannedDate in
+                let newSession = session.duplicatedForReuse(name: name, plannedDate: plannedDate)
+                if let updated = try? library.addSession(newSession, to: project),
+                   let created = updated.sessions.first(where: { $0.id == newSession.id }) {
+                    onSessionCreated(created)
+                }
+            }
+        }
     }
 
     private func save() {
@@ -190,7 +212,7 @@ struct SessionDetailPane: View {
         if let duration = session.duration, let formatted = Self.durationFormatter.string(from: duration) {
             stats.append(StatItem(label: "Duration", value: formatted))
         }
-        if let location = session.location ?? project.location {
+        if let location = session.effectiveLocation(inProject: project) {
             stats.append(StatItem(label: "Position", value: location.displayName))
         }
         stats.append(StatItem(label: "Aim", value: session.goal.isEmpty ? "—" : session.goal))
@@ -227,4 +249,57 @@ struct SessionDetailPane: View {
         formatter.maximumUnitCount = 2
         return formatter
     }()
+}
+
+/// "New Session Like This…" — just a name (and optional planned date) for the reused copy;
+/// everything else (goal, objects, location, tags, equipment) already carries over via
+/// `Session.duplicatedForReuse(name:plannedDate:)`, so this sheet stays as small as
+/// `NewProjectSheet`'s own "just the name" scope.
+private struct NewSessionFromExistingSheet: View {
+    let session: Session
+    var onCreate: (String, Date?) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name: String
+    @State private var hasPlannedDate = false
+    @State private var plannedDate = Date()
+
+    init(session: Session, onCreate: @escaping (String, Date?) -> Void) {
+        self.session = session
+        self.onCreate = onCreate
+        self._name = State(initialValue: "\(session.name) (Copy)")
+    }
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("New Session Like \"\(session.name)\"").font(.headline)
+            Text("Reuses its goal, objects, location, and equipment — starts with no captures.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Name", text: $name, prompt: Text("Session name")).onSubmit(create)
+            Toggle("Planned Date", isOn: $hasPlannedDate)
+            if hasPlannedDate {
+                DatePicker("Date & Time", selection: $plannedDate, displayedComponents: [.date, .hourAndMinute])
+            }
+            Spacer()
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Create") { create() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 360, height: 220)
+    }
+
+    private func create() {
+        guard !trimmedName.isEmpty else { return }
+        onCreate(trimmedName, hasPlannedDate ? plannedDate : nil)
+        dismiss()
+    }
 }

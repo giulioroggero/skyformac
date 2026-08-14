@@ -498,19 +498,23 @@ enum HelpContent {
         icon: "folder.fill.badge.gearshape",
         sections: [
             HelpSection(
-                body: "This app's main window **is** the Projects browser whenever nothing's running — there's no camera view to switch to without an active session. A **project** groups observation sessions under a shared goal — a Messier marathon, tracking Saturn through opposition, a single trip to a dark-sky site. Each **session** is one planned outing (\"see M13, M57, Saturn\") with its own goal, object list, and date."
+                body: "This app's main window **is** the Projects browser whenever nothing's running — there's no camera view to switch to without an active session. The hierarchy is **Home** (an orientation dashboard) → **Projects** (every project) → **Project Detail** → **Session**. A **project** groups observation sessions under a shared goal — a Messier marathon, tracking Saturn through opposition, a single trip to a dark-sky site. Each **session** is one planned outing (\"see M13, M57, Saturn\") with its own goal, object list, and date."
+            ),
+            HelpSection(
+                heading: "Home: where everything starts",
+                body: "**Home** is an orientation dashboard, not just a project list — resume the most recently active session in one click, jump to a common task (**Quick Start**, **New Project**, **All Projects**, **Equipment**, **Insights**, **Settings**), see the last few projects and sessions you've touched, a monthly activity chart, your most-captured object and most-used equipment at a glance, and a few \"try this next\" suggestions. The full project list moved one level down to its own **Projects** page — tap **All Projects** to get there."
             ),
             HelpSection(
                 id: "setting.newProject", heading: "Creating a project",
-                body: "**New Project…** (Home page toolbar, or the menu bar's **Project** menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
+                body: "**New Project…** (Home page, or the menu bar's **Project** menu) is the one modal in this whole feature — it asks for a name up front, so a project's name is always visible from the moment it exists, never blank waiting to be filled in later."
             ),
             HelpSection(
                 id: "setting.quickStart", heading: "Quick Start",
-                body: "For a one-off outing, skip creating a project and session by hand entirely: **Quick Start** (Home page toolbar, or the Project menu) offers a curated list of planets, the Moon, and well-known deep-sky objects — the same list the Acquisition Wizard uses. Picking one creates both, applies that target's recommended gain/exposure/mode (immediately if a camera's already connected, otherwise the moment one does), and opens the camera view — camera selection itself still happens exactly as it always does."
+                body: "For a one-off outing, skip creating a project and session by hand entirely: **Quick Start** (Home page, or the Project menu) offers a curated list of planets, the Moon, and well-known deep-sky objects — the same list the Acquisition Wizard uses. Picking one creates both, applies that target's recommended gain/exposure/mode (immediately if a camera's already connected, otherwise the moment one does), and opens the camera view — camera selection itself still happens exactly as it always does."
             ),
             HelpSection(
                 heading: "Thumbnails or a table",
-                body: "The Home page's toolbar switches between a grid of cover-thumbnail cards (the default — each project shows its most recent capture, session count, capture count, location, tags, and when it was last touched) and a sortable table for comparing a lot of projects by their numbers at once. Double-click a table row to open it, the same way a single click just selects without leaving the page."
+                body: "The Projects page's toolbar switches between a grid of cover-thumbnail cards (the default — each project shows its most recent capture, session count, capture count, location, tags, and when it was last touched) and a sortable table for comparing a lot of projects by their numbers at once. Double-click a table row to open it, the same way a single click just selects without leaving the page."
             ),
             HelpSection(
                 heading: "Where your data goes",
@@ -521,8 +525,16 @@ enum HelpContent {
                 body: "Click any session — run or not — and its own Session page opens (its History and, once it has any, its timeline). The camera view only ever opens via an explicit button: **Run**/**Resume** on the session's card, or **Run This Session** on its own page. While exporting a frame (Export As…) or finishing a SER recording during a run, a copy also files into that session's timeline, in addition to the usual Export History."
             ),
             HelpSection(
+                heading: "Recall Parameters",
+                body: "**Recall Parameters…** (Session page, or the Project menu) lists every past capture that has camera parameters attached, newest first — pick one to reapply its exact gain, exposure, ROI, and mode, the same way Quick Start applies its own recommended setup: right away if a camera's connected, or held pending until one is."
+            ),
+            HelpSection(
+                heading: "New Session Like This…",
+                body: "On a Session page, **New Session Like This…** creates a new session that reuses the current one's goal, planned objects, location, and equipment — but starts with none of its captures or notes. Useful for repeating a setup on a different night without re-entering everything by hand."
+            ),
+            HelpSection(
                 heading: "The breadcrumb, and the Project menu",
-                body: "While a session is running, the toolbar shows **Home** / the project's name / the session's name — each independently clickable: Home returns to the project list, the project name to that project's own page, the session name back to its own page. An **End Session** button sits right there too, and again just below the live preview. The menu bar's **Project** menu covers every action: New Project, Quick Start, Go Home, Open Project Page, End Session, Open Next Session, New Session in Project, and Delete This Session — none of them require a trip back to the browser."
+                body: "While a session is running, the toolbar shows **Home** / the project's name / the session's name — each independently clickable: Home returns to the dashboard, the project name to that project's own page, the session name back to its own page. An **End Session** button sits right there too, and again just below the live preview. The menu bar's **Project** menu covers every action: New Project, Quick Start, Go Home, Open Project Page, End Session, Open Next Session, New Session in Project, Delete This Session, and Recall Parameters — none of them require a trip back to the browser."
             ),
             HelpSection(
                 heading: "Session cards",
@@ -545,8 +557,12 @@ enum HelpContent {
                 body: "Each session shows its captures as a filmstrip of thumbnails, newest (most recent) first — left to right. Each thumbnail shows its capture kind and, if present, a short plain-English note underneath — automatically generated, like \"Captured Saturn in Live Stack as FITS\" or \"Recorded M13 as an SER video for 30 sec,\" describing exactly what was happening at the moment it was taken. Right-click a thumbnail to reveal the actual file in Finder."
             ),
             HelpSection(
+                heading: "Insights",
+                body: "The **Insights** tile (Home page) is a dedicated page over every capture across every project: total projects/sessions/captures, a monthly activity chart, and breakdowns of the most-captured objects, most-used equipment systems, and most common acquisition mode — plus \"try this next\" suggestions for objects you haven't captured yet, each with its own **Quick Start…** button."
+            ),
+            HelpSection(
                 heading: "Equipment",
-                body: "The Home page toolbar's **Equipment** button manages named equipment systems — \"Backyard Rig,\" \"Travel Setup\" — each built from camera, mount, and optical tube (always shown, since every real setup has them), plus optional categories: tracking system, imaging & optics, autoguiding, power & control, eyepiece, smartphone mount, and other. Pick an item from a curated catalog of common brands/models, or **Add Custom…** for anything not listed; a system can hold more than one item of the same category (a main scope plus a guide scope, two cameras). A project's own Equipment section assigns a system to it; a session inherits that by default, shown as **Inherit from Project (name)** in its own Equipment section — pick a different system there to override it just for that one session."
+                body: "The Home page's **Equipment** tile manages named equipment systems — \"Backyard Rig,\" \"Travel Setup\" — each built from camera, mount, and optical tube (always shown, since every real setup has them), plus optional categories: tracking system, imaging & optics, autoguiding, power & control, eyepiece, smartphone mount, and other. Pick an item from a curated catalog of common brands/models, or **Add Custom…** for anything not listed; a system can hold more than one item of the same category (a main scope plus a guide scope, two cameras). A project's own Equipment section assigns a system to it; a session inherits that by default, shown as **Inherit from Project (name)** in its own Equipment section — pick a different system there to override it just for that one session."
             ),
             HelpSection(
                 heading: "Location, tags, and notes",
@@ -554,7 +570,11 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Filters",
-                body: "The Home page toolbar's **Filters** button narrows the project/session list — on top of whatever's typed into the search box — to an exact tag, an exact observed object (drawn from the planets and Moon, the bundled Messier/bright-star catalog, and anything already typed into any project's own object list), an equipment system, and/or a date range. A session matches an equipment filter through its own *effective* system — its own override if it has one, otherwise its project's. **Clear Filters** resets all of them at once; the button's icon fills in whenever any filter is active."
+                body: "The Projects page toolbar's **Filters** button narrows the project/session list — on top of whatever's typed into the search box — to an exact tag, an exact observed object (drawn from the planets and Moon, the bundled Messier/bright-star catalog, and anything already typed into any project's own object list), an equipment system, and/or a date range. A session matches an equipment filter through its own *effective* system — its own override if it has one, otherwise its project's. **Clear Filters** resets all of them at once; the button's icon fills in whenever any filter is active."
+            ),
+            HelpSection(
+                heading: "Settings",
+                body: "**Settings…** (⌘, or the Home page's own tile) is the central place to review preferences: the Projects folder location (**Choose Folder…** picks anywhere else — takes effect the next time Skyformac launches, existing files aren't moved automatically), plus the renderer and Night Mode toggles already in the camera view's toolbar."
             ),
             HelpSection(
                 id: "setting.aiPlanning", heading: "Ask AI to Plan…",

@@ -21,7 +21,12 @@ final class ProjectStore {
         self.fileManager = fileManager
     }
 
+    /// A user-chosen folder (`AppSettings.customProjectsRootDirectoryPath`, set via Settings)
+    /// takes priority over `~/Documents/Skyformac Projects` when one's actually been set.
     static func defaultRootDirectory() -> URL {
+        if let customPath = AppSettings.customProjectsRootDirectoryPath, !customPath.isEmpty {
+            return URL(fileURLWithPath: customPath, isDirectory: true)
+        }
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
         return documents.appendingPathComponent("Skyformac Projects", isDirectory: true)
@@ -159,10 +164,12 @@ final class ProjectStore {
     @discardableResult
     func recordCapture(
         movingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String? = nil,
-        into session: Session, project: inout Project
+        object: String? = nil, location: GeoLocation? = nil, equipmentSystemID: UUID? = nil,
+        preset: AcquisitionPreset? = nil, into session: Session, project: inout Project
     ) throws -> CaptureRecord {
         try recordCapture(
-            at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, into: session, project: &project,
+            at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, object: object, location: location,
+            equipmentSystemID: equipmentSystemID, preset: preset, into: session, project: &project,
             transfer: fileManager.moveItem
         )
     }
@@ -175,16 +182,19 @@ final class ProjectStore {
     @discardableResult
     func recordCapture(
         copyingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String? = nil,
-        into session: Session, project: inout Project
+        object: String? = nil, location: GeoLocation? = nil, equipmentSystemID: UUID? = nil,
+        preset: AcquisitionPreset? = nil, into session: Session, project: inout Project
     ) throws -> CaptureRecord {
         try recordCapture(
-            at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, into: session, project: &project,
+            at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, object: object, location: location,
+            equipmentSystemID: equipmentSystemID, preset: preset, into: session, project: &project,
             transfer: fileManager.copyItem
         )
     }
 
     private func recordCapture(
         at sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String?,
+        object: String?, location: GeoLocation?, equipmentSystemID: UUID?, preset: AcquisitionPreset?,
         into session: Session, project: inout Project, transfer: (URL, URL) throws -> Void
     ) throws -> CaptureRecord {
         let sessionFolder = sessionFolderURL(for: session, in: project)
@@ -206,7 +216,7 @@ final class ProjectStore {
 
         let record = CaptureRecord(
             date: Date(), fileName: destinationURL.lastPathComponent, thumbnailFileName: thumbnailFileName, kind: kind,
-            note: note
+            note: note, object: object, location: location, equipmentSystemID: equipmentSystemID, preset: preset
         )
         guard let sessionIndex = project.sessions.firstIndex(where: { $0.id == session.id }) else { return record }
         project.sessions[sessionIndex].captures.append(record)

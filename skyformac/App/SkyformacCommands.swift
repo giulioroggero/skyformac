@@ -21,6 +21,14 @@ struct SkyformacCommands: Commands {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
         }
 
+        // The standard macOS "Settings…" placement/shortcut (⌘,) — a `.sheet` on `RootView`
+        // (`SettingsView`), not a real `Settings` scene, matching every other modal this
+        // deliberately single-window app already uses instead of a second window.
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings…") { cameraManager.isSettingsPresented = true }
+                .keyboardShortcut(",", modifiers: .command)
+        }
+
         // Replaces the default (otherwise inert, since this app ships no Apple Help Book)
         // "skyformac Help" menu item with one that actually opens something — a `.sheet` on
         // `ContentView`, not a second `Window` scene, since this app is deliberately
@@ -108,6 +116,11 @@ struct SkyformacCommands: Commands {
                 .disabled(cameraManager.activeProject == nil)
             Button("Delete This Session") { cameraManager.deleteActiveSession() }
                 .disabled(cameraManager.activeSession == nil)
+
+            Divider()
+
+            Button("Recall Parameters…") { cameraManager.isRecallParametersPresented = true }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
         }
 
         CommandMenu("Sidebar Tab") {
