@@ -106,8 +106,10 @@ struct AIPlanProjectSheet: View {
                 answerText = ""
             }
         } catch let error as OllamaError {
+            AppLog.shared.log("Ask AI to Plan: \(error.userFacingMessage)")
             errorMessage = error.userFacingMessage
         } catch {
+            AppLog.shared.log("Ask AI to Plan: couldn't reach Ollama. (\(String(describing: error)))")
             errorMessage = "Couldn't get a plan from Ollama — make sure it's running locally. (\(String(describing: error)))"
         }
     }
@@ -212,8 +214,10 @@ struct AIPlanSessionSheet: View {
         do {
             suggestion = try await cameraManager.ollamaPlanner.planSession(goal: goalText)
         } catch let error as OllamaError {
+            AppLog.shared.log("Ask AI to Plan: \(error.userFacingMessage)")
             errorMessage = error.userFacingMessage
         } catch {
+            AppLog.shared.log("Ask AI to Plan: couldn't reach Ollama. (\(String(describing: error)))")
             errorMessage = "Couldn't get a plan from Ollama — make sure it's running locally. (\(String(describing: error)))"
         }
     }
@@ -299,8 +303,10 @@ struct AIDescribeSheet: View {
             generatedText = try await cameraManager.ollamaPlanner.summarize(context: context)
             hasGenerated = true
         } catch let error as OllamaError {
+            AppLog.shared.log("Ask AI to Describe: \(error.userFacingMessage)")
             errorMessage = error.userFacingMessage
         } catch {
+            AppLog.shared.log("Ask AI to Describe: couldn't reach Ollama. (\(String(describing: error)))")
             errorMessage = "Couldn't get a description from Ollama — make sure it's running locally. (\(String(describing: error)))"
         }
     }

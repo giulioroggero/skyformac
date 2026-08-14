@@ -362,6 +362,28 @@ final class CameraManager {
     /// `private(set)`, so tests can drive `confirmAssistantAction()`/`rejectAssistantAction()`
     /// directly without a real Ollama round trip through `sendAssistantMessage`.
     var assistantPendingAction: AssistantPendingAction?
+    /// The in-flight `sendAssistantMessage` call, if any — kept so `stopAssistantMessage()` has
+    /// something to cancel. Only ever set by `startAssistantMessage(_:)`, the UI's own entry
+    /// point; `sendAssistantMessage` itself stays a plain `async` function so tests can `await`
+    /// it directly without needing a cancellable wrapper.
+    private var assistantTask: Task<Void, Never>?
+
+    /// The AI panel's actual entry point — runs `sendAssistantMessage(_:)` as a task the user can
+    /// interrupt via `stopAssistantMessage()` (the panel's own Stop button, shown alongside
+    /// "Thinking…"). Cancelling the returned task cooperatively cancels whatever's still
+    /// in-flight underneath it — a `URLSession` request awaited inside the very same task tree
+    /// throws `URLError.cancelled` the moment its task is cancelled, no extra plumbing needed.
+    func startAssistantMessage(_ text: String) {
+        assistantTask = Task { [weak self] in
+            await self?.sendAssistantMessage(text)
+        }
+    }
+
+    /// Cancels whatever `startAssistantMessage(_:)` is currently waiting on — "the AI session can
+    /// be stopped." A no-op if nothing's in flight.
+    func stopAssistantMessage() {
+        assistantTask?.cancel()
+    }
 
     /// Sends `text` to the sidebar assistant and appends both sides of the exchange to
     /// `assistantMessages` — a plain reply becomes an assistant message by itself; a proposed
@@ -382,10 +404,18 @@ final class CameraManager {
                 assistantMessages.append(AssistantMessage(role: .assistant, text: message))
                 assistantPendingAction = AssistantPendingAction(action: action, message: message)
             }
+        } catch is CancellationError {
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Stopped."))
         } catch let error as OllamaError {
+            AppLog.shared.log("AI panel: \(error.userFacingMessage)")
             assistantMessages.append(AssistantMessage(role: .assistant, text: error.userFacingMessage))
         } catch {
-            assistantMessages.append(AssistantMessage(role: .assistant, text: "Couldn't reach Ollama — make sure it's running locally."))
+            if (error as? URLError)?.code == .cancelled {
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "Stopped."))
+            } else {
+                AppLog.shared.log("AI panel: couldn't reach Ollama.")
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "Couldn't reach Ollama — make sure it's running locally."))
+            }
         }
     }
 
@@ -438,6 +468,17 @@ final class CameraManager {
     /// / "what haven't I captured yet" questions.
     private func assistantContext() -> String {
         var lines: [String] = []
+        // "When an AI session starts, add info [about] the current datetime and location" — a
+        // question like "what can I see tonight" is meaningless without knowing *when* "tonight"
+        // is and *where* the observer actually is. Rebuilt fresh on every message (this function
+        // isn't cached), so the date/time is always genuinely current, not stale from whenever the
+        // chat was first opened.
+        lines.append("Current date/time: \(Self.assistantContextDateFormatter.string(from: Date())).")
+        if let location = activeSession?.location ?? activeProject?.location ?? locationProvider.lastLocation {
+            lines.append("Observer location: \(location.displayName) (latitude \(location.latitude), longitude \(location.longitude)).")
+        } else {
+            lines.append("Observer location: unknown — if the user names a place, use it; otherwise ask, or answer in general seasonal terms.")
+        }
         if let project = activeProject {
             lines.append("Currently viewing project: \(project.name.isEmpty ? "(untitled)" : project.name). Goal: \(project.goal). Rating: \(ratingDescription(project.rating)).\(project.isFavorite ? " Marked as a favorite." : "")")
             if let session = activeSession {
@@ -494,6 +535,12 @@ final class CameraManager {
     private func ratingDescription(_ rating: Rating) -> String {
         rating == .unrated ? "not rated" : "\(rating)/5"
     }
+
+    private static let assistantContextDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d, yyyy 'at' HH:mm"
+        return formatter
+    }()
 
     /// "Ideas for next time must be calculated by AI agent on ollama, if not present ollama fall
     /// back to the list of the wizard" — `fallback` is `InsightsData.suggestedNextObjects` (the

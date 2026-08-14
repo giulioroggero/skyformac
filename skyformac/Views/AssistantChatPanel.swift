@@ -40,6 +40,11 @@ struct AssistantChatPanel: View {
                             HStack(spacing: 6) {
                                 ProgressView().controlSize(.small)
                                 Text("Thinking…").font(.caption).foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Stop", systemImage: "stop.fill") { cameraManager.stopAssistantMessage() }
+                                    .labelStyle(.iconOnly)
+                                    .buttonStyle(.borderless)
+                                    .help("Stop waiting for a reply")
                             }
                         }
                     }
@@ -134,14 +139,14 @@ struct AssistantChatPanel: View {
     private func send() {
         let text = inputText
         inputText = ""
-        Task { await cameraManager.sendAssistantMessage(text) }
+        cameraManager.startAssistantMessage(text)
     }
 
     @ViewBuilder
     private func messageBubble(_ message: AssistantMessage) -> some View {
         HStack {
             if message.role == .assistant { Spacer(minLength: 24) }
-            Text(message.text)
+            markdownText(message.text)
                 .font(.callout)
                 .padding(8)
                 .background(
@@ -151,6 +156,21 @@ struct AssistantChatPanel: View {
                 .textSelection(.enabled)
             if message.role == .user { Spacer(minLength: 24) }
         }
+    }
+
+    /// "Render better the output of AI" — the model routinely answers in Markdown (`**M31**`,
+    /// bullet lists), which a plain `Text(message.text)` showed as literal asterisks/dashes
+    /// instead of real formatting. `.inlineOnlyPreservingWhitespace` renders bold/italic/inline
+    /// code and keeps the model's own line breaks exactly as written (a paragraph of prose with
+    /// a few bolded terms, this app's actual use case) without attempting block-level layout
+    /// (real bulleted lists, headings) that `Text` can't render distinctly anyway. Falls back to
+    /// the raw string on a parse failure — malformed Markdown from a small model shouldn't ever
+    /// make a reply disappear.
+    private func markdownText(_ raw: String) -> Text {
+        if let attributed = try? AttributedString(markdown: raw, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            return Text(attributed)
+        }
+        return Text(raw)
     }
 
     @ViewBuilder
