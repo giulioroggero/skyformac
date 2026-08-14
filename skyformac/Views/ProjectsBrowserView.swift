@@ -193,7 +193,6 @@ private struct ProjectsThumbnailGrid: View {
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
-                ActionCard(title: "New Project", icon: "plus", tint: .accentColor, action: onNewProject)
                 ActionCard(
                     title: "Quick Start", icon: "bolt.fill", tint: .orange,
                     subtitle: "A planet, the Moon, or a deep-sky object — ready to run", action: onQuickStart
@@ -203,6 +202,7 @@ private struct ProjectsThumbnailGrid: View {
                         .contentShape(Rectangle())
                         .onTapGesture { onSelect(project) }
                 }
+                ActionCard(title: "New Project", icon: "plus", tint: .accentColor, action: onNewProject)
             }
             .padding(16)
         }
