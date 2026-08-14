@@ -280,14 +280,17 @@ curated deep-sky object and both a project and session are created
 automatically, with the target's recommended camera setup applied, straight
 into the camera view.
 
-Clicking any session — run or not — opens its own Session page; the camera
-view only ever opens via an explicit Run/Resume button, never just by
-tapping a row. Each session gets its own folder for captures and settings, a
-timeline of thumbnails, tags, notes, and GPS or hand-entered location, plus a
-full History (date/time, position, aim, objects) and a capture-count Stats
-breakdown. Exporting a frame or finishing a SER recording while a session is
-running also files a copy into that session's timeline. While running, a
-breadcrumb (Home / Project name / Session name) replaces the window's usual
+Clicking any session — run or not — opens its own full-width Session page (a
+"Back to Project" button sits at the top); the camera view only ever opens
+via an explicit Run/Resume button, never just by tapping a row. Each session
+gets its own folder for captures and settings, a timeline of thumbnails,
+tags, notes, and GPS or hand-entered location, plus a full History
+(date/time, position, aim, objects) and a capture-count Stats breakdown.
+Tapping a timeline thumbnail opens its own Capture page — a larger preview,
+file info, and the session's own context and stats. Exporting a frame or
+finishing a SER recording while a session is running also files a copy into
+that session's timeline. While running, a breadcrumb (Home / Project name /
+Session name) replaces the window's usual
 title-bar navigation, and the menu bar's **Project** menu covers every
 project/session action — ending the session, opening the next one, adding a
 new one, deleting it, switching projects — without a trip back to the

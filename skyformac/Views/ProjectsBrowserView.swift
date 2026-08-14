@@ -7,17 +7,19 @@ import SwiftUI
 private enum ProjectsRoute: Hashable {
     case project(Project.ID)
     case sessionHistory(Project.ID, Session.ID)
+    case capture(Project.ID, Session.ID, CaptureRecord.ID)
 }
 
 /// The iMovie-style library for the Projects feature and — since `RootView` shows this whenever
 /// no session is running — the app's actual main-window content until one is. A plain drill-down
-/// stack of pages, not a persistent multi-column browser: **Home** (every project), **Project
-/// Detail** (one project's own metadata plus its session list — `ProjectDetailPane`), and
-/// **Session History** (one already-run session's timeline — `SessionDetailPane`), matching the
-/// project → session → session-execution hierarchy this feature is built around. Running a
-/// session is the one thing that leaves this stack entirely, switching the whole window to
-/// `ContentView` instead (see `RootView`). Creating a project is the other exception — the one
-/// modal in the feature (`NewProjectSheet`).
+/// stack of full-width pages (no side margins — see `PageSection`), not a persistent multi-column
+/// browser: **Home** (every project), **Project Detail** (one project's own metadata plus its
+/// session list — `ProjectDetailPane`), **Session** (one session's history/timeline —
+/// `SessionDetailPane`), and **Capture** (one timeline thumbnail's own full-size preview/info —
+/// `CaptureDetailPage`), matching the project → session → session-execution hierarchy this
+/// feature is built around. Running a session is the one thing that leaves this stack entirely,
+/// switching the whole window to `ContentView` instead (see `RootView`). Creating a project is
+/// the other exception — the one modal in the feature (`NewProjectSheet`).
 struct ProjectsBrowserView: View {
     var cameraManager: CameraManager
 
@@ -96,9 +98,24 @@ struct ProjectsBrowserView: View {
         case .sessionHistory(let projectID, let sessionID):
             if let project = library.projects.first(where: { $0.id == projectID }),
                let session = project.sessions.first(where: { $0.id == sessionID }) {
-                SessionDetailPane(project: project, session: session, cameraManager: cameraManager)
+                SessionDetailPane(
+                    project: project, session: session, cameraManager: cameraManager,
+                    onBack: { path.removeLast() },
+                    onSelectCapture: { capture in path.append(.capture(projectID, sessionID, capture.id)) }
+                )
             } else {
                 ContentUnavailableView("Session No Longer Exists", systemImage: "calendar")
+            }
+        case .capture(let projectID, let sessionID, let captureID):
+            if let project = library.projects.first(where: { $0.id == projectID }),
+               let session = project.sessions.first(where: { $0.id == sessionID }),
+               let capture = session.captures.first(where: { $0.id == captureID }) {
+                CaptureDetailPage(
+                    project: project, session: session, capture: capture, cameraManager: cameraManager,
+                    onBack: { path.removeLast() }
+                )
+            } else {
+                ContentUnavailableView("Capture No Longer Exists", systemImage: "photo")
             }
         }
     }

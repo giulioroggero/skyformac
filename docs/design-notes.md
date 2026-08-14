@@ -1876,3 +1876,27 @@ made along the way.
     menu. Caught (and fixed) a real pre-existing shortcut collision while consolidating: "New
     Project…" and the toolbar's "Night Mode" toggle had both been bound to ⌘⇧N; New Project moved
     to ⌘⇧P.
+
+- **Full-width Session/Capture pages, and a Capture page for timeline thumbnails.** `Form`'s
+  `.formStyle(.grouped)` centers and caps its own content width on macOS — fine for the Home and
+  Project Detail pages' more compact editors, but the Session page (its History/Stats/Timeline)
+  read as unnecessarily boxed-in with wasted space down both sides on a wide window.
+  - **`PageSection`** (new, in `ProjectDetailPane.swift` alongside the other shared Projects-UI
+    components) replaces `Form`'s `Section` for both `SessionDetailPane` and the new
+    `CaptureDetailPage` below — a plain `VStack` in a `.background(.background.secondary)` card,
+    laid out in an outer `ScrollView`/`VStack` with `.frame(maxWidth: .infinity, alignment:
+    .leading)` instead of a `Form` at all, so nothing constrains the page to less than the full
+    window width.
+  - **Explicit "Back to Project"/"Back to Session" toolbar buttons** on `SessionDetailPane`/
+    `CaptureDetailPage` — `onBack: () -> Void`, supplied by `ProjectsBrowserView` as
+    `{ path.removeLast() }` — alongside whatever back-navigation affordance `NavigationStack`
+    already provides, since "how do I get back" deserves to be an obvious labeled button on a
+    page this dense, not just a small chevron.
+  - **`CaptureDetailPage`** (new) is what tapping a `TimelineStripView` thumbnail now pushes —
+    `TimelineStripView` gained an `onSelect: (CaptureRecord) -> Void` for exactly this, with a new
+    `.capture(Project.ID, Session.ID, CaptureRecord.ID)` route alongside `.project`/
+    `.sessionHistory`. It shows a larger preview (the real PNG/TIFF file when `NSImage` can decode
+    it directly, the capture's own thumbnail as a fallback for FITS/SER/recording-folder kinds it
+    can't), the file's own info, the owning session's context (aim/objects/position) so there's no
+    need to go back just to remember what session this was, and that session's own Stats —
+    reusing `PageSection`/`StatsGridView` rather than inventing another layout.

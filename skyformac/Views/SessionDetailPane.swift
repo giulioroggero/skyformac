@@ -1,11 +1,19 @@
 import SwiftUI
 
-/// The Projects browser's rightmost column: one session's metadata, its capture timeline, and
-/// the controls that make it the active recording destination (`CameraManager.activeSession`).
+/// The Projects browser's Session page: one session's metadata, its capture timeline, and the
+/// controls that make it the active recording destination (`CameraManager.activeSession`). A
+/// plain full-width `ScrollView`, not a `Form` — a `Form`'s `.formStyle(.grouped)` centers/caps
+/// its content width on macOS, which this page deliberately doesn't want (see `PageSection`).
 struct SessionDetailPane: View {
     let project: Project
     let session: Session
     var cameraManager: CameraManager
+    /// Pops back to this session's own Project page — the toolbar's explicit "Back to Project"
+    /// button, since the drill-down hierarchy this feature is built around means "up" always has
+    /// one specific, nameable destination, not just "whatever's previous."
+    var onBack: () -> Void
+    /// Pushes the tapped timeline thumbnail's own full-width Capture page.
+    var onSelectCapture: (CaptureRecord) -> Void
 
     @State private var name: String
     @State private var goal: String
@@ -17,10 +25,15 @@ struct SessionDetailPane: View {
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     private var isActive: Bool { cameraManager.activeSession?.id == session.id }
 
-    init(project: Project, session: Session, cameraManager: CameraManager) {
+    init(
+        project: Project, session: Session, cameraManager: CameraManager,
+        onBack: @escaping () -> Void, onSelectCapture: @escaping (CaptureRecord) -> Void
+    ) {
         self.project = project
         self.session = session
         self.cameraManager = cameraManager
+        self.onBack = onBack
+        self.onSelectCapture = onSelectCapture
         self._name = State(initialValue: session.name)
         self._goal = State(initialValue: session.goal)
         self._plannedObjectsText = State(initialValue: session.plannedObjects.joined(separator: ", "))
@@ -29,74 +42,87 @@ struct SessionDetailPane: View {
     }
 
     var body: some View {
-        Form {
-            Section("Session") {
-                TextField("Name", text: $name).onChange(of: name) { _, _ in save() }
-                TextField("Aim", text: $goal, prompt: Text("What is this session for?"), axis: .vertical)
-                    .onChange(of: goal) { _, _ in save() }
-                TextField("Objects (comma separated)", text: $plannedObjectsText, prompt: Text("M13, M57, Saturn"))
-                    .onChange(of: plannedObjectsText) { _, _ in savePlannedObjects() }
-                Toggle("Planned Date", isOn: $hasPlannedDate)
-                    .onChange(of: hasPlannedDate) { _, isOn in savePlannedDate(isOn ? plannedDate : nil) }
-                if hasPlannedDate {
-                    DatePicker("Date & Time", selection: $plannedDate, displayedComponents: [.date, .hourAndMinute])
-                        .onChange(of: plannedDate) { _, new in savePlannedDate(new) }
-                }
-                LocationEditorView(project: project, session: session, cameraManager: cameraManager)
-                HStack {
-                    Button(isActive ? "Running Now" : "Run This Session", systemImage: "play.fill") {
-                        cameraManager.setActive(project: project, session: session)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PageSection(title: "Session") {
+                    TextField("Name", text: $name).onChange(of: name) { _, _ in save() }
+                    TextField("Aim", text: $goal, prompt: Text("What is this session for?"), axis: .vertical)
+                        .onChange(of: goal) { _, _ in save() }
+                    TextField("Objects (comma separated)", text: $plannedObjectsText, prompt: Text("M13, M57, Saturn"))
+                        .onChange(of: plannedObjectsText) { _, _ in savePlannedObjects() }
+                    Toggle("Planned Date", isOn: $hasPlannedDate)
+                        .onChange(of: hasPlannedDate) { _, isOn in savePlannedDate(isOn ? plannedDate : nil) }
+                    if hasPlannedDate {
+                        DatePicker("Date & Time", selection: $plannedDate, displayedComponents: [.date, .hourAndMinute])
+                            .onChange(of: plannedDate) { _, new in savePlannedDate(new) }
                     }
-                    .disabled(isActive)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
-                    Spacer()
-                    Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningSession = true }
+                    LocationEditorView(project: project, session: session, cameraManager: cameraManager)
+                    HStack {
+                        Button(isActive ? "Running Now" : "Run This Session", systemImage: "play.fill") {
+                            cameraManager.setActive(project: project, session: session)
+                        }
+                        .disabled(isActive)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
+                        Spacer()
+                        Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningSession = true }
+                    }
+                }
+
+                PageSection(title: "History") {
+                    StatsGridView(stats: historyStats)
+                }
+
+                if !session.captures.isEmpty {
+                    PageSection(title: "Stats") {
+                        StatsGridView(stats: captureStats)
+                    }
+                }
+
+                PageSection(title: "Tags") {
+                    TagsEditorView(tags: session.tags) { tags in
+                        var updated = session
+                        updated.tags = tags
+                        applyAndSave(updated)
+                    }
+                }
+
+                PageSection(title: "Notes") {
+                    NotesEditorView(notes: session.notes) { notes in
+                        var updated = session
+                        updated.notes = notes
+                        applyAndSave(updated)
+                    }
+                }
+
+                PageSection(title: "Timeline") {
+                    TimelineStripView(
+                        project: project, session: session, store: cameraManager.projectStore,
+                        onSelect: onSelectCapture
+                    )
+                }
+
+                PageSection {
+                    HStack {
+                        Button("Archive Session", systemImage: "archivebox") {
+                            try? library.setArchived(true, forSessionID: session.id, in: project)
+                        }
+                        Button("Delete Session", systemImage: "trash", role: .destructive) {
+                            try? library.deleteSession(session.id, in: project)
+                        }
+                    }
                 }
             }
-
-            Section("History") {
-                StatsGridView(stats: historyStats)
-            }
-
-            if !session.captures.isEmpty {
-                Section("Stats") {
-                    StatsGridView(stats: captureStats)
-                }
-            }
-
-            Section("Tags") {
-                TagsEditorView(tags: session.tags) { tags in
-                    var updated = session
-                    updated.tags = tags
-                    applyAndSave(updated)
-                }
-            }
-
-            Section("Notes") {
-                NotesEditorView(notes: session.notes) { notes in
-                    var updated = session
-                    updated.notes = notes
-                    applyAndSave(updated)
-                }
-            }
-
-            Section("Timeline") {
-                TimelineStripView(project: project, session: session, store: cameraManager.projectStore)
-            }
-
-            Section {
-                Button("Archive Session", systemImage: "archivebox") {
-                    try? library.setArchived(true, forSessionID: session.id, in: project)
-                }
-                Button("Delete Session", systemImage: "trash", role: .destructive) {
-                    try? library.deleteSession(session.id, in: project)
-                }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .navigationTitle("\(project.name.isEmpty ? "Untitled Project" : project.name) — \(session.name)")
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button("Back to Project", systemImage: "chevron.left", action: onBack)
             }
         }
-        .formStyle(.grouped)
-        .navigationTitle("\(project.name.isEmpty ? "Untitled Project" : project.name) — \(session.name)")
         .sheet(isPresented: $isPlanningSession) {
             AIPlanSessionSheet(project: project, session: session, cameraManager: cameraManager)
         }

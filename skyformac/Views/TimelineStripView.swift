@@ -2,11 +2,13 @@ import SwiftUI
 
 /// A horizontal filmstrip of a session's captures — the iMovie-style "timeline with thumbnails"
 /// the Projects feature is built around. Purely a viewer: reordering/deleting individual captures
-/// isn't a thing this app needs (captures arrive in capture order and stay that way).
+/// isn't a thing this app needs (captures arrive in capture order and stay that way). Tapping a
+/// thumbnail pushes that capture's own full-width Capture page (`onSelect`).
 struct TimelineStripView: View {
     let project: Project
     let session: Session
     let store: ProjectStore
+    var onSelect: (CaptureRecord) -> Void
 
     var body: some View {
         if session.captures.isEmpty {
@@ -20,6 +22,8 @@ struct TimelineStripView: View {
                 HStack(spacing: 10) {
                     ForEach(session.captures.sorted(by: { $0.date > $1.date })) { capture in
                         TimelineThumbnailView(project: project, session: session, capture: capture, store: store)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onSelect(capture) }
                     }
                 }
                 .padding(.horizontal, 2)

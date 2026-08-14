@@ -522,7 +522,7 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "The breadcrumb, and the Project menu",
-                body: "While a session is running, the toolbar shows **Home** / the project's name / the session's name — each independently clickable: Home returns to the project list, the project name to that project's own page, the session name back to its own page. The menu bar's **Project** menu covers every action: New Project, Quick Start, Go Home, Open Project Page, End Session, Open Next Session, New Session in Project, and Delete This Session — none of them require a trip back to the browser."
+                body: "While a session is running, the toolbar shows **Home** / the project's name / the session's name — each independently clickable: Home returns to the project list, the project name to that project's own page, the session name back to its own page. An **End Session** button sits right there too, and again just below the live preview. The menu bar's **Project** menu covers every action: New Project, Quick Start, Go Home, Open Project Page, End Session, Open Next Session, New Session in Project, and Delete This Session — none of them require a trip back to the browser."
             ),
             HelpSection(
                 heading: "Session cards",
@@ -530,7 +530,11 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Session History: the full record",
-                body: "A session's History page lays out its actual historical record — Created/Planned/First Capture/Last Capture/Duration, Position, Aim, and Objects — separately from the editable fields above it that plan the session in the first place. A **Stats** section breaks down its captures by kind (FITS/PNG/TIFF/SER Video/Recording) once there are any."
+                body: "A session's page fills the window edge-to-edge (no side margins) and has its own **Back to Project** button at the top. It lays out its actual historical record — Created/Planned/First Capture/Last Capture/Duration, Position, Aim, and Objects — separately from the editable fields above it that plan the session in the first place. A **Stats** section breaks down its captures by kind (FITS/PNG/TIFF/SER Video/Recording) once there are any."
+            ),
+            HelpSection(
+                heading: "Tap a timeline thumbnail for its Capture page",
+                body: "Every thumbnail in a session's Timeline opens its own full-width Capture page — a larger preview (the actual image for PNG/TIFF; a thumbnail stand-in for FITS/SER/recording-folder captures, which aren't directly viewable image formats), the file's name/kind/date, a **Show in Finder** button, and the owning session's own aim/objects/position and Stats for context. **Back to Session** returns to where you tapped it from."
             ),
             HelpSection(
                 heading: "Project Stats",

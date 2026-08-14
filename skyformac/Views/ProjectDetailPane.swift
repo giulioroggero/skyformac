@@ -221,6 +221,27 @@ struct StatItem: Identifiable {
     let value: String
 }
 
+/// A titled block used by full-width pages (Session, Capture) instead of a `Form`'s `Section` —
+/// `Form`/`.formStyle(.grouped)` centers/constrains its content on macOS, which is exactly the
+/// side-margin look those pages need to *not* have. `title` is optional for a trailing section
+/// (like a page's own destructive actions) that doesn't need a heading.
+struct PageSection<Content: View>: View {
+    var title: String?
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let title {
+                Text(title).font(.headline)
+            }
+            content()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
 /// A compact grid of label/value pairs — shared by the Project Detail and Session History
 /// pages' Stats sections, so "how much has actually happened" always looks the same regardless
 /// of which level it's summarizing.

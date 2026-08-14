@@ -342,11 +342,20 @@ session persistence design and the browser-as-main-window architecture)
   the same editable fields used to plan it. A session's planned date is now
   itself editable (`Toggle` + `DatePicker`) — previously write-only in the
   data model with no UI at all.
+- **Full-width pages, no side margins** — the Session page (and the Capture
+  page below it) fill the window edge-to-edge instead of centering/capping
+  their content the way a `Form` normally would on macOS; a "Back to
+  Project"/"Back to Session" button sits at the top of each.
+- **Tap a timeline thumbnail for its own Capture page** — a larger preview
+  (the actual PNG/TIFF file, or the capture's thumbnail for FITS/SER/
+  recording-folder kinds `NSImage` can't decode directly), file info, the
+  owning session's own context (aim, objects, position), and that session's
+  Stats — all on one full-width page, reachable straight from the timeline.
 - **Stats on both levels** — the Project Detail page shows session counts
   (active/archived), total captures, first/last activity, and a per-kind
-  breakdown (FITS/PNG/TIFF/SER Video/Recording); the Session History page
-  shows the same breakdown scoped to that one session (`StatsGridView`,
-  shared by both).
+  breakdown (FITS/PNG/TIFF/SER Video/Recording); the Session History and
+  Capture pages show the same breakdown scoped to that one session
+  (`StatsGridView`, shared across all three).
 - **Timelines with thumbnails** — every session shows its captures as a
   filmstrip (date + a small JPEG thumbnail generated from the same image
   already being exported), the iMovie-style browsing this feature is built

@@ -71,6 +71,7 @@
 		0A0887DD2D5A739A1C60B086 /* ExportedFileViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6366935F9B2AAA5C996D2AA /* ExportedFileViewerView.swift */; };
 		7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */; };
 		F78A81BFBB8A33B86D6827DD /* TimelineStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */; };
+		D699426F7F736A03AFE97842 /* CaptureDetailPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */; };
 		53BACB792DD5FDDC11B3BFF0 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7866DFCEC932D3B738897 /* RootView.swift */; };
 		AD962C0E6D2127BD6629CCC6 /* ProjectsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */; };
 		AB7D4190BA90A6FA00E42BA8 /* ProjectDetailPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */; };
@@ -212,6 +213,7 @@
 		F6366935F9B2AAA5C996D2AA /* ExportedFileViewerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExportedFileViewerView.swift; sourceTree = "<group>"; };
 		1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcquisitionWizardView.swift; sourceTree = "<group>"; };
 		0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineStripView.swift; sourceTree = "<group>"; };
+		EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureDetailPage.swift; sourceTree = "<group>"; };
 		D6E7866DFCEC932D3B738897 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectsBrowserView.swift; sourceTree = "<group>"; };
 		5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectDetailPane.swift; sourceTree = "<group>"; };
@@ -594,6 +596,7 @@
 				F6366935F9B2AAA5C996D2AA /* ExportedFileViewerView.swift */,
 				1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */,
 				0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */,
+				EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */,
 				D6E7866DFCEC932D3B738897 /* RootView.swift */,
 				B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */,
 				5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */,
@@ -878,6 +881,7 @@
 				0A0887DD2D5A739A1C60B086 /* ExportedFileViewerView.swift in Sources */,
 				7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */,
 				F78A81BFBB8A33B86D6827DD /* TimelineStripView.swift in Sources */,
+				D699426F7F736A03AFE97842 /* CaptureDetailPage.swift in Sources */,
 				53BACB792DD5FDDC11B3BFF0 /* RootView.swift in Sources */,
 				AD962C0E6D2127BD6629CCC6 /* ProjectsBrowserView.swift in Sources */,
 				AB7D4190BA90A6FA00E42BA8 /* ProjectDetailPane.swift in Sources */,
