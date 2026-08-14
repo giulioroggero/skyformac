@@ -2413,3 +2413,41 @@ made along the way.
     "Settings," whose own subtitles are shorter — nothing pinned them to a shared width. Fixed
     with one `.frame(width: 180, alignment: .leading)` on the card's whole `VStack`, so every
     "Common Tasks" tile now reads as one uniform row regardless of its own text length.
+
+- **Added a user-editable "Astronomy Knowledge" markdown reference base, grounding the AI panel
+  in facts a small local model doesn't reliably know on its own.** Motivated by a concrete gap:
+  asked "what can I see tonight in Orta San Giulio," `qwen3:8b` has no reliable notion of which
+  Messier objects are seasonally well-placed or that Venus can only ever appear near dawn/dusk
+  twilight (it's an inferior planet) — it either guesses or states something confidently wrong.
+  - **Static reference text over live computation, deliberately.** The "correct" fix for "what's
+    visible tonight" is a real visibility calculator (altitude/azimuth for each catalog object,
+    twilight times, planet ephemeris, from the observer's actual location and the current time) —
+    this app doesn't have one, and building one (especially real planetary position, which needs
+    proper orbital-mechanics math, not just RA/Dec lookup like `SkyCatalog` already does for fixed
+    deep-sky objects) is a substantially larger feature on its own. `AstronomyKnowledgeBase` is a
+    smaller, immediately useful piece instead: general facts (which season an object is best in,
+    that a superior planet is worth checking most of the night while an inferior one only shows up
+    in twilight) that let the model reason *about the right kind of thing* even without live
+    position data — and its own doc comment says exactly that limitation out loud, rather than
+    implying this fixes real-time accuracy.
+  - **Files on disk, not an in-app editor** — same "one folder the user can freely edit in Finder"
+    shape `ProjectStore`/`EquipmentLibrary` already established for Projects/Equipment, reusing
+    `AppSettings.customKnowledgeBaseDirectoryPath` (default `~/Documents/Skyformac Knowledge`) and
+    the same Settings-section layout (path display, Choose Folder…/Reset to Default). No new UI
+    surface for authoring content — a plain `.md` file the user drops in or edits directly is
+    already exactly the format that gets folded into a prompt.
+  - **`ensureDefaultsExist` vs. `restoreDefaults` — two different operations, not one.** The first
+    (called once at `CameraManager` init) only ever writes a default file that's *missing*
+    entirely — it never touches one the user has already edited, since silently overwriting a
+    user's own edits on every launch would be exactly the kind of surprising data loss this
+    session's established discipline (custom `Codable` initializers to protect old data, `git
+    status` before destructive commands) exists to avoid. `restoreDefaults` (an explicit Settings
+    button, never called automatically) is the one place that does overwrite — and even then, only
+    the known default *filenames*; any other `.md` file the user has added to the same folder is
+    left completely alone either way.
+  - **Capped context size (`characterLimit`, default 6000 chars)** — folded into
+    `CameraManager.assistantContext()` (used by both the AI panel chat and
+    `fetchSuggestedNextSession()`), reading every `.md` file fresh off disk per request rather than
+    caching in memory, so an edit takes effect on the very next message with no reload step. The
+    cap exists so a user who keeps expanding their own knowledge base doesn't inadvertently turn
+    every single AI request into something a small local model takes minutes to chew through.

@@ -325,6 +325,21 @@ session persistence design and the browser-as-main-window architecture)
   every request — no synthesized fallback here, since a full session plan
   has no wizard-list equivalent the way object suggestions do; the card
   simply doesn't appear until Ollama actually answers.
+- **Astronomy Knowledge** (Settings) — a folder of plain `.md` reference
+  files (two shipped by default: commonly-observed Messier/bright objects
+  and their best season, and planet/Moon visibility mechanics) folded into
+  every AI panel request (`AstronomyKnowledgeBase`), grounding a small
+  local model like `qwen3:8b` in real astronomy facts it doesn't reliably
+  know on its own — e.g. that Venus is only ever visible near dawn/dusk,
+  or which season M13 is best in — rather than guessing or inventing a
+  position outright. Add, edit, or delete any `.md` file directly in
+  Finder (**Reveal in Finder**, in Settings); **Restore Default Content**
+  resets just the two shipped files back to their original text, leaving
+  anything else added untouched. Deliberately not a substitute for real
+  position calculation — the app has no live ephemeris, so it can't tell
+  you whether something is actually above the horizon right now from a
+  specific location; it grounds the *kind* of answer the AI gives, not a
+  precise one.
 - **Insights** (Home page's own tile, or the Project menu) is a dedicated,
   read-only page over every capture across every project: total
   projects/sessions/captures, a monthly activity chart, and breakdowns of
@@ -637,7 +652,7 @@ session persistence design and the browser-as-main-window architecture)
   for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 505 unit tests (Swift Testing) across 72 suites, covering
+- `skyformacTests` — 512 unit tests (Swift Testing) across 73 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

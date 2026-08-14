@@ -13,6 +13,15 @@ actually tagged. Tags on GitHub: [v0.3.0](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- **Astronomy Knowledge** (Settings) — a user-editable folder of plain `.md`
+  reference files (Messier/bright-object seasons, planet/Moon visibility
+  mechanics) folded into every AI panel request, grounding a small local
+  model (`qwen3:8b` and similar) in real astronomy facts instead of guessed
+  ones. Add/edit/delete files directly in Finder; **Restore Default
+  Content** resets just the shipped defaults, leaving anything else added
+  untouched.
+
 ## [0.3.0] - 2026-08-14
 
 ### Added

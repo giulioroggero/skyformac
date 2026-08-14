@@ -32,6 +32,7 @@ enum AppSettings {
         case equipmentSystems
         case customProjectsRootDirectoryPath
         case customEquipmentDirectoryPath
+        case customKnowledgeBaseDirectoryPath
         case ollamaServerURLString
         case ollamaModel
         case sessionSuggestionSkill
@@ -234,6 +235,16 @@ enum AppSettings {
     static var customEquipmentDirectoryPath: String? {
         get { UserDefaults.standard.string(forKey: Key.customEquipmentDirectoryPath.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.customEquipmentDirectoryPath.rawValue) }
+    }
+
+    // MARK: - Astronomy Knowledge folder
+
+    /// Same "user-chosen folder instead of a default" shape as Projects/Equipment above —
+    /// `AstronomyKnowledgeBase` reads this each time it needs the folder (no in-memory cache to
+    /// keep in sync, since it's just plain `.md` files read fresh off disk per AI request).
+    static var customKnowledgeBaseDirectoryPath: String? {
+        get { UserDefaults.standard.string(forKey: Key.customKnowledgeBaseDirectoryPath.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.customKnowledgeBaseDirectoryPath.rawValue) }
     }
 
     // MARK: - Ollama (AI)

@@ -480,6 +480,14 @@ final class CameraManager {
             }
             lines.append("Highly rated past actions and the settings used — the best evidence for \"what settings work well\":\n" + summaries.joined(separator: "\n"))
         }
+        // Grounds a small local model in general astronomy facts it doesn't reliably know on its
+        // own (season a Messier object is best placed, that Venus is only ever visible near dawn/
+        // dusk) — see `AstronomyKnowledgeBase`'s own doc comment for why this still isn't a
+        // substitute for real position calculation, which this app doesn't do.
+        let knowledgeBase = AstronomyKnowledgeBase.contextText()
+        if !knowledgeBase.isEmpty {
+            lines.append("Astronomy reference notes (general facts, not live positions — use judgment):\(knowledgeBase)")
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -1530,6 +1538,7 @@ final class CameraManager {
         self.locationProvider = locationProvider
         self.projectsLibrary = ProjectsLibrary(store: projectStore)
         self.ollamaPlanner = ollamaPlanner
+        AstronomyKnowledgeBase.ensureDefaultsExist()
         refreshCameraList()
         // `activeProject` starts `nil` on every launch, full stop — there's no "resume last
         // project" persistence, deliberately: it's what makes the Projects browser the app's

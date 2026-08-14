@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The app's central preferences — a `.sheet` (this app is deliberately single-window; see
@@ -12,6 +13,7 @@ struct SettingsView: View {
 
     @State private var customPath: String? = AppSettings.customProjectsRootDirectoryPath
     @State private var customEquipmentPath: String? = AppSettings.customEquipmentDirectoryPath
+    @State private var customKnowledgeBasePath: String? = AppSettings.customKnowledgeBaseDirectoryPath
     @State private var isTestingOllama = false
     @State private var ollamaTestResult: OllamaTestResult?
     @State private var serverURLText = AppSettings.ollamaServerURL.absoluteString
@@ -24,6 +26,10 @@ struct SettingsView: View {
 
     private var currentEquipmentFolder: URL {
         customEquipmentPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? EquipmentLibrary.defaultRootDirectory()
+    }
+
+    private var currentKnowledgeBaseFolder: URL {
+        customKnowledgeBasePath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? AstronomyKnowledgeBase.defaultRootDirectory()
     }
 
     /// The Model picker's own choices — every model "Test Connection" last found installed, plus
@@ -100,6 +106,35 @@ struct SettingsView: View {
                         }
                     }
                     Text("Takes effect the next time Skyformac launches — existing equipment files stay right where they are and aren't moved automatically.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Astronomy Knowledge") {
+                    Text(currentKnowledgeBaseFolder.path)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                    HStack {
+                        Button("Choose Folder…") { chooseKnowledgeBaseFolder() }
+                        if customKnowledgeBasePath != nil {
+                            Button("Reset to Default") {
+                                customKnowledgeBasePath = nil
+                                AppSettings.customKnowledgeBaseDirectoryPath = nil
+                            }
+                        }
+                        Button("Reveal in Finder") {
+                            AstronomyKnowledgeBase.ensureDefaultsExist(in: currentKnowledgeBaseFolder)
+                            NSWorkspace.shared.activateFileViewerSelecting([currentKnowledgeBaseFolder])
+                        }
+                    }
+                    HStack {
+                        Spacer()
+                        Button("Restore Default Content") {
+                            AstronomyKnowledgeBase.restoreDefaults(in: currentKnowledgeBaseFolder)
+                        }
+                    }
+                    Text("A folder of plain `.md` files — general astronomy facts (Messier season, planet visibility rules) folded into every AI request, so a local model has real reference material instead of guessing. Add, edit, or remove any `.md` file directly in Finder; \"Restore Default Content\" resets just the shipped defaults back to their original text, leaving anything else you've added untouched.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -243,6 +278,20 @@ struct SettingsView: View {
             guard response == .OK, let url = panel.url else { return }
             customEquipmentPath = url.path
             AppSettings.customEquipmentDirectoryPath = url.path
+        }
+    }
+
+    private func chooseKnowledgeBaseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = currentKnowledgeBaseFolder
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            customKnowledgeBasePath = url.path
+            AppSettings.customKnowledgeBaseDirectoryPath = url.path
+            AstronomyKnowledgeBase.ensureDefaultsExist(in: url)
         }
     }
 }

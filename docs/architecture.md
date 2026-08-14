@@ -219,11 +219,16 @@ logic beyond layout and local `@State`.
   fixed RA/Dec against the bundled `SkyCatalog`, for the Atlas view),
   `ProjectArchive` (zips/unzips a whole project folder via `/usr/bin/ditto`
   for "Save As Project…"/"Load Project…," always assigning a fresh
-  id/folderName on import), and `OllamaPlanner` (talks to a local Ollama
-  server behind an `OllamaTransport` protocol for the same reason;
-  proposes session/project plans, plain-text descriptions, next-objects-
-  to-observe, a full next-session plan driven by a user-editable "skill"
-  text, and the sidebar AI panel's own classify-then-propose replies).
+  id/folderName on import), `AstronomyKnowledgeBase` (a small,
+  user-editable folder of `.md` reference files — season a Messier object
+  is best in, planet visibility mechanics — folded into every AI request
+  to ground a small local model in real facts; explicitly not a
+  substitute for real position calculation, which this app doesn't do),
+  and `OllamaPlanner` (talks to a local Ollama server behind an
+  `OllamaTransport` protocol for the same reason; proposes session/project
+  plans, plain-text descriptions, next-objects-to-observe, a full
+  next-session plan driven by a user-editable "skill" text, and the
+  sidebar AI panel's own classify-then-propose replies).
 - **`skyformac/Resources/`**:
   - `SkyCatalog/` — `messier.json` (110 Messier objects, extracted from
     Stellarium's real DSO catalog at `stellarium/nebulae/default/catalog.txt`)

@@ -121,12 +121,14 @@
 		DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */; };
 		1D974B291A8C927796E5CB39 /* AssistantModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1109B3B4825F4CE86F82D92F /* AssistantModels.swift */; };
 		7A1AB44DF5BB81595390219C /* SkyAtlasLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F1C47F2B0C383D612E721E /* SkyAtlasLookup.swift */; };
+		723E3781A0BDB1023C983253 /* AstronomyKnowledgeBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A42B30BE84693A0C1A019B9 /* AstronomyKnowledgeBase.swift */; };
 		FC937EB1EE3B6DA870560471 /* ProjectArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856CFC352A6DA2D53157A5A3 /* ProjectArchive.swift */; };
 		64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */; };
 		336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */; };
 		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
 		98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */; };
 		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
+		39C4C19C83FD07F8D3A01A57 /* AstronomyKnowledgeBaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */; };
 		BECCD6DF404110DD2AE56339 /* ProjectArchiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09FC4720C6F24A5924FD077 /* ProjectArchiveTests.swift */; };
 		AF70883DC4C841CBC4DA62CE /* SessionReuseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D73D8098F2265E5CD371A4 /* SessionReuseTests.swift */; };
 		BFCD7A5D9232810B14153610 /* CameraManagerRecallParametersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */; };
@@ -258,12 +260,14 @@
 		D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIDescriptionContext.swift; sourceTree = "<group>"; };
 		1109B3B4825F4CE86F82D92F /* AssistantModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModels.swift; sourceTree = "<group>"; };
 		23F1C47F2B0C383D612E721E /* SkyAtlasLookup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookup.swift; sourceTree = "<group>"; };
+		0A42B30BE84693A0C1A019B9 /* AstronomyKnowledgeBase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyKnowledgeBase.swift; sourceTree = "<group>"; };
 		856CFC352A6DA2D53157A5A3 /* ProjectArchive.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectArchive.swift; sourceTree = "<group>"; };
 		70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIDescriptionContextTests.swift; sourceTree = "<group>"; };
 		711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerAssistantTests.swift; sourceTree = "<group>"; };
 		83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerOllamaConfigurationTests.swift; sourceTree = "<group>"; };
 		85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RatingAndFavoriteTests.swift; sourceTree = "<group>"; };
 		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
+		3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyKnowledgeBaseTests.swift; sourceTree = "<group>"; };
 		C09FC4720C6F24A5924FD077 /* ProjectArchiveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectArchiveTests.swift; sourceTree = "<group>"; };
 		E88925FDFCDFD5CD1889D56E /* InsightsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
 		EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DashboardHomeView.swift; sourceTree = "<group>"; };
@@ -549,6 +553,7 @@
 				83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */,
 				85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */,
 				B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */,
+				3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */,
 				C09FC4720C6F24A5924FD077 /* ProjectArchiveTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
@@ -647,6 +652,7 @@
 				D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */,
 				1109B3B4825F4CE86F82D92F /* AssistantModels.swift */,
 				23F1C47F2B0C383D612E721E /* SkyAtlasLookup.swift */,
+				0A42B30BE84693A0C1A019B9 /* AstronomyKnowledgeBase.swift */,
 				856CFC352A6DA2D53157A5A3 /* ProjectArchive.swift */,
 			);
 			name = Projects;
@@ -1047,6 +1053,7 @@
 				DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */,
 				1D974B291A8C927796E5CB39 /* AssistantModels.swift in Sources */,
 				7A1AB44DF5BB81595390219C /* SkyAtlasLookup.swift in Sources */,
+				723E3781A0BDB1023C983253 /* AstronomyKnowledgeBase.swift in Sources */,
 				FC937EB1EE3B6DA870560471 /* ProjectArchive.swift in Sources */,
 				D0928FCDD5BE2BFBA792C89B /* AssistantChatPanel.swift in Sources */,
 				7C6D4B3F157385668C70D9B1 /* AtlasView.swift in Sources */,
@@ -1087,6 +1094,7 @@
 				5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */,
 				98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */,
 				063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */,
+				39C4C19C83FD07F8D3A01A57 /* AstronomyKnowledgeBaseTests.swift in Sources */,
 				BECCD6DF404110DD2AE56339 /* ProjectArchiveTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
