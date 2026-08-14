@@ -211,9 +211,19 @@ logic beyond layout and local `@State`.
   Core Location permissions), `ProjectSearch` (free-text + date-range +
   tag/object/equipment filtering), `InsightsData` (a pure, clock-injected
   aggregator over every capture, feeding the Insights page and Dashboard),
-  `EquipmentModels.swift`/`EquipmentLibrary` (named equipment systems,
-  backed by `AppSettings`), and `OllamaPlanner` (talks to a local Ollama
-  server behind an `OllamaTransport` protocol for the same reason).
+  `EquipmentModels.swift`/`EquipmentLibrary` (named equipment systems, one
+  JSON file per system under a configurable Equipment folder — the same
+  one-folder-per-item philosophy `ProjectStore` uses, with a one-time
+  migration off the older `AppSettings`/`UserDefaults`-backed storage),
+  `SkyAtlasLookup` (resolves a session's free-text observed object to a
+  fixed RA/Dec against the bundled `SkyCatalog`, for the Atlas view),
+  `ProjectArchive` (zips/unzips a whole project folder via `/usr/bin/ditto`
+  for "Save As Project…"/"Load Project…," always assigning a fresh
+  id/folderName on import), and `OllamaPlanner` (talks to a local Ollama
+  server behind an `OllamaTransport` protocol for the same reason;
+  proposes session/project plans, plain-text descriptions, next-objects-
+  to-observe, a full next-session plan driven by a user-editable "skill"
+  text, and the sidebar AI panel's own classify-then-propose replies).
 - **`skyformac/Resources/`**:
   - `SkyCatalog/` — `messier.json` (110 Messier objects, extracted from
     Stellarium's real DSO catalog at `stellarium/nebulae/default/catalog.txt`)
@@ -223,9 +233,12 @@ logic beyond layout and local `@State`.
     `CatalogRepository` queries; rebuilt by `scripts/build_astro_catalog.py`.
 - **`skyformac/App/`** — `SkyformacApp` (the `@main` entry point, one
   `WindowGroup` with automatic window tabbing explicitly disabled) and
-  `SkyformacCommands` (menu bar commands: export, camera connect/rescan,
-  Settings, the **Project** menu, toolbar toggles, all with keyboard
-  shortcuts). `AppLog` is the app-wide in-memory log (`skyformac → Show
+  `SkyformacCommands` (menu bar commands: export, project file Save
+  As/Load, camera connect/rescan, Settings, the **Project** menu (including
+  Show All Projects), a dedicated **Equipment** menu (View/Add New),
+  toolbar toggles, all with keyboard shortcuts — the **Camera** and
+  **Sidebar Tab** menus only appear at all while a camera session is
+  running). `AppLog` is the app-wide in-memory log (`skyformac → Show
   Log…`) that most error paths feed automatically via
   `CameraManager.lastErrorMessage`'s `didSet`.
 - **`skyformac/Help/`** — `HelpContent.swift`: plain structured content
@@ -240,13 +253,21 @@ logic beyond layout and local `@State`.
   Planetary / Deep Sky) filtering which of its tool sections show.
   `ProjectsBrowserView` (a `NavigationStack` drill-down) roots at
   `DashboardHomeView` — an orientation dashboard (resume the last session,
-  common-task shortcuts, recent projects, an activity chart, suggestions) —
-  and pushes **Projects** (the full project grid/table) → **Project Detail**
-  (`ProjectDetailPane`) → **Session** (`SessionDetailPane`, history/timeline)
-  → **Capture** (`CaptureDetailPage`), plus side routes for **Equipment**
-  (`EquipmentPage`), **Insights** (`InsightsView`), Archived, and Recently
-  Deleted. `RecallParametersView` and `SettingsView` are `.sheet`s attached
-  to `RootView` itself so they work from either the browser or the live
+  common-task shortcuts, recent projects, an activity chart, AI-computed
+  "Ideas for Next Time" and a "Suggested Session" card, both falling back
+  gracefully with no Ollama server) — and pushes **Projects** (thumbnail
+  grid, table, or the RA/Dec **Atlas** view — `AtlasView` — of every
+  session across every project) → **Project Detail** (`ProjectDetailPane`)
+  → **Session** (`SessionDetailPane`, history/timeline) → **Capture**
+  (`CaptureDetailPage`), plus side routes for **Equipment** (`EquipmentPage`),
+  **Insights** (`InsightsView`), Archived, and Recently Deleted. Projects,
+  sessions, and captures can be rated (1-5 stars) and (projects/sessions)
+  marked as favorites, which sort to the top of their lists and feed the AI
+  panel's own context. `AssistantChatPanel`/`AssistantChatPanelController`
+  are the sidebar **AI** panel — dockable, resizable, detachable into a
+  floating `NSPanel`, forced detached while a camera session is running.
+  `RecallParametersView` and `SettingsView` are `.sheet`s attached to
+  `RootView` itself so they work from either the browser or the live
   camera view. All built on `skyformac/Projects/`'s model layer.
 - **`skyformacTests/`** — unit tests (Swift Testing) covering every piece of
   pixel/geometry/signal-processing math in the app: debayer, the stretch LUT,

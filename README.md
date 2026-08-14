@@ -330,17 +330,52 @@ from the toolbar's **Archived** button) or **Delete** it — deletes move to
 automatically, with **Restore** and **Delete Permanently** (individually or
 all at once) available immediately.
 
+Projects, sessions, and individual captures can be rated 1-5 stars, and
+projects/sessions can be marked as **favorites**, which pin them to the top of
+their list. The menu bar's **File** menu can **Save As Project…**/**Load
+Project…** — packaging a project's whole folder (metadata, every session,
+every capture file) into one `.zip` for handing to another user or machine,
+always importing as a brand-new project so it can never collide with one
+already in your library.
+
+The Projects page's toolbar has a third view alongside the thumbnail grid and
+table: an **Atlas** — every session across every project plotted on a
+right-ascension/declination sky chart by its planned target's real position
+(matched against the app's own bundled Messier/bright-star catalog), filterable
+by project, object, or date range, with a tap to jump straight to that session.
+
+### AI panel
+
+A chat panel on the right of every page (⌘⇧J to toggle) — the Dashboard,
+Projects, a Project/Session page, and the live camera view all share the same
+conversation, talking to a **local Ollama server** (nothing leaves your
+machine). It's grounded in whatever's currently relevant: the project/session
+you're viewing, the connected camera, and your own activity/ratings/favorites.
+Ask it a question, or ask it to create a project, create a session, or change
+the camera's gain/exposure/mode — any proposed change always shows its own
+Approve/Reject card first, nothing is applied automatically. It can also
+propose a whole next session (not just an object) as a "Suggested Session"
+card on the Dashboard, governed by an editable "skill" — standing instructions
+like "favor deep-sky over planetary" — tunable in Settings without touching a
+prompt in code. **Minimize** collapses it to a thin rail; **Detach** pops it
+into its own floating, resizable window; while the camera view is running it's
+always detached so it doesn't crowd the live preview, returning to the
+sidebar automatically once you're back to browsing if that's where it was.
+
 ### Equipment
 
-The Home page toolbar's **Equipment** button manages named equipment
-systems — "Backyard Rig," "Travel Setup" — each built from items across
-camera/mount/optical tube (always shown, since every real setup has them)
-and optional categories (tracking system, imaging & optics, autoguiding,
-power & control, eyepiece, smartphone mount, other). Pick from a curated
-catalog of common brands/models or add a custom one by hand; a system can
-hold more than one item of the same category (a main scope plus a guide
-scope). A project can be assigned a system on its own Detail page; each
-session inherits that by default and can pick a different one for itself.
+The Home page toolbar's **Equipment** button (or the menu bar's own
+**Equipment → View**/**Add New…**) manages named equipment systems —
+"Backyard Rig," "Travel Setup" — each built from items across camera/mount/
+optical tube (always shown, since every real setup has them) and optional
+categories (tracking system, imaging & optics, autoguiding, power & control,
+eyepiece, smartphone mount, other). Pick from a curated catalog of common
+brands/models or add a custom one by hand; a system can hold more than one
+item of the same category (a main scope plus a guide scope). A project can be
+assigned a system on its own Detail page; each session inherits that by
+default and can pick a different one for itself. Equipment systems are stored
+as their own files under a configurable Equipment folder (Settings), the same
+one-file-per-item approach the Projects folder already uses.
 
 The Home page's **Filters** button narrows the project/session list (on top
 of free-text search) to an exact tag, an exact observed object (planets, the

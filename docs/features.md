@@ -637,7 +637,7 @@ session persistence design and the browser-as-main-window architecture)
   for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 447 unit tests (Swift Testing) across 69 suites, covering
+- `skyformacTests` — 505 unit tests (Swift Testing) across 72 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

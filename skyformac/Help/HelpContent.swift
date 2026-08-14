@@ -502,7 +502,7 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Home: where everything starts",
-                body: "**Home** is an orientation dashboard, not just a project list — resume the most recently active session in one click, jump to a common task (**Quick Start**, **New Project**, **All Projects**, **Equipment**, **Insights**, **Settings**), see the last few projects and sessions you've touched, a monthly activity chart, your most-captured object and most-used equipment at a glance, and a few \"try this next\" suggestions. The full project list moved one level down to its own **Projects** page — tap **All Projects** to get there."
+                body: "**Home** is an orientation dashboard, not just a project list — resume the most recently active session in one click, jump to a common task (**Quick Start**, **New Project**, **All Projects**, **Equipment**, **Insights** — Settings is one click away in the toolbar instead), see the last few projects and sessions you've touched, a monthly activity chart, your most-captured object and most-used equipment at a glance, a **Suggested Session** card when the AI has a full next-session idea ready, and a few \"try this next\" object suggestions. The full project list moved one level down to its own **Projects** page — tap **All Projects** to get there, or pick **Show All Projects** from the menu bar's **Project** menu."
             ),
             HelpSection(
                 id: "setting.newProject", heading: "Creating a project",
@@ -513,8 +513,16 @@ enum HelpContent {
                 body: "For a one-off outing, skip creating a project and session by hand entirely: **Quick Start** (Home page, or the Project menu) offers a curated list of planets, the Moon, and well-known deep-sky objects — the same list the Acquisition Wizard uses. Picking one creates both, applies that target's recommended gain/exposure/mode (immediately if a camera's already connected, otherwise the moment one does), and opens the camera view — camera selection itself still happens exactly as it always does."
             ),
             HelpSection(
-                heading: "Thumbnails or a table",
-                body: "The Projects page's toolbar switches between a grid of cover-thumbnail cards (the default — each project shows its most recent capture, session count, capture count, location, tags, and when it was last touched) and a sortable table for comparing a lot of projects by their numbers at once. Double-click a table row to open it, the same way a single click just selects without leaving the page."
+                heading: "Thumbnails, a table, or the Atlas",
+                body: "The Projects page's toolbar switches between a grid of cover-thumbnail cards (the default — each project shows its most recent capture, session count, capture count, location, tags, and when it was last touched), a sortable table for comparing a lot of projects by their numbers at once, and the **Atlas** view. Double-click a table row to open it, the same way a single click just selects without leaving the page."
+            ),
+            HelpSection(
+                heading: "Atlas view",
+                body: "The Atlas plots every session across every project on a right-ascension/declination sky chart, positioned by its planned target's real coordinates (matched against the app's own bundled Messier/bright-star catalog). Filter by project name, observed object, or a date range; tap a point to see which session it is and jump straight to it. Planets and the Moon move across the sky and have no single fixed position to plot — they, along with anything not in the bundled catalog, are listed separately underneath instead of being dropped silently."
+            ),
+            HelpSection(
+                heading: "Ratings and favorites",
+                body: "Projects, sessions, and individual captures can each be rated 1-5 stars — tap the stars in the header of a Project/Session page, or on a capture's own detail page. Projects and sessions can also be marked as **favorites** (the star-circle button next to the name), which pins them to the top of their list ahead of everything else. Both feed the AI panel: it can point to your own highest-rated past sessions as evidence for \"what's worked well\" rather than just counting captures."
             ),
             HelpSection(
                 heading: "Where your data goes",
@@ -558,11 +566,15 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Insights",
-                body: "The **Insights** tile (Home page) is a dedicated page over every capture across every project: total projects/sessions/captures, a monthly activity chart, and breakdowns of the most-captured objects, most-used equipment systems, and most common acquisition mode — plus \"try this next\" suggestions for objects you haven't captured yet, each with its own **Quick Start…** button."
+                body: "The **Insights** tile (Home page) is a dedicated page over every capture across every project: total projects/sessions/captures, a monthly activity chart, and breakdowns of the most-captured objects, most-used equipment systems, and most common acquisition mode — plus \"try this next\" suggestions for objects you haven't captured yet, each with its own **Quick Start…** button. Those suggestions are computed by the AI when a local Ollama server is reachable, falling back automatically to the same catalog-based list otherwise — either way, something useful shows up immediately."
             ),
             HelpSection(
                 heading: "Equipment",
-                body: "The Home page's **Equipment** tile manages named equipment systems — \"Backyard Rig,\" \"Travel Setup\" — each built from camera, mount, and optical tube (always shown, since every real setup has them), plus optional categories: tracking system, imaging & optics, autoguiding, power & control, eyepiece, smartphone mount, and other. Pick an item from a curated catalog of common brands/models, or **Add Custom…** for anything not listed; a system can hold more than one item of the same category (a main scope plus a guide scope, two cameras). A project's own Equipment section assigns a system to it; a session inherits that by default, shown as **Inherit from Project (name)** in its own Equipment section — pick a different system there to override it just for that one session."
+                body: "The Home page's **Equipment** tile (or the menu bar's own **Equipment → View**/**Add New…**) manages named equipment systems — \"Backyard Rig,\" \"Travel Setup\" — each built from camera, mount, and optical tube (always shown, since every real setup has them), plus optional categories: tracking system, imaging & optics, autoguiding, power & control, eyepiece, smartphone mount, and other. Pick an item from a curated catalog of common brands/models, or **Add Custom…** for anything not listed; a system can hold more than one item of the same category (a main scope plus a guide scope, two cameras). A project's own Equipment section assigns a system to it; a session inherits that by default, shown as **Inherit from Project (name)** in its own Equipment section — pick a different system there to override it just for that one session. Equipment systems are stored as their own files under an Equipment folder (Settings — same idea as, and independent from, the Projects folder), so they show up in a backup of that folder too."
+            ),
+            HelpSection(
+                heading: "Sharing a project",
+                body: "The **File** menu's **Save As Project…** packages a project's whole folder — its metadata, every session, and every capture file — into one `.zip`, for handing to someone else or moving to another Mac. **Load Project…** unpacks one back in; an imported project always gets treated as brand-new (it can never collide with or overwrite a project already in your library, even if you load the same file twice)."
             ),
             HelpSection(
                 heading: "Location, tags, and notes",
@@ -578,7 +590,7 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Settings",
-                body: "**Settings…** (⌘, or the Home page's own tile) is the central place to review preferences: the Projects folder location (**Choose Folder…** picks anywhere else — takes effect the next time Skyformac launches, existing files aren't moved automatically), the renderer and Night Mode toggles already in the camera view's toolbar, and an **AI (Ollama)** section — **Test Connection** checks both that the server answers and which models are actually installed, reporting exactly which one Ask AI to Plan/Describe would use."
+                body: "**Settings…** (⌘, or the Home page's own toolbar button) is the central place to review preferences: the Projects folder and Equipment folder locations (**Choose Folder…** picks anywhere else — takes effect the next time Skyformac launches, existing files aren't moved automatically), the renderer and Night Mode toggles already in the camera view's toolbar, an **AI (Ollama)** section (editable server URL, a model picker, and **Test Connection**, which checks both that the server answers and which models are actually installed, reporting exactly which one Ask AI to Plan/Describe would use), and an **AI Skill: Suggest Next Session** text area — standing instructions (\"favor deep-sky over planetary,\" \"consider my dual-scope rig\") folded into every \"suggest my next session\" request, with a **Reset to Default**."
             ),
             HelpSection(
                 id: "setting.aiPlanning", heading: "Ask AI to Plan…",
@@ -594,7 +606,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.assistant", heading: "AI",
-                body: "A chat panel on the right of every page — the Dashboard, Projects, a Project or Session page, and the live camera view all share the exact same conversation. It's grounded in whatever's currently relevant: the project/session you're viewing (if any), the connected camera, and a snapshot of your own activity (most-captured objects, \"try this next\" candidates). Ask it a question, or ask it to create a project, create a session, or change the camera's gain/exposure/mode — **any proposed change always shows its own Approve/Reject card first; nothing is applied automatically.** **Minimize** (the chevron button) collapses it to a thin rail with its own expand button always reachable; **Detach** moves it into its own floating window (**Dock** brings it back); **Close** hides it entirely — reopen it from **skyformac → AI** (⌘⇧J) or the toolbar toggle. While the camera view is running, the AI panel is always detached (never embedded in the sidebar) so it doesn't crowd the live preview — it returns to the sidebar automatically once you're back to browsing, if that's where it was before."
+                body: "A chat panel on the right of every page — the Dashboard, Projects, a Project or Session page, and the live camera view all share the exact same conversation. It's grounded in whatever's currently relevant: the project/session you're viewing (if any), the connected camera, your ratings/favorites, and a snapshot of your own activity (most-captured objects, \"try this next\" candidates). Ask it a question, or ask it to create a project, create a session, or change the camera's gain/exposure/mode — **any proposed change always shows its own Approve/Reject card first; nothing is applied automatically.** The compose box is a multi-line text area for longer prompts. A model picker in its header (also in Settings) lists whatever's actually installed on your configured Ollama server. **Minimize** (the chevron button) collapses it to a thin rail with its own expand button always reachable; **Detach** moves it into its own floating window (**Dock** brings it back), and its sidebar width is freely resizable by dragging its left edge; **Close** hides it entirely — reopen it from **skyformac → AI** (⌘⇧J) or the toolbar toggle. While the camera view is running, the AI panel is always detached (never embedded in the sidebar) so it doesn't crowd the live preview — it returns to the sidebar automatically once you're back to browsing, if that's where it was before."
             ),
             HelpSection(
                 heading: "Archive, delete, and Recently Deleted",
