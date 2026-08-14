@@ -117,6 +117,44 @@ struct CameraManagerSessionLifecycleTests {
         #expect(manager.lastEndedSessionID == nil)
     }
 
+    @Test func showAllProjectsClearsTheSessionAndSetsTheFlag() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(1)
+        manager.setActive(project: project, session: project.sessions[0])
+
+        manager.showAllProjects()
+
+        #expect(manager.activeSession == nil)
+        #expect(manager.isShowingAllProjectsRequested)
+    }
+
+    @Test func showEquipmentListClearsTheSessionAndSetsTheFlag() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(1)
+        manager.setActive(project: project, session: project.sessions[0])
+
+        manager.showEquipmentList()
+
+        #expect(manager.activeSession == nil)
+        #expect(manager.isShowingEquipmentRequested)
+        #expect(!manager.isAddingNewEquipmentRequested)
+    }
+
+    @Test func showAddNewEquipmentClearsTheSessionAndSetsItsOwnFlag() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(1)
+        manager.setActive(project: project, session: project.sessions[0])
+
+        manager.showAddNewEquipment()
+
+        #expect(manager.activeSession == nil)
+        #expect(manager.isAddingNewEquipmentRequested)
+        #expect(!manager.isShowingEquipmentRequested)
+    }
+
     @Test func requestQuickStartClearsActiveStateAndSetsTheFlag() {
         let (manager, root) = makeManager()
         defer { try? FileManager.default.removeItem(at: root) }

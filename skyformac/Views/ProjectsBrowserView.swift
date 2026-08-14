@@ -11,7 +11,7 @@ private enum ProjectsRoute: Hashable {
     case capture(Project.ID, Session.ID, CaptureRecord.ID)
     case archived
     case recentlyDeleted
-    case equipment
+    case equipment(startsCreating: Bool)
     case equipmentSystem(EquipmentSystem.ID)
     case insights
 }
@@ -75,7 +75,7 @@ struct ProjectsBrowserView: View {
                 onOpenSession: { project, session in path.append(contentsOf: [.project(project.id), .sessionHistory(project.id, session.id)]) },
                 onNewProject: { isShowingNewProjectSheet = true },
                 onQuickStart: { isShowingQuickStartSheet = true },
-                onShowEquipment: { path.append(.equipment) },
+                onShowEquipment: { path.append(.equipment(startsCreating: false)) },
                 onShowInsights: { path.append(.insights) },
                 onShowSettings: { cameraManager.isSettingsPresented = true }
             )
@@ -111,8 +111,36 @@ struct ProjectsBrowserView: View {
                 cameraManager.isQuickStartRequested = false
                 isShowingQuickStartSheet = true
             }
+            consumePendingNavigationRequests()
         }
+        // `onAppear` alone only fires when this whole view (re)appears — i.e. coming back from
+        // camera mode. "Show All Projects"/"Equipment" can just as easily be picked from the menu
+        // bar while the browser is already showing (browsing a project's own detail page, say), so
+        // these also need an `onChange` path to actually take effect in that case.
+        .onChange(of: cameraManager.isShowingAllProjectsRequested) { _, _ in consumePendingNavigationRequests() }
+        .onChange(of: cameraManager.isShowingEquipmentRequested) { _, _ in consumePendingNavigationRequests() }
+        .onChange(of: cameraManager.isAddingNewEquipmentRequested) { _, _ in consumePendingNavigationRequests() }
         .frame(minWidth: 820, minHeight: 600)
+    }
+
+    /// "Project → Show All Projects" / "Equipment → View" / "Equipment → Add New" — each just sets
+    /// a `CameraManager` flag (so the menu bar doesn't need to know this view's private
+    /// `NavigationStack` exists at all) that this consumes and clears here, replacing the whole
+    /// path rather than appending — these should jump straight there regardless of whatever page
+    /// was showing before, not stack on top of it.
+    private func consumePendingNavigationRequests() {
+        if cameraManager.isShowingAllProjectsRequested {
+            cameraManager.isShowingAllProjectsRequested = false
+            path = [.projectsList]
+        }
+        if cameraManager.isShowingEquipmentRequested {
+            cameraManager.isShowingEquipmentRequested = false
+            path = [.equipment(startsCreating: false)]
+        }
+        if cameraManager.isAddingNewEquipmentRequested {
+            cameraManager.isAddingNewEquipmentRequested = false
+            path = [.equipment(startsCreating: true)]
+        }
     }
 
     @ViewBuilder
@@ -128,7 +156,7 @@ struct ProjectsBrowserView: View {
                 onQuickStart: { isShowingQuickStartSheet = true },
                 onShowArchived: { path.append(.archived) },
                 onShowRecentlyDeleted: { path.append(.recentlyDeleted) },
-                onShowEquipment: { path.append(.equipment) },
+                onShowEquipment: { path.append(.equipment(startsCreating: false)) },
                 onBulkArchive: { ids in
                     for id in ids {
                         guard let project = library.projects.first(where: { $0.id == id }) else { continue }
@@ -197,10 +225,11 @@ struct ProjectsBrowserView: View {
                 onDeletePermanently: { try? library.permanentlyDelete($0) },
                 onDeleteAllPermanently: { library.permanentlyDeleteAllDeleted() }
             )
-        case .equipment:
+        case .equipment(let startsCreating):
             EquipmentPage(
                 library: cameraManager.equipmentLibrary,
-                onSelect: { system in path.append(.equipmentSystem(system.id)) }
+                onSelect: { system in path.append(.equipmentSystem(system.id)) },
+                startsCreatingSystem: startsCreating
             )
         case .equipmentSystem(let systemID):
             if let system = cameraManager.equipmentLibrary.system(withID: systemID) {
@@ -624,6 +653,11 @@ struct ActionCard: View {
                 Text(subtitle ?? "Start something new").font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             .padding(10)
+            // A fixed width — without one, each card's width is purely intrinsic (whichever of
+            // title/subtitle is longer on one line), so "Equipment"/"Insights"/"Settings" (short
+            // titles, varying subtitle lengths) ended up visibly narrower than "New Project"/
+            // "All Projects." Every "Common Tasks" card should read as one uniform row of tiles.
+            .frame(width: 180, alignment: .leading)
             .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)

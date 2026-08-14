@@ -1334,6 +1334,15 @@ final class CameraManager {
     /// Same idea as `isCreatingNewProjectRequested`, for the Home page's "Quick Start" sheet
     /// instead — set by `requestQuickStart()` (the Project menu's "Quick Start…" item).
     var isQuickStartRequested = false
+    /// Same idea again, for "Project → Show All Projects" — jumps straight to the top-level
+    /// Projects list rather than wherever the browser would otherwise reopen (the active
+    /// project's own page, if any).
+    var isShowingAllProjectsRequested = false
+    /// Set by "Equipment → View" — opens the Equipment list page.
+    var isShowingEquipmentRequested = false
+    /// Set by "Equipment → Add New" — opens the Equipment list page with its "New System…" sheet
+    /// already showing, rather than requiring a second click once there.
+    var isAddingNewEquipmentRequested = false
 
     /// "Project → Quick Start…" — returns to the Projects browser (if a session was running) and
     /// asks it to open the Quick Start sheet immediately, the same starting point as the Home
@@ -1370,6 +1379,27 @@ final class CameraManager {
     /// the project's own Detail page rather than jumping straight into this session's History.
     func showProjectDetail() {
         activeSession = nil
+    }
+
+    /// "Project → Show All Projects" — leaves camera mode if running, and asks the browser to jump
+    /// straight to the top-level Projects list regardless of whatever project/session was active.
+    func showAllProjects() {
+        activeSession = nil
+        isShowingAllProjectsRequested = true
+    }
+
+    /// "Equipment → View" — leaves camera mode if running, and asks the browser to open the
+    /// Equipment list page.
+    func showEquipmentList() {
+        activeSession = nil
+        isShowingEquipmentRequested = true
+    }
+
+    /// "Equipment → Add New" — same as `showEquipmentList()`, but also opens the "New System…"
+    /// sheet immediately rather than requiring a second click once there.
+    func showAddNewEquipment() {
+        activeSession = nil
+        isAddingNewEquipmentRequested = true
     }
 
     /// `true` once there's a session immediately after the active one in `activeProject.sessions`
@@ -2081,6 +2111,56 @@ final class CameraManager {
     func loadAndApplyAcquisitionPreset() {
         loadAcquisitionPreset { [weak self] preset, _ in
             self?.applyAcquisitionPreset(preset)
+        }
+    }
+
+    /// "File → Save As Project…" — packages the active project's whole folder (its metadata, every
+    /// session, every capture file and thumbnail) into one `.zip` a user can hand to someone else,
+    /// unlike `ProjectStore.save`'s own per-edit `project.json`-only write. A no-op with no active
+    /// project, the same "nothing to act on" reasoning `exportCurrentFrame` already applies for
+    /// `currentFrame == nil`. Archiving runs off the main actor (`ProjectArchive` shells out to
+    /// `/usr/bin/ditto` and waits for it) so a large project doesn't freeze the UI while zipping.
+    func saveActiveProjectAsFile() {
+        guard let project = activeProject else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.zip]
+        panel.nameFieldStringValue = "\(project.name).zip"
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url, let self else { return }
+            let projectFolder = self.projectStore.projectFolderURL(for: project)
+            Task.detached(priority: .utility) {
+                do {
+                    try ProjectArchive.archive(projectFolder: projectFolder, to: url)
+                } catch {
+                    await MainActor.run { self.lastErrorMessage = String(describing: error) }
+                }
+            }
+        }
+    }
+
+    /// "File → Load Project…" — the other half of `saveActiveProjectAsFile()`: unpacks a `.zip`
+    /// (this app's own export, or one from another user/machine sharing a project) into a
+    /// brand-new project in this library. `ProjectArchive.importProject` always assigns a fresh
+    /// `id`/`folderName`, so this can never silently collide with or overwrite an existing project
+    /// — including re-importing the same file twice.
+    func loadProjectFromFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.zip]
+        panel.allowsMultipleSelection = false
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url, let self else { return }
+            let projectsRoot = self.projectStore.rootDirectory
+            Task.detached(priority: .utility) {
+                do {
+                    let imported = try ProjectArchive.importProject(from: url, into: projectsRoot)
+                    await MainActor.run {
+                        self.projectsLibrary.reload()
+                        self.setActive(project: imported, session: nil)
+                    }
+                } catch {
+                    await MainActor.run { self.lastErrorMessage = String(describing: error) }
+                }
+            }
         }
     }
 

@@ -575,9 +575,24 @@ session persistence design and the browser-as-main-window architecture)
   checkbox to instantly fall back to the camera's own unmodified output.
   Also reachable from the menu bar (Sidebar Tab menu, ⌘1-⌘4) — a fully
   independent path to the same `@AppStorage("sidebarTab")` state, not just a
-  shortcut to the same button.
+  shortcut to the same button. Both the **Camera** and **Sidebar Tab** menus
+  only appear in the menu bar at all while a camera session is actually
+  running — neither has anything meaningful to do otherwise, so rather than
+  showing a menu full of items that don't apply, the whole menu is absent
+  until one is.
 - **Menu bar commands** — export (⌘E/⌘⇧E), camera rescan/connect (⌘R/⌘K), and
-  toolbar toggles (⌘M, ⌘⇧N, ⌘⇧A), all with keyboard shortcuts.
+  toolbar toggles (⌘M, ⌘⇧N, ⌘⇧A), all with keyboard shortcuts. The **Project**
+  menu's **Show All Projects** jumps straight to the top-level Projects list
+  regardless of what's currently active. A dedicated **Equipment** menu has
+  **View** (⌃⌘E) and **Add New…** (⌃⌘⇧E) — the latter opens the Equipment
+  page with its "New System…" sheet already showing. The **File** menu's
+  **Save As Project…** (⌥⌘S, disabled with no active project) and **Load
+  Project…** (⌥⌘O) package/unpack a whole project — its metadata, every
+  session, every capture file and thumbnail — as one `.zip`, for handing a
+  project to another user or machine; importing always assigns the
+  incoming project a fresh identity, so it can never collide with (or
+  silently overwrite) anything already in the library, even re-importing
+  the same file twice.
 - **Settings persistence** — renderer choice, enhancement toggles, and which
   overlays are on survive a relaunch; session state (calibration frames,
   live-stack accumulation, in-progress polar alignment) intentionally starts

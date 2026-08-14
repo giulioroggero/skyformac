@@ -7,7 +7,15 @@ struct EquipmentPage: View {
     var library: EquipmentLibrary
     var onSelect: (EquipmentSystem) -> Void
 
-    @State private var isCreatingSystem = false
+    @State private var isCreatingSystem: Bool
+
+    /// `startsCreatingSystem`: "Equipment → Add New" opens straight into the "New System…" sheet
+    /// instead of requiring a second click once the list page is showing.
+    init(library: EquipmentLibrary, onSelect: @escaping (EquipmentSystem) -> Void, startsCreatingSystem: Bool = false) {
+        self.library = library
+        self.onSelect = onSelect
+        self._isCreatingSystem = State(initialValue: startsCreatingSystem)
+    }
 
     var body: some View {
         List {

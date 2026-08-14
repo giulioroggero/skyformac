@@ -51,40 +51,57 @@ struct SkyformacCommands: Commands {
             Button("Export as PNG…") { cameraManager.exportCurrentFrame(as: .png) }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(cameraManager.currentFrame == nil)
+
+            Divider()
+
+            // Packages/unpacks a whole project folder as one file — "share projects across
+            // users" — distinct from Export above, which is about a single captured frame.
+            Button("Save As Project…") { cameraManager.saveActiveProjectAsFile() }
+                .keyboardShortcut("s", modifiers: [.command, .option])
+                .disabled(cameraManager.activeProject == nil)
+            Button("Load Project…") { cameraManager.loadProjectFromFile() }
+                .keyboardShortcut("o", modifiers: [.command, .option])
         }
 
-        CommandMenu("Camera") {
-            Button("Rescan Cameras") { cameraManager.refreshCameraList() }
-                .keyboardShortcut("r", modifiers: .command)
+        // Both this and "Sidebar Tab" below only make sense while the camera view is actually
+        // showing — "Rescan Cameras," a render-path toggle, or a sidebar-tab shortcut are all
+        // meaningless (and were previously just always enabled) when the window is showing the
+        // Projects browser instead. `@CommandsBuilder` supports `if`, the same as `@ViewBuilder`,
+        // so this removes the whole menu from the menu bar rather than merely disabling its items.
+        if cameraManager.activeSession != nil {
+            CommandMenu("Camera") {
+                Button("Rescan Cameras") { cameraManager.refreshCameraList() }
+                    .keyboardShortcut("r", modifiers: .command)
 
-            Divider()
+                Divider()
 
-            if cameraManager.connectedCamera != nil {
-                Button("Disconnect") { cameraManager.disconnect() }
+                if cameraManager.connectedCamera != nil {
+                    Button("Disconnect") { cameraManager.disconnect() }
+                        .keyboardShortcut("k", modifiers: .command)
+                } else {
+                    Button("Connect to First Available") {
+                        guard let camera = cameraManager.availableCameras.first else { return }
+                        Task { await cameraManager.connect(to: camera) }
+                    }
                     .keyboardShortcut("k", modifiers: .command)
-            } else {
-                Button("Connect to First Available") {
-                    guard let camera = cameraManager.availableCameras.first else { return }
-                    Task { await cameraManager.connect(to: camera) }
+                    .disabled(cameraManager.availableCameras.isEmpty)
                 }
-                .keyboardShortcut("k", modifiers: .command)
-                .disabled(cameraManager.availableCameras.isEmpty)
+
+                Divider()
+
+                Button("Acquisition Wizard…") { cameraManager.isAcquisitionWizardPresented = true }
+                    .keyboardShortcut("w", modifiers: [.command, .shift])
+
+                // Save/Load work standalone, without the Wizard sheet open at all — the Wizard is
+                // where you'd go to pick a *target*'s recommended setup; these two are for a setup
+                // you already have dialed in (or a preset file you already know you want).
+                Button("Save Current Setup as Preset…") { cameraManager.saveCurrentSetupAsPreset() }
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
+                    .disabled(cameraManager.connectedCamera == nil)
+                Button("Load Preset…") { cameraManager.loadAndApplyAcquisitionPreset() }
+                    .keyboardShortcut("l", modifiers: [.command, .shift])
+                    .disabled(cameraManager.connectedCamera == nil)
             }
-
-            Divider()
-
-            Button("Acquisition Wizard…") { cameraManager.isAcquisitionWizardPresented = true }
-                .keyboardShortcut("w", modifiers: [.command, .shift])
-
-            // Save/Load work standalone, without the Wizard sheet open at all — the Wizard is
-            // where you'd go to pick a *target*'s recommended setup; these two are for a setup
-            // you already have dialed in (or a preset file you already know you want).
-            Button("Save Current Setup as Preset…") { cameraManager.saveCurrentSetupAsPreset() }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-                .disabled(cameraManager.connectedCamera == nil)
-            Button("Load Preset…") { cameraManager.loadAndApplyAcquisitionPreset() }
-                .keyboardShortcut("l", modifiers: [.command, .shift])
-                .disabled(cameraManager.connectedCamera == nil)
         }
 
         // Every project/session management action in one place — creating, opening, navigating,
@@ -94,6 +111,7 @@ struct SkyformacCommands: Commands {
                 .keyboardShortcut("p", modifiers: [.command, .shift])
             Button("Quick Start…") { cameraManager.requestQuickStart() }
                 .keyboardShortcut("u", modifiers: .command)
+            Button("Show All Projects") { cameraManager.showAllProjects() }
             Button("Go Home") { cameraManager.setActive(project: nil, session: nil) }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
 
@@ -123,11 +141,20 @@ struct SkyformacCommands: Commands {
                 .keyboardShortcut("r", modifiers: [.command, .shift])
         }
 
-        CommandMenu("Sidebar Tab") {
-            tabButton(.cameraControls, shortcut: "1")
-            tabButton(.improvements, shortcut: "2")
-            tabButton(.planetary, shortcut: "3")
-            tabButton(.deepSky, shortcut: "4")
+        CommandMenu("Equipment") {
+            Button("View") { cameraManager.showEquipmentList() }
+                .keyboardShortcut("e", modifiers: [.command, .control])
+            Button("Add New…") { cameraManager.showAddNewEquipment() }
+                .keyboardShortcut("e", modifiers: [.command, .control, .shift])
+        }
+
+        if cameraManager.activeSession != nil {
+            CommandMenu("Sidebar Tab") {
+                tabButton(.cameraControls, shortcut: "1")
+                tabButton(.improvements, shortcut: "2")
+                tabButton(.planetary, shortcut: "3")
+                tabButton(.deepSky, shortcut: "4")
+            }
         }
 
         CommandGroup(after: .toolbar) {

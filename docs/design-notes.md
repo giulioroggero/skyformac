@@ -2355,3 +2355,61 @@ made along the way.
     `.createSession` mechanism verbatim — case-insensitive match against an existing project by
     name, or create one — so accepting behaves identically to approving the same action from the
     AI panel, rather than a second, subtly different code path.
+
+- **New menu items ("Show All Projects," an Equipment menu, project Save As/Load), Camera/Sidebar
+  Tab menus now camera-mode-only, and a Dashboard card-width fix.** Five independent items.
+  - **Menu → Projects browser navigation is a fire-and-forget flag, not a direct call** — the
+    Projects browser owns its own private `NavigationStack` state (`ProjectsBrowserView`'s `path`),
+    which nothing outside that view (the menu bar included) can reach directly. The existing
+    pattern (`isCreatingNewProjectRequested`/`isQuickStartRequested`) is a `CameraManager`-owned
+    `Bool` the menu action sets and `ProjectsBrowserView` consumes and clears; "Show All Projects"/
+    "Equipment → View"/"Equipment → Add New" add three more (`isShowingAllProjectsRequested`/
+    `isShowingEquipmentRequested`/`isAddingNewEquipmentRequested`), consumed by a new
+    `consumePendingNavigationRequests()` that replaces the whole `path` (`path = [.projectsList]`,
+    not an append) so these jump straight there regardless of whatever page was showing.
+    **Difference from the existing two flags**: those are only ever consumed in `.onAppear` (fired
+    when the browser view itself (re)appears — i.e. coming back from camera mode), which silently
+    does nothing if the flag is set while the browser is already on screen. Since "Show All
+    Projects"/"Equipment" are just as likely to be picked from the menu while already browsing
+    (sitting on a project's detail page, say), `consumePendingNavigationRequests()` is also wired
+    to `.onChange(of:)` on each flag, not just `.onAppear` — a gap the older two flags still have,
+    left alone since fixing it wasn't asked for here.
+  - **Equipment → Add New** needed `EquipmentPage` to be able to open already in "create" mode —
+    its `isCreatingSystem` was private `@State` with no way in from outside. Added a
+    `startsCreatingSystem` init parameter (default `false`, so every existing call site is
+    unaffected) that seeds the `@State` via a custom `init`, rather than exposing the `@State`
+    itself as a binding — the page still owns whether the sheet is showing at any moment after
+    that, just with a different starting point.
+  - **Camera / Sidebar Tab menus are now conditionally absent, not just disabled** — neither menu
+    had *any* connection to `cameraManager.activeSession` before; "Rescan Cameras," an Acquisition
+    Wizard shortcut, and every sidebar-tab shortcut were fully enabled (and did something, however
+    nonsensical) even with no camera view up at all. `@CommandsBuilder` supports `if` the same way
+    `@ViewBuilder` does, so both `CommandMenu`s are now wrapped in `if cameraManager.activeSession
+    != nil { ... }` — the whole menu vanishes from the menu bar outside camera mode, not merely
+    grayed out, since these aren't "sometimes-inapplicable actions on an always-relevant page,"
+    they're a whole menu that only makes sense on one specific page.
+  - **Save As Project / Load Project — sharing a project as one file.** Projects are folders
+    (`project.json` + one subfolder per session + capture files/thumbnails); nothing in the
+    codebase packaged that as a single shareable file before. New `ProjectArchive` (a plain
+    `enum`, not tied to `CameraManager`, so it's independently testable against real temp
+    directories rather than needing a fake) shells out to `/usr/bin/ditto` — the standard macOS
+    tool for zipping a directory tree — rather than adding a third-party archiving dependency or
+    reaching for `AppleArchive` for what's fundamentally "zip a folder, unzip a folder."
+    `--keepParent` on the way out preserves the folder's own name inside the zip, so
+    `importProject(from:into:)` can find it as the one top-level directory entry once extracted.
+    **Import always assigns a fresh `id` and matching `folderName`** (`Project.makeFolderName`,
+    the same helper `newProject(name:)` itself uses) rather than trusting whatever the exporting
+    machine's `project.json` says — without this, re-importing the same export twice, or two
+    different people's exports that happened to share an id, would silently collide with or
+    overwrite whatever's already in the importing library. `CameraManager.saveActiveProjectAsFile
+    ()`/`loadProjectFromFile()` are thin `NSSavePanel`/`NSOpenPanel` wrappers around this — disabled
+    with no active project for Save, and both run the actual archive/unarchive work in
+    `Task.detached`, since `ditto` blocks synchronously until it finishes and a large project's
+    worth of capture files shouldn't freeze the UI while zipping.
+  - **`ActionCard` (Dashboard's "Common Tasks" tiles) had no `.frame(width:)` at all** — each
+    card's width was purely intrinsic, driven by whichever of its title/subtitle was the longer
+    single line. "New Project" (no subtitle → falls back to "Start something new") and "All
+    Projects" ("Browse everything") happened to end up wider than "Equipment"/"Insights"/
+    "Settings," whose own subtitles are shorter — nothing pinned them to a shared width. Fixed
+    with one `.frame(width: 180, alignment: .leading)` on the card's whole `VStack`, so every
+    "Common Tasks" tile now reads as one uniform row regardless of its own text length.
