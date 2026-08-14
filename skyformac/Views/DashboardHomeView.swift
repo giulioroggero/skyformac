@@ -107,6 +107,7 @@ struct DashboardHomeView: View {
                                 .accessibilityIdentifier("DashboardInsightsTile")
                         }
                     }
+                    .accessibilityIdentifier("CommonTasksScrollView")
                 }
 
                 if !recentProjects.isEmpty {

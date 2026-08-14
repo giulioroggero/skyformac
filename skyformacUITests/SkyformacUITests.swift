@@ -72,22 +72,23 @@ final class SkyformacUITests: XCTestCase {
 
         // The Home page's own "Settings" tile was removed from "Common Tasks" — Settings is still
         // reachable via this toolbar button (and ⌘,), so this now drives that instead.
-        // `.matching(identifier:).firstMatch` rather than the `buttons[...]` subscript: a
-        // `ToolbarItem`'s own accessibility proxy can transiently expose the same identifier on
-        // more than one node before the toolbar settles, which makes the (must-be-exactly-one)
-        // subscript form flaky here — `firstMatch` tolerates that without caring which one it is,
-        // since both represent the same visual button. `waitForExistence` first, rather than
-        // tapping immediately after `launch()`, for the same "give the toolbar a moment to
-        // render" reason every other tile/button in this file already waits for.
-        let settingsButton = app.buttons.matching(identifier: "DashboardSettingsToolbarButton").firstMatch
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10))
-        // `waitForExistence` alone isn't enough on a slower CI runner — the toolbar item can exist
-        // in the accessibility tree slightly before it's actually hittable (still settling into
-        // place), which reproduced on CI as "Element ... is not hittable". Wait for that
-        // explicitly too, rather than tapping the instant it merely exists.
-        let isHittable = NSPredicate(format: "isHittable == true")
-        wait(for: [XCTNSPredicateExpectation(predicate: isHittable, object: settingsButton)], timeout: 10)
-        settingsButton.tap()
+        // A `ToolbarItem`'s own accessibility representation duplicates this identifier onto TWO
+        // nodes — an outer layout container spanning the whole toolbar height, and the actual
+        // clickable inner button nested inside it (confirmed via a downloaded CI .xcresult: the
+        // outer one, `{{1100,25},{38,52}}`, is never hittable; the inner one, `{{1104,37},{30,28}}`,
+        // is) — so neither a unique-match subscript nor a blind `firstMatch` reliably picks the
+        // right one. Polling `allElementsBoundByIndex` for whichever one is actually hittable
+        // sidesteps needing to know which index that'll be.
+        let candidates = app.buttons.matching(identifier: "DashboardSettingsToolbarButton")
+        XCTAssertTrue(candidates.firstMatch.waitForExistence(timeout: 10))
+        let deadline = Date().addingTimeInterval(10)
+        var settingsButton: XCUIElement?
+        while settingsButton == nil && Date() < deadline {
+            settingsButton = candidates.allElementsBoundByIndex.first(where: \.isHittable)
+            if settingsButton == nil { Thread.sleep(forTimeInterval: 0.2) }
+        }
+        let button = try XCTUnwrap(settingsButton, "No hittable DashboardSettingsToolbarButton found")
+        button.tap()
 
         // The Projects Folder section header is unique to `SettingsView` — its presence confirms
         // the sheet actually opened rather than the tap silently doing nothing.
@@ -98,14 +99,19 @@ final class SkyformacUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // Unlike `launchIntoCameraView`'s own Quick Start tile, this tapped the tile immediately
-        // after `launch()` with no `waitForExistence` — on a slow/cold CI runner the tap can land
-        // before the button is actually hittable and silently do nothing, leaving the app stuck on
-        // the Dashboard for the rest of the timeout below (the likely cause of an otherwise
-        // unreproducible-locally CI failure here). Waiting first, matching every tap-then-navigate
-        // test elsewhere in this file, removes that race outright.
         let insightsTile = app.buttons["DashboardInsightsTile"]
         XCTAssertTrue(insightsTile.waitForExistence(timeout: 10))
+        // The "Common Tasks" row is a horizontal ScrollView of 5 tiles; on a narrower window (a
+        // downloaded CI screen recording confirmed this — the AI sidebar leaves less room for the
+        // main content there than on a typical local dev display) the 5th tile, Insights, is
+        // scrolled out of view. macOS XCUITest does NOT auto-scroll an off-screen-but-existing
+        // element into view before tapping (unlike iOS), so the tap was landing on whatever was
+        // actually on screen underneath — the AI panel — instead of this tile, leaving the app
+        // stuck on the Dashboard for the rest of the wait below. Scroll it into view explicitly.
+        if !insightsTile.isHittable {
+            app.scrollViews["CommonTasksScrollView"].scroll(byDeltaX: 400, deltaY: 0)
+        }
+        XCTAssertTrue(insightsTile.isHittable)
         insightsTile.tap()
 
         // macOS `NavigationStack` titles don't surface as an XCUITest `NavigationBar` element the
