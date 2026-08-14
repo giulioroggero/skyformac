@@ -342,10 +342,15 @@ session persistence design and the browser-as-main-window architecture)
   the same editable fields used to plan it. A session's planned date is now
   itself editable (`Toggle` + `DatePicker`) — previously write-only in the
   data model with no UI at all.
-- **Full-width pages, no side margins** — the Session page (and the Capture
-  page below it) fill the window edge-to-edge instead of centering/capping
-  their content the way a `Form` normally would on macOS; a "Back to
-  Project"/"Back to Session" button sits at the top of each.
+- **Full-width pages, no side margins** — the Project Detail, Session, and
+  Capture pages all fill the window edge-to-edge instead of centering/capping
+  their content the way a `Form` normally would on macOS (see `PageSection`);
+  a "Back to Project"/"Back to Session" button sits at the top of each.
+- **Resizable, auto-sized stat tables** — `StatsGridView` is a real SwiftUI
+  `Table` (Label/Value columns), not a capped-width grid, so the History and
+  Stats sections on the Project, Session, and Capture pages can be widened to
+  the full page width and their columns dragged/auto-sized to fit the text,
+  instead of staying compressed into a narrow strip.
 - **Tap a timeline thumbnail for its own Capture page** — a larger preview
   (the actual PNG/TIFF file, or the capture's thumbnail for FITS/SER/
   recording-folder kinds `NSImage` can't decode directly), file info, the
@@ -357,9 +362,17 @@ session persistence design and the browser-as-main-window architecture)
   Capture pages show the same breakdown scoped to that one session
   (`StatsGridView`, shared across all three).
 - **Timelines with thumbnails** — every session shows its captures as a
-  filmstrip (date + a small JPEG thumbnail generated from the same image
-  already being exported), the iMovie-style browsing this feature is built
-  around.
+  filmstrip, most recent on the left, each thumbnail wide enough to show the
+  capture kind (FITS/PNG/TIFF/SER Video/Recording) and, if present, its own
+  plain-English note underneath the date — the iMovie-style browsing this
+  feature is built around.
+- **Plain-English capture notes** — every capture automatically gets a short
+  human-readable note of what actually happened when it was taken —
+  "Captured Saturn in Live Stack as FITS," "Recorded M13 as an SER video for
+  30 sec" — built from the session's planned object, which acquisition mode
+  was active (Live Stack/Lucky Imaging/plain), and (for SER) how long it ran
+  (`CameraManager.captureActionNote(for:session:)`). Shown on the timeline
+  thumbnail and the Capture page.
 - **Active session capture filing** — exporting a frame or finishing a SER
   recording while a session is running also files a copy of it into that
   session's timeline, alongside the normal Export History.
@@ -367,10 +380,30 @@ session persistence design and the browser-as-main-window architecture)
   hand-entered coordinates, tracked independently on a project and each of
   its sessions — settable from the browser without needing to run the
   session first.
+- **Equipment** — named `EquipmentSystem`s ("Backyard Rig," "Travel Setup")
+  built from `EquipmentItem`s across camera/mount/optical tube (always shown,
+  even empty — every real setup has them) and optional categories (tracking
+  system, imaging & optics, autoguiding, power & control, eyepiece,
+  smartphone mount, other). Add curated common brand/model entries
+  (`EquipmentCatalog` — ZWO, Celestron, Sky-Watcher, QHYCCD, Canon, Orion,
+  Tele Vue, Explore Scientific, iOptron, Baader, Anker, and more) or a custom
+  one by hand; a system can hold more than one item of the same category (a
+  main scope and a guide scope, two cameras). Reachable from the Home page
+  toolbar (`EquipmentPage`/`EquipmentSystemEditorPage`). A project can be
+  assigned a system (Project Detail page's Equipment section); each of its
+  sessions inherits that by default and can override it with a different
+  system of its own (Session page's Equipment section shows "Inherit from
+  Project (name)" alongside every system) — see
+  `Session.effectiveEquipmentSystemID(inProject:)`.
 - **Tags, notes, and search** — free-text annotations and tags on both
   projects and sessions; a single search box matches name, goal, tags,
-  planned/observed objects, and note text, optionally narrowed to a date
-  range.
+  planned/observed objects, and note text, optionally narrowed with the Home
+  page's Filters popover to an exact tag, an exact observed object (drawn
+  from `PlanetaryPreset`, the bundled Messier/bright-star catalog, and every
+  object either has actually planned — `ObservedObjectCatalog`), an
+  equipment system (matched against a session's own *effective*, inheritance
+  resolved system), and/or a date range — all combined with the free-text
+  search (`ProjectSearch.search`).
 - **AI-assisted planning** — "Ask AI to Plan…" sends a one-line goal to a
   local Ollama server (`OllamaPlanner`) and shows the suggested session(s)
   before anything is created; no cloud dependency, matches this app's
@@ -432,7 +465,7 @@ session persistence design and the browser-as-main-window architecture)
   for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 371 unit tests (Swift Testing) across 58 suites, covering
+- `skyformacTests` — 398 unit tests (Swift Testing) across 64 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

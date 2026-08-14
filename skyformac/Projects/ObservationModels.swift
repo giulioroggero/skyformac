@@ -109,6 +109,10 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
     var notes: [Annotation]
     var captures: [CaptureRecord]
     var isArchived: Bool
+    /// `nil` means "inherit the project's own equipment system" (`Project.equipmentSystemID`) —
+    /// set explicitly to override it for just this one session (a borrowed camera, a different
+    /// scope for the night, whatever changed). See `effectiveEquipmentSystemID(inProject:)`.
+    var equipmentSystemID: UUID?
     /// Stable, folder-safe name for this session's own directory (a subfolder of its project's
     /// own folder) — computed once at creation (see `newSession` factories) and never recomputed
     /// from `name`, so renaming a session later never requires also renaming/moving anything on
@@ -128,8 +132,15 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
         return Session(
             id: id, name: name, goal: goal, plannedObjects: plannedObjects, plannedDate: plannedDate,
             createdDate: Date(), location: nil, tags: [], notes: [], captures: [], isArchived: false,
-            folderName: makeFolderName(name: name, id: id)
+            equipmentSystemID: nil, folderName: makeFolderName(name: name, id: id)
         )
+    }
+
+    /// What this session's equipment actually is once inheritance is resolved — its own override
+    /// if it has one, otherwise `project`'s own assignment, otherwise `nil` (nothing assigned at
+    /// either level).
+    func effectiveEquipmentSystemID(inProject project: Project) -> UUID? {
+        equipmentSystemID ?? project.equipmentSystemID
     }
 
     /// `nil` for a session with no captures yet — the History section shows "Never run" instead
@@ -176,6 +187,10 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
     /// as absent, not an error) — an old project is never treated as deleted just because it
     /// predates this feature.
     var deletedAt: Date?
+    /// The named `EquipmentSystem` (`EquipmentLibrary`) this project's sessions use by default —
+    /// `nil` means none assigned. A session can override this for itself via its own
+    /// `equipmentSystemID`; see `Session.effectiveEquipmentSystemID(inProject:)`.
+    var equipmentSystemID: UUID?
     /// Stable, folder-safe name for this project's own directory — see `Session.makeFolderName`'s
     /// doc comment for the identical reasoning (decoupled from `name` so renaming never moves
     /// anything on disk).
@@ -239,7 +254,7 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
         return Project(
             id: id, name: name, goal: goal, plannedStartDate: nil, plannedEndDate: nil, createdDate: Date(),
             location: nil, tags: [], notes: [], sessions: [], isArchived: false, deletedAt: nil,
-            folderName: makeFolderName(name: name, id: id)
+            equipmentSystemID: nil, folderName: makeFolderName(name: name, id: id)
         )
     }
 }

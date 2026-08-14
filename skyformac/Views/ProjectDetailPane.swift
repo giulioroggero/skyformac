@@ -57,6 +57,25 @@ struct ProjectDetailPane: View {
                     StatsGridView(stats: projectStats)
                 }
 
+                PageSection(title: "Equipment") {
+                    Picker("System", selection: Binding(
+                        get: { project.equipmentSystemID },
+                        set: { newValue in
+                            var updated = project
+                            updated.equipmentSystemID = newValue
+                            try? library.save(updated)
+                        }
+                    )) {
+                        Text("None").tag(UUID?.none)
+                        ForEach(cameraManager.equipmentLibrary.systems) { system in
+                            Text(system.name).tag(UUID?.some(system.id))
+                        }
+                    }
+                    Text("Sessions use this by default — each one can override it individually.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 PageSection(title: "Tags") {
                     TagsEditorView(tags: project.tags) { tags in
                         var updated = project

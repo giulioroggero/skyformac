@@ -542,11 +542,19 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Timeline",
-                body: "Each session shows its captures as a filmstrip of thumbnails, newest first. Right-click a thumbnail to reveal the actual file in Finder."
+                body: "Each session shows its captures as a filmstrip of thumbnails, newest (most recent) first — left to right. Each thumbnail shows its capture kind and, if present, a short plain-English note underneath — automatically generated, like \"Captured Saturn in Live Stack as FITS\" or \"Recorded M13 as an SER video for 30 sec,\" describing exactly what was happening at the moment it was taken. Right-click a thumbnail to reveal the actual file in Finder."
+            ),
+            HelpSection(
+                heading: "Equipment",
+                body: "The Home page toolbar's **Equipment** button manages named equipment systems — \"Backyard Rig,\" \"Travel Setup\" — each built from camera, mount, and optical tube (always shown, since every real setup has them), plus optional categories: tracking system, imaging & optics, autoguiding, power & control, eyepiece, smartphone mount, and other. Pick an item from a curated catalog of common brands/models, or **Add Custom…** for anything not listed; a system can hold more than one item of the same category (a main scope plus a guide scope, two cameras). A project's own Equipment section assigns a system to it; a session inherits that by default, shown as **Inherit from Project (name)** in its own Equipment section — pick a different system there to override it just for that one session."
             ),
             HelpSection(
                 heading: "Location, tags, and notes",
                 body: "Both projects and sessions can track a location — **Use Current Location** for a GPS fix, or **Enter Manually…** for hand-typed coordinates — plus free-text tags and dated notes, settable from the browser without needing to run the session first. The search field in the sidebar matches name, goal, tags, planned objects, and note text."
+            ),
+            HelpSection(
+                heading: "Filters",
+                body: "The Home page toolbar's **Filters** button narrows the project/session list — on top of whatever's typed into the search box — to an exact tag, an exact observed object (drawn from the planets and Moon, the bundled Messier/bright-star catalog, and anything already typed into any project's own object list), an equipment system, and/or a date range. A session matches an equipment filter through its own *effective* system — its own override if it has one, otherwise its project's. **Clear Filters** resets all of them at once; the button's icon fills in whenever any filter is active."
             ),
             HelpSection(
                 id: "setting.aiPlanning", heading: "Ask AI to Plan…",

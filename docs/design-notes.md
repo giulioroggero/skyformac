@@ -1941,3 +1941,70 @@ made along the way.
     "Show Archived" toggle that mixed them back into the same list. `RecentlyDeletedPage` rows are
     deliberately not tappable into a full Project Detail page the way `ArchivedProjectsPage`'s
     are — a deleted project isn't something to keep editing, just restore or purge for good.
+
+- **Resizable Stats tables, plain-English capture notes, a full-width Project Detail page, and a
+  new Equipment feature with matching search filters.** Five related requests from the same round
+  of feedback.
+  - **`StatsGridView` is now a real SwiftUI `Table`** (Label/Value columns) instead of an adaptive
+    `LazyVGrid` — the grid capped its own width and compressed both columns into a narrow strip
+    regardless of how wide the page actually was; a `Table`'s columns are natively user-resizable
+    and the table itself fills the section's full width, which was the entire complaint.
+  - **`CameraManager.captureActionNote(for:session:)`** (internal, not `private`, specifically so
+    it's unit-testable without a real camera) builds a short plain-English description of what was
+    actually happening at the moment a capture was taken — "Captured Saturn in Live Stack as
+    FITS," "Recorded M13 as an SER video for 30 sec" — from the session's own planned object (or
+    its name), whether Live Stack/Lucky Imaging was active, and (for SER specifically) the actual
+    elapsed recording time. Threaded through a new `note: String? = nil` parameter on all three
+    `ProjectStore.recordCapture` variants into `CaptureRecord.note` (previously always `nil` — the
+    field existed but nothing ever wrote to it). `TimelineThumbnailView` widened to fit the note
+    (2-line-limited) underneath the date; the timeline's existing `sorted(by: { $0.date > $1.date
+    })` combined with left-to-right `HStack` layout already put the most recent capture on the
+    left, so no ordering change was needed there, just confirmation.
+  - **`ProjectDetailPane` rewritten to the same full-width `PageSection`/`ScrollView` shape**
+    `SessionDetailPane`/`CaptureDetailPage` already used, replacing its own `Form` — the one
+    remaining page in the browser still capped/centered to `Form`'s default width.
+  - **Equipment** (`EquipmentModels.swift`/`EquipmentLibrary.swift`/`EquipmentPage.swift`, new) —
+    `EquipmentCategory` (10 cases; camera/mount/opticalTube are `isCore`, always shown even empty
+    since every real setup has them; the rest — tracking system, imaging & optics, autoguiding,
+    power & control, eyepiece, smartphone mount, other — only appear once they hold an item).
+    `EquipmentCatalog` is a curated ~30-entry table of common real brand/model pairs (ZWO,
+    Celestron, Sky-Watcher, QHYCCD, Canon, Orion, Tele Vue, Explore Scientific, iOptron, Baader,
+    Anker) per category — the same "curated presets, not an exhaustive catalog, freely extensible
+    via Add Custom" scoping `PlanetaryPreset`/`DeepSkyObject` already use for observing targets,
+    reused here for gear instead. `EquipmentItem` is either `.fromCatalog(_:)` or `.custom(...)`;
+    `EquipmentSystem` is a named, flat `[EquipmentItem]` (not keyed by category), so "more than one
+    of the same category" (two cameras, a main scope plus a guide scope) just falls out of it being
+    a plain array. `EquipmentLibrary` (`@Observable`, one instance per `CameraManager` — not a true
+    app-wide singleton like `AppLog`, since equipment is scoped to camera-manager-owned state the
+    same way `projectsLibrary` is) is CRUD backed by `AppSettings.equipmentSystems`, the same
+    small-JSON-array-in-`UserDefaults` shape `exportHistory` already uses (a handful of named rigs,
+    nowhere near needing a real datastore).
+  - **`Project.equipmentSystemID`/`Session.equipmentSystemID`** (both `UUID?`) — a session's own
+    value, when set, overrides its project's; when `nil`, it inherits. Modeled as inheritance
+    rather than a separate "explicitly no equipment" sentinel — a known, deliberate simplification:
+    a session can't currently be set to "no equipment" once its project has one assigned, only
+    "inherit" or "a different system." `Session.effectiveEquipmentSystemID(inProject:)` resolves
+    it (`equipmentSystemID ?? project.equipmentSystemID`) — what both the Session page's own
+    "Inherit from Project (name)" picker option and the equipment search filter actually match
+    against, not the raw unresolved field.
+  - **Search gained `tag`/`object`/`equipmentSystemID` filters** (`ProjectSearch.search`,
+    extended) surfaced through a new **Filters** popover on the Home page toolbar
+    (`ProjectFilterState`, `FiltersPopoverView`) — each an exact (not substring) case-insensitive
+    match, since they're picked from a list rather than typed free text, unlike the existing
+    text-search parameter which stays substring-based. `ObservedObjectCatalog
+    .allKnownObjectNames(projects:)` is what populates the Object picker's choices — the union of
+    `PlanetaryPreset.allCases`, the app's own bundled `SkyCatalog` (Messier objects + bright stars,
+    already sourced from Stellarium's real DSO catalog per this doc's own Live Stack section
+    above), and every object any project has actually had typed into it. Reusing the bundled
+    catalog rather than reading the sibling `stellarium` source repository directly on disk was a
+    deliberate scoping call — that path only exists on one development machine, not something a
+    shipped build could ever depend on, and the app already ships the same underlying data.
+  - **A pre-existing UI test regression, caught while re-running the full suite for this round**:
+    `SkyformacUITests.testAppLaunchesAndShowsCameraSidebar`/`testToolbarRendererToggleExists` both
+    assumed the app launched directly into the camera view — true before the Projects browser
+    became the app's main window (see the Quick Start/breadcrumb entry above), stale ever since,
+    just never re-run until now. Fixed by launching into the camera view via the same Quick Start
+    flow a real user would use (`launchIntoCameraView`, tapping the Home page's "Quick Start…"
+    toolbar button then a target row) instead of assuming the camera view is what greets a launch,
+    plus a new `testAppLaunchesIntoTheProjectsBrowser` asserting what a fresh launch actually shows
+    now.

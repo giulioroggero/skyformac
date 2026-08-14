@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		E06CA48D0F91C0D87E7D2FED /* ObservationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C1927858D0564ECE3183F6 /* ObservationModels.swift */; };
 		09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */; };
+		4527E949643DEA91F18F3AC3 /* EquipmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F697DCCE35D7667955614A48 /* EquipmentModels.swift */; };
+		9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */; };
 		47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */; };
 		DC9D7D8B7D1D90D151ED606B /* CoreLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */; };
 		18F32B6D347E62F801858544 /* ProjectSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6503F6FAB5EE60511276664 /* ProjectSearch.swift */; };
@@ -72,6 +74,7 @@
 		7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */; };
 		F78A81BFBB8A33B86D6827DD /* TimelineStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */; };
 		D699426F7F736A03AFE97842 /* CaptureDetailPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */; };
+		EBC37D9D09994EA0A7F3F4FD /* EquipmentPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F359368A5B9198F0F3224E /* EquipmentPage.swift */; };
 		53BACB792DD5FDDC11B3BFF0 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7866DFCEC932D3B738897 /* RootView.swift */; };
 		AD962C0E6D2127BD6629CCC6 /* ProjectsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */; };
 		AB7D4190BA90A6FA00E42BA8 /* ProjectDetailPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */; };
@@ -104,6 +107,8 @@
 		6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */; };
 		9B66BD0AAA8CDF013F69A40D /* AppLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */; };
 		4D13D0C44BEEDB8C1CC59876 /* CameraManagerCaptureNoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */; };
+		C4A8C6AF3843ED60F917394A /* EquipmentModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */; };
+		30737B80E2D54DE1B8E41543 /* EquipmentLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60E80083BB3A2A7B05436F7 /* EquipmentLibraryTests.swift */; };
 		8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */; };
 		C4F70E862029FEA852476B6C /* PlanetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */; };
 		C50F2712D4496D9621959232 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
@@ -211,6 +216,8 @@
 		65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerFirstRunTests.swift; sourceTree = "<group>"; };
 		7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLogTests.swift; sourceTree = "<group>"; };
 		A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerCaptureNoteTests.swift; sourceTree = "<group>"; };
+		D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentModelsTests.swift; sourceTree = "<group>"; };
+		A60E80083BB3A2A7B05436F7 /* EquipmentLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentLibraryTests.swift; sourceTree = "<group>"; };
 		94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerSessionLifecycleTests.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
 		0C438170FE21AEABA0E72DB0 /* PreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
@@ -220,6 +227,7 @@
 		1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcquisitionWizardView.swift; sourceTree = "<group>"; };
 		0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineStripView.swift; sourceTree = "<group>"; };
 		EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureDetailPage.swift; sourceTree = "<group>"; };
+		67F359368A5B9198F0F3224E /* EquipmentPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentPage.swift; sourceTree = "<group>"; };
 		D6E7866DFCEC932D3B738897 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectsBrowserView.swift; sourceTree = "<group>"; };
 		5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectDetailPane.swift; sourceTree = "<group>"; };
@@ -275,6 +283,8 @@
 		8294B26F98035A7FF1A95728 /* CameraManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		A1C1927858D0564ECE3183F6 /* ObservationModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationModels.swift; sourceTree = "<group>"; };
 		33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
+		F697DCCE35D7667955614A48 /* EquipmentModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentModels.swift; sourceTree = "<group>"; };
+		DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentLibrary.swift; sourceTree = "<group>"; };
 		4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGenerator.swift; sourceTree = "<group>"; };
 		F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreLocationProvider.swift; sourceTree = "<group>"; };
 		E6503F6FAB5EE60511276664 /* ProjectSearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectSearch.swift; sourceTree = "<group>"; };
@@ -487,6 +497,8 @@
 				65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */,
 				7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */,
 				A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */,
+				D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */,
+				A60E80083BB3A2A7B05436F7 /* EquipmentLibraryTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
@@ -573,6 +585,8 @@
 			children = (
 				A1C1927858D0564ECE3183F6 /* ObservationModels.swift */,
 				33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */,
+				F697DCCE35D7667955614A48 /* EquipmentModels.swift */,
+				DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */,
 				4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */,
 				F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */,
 				E6503F6FAB5EE60511276664 /* ProjectSearch.swift */,
@@ -608,6 +622,7 @@
 				1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */,
 				0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */,
 				EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */,
+				67F359368A5B9198F0F3224E /* EquipmentPage.swift */,
 				7C7A02CC02BDD7A1184DC158 /* LogViewerView.swift */,
 				D6E7866DFCEC932D3B738897 /* RootView.swift */,
 				B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */,
@@ -872,6 +887,8 @@
 				3A3D0F6CB865CD988868E4B3 /* LogViewerView.swift in Sources */,
 				E06CA48D0F91C0D87E7D2FED /* ObservationModels.swift in Sources */,
 				09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */,
+				4527E949643DEA91F18F3AC3 /* EquipmentModels.swift in Sources */,
+				9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */,
 				47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */,
 				DC9D7D8B7D1D90D151ED606B /* CoreLocationProvider.swift in Sources */,
 				18F32B6D347E62F801858544 /* ProjectSearch.swift in Sources */,
@@ -896,6 +913,7 @@
 				7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */,
 				F78A81BFBB8A33B86D6827DD /* TimelineStripView.swift in Sources */,
 				D699426F7F736A03AFE97842 /* CaptureDetailPage.swift in Sources */,
+				EBC37D9D09994EA0A7F3F4FD /* EquipmentPage.swift in Sources */,
 				53BACB792DD5FDDC11B3BFF0 /* RootView.swift in Sources */,
 				AD962C0E6D2127BD6629CCC6 /* ProjectsBrowserView.swift in Sources */,
 				AB7D4190BA90A6FA00E42BA8 /* ProjectDetailPane.swift in Sources */,
@@ -984,6 +1002,8 @@
 				6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */,
 				9B66BD0AAA8CDF013F69A40D /* AppLogTests.swift in Sources */,
 				4D13D0C44BEEDB8C1CC59876 /* CameraManagerCaptureNoteTests.swift in Sources */,
+				C4A8C6AF3843ED60F917394A /* EquipmentModelsTests.swift in Sources */,
+				30737B80E2D54DE1B8E41543 /* EquipmentLibraryTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,

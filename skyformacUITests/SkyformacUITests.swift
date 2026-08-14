@@ -16,9 +16,36 @@ final class SkyformacUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testAppLaunchesAndShowsCameraSidebar() throws {
+    /// This app's main window is the Projects browser whenever no session is running — the camera
+    /// view (and its "Cameras" sidebar) only appears once a session is actually active. Quick
+    /// Start is the fastest way there: it creates a throwaway project/session for a curated target
+    /// and switches straight into the camera view (`RootView` swaps views the moment
+    /// `CameraManager.activeSession` becomes non-`nil`), so tests that need the camera view use it
+    /// rather than assuming it's what launch shows.
+    private func launchIntoCameraView(_ app: XCUIApplication) {
+        app.launch()
+        app.buttons["Quick Start…"].tap()
+        // Each Quick Start row's accessibility label is its whole custom `Button` label (name +
+        // icon + summary text concatenated), not just the target's name — matched by prefix
+        // rather than substring, since the Home page's own "Quick Start" tile (still in the
+        // accessibility tree behind the sheet) mentions "the Moon" too in its own subtitle.
+        let moonRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Moon (Detail)")).firstMatch
+        XCTAssertTrue(moonRow.waitForExistence(timeout: 5))
+        moonRow.tap()
+    }
+
+    func testAppLaunchesIntoTheProjectsBrowser() throws {
         let app = XCUIApplication()
         app.launch()
+
+        // "Quick Start…" is the Home page's own toolbar button — present only when showing the
+        // Projects browser, not the camera view.
+        XCTAssertTrue(app.buttons["Quick Start…"].waitForExistence(timeout: 10))
+    }
+
+    func testQuickStartOpensTheCameraSidebar() throws {
+        let app = XCUIApplication()
+        launchIntoCameraView(app)
 
         // "Cameras" is the sidebar section header from CameraListView.
         XCTAssertTrue(app.staticTexts["Cameras"].waitForExistence(timeout: 10))
@@ -26,7 +53,7 @@ final class SkyformacUITests: XCTestCase {
 
     func testToolbarRendererToggleExists() throws {
         let app = XCUIApplication()
-        app.launch()
+        launchIntoCameraView(app)
 
         // Label reads "GPU"/"CPU" depending on the current render path, so the test targets the
         // stable accessibility identifier rather than the (state-dependent) display text.

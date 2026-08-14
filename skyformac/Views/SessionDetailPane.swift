@@ -74,6 +74,22 @@ struct SessionDetailPane: View {
                     StatsGridView(stats: historyStats)
                 }
 
+                PageSection(title: "Equipment") {
+                    Picker("System", selection: Binding(
+                        get: { session.equipmentSystemID },
+                        set: { newValue in
+                            var updated = session
+                            updated.equipmentSystemID = newValue
+                            applyAndSave(updated)
+                        }
+                    )) {
+                        Text("Inherit from Project\(inheritedEquipmentSuffix)").tag(UUID?.none)
+                        ForEach(cameraManager.equipmentLibrary.systems) { system in
+                            Text(system.name).tag(UUID?.some(system.id))
+                        }
+                    }
+                }
+
                 if !session.captures.isEmpty {
                     PageSection(title: "Stats") {
                         StatsGridView(stats: captureStats)
@@ -179,7 +195,17 @@ struct SessionDetailPane: View {
         }
         stats.append(StatItem(label: "Aim", value: session.goal.isEmpty ? "—" : session.goal))
         stats.append(StatItem(label: "Objects", value: session.plannedObjects.isEmpty ? "—" : session.plannedObjects.joined(separator: ", ")))
+        let equipmentName = cameraManager.equipmentLibrary.system(withID: session.effectiveEquipmentSystemID(inProject: project))?.name
+        stats.append(StatItem(label: "Equipment", value: equipmentName ?? "None"))
         return stats
+    }
+
+    /// Shown next to "Inherit from Project" in the Equipment picker so the resolved system is
+    /// visible without having to go check the project's own page — "" when there's nothing to
+    /// inherit, rather than a confusing "(None)" suffix.
+    private var inheritedEquipmentSuffix: String {
+        guard let name = cameraManager.equipmentLibrary.system(withID: project.equipmentSystemID)?.name else { return "" }
+        return " (\(name))"
     }
 
     /// How much has actually been captured, broken down by kind — hidden entirely for a session

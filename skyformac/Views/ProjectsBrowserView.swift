@@ -10,6 +10,8 @@ private enum ProjectsRoute: Hashable {
     case capture(Project.ID, Session.ID, CaptureRecord.ID)
     case archived
     case recentlyDeleted
+    case equipment
+    case equipmentSystem(EquipmentSystem.ID)
 }
 
 /// The iMovie-style library for the Projects feature and — since `RootView` shows this whenever
@@ -29,6 +31,7 @@ struct ProjectsBrowserView: View {
     @State private var isShowingNewProjectSheet = false
     @State private var isShowingQuickStartSheet = false
     @State private var searchText = ""
+    @State private var filter = ProjectFilterState()
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
@@ -37,21 +40,26 @@ struct ProjectsBrowserView: View {
     /// just shows what's actually active, the same way archiving/deleting mail or files works.
     private var visibleProjects: [Project] {
         let base = library.activeProjects.filter { !$0.isArchived }
-        guard !searchText.isEmpty else { return base }
-        let matchingIDs = Set(ProjectSearch.search(base, text: searchText).map(\.project.id))
+        guard !searchText.isEmpty || filter.isActive else { return base }
+        let matchingIDs = Set(ProjectSearch.search(
+            base, text: searchText, dateRange: filter.dateRange,
+            tag: filter.tag, equipmentSystemID: filter.equipmentSystemID, object: filter.object
+        ).map(\.project.id))
         return base.filter { matchingIDs.contains($0.id) }
     }
 
     var body: some View {
         NavigationStack(path: $path) {
             ProjectsHomeView(
-                projects: visibleProjects, searchText: $searchText,
+                projects: visibleProjects, searchText: $searchText, filter: $filter,
                 activeProjectID: cameraManager.activeProject?.id, store: cameraManager.projectStore,
+                equipmentLibrary: cameraManager.equipmentLibrary, allProjects: library.activeProjects,
                 onSelectProject: { path.append(.project($0.id)) },
                 onNewProject: { isShowingNewProjectSheet = true },
                 onQuickStart: { isShowingQuickStartSheet = true },
                 onShowArchived: { path.append(.archived) },
-                onShowRecentlyDeleted: { path.append(.recentlyDeleted) }
+                onShowRecentlyDeleted: { path.append(.recentlyDeleted) },
+                onShowEquipment: { path.append(.equipment) }
             )
             .navigationDestination(for: ProjectsRoute.self) { route in
                 destination(for: route)
@@ -138,7 +146,43 @@ struct ProjectsBrowserView: View {
                 onDeletePermanently: { try? library.permanentlyDelete($0) },
                 onDeleteAllPermanently: { library.permanentlyDeleteAllDeleted() }
             )
+        case .equipment:
+            EquipmentPage(
+                library: cameraManager.equipmentLibrary,
+                onSelect: { system in path.append(.equipmentSystem(system.id)) }
+            )
+        case .equipmentSystem(let systemID):
+            if let system = cameraManager.equipmentLibrary.system(withID: systemID) {
+                EquipmentSystemEditorPage(
+                    system: system, library: cameraManager.equipmentLibrary,
+                    onBack: { path.removeLast() }
+                )
+            } else {
+                ContentUnavailableView("Equipment System No Longer Exists", systemImage: "wrench.and.screwdriver")
+            }
         }
+    }
+}
+
+/// The Home page's search facets beyond free text — every one optional/inactive by default, so
+/// this never changes what shows unless the user actually picks something.
+struct ProjectFilterState: Equatable {
+    var tag: String?
+    var object: String?
+    var equipmentSystemID: UUID?
+    var hasDateRange = false
+    var startDate = Date()
+    var endDate = Date()
+
+    var dateRange: ClosedRange<Date>? {
+        guard hasDateRange, startDate <= endDate else { return nil }
+        return startDate...endDate
+    }
+
+    var isActive: Bool { tag != nil || object != nil || equipmentSystemID != nil || hasDateRange }
+
+    mutating func clear() {
+        self = ProjectFilterState()
     }
 }
 
@@ -229,13 +273,22 @@ private enum ProjectsHomeViewMode: String {
 private struct ProjectsHomeView: View {
     let projects: [Project]
     @Binding var searchText: String
+    @Binding var filter: ProjectFilterState
     let activeProjectID: Project.ID?
     let store: ProjectStore
+    let equipmentLibrary: EquipmentLibrary
+    /// Every active (non-archived, non-deleted) project, unfiltered — what the Filters popover's
+    /// tag/object pickers draw their choices from, since those choices should reflect everything
+    /// that exists, not just whatever the current filter/search already narrowed `projects` to.
+    let allProjects: [Project]
     var onSelectProject: (Project) -> Void
     var onNewProject: () -> Void
     var onQuickStart: () -> Void
     var onShowArchived: () -> Void
     var onShowRecentlyDeleted: () -> Void
+    var onShowEquipment: () -> Void
+
+    @State private var isShowingFilters = false
 
     /// Persisted like `ControlsPanelView`'s own sidebar-tab choice — a view mode picked once
     /// shouldn't reset back to the default every relaunch — but thumbnail is what a fresh install
@@ -275,6 +328,19 @@ private struct ProjectsHomeView: View {
                 .labelStyle(.iconOnly)
             }
             ToolbarItem {
+                Button("Filters", systemImage: filter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") {
+                    isShowingFilters = true
+                }
+                .help("Filter by tag, observed object, equipment, or date range")
+                .popover(isPresented: $isShowingFilters) {
+                    FiltersPopoverView(filter: $filter, allProjects: allProjects, equipmentLibrary: equipmentLibrary)
+                }
+            }
+            ToolbarItem {
+                Button("Equipment", systemImage: "wrench.and.screwdriver", action: onShowEquipment)
+                    .help("Manage cameras, mounts, optical tubes, and other gear as named systems")
+            }
+            ToolbarItem {
                 Button("Archived", systemImage: "archivebox", action: onShowArchived)
                     .help("Projects you've archived — still around, just out of the way")
             }
@@ -290,6 +356,61 @@ private struct ProjectsHomeView: View {
                 Button("New Project…", systemImage: "plus", action: onNewProject)
             }
         }
+    }
+}
+
+/// The Home page toolbar's Filters popover — tag, observed object, equipment system, and a date
+/// range, each independently optional; combined with free-text search (all AND'd together) via
+/// `ProjectSearch.search`.
+private struct FiltersPopoverView: View {
+    @Binding var filter: ProjectFilterState
+    let allProjects: [Project]
+    let equipmentLibrary: EquipmentLibrary
+
+    private var knownTags: [String] {
+        Array(Set(allProjects.flatMap(\.tags) + allProjects.flatMap { $0.sessions.flatMap(\.tags) })).sorted()
+    }
+
+    private var knownObjects: [String] {
+        ObservedObjectCatalog.allKnownObjectNames(projects: allProjects)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Filters").font(.headline)
+
+            Picker("Tag", selection: $filter.tag) {
+                Text("Any").tag(String?.none)
+                ForEach(knownTags, id: \.self) { tag in
+                    Text(tag).tag(String?.some(tag))
+                }
+            }
+
+            Picker("Object", selection: $filter.object) {
+                Text("Any").tag(String?.none)
+                ForEach(knownObjects, id: \.self) { object in
+                    Text(object).tag(String?.some(object))
+                }
+            }
+
+            Picker("Equipment", selection: $filter.equipmentSystemID) {
+                Text("Any").tag(UUID?.none)
+                ForEach(equipmentLibrary.systems) { system in
+                    Text(system.name).tag(UUID?.some(system.id))
+                }
+            }
+
+            Toggle("Date Range", isOn: $filter.hasDateRange)
+            if filter.hasDateRange {
+                DatePicker("From", selection: $filter.startDate, displayedComponents: .date)
+                DatePicker("To", selection: $filter.endDate, displayedComponents: .date)
+            }
+
+            Button("Clear Filters") { filter.clear() }
+                .disabled(!filter.isActive)
+        }
+        .padding()
+        .frame(width: 280)
     }
 }
 

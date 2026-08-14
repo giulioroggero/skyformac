@@ -1083,6 +1083,7 @@ final class CameraManager {
     let locationProvider: CoreLocationProvider
     let projectsLibrary: ProjectsLibrary
     let ollamaPlanner: OllamaPlanner
+    let equipmentLibrary = EquipmentLibrary()
     var activeProject: Project?
     var activeSession: Session?
     /// Set by `endActiveSession()` right before clearing `activeSession`, so

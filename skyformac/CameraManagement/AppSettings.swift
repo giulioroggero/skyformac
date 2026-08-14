@@ -29,6 +29,7 @@ enum AppSettings {
         case exportHistory
         case smartLiveStackQualityFraction
         case telescopeProfile
+        case equipmentSystems
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -184,6 +185,25 @@ enum AppSettings {
             let capped = Array(newValue.suffix(50))
             guard let data = try? JSONEncoder().encode(capped) else { return }
             UserDefaults.standard.set(data, forKey: Key.exportHistory.rawValue)
+        }
+    }
+
+    // MARK: - Equipment
+
+    /// Every named `EquipmentSystem` the user has set up — a handful of named rigs at most, not
+    /// hundreds of items, so a single JSON array in `UserDefaults` fits the same "small dataset,
+    /// no database needed" reasoning `ProjectStore`'s own doc comment applies at the (much
+    /// larger) Projects scale.
+    static var equipmentSystems: [EquipmentSystem] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Key.equipmentSystems.rawValue),
+                  let decoded = try? JSONDecoder().decode([EquipmentSystem].self, from: data)
+            else { return [] }
+            return decoded
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            UserDefaults.standard.set(data, forKey: Key.equipmentSystems.rawValue)
         }
     }
 }

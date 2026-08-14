@@ -281,15 +281,22 @@ automatically, with the target's recommended camera setup applied, straight
 into the camera view.
 
 Clicking any session — run or not — opens its own full-width Session page (a
-"Back to Project" button sits at the top); the camera view only ever opens
-via an explicit Run/Resume button, never just by tapping a row. Each session
-gets its own folder for captures and settings, a timeline of thumbnails,
+"Back to Project" button sits at the top, matching the equally full-width
+Project Detail and Capture pages — no capped/centered `Form` margins
+anywhere in the browser); the camera view only ever opens via an explicit
+Run/Resume button, never just by tapping a row. Each session gets its own
+folder for captures and settings, a timeline of thumbnails (most recent on
+the left, each with its capture kind and, if present, a note underneath),
 tags, notes, and GPS or hand-entered location, plus a full History
-(date/time, position, aim, objects) and a capture-count Stats breakdown.
-Tapping a timeline thumbnail opens its own Capture page — a larger preview,
-file info, and the session's own context and stats. Exporting a frame or
-finishing a SER recording while a session is running also files a copy into
-that session's timeline. While running, a breadcrumb (Home / Project name /
+(date/time, position, aim, objects) and a capture-count Stats breakdown
+shown in a real resizable/auto-sizing `Table`, not a cramped fixed grid.
+Every capture also gets an automatic plain-English note — "Captured Saturn
+in Live Stack as FITS," "Recorded M13 as an SER video for 30 sec" — built
+from what was actually happening at the moment it was taken. Tapping a
+timeline thumbnail opens its own Capture page — a larger preview, file info,
+and the session's own context and stats. Exporting a frame or finishing a
+SER recording while a session is running also files a copy into that
+session's timeline. While running, a breadcrumb (Home / Project name /
 Session name) replaces the window's usual
 title-bar navigation, and the menu bar's **Project** menu covers every
 project/session action — ending the session, opening the next one, adding a
@@ -304,6 +311,23 @@ from the toolbar's **Archived** button) or **Delete** it — deletes move to
 **Recently Deleted** (toolbar) for a 30-day grace period before being purged
 automatically, with **Restore** and **Delete Permanently** (individually or
 all at once) available immediately.
+
+### Equipment
+
+The Home page toolbar's **Equipment** button manages named equipment
+systems — "Backyard Rig," "Travel Setup" — each built from items across
+camera/mount/optical tube (always shown, since every real setup has them)
+and optional categories (tracking system, imaging & optics, autoguiding,
+power & control, eyepiece, smartphone mount, other). Pick from a curated
+catalog of common brands/models or add a custom one by hand; a system can
+hold more than one item of the same category (a main scope plus a guide
+scope). A project can be assigned a system on its own Detail page; each
+session inherits that by default and can pick a different one for itself.
+
+The Home page's **Filters** button narrows the project/session list (on top
+of free-text search) to an exact tag, an exact observed object (planets, the
+Moon, the bundled Messier/bright-star catalog, or anything already typed
+into a project), an equipment system, and/or a date range.
 
 ### Application Log
 
