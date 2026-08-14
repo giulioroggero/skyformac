@@ -30,3 +30,11 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: build/Logs/Test/*.xcresult
+          retention-days: 7

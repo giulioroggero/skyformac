@@ -81,6 +81,12 @@ final class SkyformacUITests: XCTestCase {
         // render" reason every other tile/button in this file already waits for.
         let settingsButton = app.buttons.matching(identifier: "DashboardSettingsToolbarButton").firstMatch
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 10))
+        // `waitForExistence` alone isn't enough on a slower CI runner — the toolbar item can exist
+        // in the accessibility tree slightly before it's actually hittable (still settling into
+        // place), which reproduced on CI as "Element ... is not hittable". Wait for that
+        // explicitly too, rather than tapping the instant it merely exists.
+        let isHittable = NSPredicate(format: "isHittable == true")
+        wait(for: [XCTNSPredicateExpectation(predicate: isHittable, object: settingsButton)], timeout: 10)
         settingsButton.tap()
 
         // The Projects Folder section header is unique to `SettingsView` — its presence confirms
