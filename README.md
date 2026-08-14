@@ -4,7 +4,7 @@
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
 [![Release](https://img.shields.io/github/v/release/giulioroggero/skyformac?include_prereleases)](https://github.com/giulioroggero/skyformac/releases)
 
-<h1 align="center">Skyformac</h1>
+<h1 align="center">Sky For Mac</h1>
 
 <p align="center">
   <a href="docs/features.md">Features</a> ·
