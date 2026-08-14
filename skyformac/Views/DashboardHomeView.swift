@@ -20,6 +20,13 @@ struct DashboardHomeView: View {
     var onShowInsights: () -> Void
     var onShowSettings: () -> Void
 
+    /// Starts out as `insights.suggestedNextObjects` (the catalog-based fallback, available
+    /// immediately/synchronously) and is replaced by `CameraManager.fetchSuggestedNextObjects`'s
+    /// AI-generated list once that resolves, if Ollama's actually available — "ideas for next
+    /// time must be calculated by AI … if not present ollama fall back to the list of the
+    /// wizard." Never shows an empty state while the AI call is in flight.
+    @State private var ideas: [String] = []
+
     /// The single most recently active session across every project — what "resume the last
     /// session" actually resumes. Falls back to `nil` (the card just doesn't show) when nothing's
     /// ever been captured anywhere, rather than picking an arbitrary "most recent" with nothing
@@ -157,7 +164,7 @@ struct DashboardHomeView: View {
 
                 if !insights.suggestedNextObjects.isEmpty {
                     PageSection(title: "Ideas for Next Time") {
-                        ForEach(insights.suggestedNextObjects.prefix(3), id: \.self) { object in
+                        ForEach(ideas.prefix(3), id: \.self) { object in
                             HStack {
                                 Text(object)
                                 Spacer()
@@ -172,6 +179,10 @@ struct DashboardHomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Home")
+        .task(id: insights.suggestedNextObjects) {
+            ideas = insights.suggestedNextObjects
+            ideas = await cameraManager.fetchSuggestedNextObjects(fallback: insights.suggestedNextObjects)
+        }
         .toolbar {
             ToolbarItem {
                 Button("Settings…", systemImage: "gearshape", action: onShowSettings)

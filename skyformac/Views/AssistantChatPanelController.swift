@@ -17,7 +17,7 @@ final class AssistantChatPanelController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        panel.title = "Assistant"
+        panel.title = "AI"
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.contentView = NSHostingView(rootView: AssistantChatPanel(cameraManager: cameraManager, isDetachedWindow: true))

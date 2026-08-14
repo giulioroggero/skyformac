@@ -15,6 +15,9 @@ struct RootView: View {
     /// `HistogramCurvesPanelController` is owned by `ContentView` instead (that one lives and
     /// dies with the camera view; the assistant needs to survive across both pages).
     @State private var detachedAssistantController: AssistantChatPanelController?
+    /// Persisted like `ControlsPanelView`'s own sidebar-tab choice — a width the user drags to
+    /// should stick across relaunches, not reset back to the default every time.
+    @AppStorage("assistantPanelWidth") private var assistantPanelWidth: Double = 320
 
     var body: some View {
         HStack(spacing: 0) {
@@ -29,14 +32,19 @@ struct RootView: View {
 
             // "A chat on the right bar of all pages" — sits alongside whichever of the two above
             // is showing, rather than being reimplemented per page, so it's one continuous
-            // conversation regardless of where the user navigates.
-            if cameraManager.isAssistantPanelVisible && !cameraManager.isAssistantDetached {
-                Divider()
+            // conversation regardless of where the user navigates. The `activeSession == nil`
+            // check is a hard backstop for "in camera mode the AI is only detached" — `CameraManager
+            // .syncAssistantDockStateForCameraMode()` already forces `isAssistantDetached` true the
+            // moment a session starts, but this guarantees the sidebar copy never renders even if
+            // that state were ever somehow out of sync.
+            if cameraManager.isAssistantPanelVisible && !cameraManager.isAssistantDetached && cameraManager.activeSession == nil {
                 if cameraManager.isAssistantMinimized {
+                    Divider()
                     AssistantMinimizedRail(cameraManager: cameraManager)
                 } else {
+                    AssistantResizeHandle(width: $assistantPanelWidth)
                     AssistantChatPanel(cameraManager: cameraManager)
-                        .frame(width: 320)
+                        .frame(width: assistantPanelWidth)
                 }
             }
         }
@@ -63,8 +71,12 @@ struct RootView: View {
         )) {
             SettingsView(cameraManager: cameraManager)
         }
-        .onChange(of: cameraManager.isAssistantDetached) { _, isDetached in
-            if isDetached {
+        // Watches the combination, not just `isAssistantDetached` alone — pressing the detached
+        // panel's own Close button sets `isAssistantPanelVisible = false` while leaving
+        // `isAssistantDetached` untouched, and without this the floating `NSPanel` would have
+        // nothing left to actually close it.
+        .onChange(of: cameraManager.isAssistantPanelVisible && cameraManager.isAssistantDetached) { _, shouldShowDetached in
+            if shouldShowDetached {
                 let controller = AssistantChatPanelController(cameraManager: cameraManager) {
                     cameraManager.isAssistantDetached = false
                 }

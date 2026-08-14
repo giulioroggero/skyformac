@@ -170,7 +170,7 @@ struct SkyformacCommands: Commands {
             // `isAssistantDetached` don't need their own menu items, since both already have an
             // always-visible way back (the minimized rail's expand button, the floating panel's
             // own Dock button).
-            Toggle("Assistant", isOn: Binding(
+            Toggle("AI", isOn: Binding(
                 get: { cameraManager.isAssistantPanelVisible },
                 set: { cameraManager.isAssistantPanelVisible = $0 }
             ))

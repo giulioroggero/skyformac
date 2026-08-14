@@ -2226,3 +2226,95 @@ made along the way.
     exists at all). A bulk-action bar appears above the list the moment anything's selected,
     offering Archive/Delete over the whole set at once (looping the same single-project
     `ProjectsLibrary` methods the Project Detail page's own Danger Zone already uses) plus Clear.
+
+- **Renamed the Sidebar Assistant to "AI," forced it detached during camera mode, made it
+  resizable, added Ollama model/server settings, ratings/favorites, file-based Equipment
+  persistence, AI-computed "Ideas for Next Time," and a new Atlas view.** One large round of
+  feedback, eleven items, addressed together.
+  - **"AI" rename** was purely cosmetic (header label, tooltips, panel title, menu item, Help
+    text) — no behavior changed, so it touched a wide surface (`AssistantChatPanel`,
+    `AssistantChatPanelController`, `SkyformacCommands`, `HelpContent`) but carried no risk. The
+    one UI test that asserted on the old "Assistant" text was updated rather than duplicated.
+  - **Forced-detach during camera mode** — "in camera mode the AI assistant is only detached"
+    needed to remember whether it should go back to the sidebar afterward, since a user who
+    deliberately detached it *before* entering camera mode shouldn't have it silently re-embedded
+    when they leave. `CameraManager.activeSession`'s `didSet` (firing only on a nil↔non-nil
+    transition, not every session mutation) calls `syncAssistantDockStateForCameraMode()`, which
+    records `wasAssistantDockedBeforeCameraMode` only when it detaches the panel itself — a panel
+    that was already detached, or already closed, leaves that flag `false` and is left alone on
+    the way back out. Closing the panel entirely during camera mode is a stronger signal than the
+    remembered dock state, so it's respected: `isAssistantPanelVisible == false` simply skips the
+    redock (`syncAssistantDockStateForCameraMode`'s "leaving camera mode" branch is gated on
+    `wasAssistantDockedBeforeCameraMode && isAssistantPanelVisible`).
+  - **Resizable AI sidebar** — `AssistantResizeHandle` (new), a 6pt-wide draggable `Divider` with
+    an `NSCursor.resizeLeftRight` hover cursor, dragging in `.global` coordinate space so window
+    resizes mid-drag don't skew the delta; width clamped to `260...600` and persisted via
+    `@AppStorage("assistantPanelWidth")` on `RootView`.
+  - **Ollama model/server settings** — `AppSettings.ollamaServerURL`/`ollamaModel` (new,
+    `UserDefaults`-backed) feed `CameraManager.ollamaPlanner`'s construction; changing either calls
+    `updateOllamaConfiguration(serverURL:model:)`, which rebuilds the planner in place rather than
+    requiring a relaunch. Both Settings and the AI panel's own header menu can change the model —
+    the panel lists whatever `OllamaPlanner.installedModels()` actually reports plus an "Auto"
+    default, rather than a hardcoded list that could name a model the server doesn't have.
+  - **Ratings and favorites — the Codable trap.** Adding `var rating: Rating = .unrated` and
+    `var isFavorite = false` as plain (non-`Optional`) stored properties to `Project`/`Session`/
+    `CaptureRecord` looks harmless but isn't: Codable's *synthesized* `init(from:)` still requires
+    the key to be present when decoding — a Swift-level default only satisfies the synthesized
+    *memberwise* initializer (SE-0242), not `Decodable`. Left as-is, this would have thrown
+    `DecodingError.keyNotFound` loading every `project.json`/`session.json` written before this
+    change. Caught by a test written specifically to check it
+    (`decodingAnOlderProjectJSONWithoutRatingOrFavoriteDefaultsBoth`, one per type) before shipping,
+    fixed with a custom `init(from decoder:)` per type using `decodeIfPresent(...) ?? default` for
+    just the two new fields. Deliberately placed in an `extension`, not the primary struct body —
+    a custom initializer declared in the primary body suppresses the compiler-synthesized
+    memberwise initializer, which `newProject(...)`/`newSession(...)`/direct `CaptureRecord(...)`
+    call sites all over the app and its tests depend on; an extension's initializer doesn't.
+  - **`Rating` is `typealias Rating = Int`**, not a wrapping struct or enum — a star rating is
+    tapped, compared (`>= 4` for "top-rated"), and clamped far more often than pattern-matched, so
+    plain `Int` arithmetic pulls its weight; `Rating.unrated`/`Rating.range`/`Rating.clamped(_:)`
+    live in an `extension Rating`. Inside that extension, unqualified `min`/`max` resolve to
+    `Int.min`/`Int.max` (static properties on `Int`, since the extension really is on `Int`) rather
+    than the global `min`/`max` functions — `Swift.min(Swift.max(...))` qualification is required.
+  - **Favorites-first sort** is a plain stable `.sorted { $0.isFavorite && !$1.isFavorite }` at the
+    point each list is displayed (Projects browser, a project's session list) rather than a stored
+    ordering — favorites always float to the top of whatever filter/search is already active
+    without needing to be kept in sync with anything.
+  - **AI context now includes ratings/favorites** — `CameraManager.assistantContext()` appends the
+    active project's/session's own rating and favorite status, the names of every favorite
+    project/session, and up to 10 `RatedAction`s (`InsightsData`, new) — captures rated 4-5 stars
+    with a resolved object and preset, sorted by rating then recency — each with its exact
+    `AcquisitionPreset.summaryLine`, so the model can point at concrete "this combination worked"
+    evidence instead of reasoning from capture counts alone.
+  - **Equipment moved from `UserDefaults` to one JSON file per system** under an Equipment folder
+    (mirroring the existing Projects-folder setting exactly: `AppSettings
+    .customEquipmentDirectoryPath`, default `~/Documents/Skyformac Equipment`, a matching Settings
+    section). `EquipmentLibrary.migrateFromUserDefaultsIfNeeded()` runs once on first load of an
+    empty file-based store when the legacy `UserDefaults` key still has data — writes each system
+    out via the normal file-persist path, then clears the old key, so migration can't re-run and
+    won't fight a user who later deletes every system on purpose. Rewritten around real
+    `FileManager` I/O, so its tests now inject a temp directory instead of mocking `UserDefaults`.
+  - **"Ideas for Next Time" is now AI-computed with a synchronous fallback** — the existing
+    catalog-derived candidate list shows immediately (no loading flicker), then
+    `CameraManager.fetchSuggestedNextObjects(fallback:)` asks Ollama (new
+    `OllamaPlanner.suggestNextObjects(context:)`, same single-shot JSON-extraction approach as
+    `respond(to:context:history:)`) and silently swaps in its answer if Ollama is reachable and
+    returns a non-empty list — falling back to the original list on any failure. Wired via
+    `.task(id: insights.suggestedNextObjects) { ... }` in both `DashboardHomeView` and
+    `InsightsView` (the `id:` re-triggers the fetch if the underlying catalog-derived list itself
+    changes, e.g. after a new capture).
+  - **Atlas view leverages the app's own bundled Stellarium-derived catalog, not the sibling
+    `stellarium` source repo** — the same architectural call already made for
+    `ObservedObjectCatalog` earlier in the project's life, reaffirmed here rather than depending on
+    a real ephemeris/planetarium library or another local repo's path (non-shippable, single
+    machine). `SkyAtlasLookup` (new) resolves a session's free-text observed-object name to a
+    fixed RA/Dec by matching a normalized Messier designation (`^M\s?(\d+)` via
+    `NSRegularExpression`, so "M13," "m 13," and "M13 (Hercules Cluster)" all resolve to the same
+    catalog entry) or a common/bright-star name against `SkyCatalog`. Planets and the Moon
+    (`PlanetaryPreset`) are deliberately never plotted — they have no single fixed position without
+    real ephemeris math — and are instead listed in a separate "Not Shown on the Atlas" section,
+    distinguished from objects that simply aren't in the catalog at all, so the view's own coverage
+    limits stay visible instead of silently dropping or misplacing data. The RA axis is reversed
+    (`chartXScale(domain: 360...0)`) to match how a sky atlas conventionally reads, and
+    `Chart`/`PointMark` has no built-in per-point tap gesture, so tapping is resolved manually via
+    `chartOverlay`/`GeometryReader` + `proxy.value(at:as: (Double, Double).self)` translated through
+    `geometry[proxy.plotAreaFrame]`, then a plain nearest-neighbor scan over the plotted points.

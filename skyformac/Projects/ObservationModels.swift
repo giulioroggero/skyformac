@@ -40,6 +40,31 @@ struct Annotation: Codable, Equatable, Identifiable, Sendable {
     var text: String
 }
 
+/// A 0–5 star rating — "allow the user to vote project, sessions, task … to provide suggestions
+/// for the best settings depending on the observation." `0` means "not rated," not "rated
+/// worst" — there's a real difference between "the user hasn't judged this yet" and "the user
+/// judged it and it was bad," and only the latter should ever feed a "what worked" suggestion.
+/// A plain `Int` (not its own enum) since it's edited via a row of tappable stars and compared
+/// numerically (averages, "at least 4 stars") far more often than pattern-matched.
+typealias Rating = Int
+
+extension Rating {
+    static let unrated: Rating = 0
+    static let range: ClosedRange<Rating> = 0...5
+
+    /// Clamps into `0...5` — the one place a rating actually gets written (`clamped(_:)` call
+    /// sites below), so a stray out-of-range value (a future UI bug, a hand-edited `project.json`)
+    /// can't silently propagate into star rows expecting at most 5, or into an average that would
+    /// otherwise skew from one bad value.
+    ///
+    /// Uses `Swift.min`/`Swift.max` explicitly — inside an extension on `Int` (which `Rating` is,
+    /// via its typealias), the unqualified names resolve to `Int.min`/`Int.max` (the static
+    /// properties, i.e. `Int64.min`/`Int64.max`) instead of the global comparison functions.
+    static func clamped(_ value: Int) -> Rating {
+        Swift.min(Swift.max(value, range.lowerBound), range.upperBound)
+    }
+}
+
 /// One capture (an exported FITS/PNG/TIFF frame, a live-stacked image, an SER/continuous
 /// recording) folded into a session's own timeline — `CameraManager` appends one of these
 /// automatically whenever a capture happens while a session is active (see
@@ -104,6 +129,41 @@ struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
     /// This is what "recall the parameters from a previous action" (`applyAcquisitionPreset`)
     /// and the Insights page's "most common parameters" both read from.
     var preset: AcquisitionPreset?
+    /// The user's own judgment of this one action/"task" — `.unrated` until they actually rate
+    /// it. Feeds `AIDescriptionContext`/the AI panel's own context so "what worked" suggestions
+    /// (best settings for a given object) are grounded in what the user themselves rated well,
+    /// not just what they happened to capture most.
+    var rating: Rating = .unrated
+}
+
+extension CaptureRecord {
+    private enum CodingKeys: String, CodingKey {
+        case id, date, fileName, thumbnailFileName, kind, note, object, location, equipmentSystemID, preset, rating
+    }
+
+    /// A custom decoder purely for `rating` — `Rating` is a plain (non-`Optional`) `Int`, so
+    /// despite its `= .unrated` default in the struct declaration above, Codable's *synthesized*
+    /// decoder still requires the key to be present (a default initial value only affects the
+    /// synthesized memberwise *initializer*, not `Decodable` — only genuinely `Optional`-typed
+    /// properties get the automatic "missing key decodes as nil" treatment). Without this, every
+    /// `CaptureRecord` written before this field existed would fail to decode at all. Declared in
+    /// an extension, not the primary struct body, specifically so it doesn't suppress the
+    /// synthesized memberwise initializer every `CaptureRecord(date:fileName:kind:...)` call site
+    /// (throughout the app and its tests) still relies on.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        fileName = try container.decode(String.self, forKey: .fileName)
+        thumbnailFileName = try container.decodeIfPresent(String.self, forKey: .thumbnailFileName)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        object = try container.decodeIfPresent(String.self, forKey: .object)
+        location = try container.decodeIfPresent(GeoLocation.self, forKey: .location)
+        equipmentSystemID = try container.decodeIfPresent(UUID.self, forKey: .equipmentSystemID)
+        preset = try container.decodeIfPresent(AcquisitionPreset.self, forKey: .preset)
+        rating = try container.decodeIfPresent(Rating.self, forKey: .rating) ?? .unrated
+    }
 }
 
 /// One observing session within a `Project` — "see M13, M57, Saturn" tonight, for example.
@@ -140,6 +200,13 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
     /// from `name`, so renaming a session later never requires also renaming/moving anything on
     /// disk.
     var folderName: String
+    /// The user's own judgment of how this session actually went — `.unrated` until set. See
+    /// `CaptureRecord.rating`'s doc comment for what this feeds into.
+    var rating: Rating = .unrated
+    /// Pins this session to the top of its project's own session list — "keep them on top,"
+    /// independent of `rating` (a session can be rated highly without being a "favorite" to
+    /// revisit, and vice versa).
+    var isFavorite = false
 
     static func makeFolderName(name: String, id: UUID) -> String {
         let sanitized = ProjectStore.sanitizeForFilename(name)
@@ -207,6 +274,38 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+extension Session {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, goal, plannedObjects, plannedDate, createdDate, location, tags, notes, captures,
+             isArchived, equipmentSystemID, folderName, rating, isFavorite
+    }
+
+    /// Same reasoning as `CaptureRecord`'s own custom decoder — `rating`/`isFavorite` are
+    /// non-`Optional`, so despite their default initial values, Codable's synthesized decoder
+    /// would otherwise require both keys, failing to load any `session.json` written before they
+    /// existed. In an extension (not the primary struct body) so it doesn't suppress the
+    /// synthesized memberwise initializer `newSession(...)` and this whole codebase's tests rely
+    /// on.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        goal = try container.decode(String.self, forKey: .goal)
+        plannedObjects = try container.decode([String].self, forKey: .plannedObjects)
+        plannedDate = try container.decodeIfPresent(Date.self, forKey: .plannedDate)
+        createdDate = try container.decode(Date.self, forKey: .createdDate)
+        location = try container.decodeIfPresent(GeoLocation.self, forKey: .location)
+        tags = try container.decode([String].self, forKey: .tags)
+        notes = try container.decode([Annotation].self, forKey: .notes)
+        captures = try container.decode([CaptureRecord].self, forKey: .captures)
+        isArchived = try container.decode(Bool.self, forKey: .isArchived)
+        equipmentSystemID = try container.decodeIfPresent(UUID.self, forKey: .equipmentSystemID)
+        folderName = try container.decode(String.self, forKey: .folderName)
+        rating = try container.decodeIfPresent(Rating.self, forKey: .rating) ?? .unrated
+        isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+    }
+}
+
 /// A set of observation sessions grouped by a goal — a week of "Messier marathon" nights, a trip
 /// to a dark-sky site, or just "everything under this backyard setup this season." Owns its own
 /// folder (`ProjectStore.projectFolderURL`) containing one subfolder per `Session`.
@@ -238,6 +337,11 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
     /// doc comment for the identical reasoning (decoupled from `name` so renaming never moves
     /// anything on disk).
     var folderName: String
+    /// The user's own judgment of the project overall — `.unrated` until set. See
+    /// `CaptureRecord.rating`'s doc comment for what this feeds into.
+    var rating: Rating = .unrated
+    /// Pins this project to the top of the Home page's project list — "keep them on top."
+    var isFavorite = false
 
     var isDeleted: Bool { deletedAt != nil }
 
@@ -299,5 +403,38 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
             location: nil, tags: [], notes: [], sessions: [], isArchived: false, deletedAt: nil,
             equipmentSystemID: nil, folderName: makeFolderName(name: name, id: id)
         )
+    }
+}
+
+extension Project {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, goal, plannedStartDate, plannedEndDate, createdDate, location, tags, notes, sessions,
+             isArchived, deletedAt, equipmentSystemID, folderName, rating, isFavorite
+    }
+
+    /// Same reasoning as `Session`/`CaptureRecord`'s own custom decoders — `rating`/`isFavorite`
+    /// are non-`Optional`, so despite their default initial values, Codable's synthesized decoder
+    /// would otherwise require both keys, failing to load any `project.json` written before they
+    /// existed (every real project on disk before this feature, i.e. all of them). In an
+    /// extension so it doesn't suppress the synthesized memberwise initializer `newProject(...)`
+    /// and this codebase's many tests rely on.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        goal = try container.decode(String.self, forKey: .goal)
+        plannedStartDate = try container.decodeIfPresent(Date.self, forKey: .plannedStartDate)
+        plannedEndDate = try container.decodeIfPresent(Date.self, forKey: .plannedEndDate)
+        createdDate = try container.decode(Date.self, forKey: .createdDate)
+        location = try container.decodeIfPresent(GeoLocation.self, forKey: .location)
+        tags = try container.decode([String].self, forKey: .tags)
+        notes = try container.decode([Annotation].self, forKey: .notes)
+        sessions = try container.decode([Session].self, forKey: .sessions)
+        isArchived = try container.decode(Bool.self, forKey: .isArchived)
+        deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
+        equipmentSystemID = try container.decodeIfPresent(UUID.self, forKey: .equipmentSystemID)
+        folderName = try container.decode(String.self, forKey: .folderName)
+        rating = try container.decodeIfPresent(Rating.self, forKey: .rating) ?? .unrated
+        isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
     }
 }

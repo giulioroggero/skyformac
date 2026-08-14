@@ -51,7 +51,19 @@ struct SessionDetailPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PageSection(title: "Session") {
-                    TextField("Name", text: $name).onChange(of: name) { _, _ in save() }
+                    HStack {
+                        TextField("Name", text: $name).onChange(of: name) { _, _ in save() }
+                        FavoriteToggleButton(isFavorite: session.isFavorite) {
+                            var updated = session
+                            updated.isFavorite.toggle()
+                            applyAndSave(updated)
+                        }
+                        RatingView(rating: session.rating) { newRating in
+                            var updated = session
+                            updated.rating = newRating
+                            applyAndSave(updated)
+                        }
+                    }
                     TextField("Aim", text: $goal, prompt: Text("What is this session for?"), axis: .vertical)
                         .onChange(of: goal) { _, _ in save() }
                     TextField("Objects (comma separated)", text: $plannedObjectsText, prompt: Text("M13, M57, Saturn"))

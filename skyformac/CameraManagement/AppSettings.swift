@@ -31,6 +31,9 @@ enum AppSettings {
         case telescopeProfile
         case equipmentSystems
         case customProjectsRootDirectoryPath
+        case customEquipmentDirectoryPath
+        case ollamaServerURLString
+        case ollamaModel
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -220,5 +223,41 @@ enum AppSettings {
     static var customProjectsRootDirectoryPath: String? {
         get { UserDefaults.standard.string(forKey: Key.customProjectsRootDirectoryPath.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.customProjectsRootDirectoryPath.rawValue) }
+    }
+
+    // MARK: - Equipment folder
+
+    /// Same "user-chosen folder instead of a default, read once at launch" shape as the Projects
+    /// folder above — `EquipmentLibrary` reads this once at `init`, see its own doc comment for
+    /// why equipment moved from `UserDefaults` to real files on disk.
+    static var customEquipmentDirectoryPath: String? {
+        get { UserDefaults.standard.string(forKey: Key.customEquipmentDirectoryPath.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.customEquipmentDirectoryPath.rawValue) }
+    }
+
+    // MARK: - Ollama (AI)
+
+    /// The local Ollama server every AI feature (Ask AI to Plan/Describe, the sidebar AI chat)
+    /// talks to — defaults to `http://localhost:11434` (Ollama's own default) when never changed
+    /// or the stored value somehow isn't a valid URL. Unlike the Projects/Equipment folder
+    /// settings, this one *does* take effect immediately — `CameraManager
+    /// .updateOllamaConfiguration(serverURL:model:)` rebuilds `ollamaPlanner` live, since there's
+    /// no destructive side effect to changing which server a network request goes to the way
+    /// there is for relocating files an app already has open.
+    static var ollamaServerURL: URL {
+        get {
+            if let raw = UserDefaults.standard.string(forKey: Key.ollamaServerURLString.rawValue), let url = URL(string: raw) {
+                return url
+            }
+            return URL(string: "http://localhost:11434")!
+        }
+        set { UserDefaults.standard.set(newValue.absoluteString, forKey: Key.ollamaServerURLString.rawValue) }
+    }
+
+    /// `nil` (the default) means "auto-detect" — see `OllamaPlanner.resolveModel()`. Set
+    /// explicitly (Settings, or the AI panel's own model menu) to pin a specific installed model.
+    static var ollamaModel: String? {
+        get { UserDefaults.standard.string(forKey: Key.ollamaModel.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.ollamaModel.rawValue) }
     }
 }

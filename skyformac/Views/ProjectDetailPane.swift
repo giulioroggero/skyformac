@@ -46,9 +46,21 @@ struct ProjectDetailPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PageSection(title: "Project") {
-                    TextField("Name", text: $name, prompt: Text("Untitled Project"))
-                        .onSubmit(save)
-                        .onChange(of: name) { _, _ in save() }
+                    HStack {
+                        TextField("Name", text: $name, prompt: Text("Untitled Project"))
+                            .onSubmit(save)
+                            .onChange(of: name) { _, _ in save() }
+                        FavoriteToggleButton(isFavorite: project.isFavorite) {
+                            var updated = project
+                            updated.isFavorite.toggle()
+                            try? library.save(updated)
+                        }
+                        RatingView(rating: project.rating) { newRating in
+                            var updated = project
+                            updated.rating = newRating
+                            try? library.save(updated)
+                        }
+                    }
                     HStack(alignment: .top) {
                         TextField("Goal", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
                             .onChange(of: goal) { _, _ in save() }
@@ -104,7 +116,10 @@ struct ProjectDetailPane: View {
                         Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningProject = true }
                         Button("Add Session", systemImage: "plus") { addSession() }
                     }
-                    ForEach(project.sessions) { session in
+                    // Favorites first — "keep them on top" — ties broken by each session's own
+                    // existing order otherwise (a stable sort, so non-favorites don't get
+                    // needlessly reshuffled amongst themselves).
+                    ForEach(favoritesFirst(project.sessions)) { session in
                         SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
                             .contentShape(Rectangle())
                             // Tapping a session always opens its own Session page (detail/history)
@@ -113,6 +128,11 @@ struct ProjectDetailPane: View {
                             // page), never just by tapping the row.
                             .onTapGesture { onShowSessionHistory(session) }
                             .contextMenu {
+                                Button(session.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
+                                    var updated = session
+                                    updated.isFavorite.toggle()
+                                    applyAndSaveSession(updated)
+                                }
                                 Button(session.isArchived ? "Unarchive" : "Archive") {
                                     try? library.setArchived(!session.isArchived, forSessionID: session.id, in: project)
                                 }
@@ -189,6 +209,20 @@ struct ProjectDetailPane: View {
         try? library.addSession(Session.newSession(name: "New Session"), to: project)
     }
 
+    private func applyAndSaveSession(_ updatedSession: Session) {
+        var updatedProject = project
+        guard let index = updatedProject.sessions.firstIndex(where: { $0.id == updatedSession.id }) else { return }
+        updatedProject.sessions[index] = updatedSession
+        try? library.save(updatedProject)
+    }
+
+    /// Stable sort — `sorted(by:)` preserves the relative order of elements that compare equal,
+    /// so sessions that are both favorites (or both not) keep whatever order they were already in
+    /// instead of getting shuffled just because a sort ran.
+    private func favoritesFirst(_ sessions: [Session]) -> [Session] {
+        sessions.sorted { $0.isFavorite && !$1.isFavorite }
+    }
+
     /// Sessions count (split active/archived) plus a per-kind capture breakdown — "how much has
     /// actually happened on this project," not just its name and goal.
     private var projectStats: [StatItem] {
@@ -242,6 +276,9 @@ private struct SessionCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(session.name).font(.headline)
+                    if session.isFavorite {
+                        Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption)
+                    }
                     if isActive {
                         Image(systemName: "record.circle.fill").foregroundStyle(.red).font(.caption)
                     }
@@ -304,6 +341,48 @@ struct StatItem: Identifiable {
     var id: String { label }
     let label: String
     let value: String
+}
+
+/// A row of 5 tappable stars — "allow the user to vote project, sessions, task" — shared by the
+/// Project, Session, and Capture pages so rating always looks and behaves the same regardless of
+/// level. Tapping the same star the rating is already at clears it back to `.unrated`, the usual
+/// "tap to toggle off" convention star ratings use, rather than getting stuck unable to go below 1
+/// once first set.
+struct RatingView: View {
+    let rating: Rating
+    var onChange: (Rating) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(1...Rating.range.upperBound, id: \.self) { star in
+                Button {
+                    onChange(star == rating ? .unrated : star)
+                } label: {
+                    Image(systemName: star <= rating ? "star.fill" : "star")
+                        .foregroundStyle(star <= rating ? .yellow : .secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// A single-star favorite toggle — "add favorite section for projects and sessions in order to
+/// keep them on top" — deliberately a different affordance from `RatingView`'s row of 5, so the
+/// two distinct concepts (how good this was vs. whether to pin it) never look like the same
+/// control at a glance.
+struct FavoriteToggleButton: View {
+    let isFavorite: Bool
+    var onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            Image(systemName: isFavorite ? "star.circle.fill" : "star.circle")
+                .foregroundStyle(isFavorite ? .yellow : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help(isFavorite ? "Remove from Favorites" : "Add to Favorites")
+    }
 }
 
 /// A titled block used by full-width pages (Session, Capture) instead of a `Form`'s `Section` —

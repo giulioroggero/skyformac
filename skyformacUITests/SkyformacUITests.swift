@@ -103,17 +103,10 @@ final class SkyformacUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // "Assistant" is `AssistantChatPanel`'s own header label — present by default (a chat "on
+        // "AI" is `AssistantChatPanel`'s own header label — present by default (a chat "on
         // the right bar of all pages" should be there without the user having to discover a menu
         // item first), not dependent on the Dashboard vs. Projects vs. camera view underneath it.
-        XCTAssertTrue(app.staticTexts["Assistant"].waitForExistence(timeout: 10))
-    }
-
-    func testAssistantPanelStaysVisibleAfterOpeningTheCameraView() throws {
-        let app = XCUIApplication()
-        launchIntoCameraView(app)
-
-        XCTAssertTrue(app.staticTexts["Assistant"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["AI"].waitForExistence(timeout: 10))
     }
 
     func testMinimizingTheAssistantShowsTheExpandRail() throws {
@@ -123,7 +116,21 @@ final class SkyformacUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Minimize"].waitForExistence(timeout: 10))
         app.buttons["Minimize"].tap()
 
-        XCTAssertTrue(app.buttons["Expand Assistant"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Expand AI"].waitForExistence(timeout: 5))
+    }
+
+    func testAIPanelIsDetachedNotEmbeddedWhileTheCameraViewIsRunning() throws {
+        let app = XCUIApplication()
+        launchIntoCameraView(app)
+
+        // "AI" still exists (in its own floating window) with a "Close" button (the detached
+        // header always shows one), but "Minimize"/"Detach" only ever appear on the *embedded*
+        // sidebar copy — their absence here confirms the panel is floating, not docked, while a
+        // session is actually running.
+        XCTAssertTrue(app.staticTexts["AI"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Minimize"].exists)
+        XCTAssertFalse(app.buttons["Detach"].exists)
     }
 
 }

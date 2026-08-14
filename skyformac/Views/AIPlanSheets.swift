@@ -32,7 +32,12 @@ struct AIPlanProjectSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Ask AI to Plan This Project").font(.headline)
-            TextField("Goal", text: $goalText, prompt: Text("e.g. the nicest Messier objects visible in August from Orta San Giulio"))
+            // A real free-text area, not a single line — a good project goal ("the nicest
+            // Messier objects visible in August from Orta San Giulio, one session each") is often
+            // a full sentence or more, and a one-line field made that awkward to review before
+            // sending.
+            TextField("Goal", text: $goalText, prompt: Text("e.g. the nicest Messier objects visible in August from Orta San Giulio"), axis: .vertical)
+                .lineLimit(3...8)
                 .disabled(pendingQuestion != nil)
 
             if isLoading {
@@ -81,7 +86,7 @@ struct AIPlanProjectSheet: View {
             }
         }
         .padding()
-        .frame(width: 440, height: 400)
+        .frame(width: 440, height: 440)
     }
 
     private func ask() async {
@@ -169,7 +174,8 @@ struct AIPlanSessionSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Ask AI to Plan This Session").font(.headline)
-            TextField("Goal", text: $goalText, prompt: Text("e.g. see M13, M57, Saturn"))
+            TextField("Goal", text: $goalText, prompt: Text("e.g. see M13, M57, Saturn"), axis: .vertical)
+                .lineLimit(3...8)
 
             if isLoading {
                 ProgressView("Asking Ollama…")
@@ -196,7 +202,7 @@ struct AIPlanSessionSheet: View {
             }
         }
         .padding()
-        .frame(width: 380, height: 300)
+        .frame(width: 380, height: 340)
     }
 
     private func ask() async {

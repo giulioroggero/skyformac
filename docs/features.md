@@ -305,8 +305,13 @@ session persistence design and the browser-as-main-window architecture)
   Start, New Project, All Projects, Equipment, Insights, Settings), see the
   last few touched projects and sessions, a monthly activity chart, the
   most-captured object/most-used equipment at a glance, and a few curated
-  "try this next" suggestions (`DashboardHomeView`) — all before ever
-  drilling into the full project list, which moved one level down to its
+  "try this next" suggestions (`DashboardHomeView`) — computed by the
+  Ollama model when it's reachable, falling back to the same
+  catalog-derived candidate list whenever Ollama is unavailable or returns
+  nothing usable (`CameraManager.fetchSuggestedNextObjects`; the fallback
+  list shows immediately, then is silently replaced if the AI responds) — all
+  before ever drilling into the full project list, which moved one level
+  down to its
   own **Projects** page (what used to be Home).
 - **Insights** (Home page's own tile, or the Project menu) is a dedicated,
   read-only page over every capture across every project: total
@@ -348,14 +353,26 @@ session persistence design and the browser-as-main-window architecture)
   list, the project name to that project's own page (keeping the session's
   history), the session name to its own Session page. The window title bar
   shows the same "Project — Session" text.
-- **Home page: thumbnail cards or a table, your choice** — a toolbar toggle
-  switches between a grid of cover-thumbnail cards (default, generated from
-  each project's single most recent capture with a thumbnail — see
-  `ProjectStore.mostRecentThumbnailURL`) and a sortable `Table` (name, goal,
-  session/capture counts, location, tags, last activity) for comparing a
-  lot of projects by their numbers instead. Either way each project shows
-  its session count, total capture count, location, tags, and last
-  activity date, not just its name.
+- **Home page: thumbnail cards, a table, or the Atlas — your choice** — a
+  toolbar toggle switches between a grid of cover-thumbnail cards (default,
+  generated from each project's single most recent capture with a
+  thumbnail — see `ProjectStore.mostRecentThumbnailURL`), a sortable
+  `Table` (name, goal, session/capture counts, location, tags, last
+  activity), and an **Atlas** view for comparing a lot of projects at once
+  in different ways. Either way (thumbnail/table) each project shows its
+  session count, total capture count, location, tags, and last activity
+  date, not just its name.
+- **Atlas view** (`AtlasView`) — every session across every project,
+  positioned on a right-ascension/declination scatter plot by its first
+  planned object's real sky position, resolved from the app's own bundled
+  Stellarium-derived catalog (`SkyAtlasLookup`, matching Messier
+  designations in any spelling and bright-star names against `SkyCatalog`).
+  Filter by project name, observed object, or a date range; tap a point to
+  see which project/session it is and jump straight to it. Solar System
+  targets (planets, the Moon) have no fixed position to plot and are
+  listed separately as "moves across the sky," distinct from objects that
+  simply aren't in the bundled catalog at all — the view is explicit about
+  its own coverage gaps rather than dropping or misplacing anything.
 - **One folder per project/session** — every project gets its own folder
   under `~/Documents/Skyformac Projects/`, with one subfolder per session
   holding that session's actual capture files, a `Thumbnails/` folder, and
@@ -482,24 +499,46 @@ session persistence design and the browser-as-main-window architecture)
     Aim** overwrites the project's/session's own goal field, **Add as
     Note** appends it as a dated annotation instead — the user picks which,
     nothing is applied automatically.
-- **Sidebar Assistant** — a chat panel on the right of every page (⌘⇧J to
+- **AI panel** — a chat panel on the right of every page (⌘⇧J to
   toggle, on by default), the same one conversation regardless of whether
   you're on the Dashboard, browsing Projects, or running a live camera
   session. Grounded in the current project/session (if any), the connected
-  camera, and an Insights snapshot (most-captured objects, "try this next"
-  candidates), it can answer questions, or propose creating a project,
+  camera, an Insights snapshot (most-captured objects, "try this next"
+  candidates), and the user's own ratings/favorites/top-rated past actions
+  (see below), it can answer questions, or propose creating a project,
   creating a session, or changing the camera's gain/exposure/mode
   (`OllamaPlanner.respond(to:context:history:)`). **Any proposed change
   always shows its own Approve/Reject card and is never applied
   automatically** — "if the chat changes something, ask before acting."
-  **Minimize** collapses it to a thin rail (its own expand button always
-  stays reachable); **Detach** moves it into a real floating `NSPanel`
-  (`AssistantChatPanelController`, the same detach mechanism the
-  Histogram/Curves panel already uses) that can sit outside the main
-  window; **Dock** brings it back. Since a local model has no real
-  multi-turn conversation state of its own, the "conversation" is entirely
-  client-side — the last few turns are folded as plain text into every new
-  request.
+  The compose field is a multi-line free-text area, not a single-line
+  field, for longer prompts. **Minimize** collapses it to a thin rail (its
+  own expand button always stays reachable); **Detach** moves it into a
+  real floating `NSPanel` (`AssistantChatPanelController`, the same detach
+  mechanism the Histogram/Curves panel already uses) that can sit outside
+  the main window; **Dock** brings it back — except while a camera session
+  is running, when the panel is always detached (never embedded in the
+  sidebar, so it doesn't crowd the live preview) and Dock is hidden; it
+  returns to the sidebar automatically once you leave camera mode, if
+  that's where it was before. The panel can be closed outright (its own
+  Close button) independent of docked/detached state. The sidebar copy is
+  resizable by dragging its left edge (260–600pt, persisted across
+  launches). A model picker in the panel header (and a matching one in
+  Settings) lists whatever models the configured Ollama server actually
+  has installed, plus an "Auto" default; the server URL is also editable
+  from Settings. Since a local model has no real multi-turn conversation
+  state of its own, the "conversation" is entirely client-side — the last
+  few turns are folded as plain text into every new request.
+- **Ratings and favorites** — projects, sessions, and individual captures
+  can each be rated 1–5 stars (tap the stars in their header/detail page);
+  projects and sessions can additionally be marked as favorites (a single
+  star-toggle), which pins them to the top of their respective lists
+  (Projects browser, a project's session list) ahead of everything else,
+  sorted stably otherwise. The AI panel's context includes the active
+  project's/session's own rating and favorite status, the full list of
+  favorite project/session names, and the top 5 highest-rated past
+  captures with their exact camera-parameter summaries, so it can reason
+  about "what's worked well" from real evidence instead of just aggregate
+  counts.
 - **Archive, delete (with a 30-day grace period), and Recently Deleted** —
   a project can be archived (hidden from the Home page, still fully intact,
   restorable from the new Archived page) or deleted (also hidden from Home,
@@ -537,14 +576,22 @@ session persistence design and the browser-as-main-window architecture)
   central `SettingsView` sheet for the preferences most worth reviewing in
   one place: the Projects folder location (defaults to `~/Documents/
   Skyformac Projects`; **Choose Folder…** picks anywhere else, takes effect
-  the next launch — existing files aren't moved automatically), the
-  renderer/night-mode toggles already in the camera view's own toolbar, and
-  an **AI (Ollama)** section showing the server URL and preferred model,
-  with a **Test Connection** button that checks both reachability and
-  which models are actually installed (`OllamaPlanner.isAvailable()`/
-  `installedModels()`) — reporting exactly which one would actually be used
-  (`qwen3:8b` if installed, otherwise the first one found), not just
-  "reachable/unreachable."
+  the next launch — existing files aren't moved automatically), an
+  Equipment folder location (same pattern — defaults to `~/Documents/
+  Skyformac Equipment`, **Choose Folder…**/**Reset to Default**, takes
+  effect next launch), the renderer/night-mode toggles already in the
+  camera view's own toolbar, and an **AI (Ollama)** section with an
+  editable server URL and a model picker (populated from whatever's
+  actually installed on that server), plus a **Test Connection** button
+  that checks both reachability and which models are actually installed
+  (`OllamaPlanner.isAvailable()`/`installedModels()`) — reporting exactly
+  which one would actually be used (`qwen3:8b` if installed, otherwise the
+  first one found), not just "reachable/unreachable."
+- **Equipment library persistence** — equipment systems are stored as one
+  JSON file per system in the Equipment folder above (`EquipmentLibrary`),
+  not `UserDefaults`; a one-time migration moves any systems already saved
+  in `UserDefaults` into files the first time the new library loads, then
+  clears the old key so it never runs twice.
 
 **Help**
 - **In-app Help** (Help menu, ⌘?) — a sheet on the app's one window (this app

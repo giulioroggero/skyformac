@@ -42,12 +42,20 @@ struct ProjectsBrowserView: View {
     /// just shows what's actually active, the same way archiving/deleting mail or files works.
     private var visibleProjects: [Project] {
         let base = library.activeProjects.filter { !$0.isArchived }
-        guard !searchText.isEmpty || filter.isActive else { return base }
-        let matchingIDs = Set(ProjectSearch.search(
-            base, text: searchText, dateRange: filter.dateRange,
-            tag: filter.tag, equipmentSystemID: filter.equipmentSystemID, object: filter.object
-        ).map(\.project.id))
-        return base.filter { matchingIDs.contains($0.id) }
+        let filtered: [Project]
+        if !searchText.isEmpty || filter.isActive {
+            let matchingIDs = Set(ProjectSearch.search(
+                base, text: searchText, dateRange: filter.dateRange,
+                tag: filter.tag, equipmentSystemID: filter.equipmentSystemID, object: filter.object
+            ).map(\.project.id))
+            filtered = base.filter { matchingIDs.contains($0.id) }
+        } else {
+            filtered = base
+        }
+        // Favorites first — "keep them on top" — a stable sort, so everything else keeps
+        // whatever order it was already going to show in (name, last activity, whatever the
+        // current view mode/sort otherwise applies).
+        return filtered.sorted { $0.isFavorite && !$1.isFavorite }
     }
 
     private var insightsData: InsightsData {
@@ -132,6 +140,14 @@ struct ProjectsBrowserView: View {
                         guard let project = library.projects.first(where: { $0.id == id }) else { continue }
                         try? library.softDelete(project)
                     }
+                },
+                onToggleFavorite: { project in
+                    var updated = project
+                    updated.isFavorite.toggle()
+                    try? library.save(updated)
+                },
+                onSelectSession: { project, session in
+                    path.append(contentsOf: [.project(project.id), .sessionHistory(project.id, session.id)])
                 }
             )
         case .project(let projectID):
@@ -198,6 +214,7 @@ struct ProjectsBrowserView: View {
         case .insights:
             InsightsView(
                 data: insightsData,
+                cameraManager: cameraManager,
                 onBack: { path.removeLast() },
                 onSuggestQuickStart: { objectName in
                     cameraManager.quickStart(forObjectName: objectName)
@@ -309,6 +326,7 @@ private struct RecentlyDeletedPage: View {
 private enum ProjectsHomeViewMode: String {
     case thumbnail
     case table
+    case atlas
 }
 
 /// The Projects browser's Home page — every project, full window, nothing else. Tapping one
@@ -335,6 +353,8 @@ private struct ProjectsHomeView: View {
     /// beyond looping the existing single-project ones the Project Detail page already uses.
     var onBulkArchive: (Set<Project.ID>) -> Void
     var onBulkDelete: (Set<Project.ID>) -> Void
+    var onToggleFavorite: (Project) -> Void
+    var onSelectSession: (Project, Session) -> Void
 
     @State private var isShowingFilters = false
     /// Shared by both view modes so switching between Thumbnails/Table mid-selection doesn't lose
@@ -361,17 +381,26 @@ private struct ProjectsHomeView: View {
                     ProjectsThumbnailGrid(
                         projects: projects, activeProjectID: activeProjectID, store: store,
                         isSelecting: isSelecting, selectedIDs: $selectedIDs,
-                        onSelect: onSelectProject, onNewProject: onNewProject, onQuickStart: onQuickStart
+                        onSelect: onSelectProject, onNewProject: onNewProject, onQuickStart: onQuickStart,
+                        onToggleFavorite: onToggleFavorite
                     )
                 case .table:
                     ProjectsTableView(
                         projects: projects, activeProjectID: activeProjectID, selectedIDs: $selectedIDs,
                         onSelect: onSelectProject
                     )
+                case .atlas:
+                    // Its own dedicated date/project/object filters, independent of the page's
+                    // Filters popover — operates over every active project, not just whatever
+                    // that popover/search already narrowed `projects` down to.
+                    AtlasView(projects: allProjects, onSelectSession: onSelectSession)
                 }
             }
             .overlay {
-                if projects.isEmpty {
+                // Atlas has its own empty-state messaging (`AtlasView`'s "No Placeable Sessions")
+                // scoped to *placeable* sessions specifically, not "no projects at all" — showing
+                // this one on top of it as well would be redundant/confusing.
+                if viewMode != .atlas && projects.isEmpty {
                     ContentUnavailableView(
                         "No Projects Yet", systemImage: "folder",
                         description: Text("Create a project to get started.")
@@ -386,6 +415,7 @@ private struct ProjectsHomeView: View {
                 Picker("View", selection: $viewModeRaw) {
                     Label("Thumbnails", systemImage: "square.grid.2x2").tag(ProjectsHomeViewMode.thumbnail.rawValue)
                     Label("Table", systemImage: "tablecells").tag(ProjectsHomeViewMode.table.rawValue)
+                    Label("Atlas", systemImage: "map").tag(ProjectsHomeViewMode.atlas.rawValue)
                 }
                 .pickerStyle(.segmented)
                 .labelStyle(.iconOnly)
@@ -525,6 +555,7 @@ private struct ProjectsThumbnailGrid: View {
     var onSelect: (Project) -> Void
     var onNewProject: () -> Void
     var onQuickStart: () -> Void
+    var onToggleFavorite: (Project) -> Void
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 16)]
 
@@ -549,6 +580,11 @@ private struct ProjectsThumbnailGrid: View {
                             else { selectedIDs.insert(project.id) }
                         } else {
                             onSelect(project)
+                        }
+                    }
+                    .contextMenu {
+                        Button(project.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
+                            onToggleFavorite(project)
                         }
                     }
                 }
@@ -636,9 +672,14 @@ struct ProjectCard: View {
             .frame(height: 130)
             .clipped()
 
-            Text(project.name.isEmpty ? "Untitled Project" : project.name)
-                .font(.headline)
-                .lineLimit(1)
+            HStack(spacing: 4) {
+                Text(project.name.isEmpty ? "Untitled Project" : project.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                if project.isFavorite {
+                    Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption)
+                }
+            }
             if !project.goal.isEmpty {
                 Text(project.goal).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }

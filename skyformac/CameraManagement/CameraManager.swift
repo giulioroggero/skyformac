@@ -349,6 +349,12 @@ final class CameraManager {
     /// instead of embedding it in the main window.
     var isAssistantDetached = false
     var isAssistantThinking = false
+    /// Remembers whether the panel was docked in the sidebar right before the camera view took
+    /// over — "in camera mode the AI is only detached" (enforced by `AssistantChatPanel` hiding
+    /// its own Dock button whenever a session is active, not just by this flag) — so
+    /// `syncAssistantDockStateForCameraMode()` knows whether to put it back once the user returns
+    /// to browsing, versus leaving it wherever they explicitly moved/closed it meanwhile.
+    private var wasAssistantDockedBeforeCameraMode = false
     var assistantMessages: [AssistantMessage] = []
     /// Set by `sendAssistantMessage(_:)` when the model proposes an action instead of just
     /// answering — shown with Approve/Reject; never applied until `confirmAssistantAction()` is
@@ -433,9 +439,9 @@ final class CameraManager {
     private func assistantContext() -> String {
         var lines: [String] = []
         if let project = activeProject {
-            lines.append("Currently viewing project: \(project.name.isEmpty ? "(untitled)" : project.name). Goal: \(project.goal).")
+            lines.append("Currently viewing project: \(project.name.isEmpty ? "(untitled)" : project.name). Goal: \(project.goal). Rating: \(ratingDescription(project.rating)).\(project.isFavorite ? " Marked as a favorite." : "")")
             if let session = activeSession {
-                lines.append("Currently in session: \(session.name). Planned objects: \(session.plannedObjects.joined(separator: ", ")).")
+                lines.append("Currently in session: \(session.name). Planned objects: \(session.plannedObjects.joined(separator: ", ")). Rating: \(ratingDescription(session.rating)).\(session.isFavorite ? " Marked as a favorite." : "")")
             }
         }
         if let camera = connectedCamera {
@@ -456,7 +462,78 @@ final class CameraManager {
         if !insights.suggestedNextObjects.isEmpty {
             lines.append("Objects not yet captured — candidates for \"what to see next\": \(insights.suggestedNextObjects.joined(separator: ", ")).")
         }
+        // "The AI chat … is able to analyze info about user behaviour and provide guidance
+        // depending on the user score and activities" — favorites and highly-rated past actions
+        // are exactly that: what the user themselves has already judged good, grounding any
+        // "what worked" or "best settings for X" answer in their own history instead of guessing.
+        let favoriteProjectNames = activeProjects.filter(\.isFavorite).map(\.name).filter { !$0.isEmpty }
+        if !favoriteProjectNames.isEmpty {
+            lines.append("Favorite projects: \(favoriteProjectNames.joined(separator: ", ")).")
+        }
+        let favoriteSessionNames = activeProjects.flatMap(\.sessions).filter(\.isFavorite).map(\.name)
+        if !favoriteSessionNames.isEmpty {
+            lines.append("Favorite sessions: \(favoriteSessionNames.joined(separator: ", ")).")
+        }
+        if !insights.topRatedActions.isEmpty {
+            let summaries = insights.topRatedActions.prefix(5).map { action in
+                "\(action.object): \(action.presetSummary) (rated \(action.rating)/5)"
+            }
+            lines.append("Highly rated past actions and the settings used — the best evidence for \"what settings work well\":\n" + summaries.joined(separator: "\n"))
+        }
         return lines.joined(separator: "\n")
+    }
+
+    private func ratingDescription(_ rating: Rating) -> String {
+        rating == .unrated ? "not rated" : "\(rating)/5"
+    }
+
+    /// "Ideas for next time must be calculated by AI agent on ollama, if not present ollama fall
+    /// back to the list of the wizard" — `fallback` is `InsightsData.suggestedNextObjects` (the
+    /// existing catalog-based list, unchanged), used whenever Ollama isn't reachable or replies
+    /// with something unusable, so the Dashboard/Insights pages always have *something* to show
+    /// immediately while this resolves, and never end up with nothing at all if the AI call fails.
+    func fetchSuggestedNextObjects(fallback: [String]) async -> [String] {
+        guard await ollamaPlanner.isAvailable() else { return fallback }
+        let context = """
+        Objects already captured or planned: \(fallback.isEmpty ? "(everything in the catalog already tried)" : "see candidates below").
+        Candidate objects not yet captured: \(fallback.joined(separator: ", ")).
+        """
+        guard let suggestions = try? await ollamaPlanner.suggestNextObjects(context: context), !suggestions.isEmpty else {
+            return fallback
+        }
+        return suggestions
+    }
+
+    /// "In camera mode the AI is only detached" — called by `activeSession`'s own `didSet`
+    /// whenever it actually crosses the nil ↔ non-nil boundary (browser ↔ camera view).
+    /// Entering camera mode force-detaches a currently-docked panel, remembering that it was
+    /// docked; leaving camera mode puts it back in the sidebar, but only if it was actually docked
+    /// before *and* the user hasn't closed the panel entirely in the meantime — closing always
+    /// wins over restoring. A panel the user had already detached (or never opened) before
+    /// entering camera mode is left exactly where it was.
+    private func syncAssistantDockStateForCameraMode() {
+        if activeSession != nil {
+            if isAssistantPanelVisible && !isAssistantDetached {
+                wasAssistantDockedBeforeCameraMode = true
+                isAssistantDetached = true
+            }
+        } else {
+            if wasAssistantDockedBeforeCameraMode && isAssistantPanelVisible {
+                isAssistantDetached = false
+            }
+            wasAssistantDockedBeforeCameraMode = false
+        }
+    }
+
+    /// Applies (and persists) a new Ollama server URL/model — "allow to choose the ai model in
+    /// both settings and ai assistant. allow to change ollama server url." Takes effect
+    /// immediately, unlike the Projects/Equipment folder settings: there's no destructive side
+    /// effect to redirecting where the next network request goes, unlike relocating files a
+    /// `ProjectStore`/`EquipmentLibrary` already has open.
+    func updateOllamaConfiguration(serverURL: URL, model: String?) {
+        AppSettings.ollamaServerURL = serverURL
+        AppSettings.ollamaModel = model
+        ollamaPlanner = OllamaPlanner(baseURL: serverURL, model: model)
     }
 
     /// ZWO's own recommended gain/offset reference points for the connected camera model — see
@@ -1206,10 +1283,20 @@ final class CameraManager {
     let projectStore: ProjectStore
     let locationProvider: CoreLocationProvider
     let projectsLibrary: ProjectsLibrary
-    let ollamaPlanner: OllamaPlanner
+    /// Not `let` — `updateOllamaConfiguration(serverURL:model:)` rebuilds this in place whenever
+    /// Settings or the AI panel's own model menu changes the server URL or pinned model.
+    private(set) var ollamaPlanner: OllamaPlanner
     let equipmentLibrary = EquipmentLibrary()
     var activeProject: Project?
-    var activeSession: Session?
+    var activeSession: Session? {
+        didSet {
+            // Only the nil ↔ non-nil transition (browser ↔ camera view) matters here — most
+            // writes (a fresh capture recorded, resuming the same session) replace `activeSession`
+            // with another non-`nil` value and shouldn't touch the AI panel's dock state at all.
+            guard (oldValue == nil) != (activeSession == nil) else { return }
+            syncAssistantDockStateForCameraMode()
+        }
+    }
     /// Set by `endActiveSession()` right before clearing `activeSession`, so
     /// `ProjectsBrowserView.onAppear` can re-select that same session (showing its now-updated
     /// history) instead of landing on the project's session list with nothing selected. Consumed
@@ -1384,7 +1471,7 @@ final class CameraManager {
 
     init(
         projectStore: ProjectStore = ProjectStore(), locationProvider: CoreLocationProvider = CoreLocationProvider(),
-        ollamaPlanner: OllamaPlanner = OllamaPlanner()
+        ollamaPlanner: OllamaPlanner = OllamaPlanner(baseURL: AppSettings.ollamaServerURL, model: AppSettings.ollamaModel)
     ) {
         self.projectStore = projectStore
         self.locationProvider = locationProvider

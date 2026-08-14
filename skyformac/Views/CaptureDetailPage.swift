@@ -64,6 +64,15 @@ struct CaptureDetailPage: View {
                     if let note = capture.note, !note.isEmpty {
                         Text(note).font(.callout)
                     }
+                    RatingView(rating: capture.rating) { newRating in
+                        var updatedSession = session
+                        guard let index = updatedSession.captures.firstIndex(where: { $0.id == capture.id }) else { return }
+                        updatedSession.captures[index].rating = newRating
+                        var updatedProject = project
+                        guard let sessionIndex = updatedProject.sessions.firstIndex(where: { $0.id == session.id }) else { return }
+                        updatedProject.sessions[sessionIndex] = updatedSession
+                        try? cameraManager.projectsLibrary.save(updatedProject)
+                    }
                     Button("Show in Finder", systemImage: "folder") {
                         NSWorkspace.shared.activateFileViewerSelecting([fileURL])
                     }

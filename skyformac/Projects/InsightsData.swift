@@ -28,6 +28,19 @@ struct NamedCount: Identifiable, Equatable {
     let count: Int
 }
 
+/// One highly-rated (4 or 5 star) action, with the parameters actually used — "provide
+/// suggestions for the best settings depending on the observation": this is the raw material
+/// both the AI panel's own context and a future "what worked" UI read from, rather than either
+/// re-deriving it from scratch. Only ever built from captures the user themselves rated well;
+/// there's no attempt to infer quality from anything else (capture count, recency, etc.).
+struct RatedAction: Identifiable, Equatable {
+    let id: CaptureRecord.ID
+    let object: String
+    let rating: Rating
+    let presetSummary: String
+    let date: Date
+}
+
 /// Aggregates every capture across every active (non-deleted) project into the breakdowns and
 /// suggestions the Insights page shows — "what have I actually been doing," not just "what's in
 /// this one project." A pure function of `projects`/`equipmentSystems`/`knownObjects` (plus
@@ -46,10 +59,13 @@ struct InsightsData: Equatable {
     /// input always produces the same suggestions (see the type's own no-`Date`/`random` testing
     /// note above; determinism here is for the same reason, not that one).
     let suggestedNextObjects: [String]
+    /// Every 4-or-5-star capture with parameters attached, newest first — "vote … to provide
+    /// suggestions for the best settings depending on the observation."
+    let topRatedActions: [RatedAction]
 
     static let empty = InsightsData(
         totalProjects: 0, totalSessions: 0, totalCaptures: 0, byObject: [], byEquipmentSystem: [],
-        byAcquisitionMode: [], monthlyActivity: [], suggestedNextObjects: []
+        byAcquisitionMode: [], monthlyActivity: [], suggestedNextObjects: [], topRatedActions: []
     )
 
     static func build(
@@ -61,7 +77,8 @@ struct InsightsData: Equatable {
             return InsightsData(
                 totalProjects: projects.count, totalSessions: projects.reduce(0) { $0 + $1.sessions.count },
                 totalCaptures: 0, byObject: [], byEquipmentSystem: [], byAcquisitionMode: [], monthlyActivity: [],
-                suggestedNextObjects: Array(knownObjects.filter { !captured.contains($0) }.prefix(5))
+                suggestedNextObjects: Array(knownObjects.filter { !captured.contains($0) }.prefix(5)),
+                topRatedActions: []
             )
         }
 
@@ -80,6 +97,14 @@ struct InsightsData: Equatable {
         let capturedObjects = Set(objectCounts.keys.map { $0.lowercased() })
         let suggestions = knownObjects.filter { !capturedObjects.contains($0.lowercased()) }
 
+        let topRated = captures
+            .filter { $0.rating >= 4 }
+            .compactMap { capture -> RatedAction? in
+                guard let object = capture.object, let preset = capture.preset else { return nil }
+                return RatedAction(id: capture.id, object: object, rating: capture.rating, presetSummary: preset.summaryLine, date: capture.date)
+            }
+            .sorted { $0.rating != $1.rating ? $0.rating > $1.rating : $0.date > $1.date }
+
         return InsightsData(
             totalProjects: projects.count,
             totalSessions: projects.reduce(0) { $0 + $1.sessions.count },
@@ -88,7 +113,8 @@ struct InsightsData: Equatable {
             byEquipmentSystem: Self.sortedCounts(equipmentCounts),
             byAcquisitionMode: Self.sortedCounts(modeCounts),
             monthlyActivity: monthCounts.map { MonthlyActivity(month: $0.key, count: $0.value) }.sorted { $0.month < $1.month },
-            suggestedNextObjects: Array(suggestions.prefix(5))
+            suggestedNextObjects: Array(suggestions.prefix(5)),
+            topRatedActions: Array(topRated.prefix(10))
         )
     }
 

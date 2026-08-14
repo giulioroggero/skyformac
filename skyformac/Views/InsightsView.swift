@@ -7,8 +7,13 @@ import Charts
 /// that edits anything itself.
 struct InsightsView: View {
     let data: InsightsData
+    var cameraManager: CameraManager
     var onBack: () -> Void
     var onSuggestQuickStart: (String) -> Void
+
+    /// Same "start with the synchronous catalog fallback, replace with the AI list once it
+    /// resolves" shape `DashboardHomeView`'s own copy of this section uses.
+    @State private var ideas: [String] = []
 
     var body: some View {
         ScrollView {
@@ -62,12 +67,12 @@ struct InsightsView: View {
 
                 // Shown regardless of whether anything's been captured yet — a target worth
                 // trying next is just as useful advice before the first session as after it.
-                if !data.suggestedNextObjects.isEmpty {
+                if !ideas.isEmpty {
                     PageSection(title: "Ideas for Next Time") {
                         Text("Common targets you haven't captured yet:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        ForEach(data.suggestedNextObjects, id: \.self) { object in
+                        ForEach(ideas, id: \.self) { object in
                             HStack {
                                 Text(object)
                                 Spacer()
@@ -86,6 +91,10 @@ struct InsightsView: View {
             ToolbarItem(placement: .navigation) {
                 Button("Back", systemImage: "chevron.left", action: onBack)
             }
+        }
+        .task(id: data.suggestedNextObjects) {
+            ideas = data.suggestedNextObjects
+            ideas = await cameraManager.fetchSuggestedNextObjects(fallback: data.suggestedNextObjects)
         }
     }
 

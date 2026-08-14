@@ -89,4 +89,67 @@ struct CameraManagerAssistantTests {
 
         #expect(manager.assistantMessages.isEmpty)
     }
+
+    // MARK: - Camera-mode dock state
+
+    private func makeProjectWithSession() -> (project: Project, session: Session) {
+        var project = Project.newProject(name: "P")
+        let session = Session.newSession(name: "S")
+        project.sessions = [session]
+        return (project, session)
+    }
+
+    @Test func enteringCameraModeDetachesADockedPanel() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.isAssistantPanelVisible = true
+        manager.isAssistantDetached = false
+        let (project, session) = makeProjectWithSession()
+
+        manager.setActive(project: project, session: session)
+
+        #expect(manager.isAssistantDetached)
+    }
+
+    @Test func leavingCameraModeRedocksAPanelThatWasDockedBefore() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.isAssistantPanelVisible = true
+        manager.isAssistantDetached = false
+        let (project, session) = makeProjectWithSession()
+        manager.setActive(project: project, session: session)
+        #expect(manager.isAssistantDetached) // sanity: entered camera mode detached
+
+        manager.endActiveSession()
+
+        #expect(!manager.isAssistantDetached)
+    }
+
+    @Test func leavingCameraModeDoesNotRedockAPanelThatWasAlreadyDetachedBeforehand() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.isAssistantPanelVisible = true
+        manager.isAssistantDetached = true // already detached by the user's own choice
+        let (project, session) = makeProjectWithSession()
+        manager.setActive(project: project, session: session)
+
+        manager.endActiveSession()
+
+        // Stays detached — it wasn't docked before camera mode, so there's nothing to restore.
+        #expect(manager.isAssistantDetached)
+    }
+
+    @Test func closingThePanelDuringCameraModeWinsOverRedocking() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.isAssistantPanelVisible = true
+        manager.isAssistantDetached = false
+        let (project, session) = makeProjectWithSession()
+        manager.setActive(project: project, session: session)
+
+        manager.isAssistantPanelVisible = false // user closes it while in camera mode
+        manager.endActiveSession()
+
+        #expect(!manager.isAssistantPanelVisible)
+    }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// "A chat on the right bar of all pages" — a `.sheet`-free sidebar embedded by `RootView`
@@ -14,6 +15,7 @@ struct AssistantChatPanel: View {
 
     @State private var inputText = ""
     @FocusState private var isInputFocused: Bool
+    @State private var availableModels: [String] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,29 +64,71 @@ struct AssistantChatPanel: View {
             .padding(10)
         }
         .background(.background)
+        .task { await refreshAvailableModels() }
     }
+
+    /// Docking back into the sidebar only makes sense while the camera view isn't running — "in
+    /// camera mode the AI is only detached" is a hard rule, not just where it happens to start.
+    private var canDock: Bool { cameraManager.activeSession == nil }
 
     private var header: some View {
         HStack {
-            Label("Assistant", systemImage: "bubble.left.and.bubble.right").font(.headline)
+            Label("AI", systemImage: "bubble.left.and.bubble.right").font(.headline)
+            modelMenu
             Spacer()
             if isDetachedWindow {
-                Button("Dock", systemImage: "pin.fill") { cameraManager.isAssistantDetached = false }
+                if canDock {
+                    Button("Dock", systemImage: "pin.fill") { cameraManager.isAssistantDetached = false }
+                        .buttonStyle(.borderless)
+                        .help("Return the AI panel to the main window")
+                }
+                Button("Close", systemImage: "xmark") { cameraManager.isAssistantPanelVisible = false }
                     .buttonStyle(.borderless)
-                    .help("Return the assistant to the main window")
+                    .help("Hide the AI panel — reopen from the Skyformac menu")
             } else {
                 Button("Minimize", systemImage: "chevron.right") { cameraManager.isAssistantMinimized = true }
                     .buttonStyle(.borderless)
-                    .help("Collapse the assistant to a thin rail")
+                    .help("Collapse the AI panel to a thin rail")
                 Button("Detach", systemImage: "arrow.up.left.and.arrow.down.right") { cameraManager.isAssistantDetached = true }
                     .buttonStyle(.borderless)
-                    .help("Move the assistant into its own floating window")
+                    .help("Move the AI panel into its own floating window")
                 Button("Close", systemImage: "xmark") { cameraManager.isAssistantPanelVisible = false }
                     .buttonStyle(.borderless)
-                    .help("Hide the assistant — reopen from the Skyformac menu")
+                    .help("Hide the AI panel — reopen from the Skyformac menu")
             }
         }
         .padding(10)
+    }
+
+    /// "Allow to choose the AI model … in the AI assistant" — a compact menu next to the title
+    /// rather than a full settings-shaped picker, showing the currently pinned model (or "Auto")
+    /// and letting it be changed without leaving the chat. Models are fetched lazily (`.task` on
+    /// the panel's own body) rather than requiring a trip through Settings' "Test Connection" first.
+    private var modelMenu: some View {
+        Menu {
+            Button("Auto (recommended)") {
+                cameraManager.updateOllamaConfiguration(serverURL: cameraManager.ollamaPlanner.baseURL, model: nil)
+            }
+            if !availableModels.isEmpty {
+                Divider()
+                ForEach(availableModels, id: \.self) { model in
+                    Button(model) {
+                        cameraManager.updateOllamaConfiguration(serverURL: cameraManager.ollamaPlanner.baseURL, model: model)
+                    }
+                }
+            }
+        } label: {
+            Text(cameraManager.ollamaPlanner.model ?? "Auto")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Choose which Ollama model the AI uses")
+    }
+
+    private func refreshAvailableModels() async {
+        availableModels = (try? await cameraManager.ollamaPlanner.installedModels()) ?? []
     }
 
     private func send() {
@@ -137,7 +181,7 @@ struct AssistantMinimizedRail: View {
 
     var body: some View {
         VStack {
-            Button("Expand Assistant", systemImage: "bubble.left.and.bubble.right") {
+            Button("Expand AI", systemImage: "bubble.left.and.bubble.right") {
                 cameraManager.isAssistantMinimized = false
             }
             .labelStyle(.iconOnly)
@@ -147,5 +191,38 @@ struct AssistantMinimizedRail: View {
         }
         .frame(width: 36)
         .background(.background.secondary)
+    }
+}
+
+/// A draggable divider — "allow to resize the assistant sidebar" — dragging left/right grows or
+/// shrinks `width` (clamped to a sane range so the panel can't be dragged down to nothing, or out
+/// wide enough to swallow the whole window). Only shown while the panel is embedded and expanded;
+/// the minimized rail has a fixed width, and the detached floating window already gets a native
+/// resizable edge for free from `NSPanel` itself.
+struct AssistantResizeHandle: View {
+    @Binding var width: Double
+    @State private var widthAtDragStart: Double?
+
+    private static let widthRange: ClosedRange<Double> = 260...600
+
+    var body: some View {
+        Divider()
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .onHover { isHovering in
+                if isHovering { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let start = widthAtDragStart ?? width
+                        widthAtDragStart = start
+                        // The handle sits on the sidebar's leading edge — dragging left (a
+                        // negative `translation.width`) should grow the panel, so the delta is
+                        // subtracted, not added.
+                        width = min(max(start - value.translation.width, Self.widthRange.lowerBound), Self.widthRange.upperBound)
+                    }
+                    .onEnded { _ in widthAtDragStart = nil }
+            )
     }
 }

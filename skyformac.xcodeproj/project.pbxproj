@@ -81,6 +81,7 @@
 		05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88925FDFCDFD5CD1889D56E /* InsightsView.swift */; };
 		D46D68D1BDC34143FD29E400 /* DashboardHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */; };
 		D0928FCDD5BE2BFBA792C89B /* AssistantChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */; };
+		7C6D4B3F157385668C70D9B1 /* AtlasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BB808D7623A429743A9F5AF /* AtlasView.swift */; };
 		EBB1EA59D75CF501A809E896 /* AssistantChatPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D4FD515ECEDE7E301D814D /* AssistantChatPanelController.swift */; };
 		53BACB792DD5FDDC11B3BFF0 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7866DFCEC932D3B738897 /* RootView.swift */; };
 		AD962C0E6D2127BD6629CCC6 /* ProjectsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */; };
@@ -119,8 +120,12 @@
 		9C5D89801144516B3045566A /* InsightsDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */; };
 		DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */; };
 		1D974B291A8C927796E5CB39 /* AssistantModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1109B3B4825F4CE86F82D92F /* AssistantModels.swift */; };
+		7A1AB44DF5BB81595390219C /* SkyAtlasLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F1C47F2B0C383D612E721E /* SkyAtlasLookup.swift */; };
 		64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */; };
 		336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */; };
+		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
+		98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */; };
+		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
 		AF70883DC4C841CBC4DA62CE /* SessionReuseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D73D8098F2265E5CD371A4 /* SessionReuseTests.swift */; };
 		BFCD7A5D9232810B14153610 /* CameraManagerRecallParametersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */; };
 		8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */; };
@@ -250,11 +255,16 @@
 		0E40C3B7D92593FA18E2A97B /* InsightsData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsData.swift; sourceTree = "<group>"; };
 		D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIDescriptionContext.swift; sourceTree = "<group>"; };
 		1109B3B4825F4CE86F82D92F /* AssistantModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModels.swift; sourceTree = "<group>"; };
+		23F1C47F2B0C383D612E721E /* SkyAtlasLookup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookup.swift; sourceTree = "<group>"; };
 		70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIDescriptionContextTests.swift; sourceTree = "<group>"; };
 		711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerAssistantTests.swift; sourceTree = "<group>"; };
+		83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerOllamaConfigurationTests.swift; sourceTree = "<group>"; };
+		85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RatingAndFavoriteTests.swift; sourceTree = "<group>"; };
+		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
 		E88925FDFCDFD5CD1889D56E /* InsightsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
 		EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DashboardHomeView.swift; sourceTree = "<group>"; };
 		40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantChatPanel.swift; sourceTree = "<group>"; };
+		3BB808D7623A429743A9F5AF /* AtlasView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AtlasView.swift; sourceTree = "<group>"; };
 		49D4FD515ECEDE7E301D814D /* AssistantChatPanelController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantChatPanelController.swift; sourceTree = "<group>"; };
 		D6E7866DFCEC932D3B738897 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectsBrowserView.swift; sourceTree = "<group>"; };
@@ -532,6 +542,9 @@
 				9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */,
 				70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */,
 				711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */,
+				83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */,
+				85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */,
+				B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
@@ -628,6 +641,7 @@
 				0E40C3B7D92593FA18E2A97B /* InsightsData.swift */,
 				D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */,
 				1109B3B4825F4CE86F82D92F /* AssistantModels.swift */,
+				23F1C47F2B0C383D612E721E /* SkyAtlasLookup.swift */,
 			);
 			name = Projects;
 			path = Projects;
@@ -664,6 +678,7 @@
 				E88925FDFCDFD5CD1889D56E /* InsightsView.swift */,
 				EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */,
 				40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */,
+				3BB808D7623A429743A9F5AF /* AtlasView.swift */,
 				49D4FD515ECEDE7E301D814D /* AssistantChatPanelController.swift */,
 				7C7A02CC02BDD7A1184DC158 /* LogViewerView.swift */,
 				D6E7866DFCEC932D3B738897 /* RootView.swift */,
@@ -1025,7 +1040,9 @@
 				62FDFFA0A3724251AAC9D828 /* SkyHUDView.swift in Sources */,
 				DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */,
 				1D974B291A8C927796E5CB39 /* AssistantModels.swift in Sources */,
+				7A1AB44DF5BB81595390219C /* SkyAtlasLookup.swift in Sources */,
 				D0928FCDD5BE2BFBA792C89B /* AssistantChatPanel.swift in Sources */,
+				7C6D4B3F157385668C70D9B1 /* AtlasView.swift in Sources */,
 				EBB1EA59D75CF501A809E896 /* AssistantChatPanelController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1060,6 +1077,9 @@
 				BFCD7A5D9232810B14153610 /* CameraManagerRecallParametersTests.swift in Sources */,
 				64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */,
 				336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */,
+				5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */,
+				98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */,
+				063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,

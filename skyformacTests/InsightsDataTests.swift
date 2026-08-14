@@ -7,10 +7,12 @@ struct InsightsDataTests {
         AcquisitionPreset(name: "", targetID: "", mode: mode, isDriftReductionEnabled: false, isSmartLiveStackEnabled: false)
     }
 
-    private func makeCapture(object: String?, equipmentSystemID: UUID?, mode: AcquisitionMode?, date: Date) -> CaptureRecord {
+    private func makeCapture(
+        object: String?, equipmentSystemID: UUID?, mode: AcquisitionMode?, date: Date, rating: Rating = .unrated
+    ) -> CaptureRecord {
         CaptureRecord(
             date: date, fileName: "f.fits", kind: .fits, object: object, equipmentSystemID: equipmentSystemID,
-            preset: mode.map(makePreset)
+            preset: mode.map(makePreset), rating: rating
         )
     }
 
@@ -132,5 +134,50 @@ struct InsightsDataTests {
         let data = InsightsData.build(projects: [project], equipmentSystems: [], knownObjects: [], now: Date())
         #expect(data.monthlyActivity.count == 2)
         #expect(Set(data.monthlyActivity.map(\.label)) == ["Jan 26", "Aug 26"])
+    }
+
+    @Test func topRatedActionsOnlyIncludesFourAndFiveStarCaptures() {
+        var project = Project.newProject(name: "P")
+        var session = Session.newSession(name: "S")
+        session.captures = [
+            makeCapture(object: "M13", equipmentSystemID: nil, mode: .liveStack, date: Date(), rating: 5),
+            makeCapture(object: "M57", equipmentSystemID: nil, mode: .liveStack, date: Date(), rating: 3),
+            makeCapture(object: "Saturn", equipmentSystemID: nil, mode: .luckyImaging, date: Date(), rating: .unrated),
+        ]
+        project.sessions = [session]
+
+        let data = InsightsData.build(projects: [project], equipmentSystems: [], knownObjects: [], now: Date())
+        #expect(data.topRatedActions.count == 1)
+        #expect(data.topRatedActions.first?.object == "M13")
+        #expect(data.topRatedActions.first?.rating == 5)
+    }
+
+    @Test func topRatedActionsRequiresBothAnObjectAndAPreset() {
+        var project = Project.newProject(name: "P")
+        var session = Session.newSession(name: "S")
+        session.captures = [
+            makeCapture(object: nil, equipmentSystemID: nil, mode: .liveStack, date: Date(), rating: 5),
+            makeCapture(object: "M13", equipmentSystemID: nil, mode: nil, date: Date(), rating: 5),
+        ]
+        project.sessions = [session]
+
+        let data = InsightsData.build(projects: [project], equipmentSystems: [], knownObjects: [], now: Date())
+        #expect(data.topRatedActions.isEmpty)
+    }
+
+    @Test func topRatedActionsSortsByRatingThenByMostRecent() {
+        var project = Project.newProject(name: "P")
+        var session = Session.newSession(name: "S")
+        let older = Date(timeIntervalSince1970: 0)
+        let newer = Date(timeIntervalSince1970: 1_000_000)
+        session.captures = [
+            makeCapture(object: "M13", equipmentSystemID: nil, mode: .liveStack, date: older, rating: 4),
+            makeCapture(object: "M57", equipmentSystemID: nil, mode: .liveStack, date: newer, rating: 5),
+            makeCapture(object: "M31", equipmentSystemID: nil, mode: .liveStack, date: newer, rating: 4),
+        ]
+        project.sessions = [session]
+
+        let data = InsightsData.build(projects: [project], equipmentSystems: [], knownObjects: [], now: Date())
+        #expect(data.topRatedActions.map(\.object) == ["M57", "M31", "M13"])
     }
 }
