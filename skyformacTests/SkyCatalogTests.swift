@@ -14,4 +14,14 @@ struct SkyCatalogTests {
         #expect(sirius != nil)
         #expect(sirius?.magnitude ?? 0 < 0) // Sirius is famously negative-magnitude
     }
+
+    @Test func caldwellCatalogLoadsAllOneHundredNineObjectsWithUniqueIDs() {
+        #expect(SkyCatalog.caldwellObjects.count == 109)
+        #expect(Set(SkyCatalog.caldwellObjects.map(\.id)).count == 109)
+    }
+
+    @Test func caldwellCatalogHasKnownObjects() {
+        let doubleCluster = SkyCatalog.caldwellObjects.first { $0.id == "C14" }
+        #expect(doubleCluster?.commonName == "Double Cluster")
+    }
 }

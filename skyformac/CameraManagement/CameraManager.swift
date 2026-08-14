@@ -542,23 +542,6 @@ final class CameraManager {
         return formatter
     }()
 
-    /// "Ideas for next time must be calculated by AI agent on ollama, if not present ollama fall
-    /// back to the list of the wizard" — `fallback` is `InsightsData.suggestedNextObjects` (the
-    /// existing catalog-based list, unchanged), used whenever Ollama isn't reachable or replies
-    /// with something unusable, so the Dashboard/Insights pages always have *something* to show
-    /// immediately while this resolves, and never end up with nothing at all if the AI call fails.
-    func fetchSuggestedNextObjects(fallback: [String]) async -> [String] {
-        guard await ollamaPlanner.isAvailable() else { return fallback }
-        let context = """
-        Objects already captured or planned: \(fallback.isEmpty ? "(everything in the catalog already tried)" : "see candidates below").
-        Candidate objects not yet captured: \(fallback.joined(separator: ", ")).
-        """
-        guard let suggestions = try? await ollamaPlanner.suggestNextObjects(context: context), !suggestions.isEmpty else {
-            return fallback
-        }
-        return suggestions
-    }
-
     /// "Add the skill for the AI that suggests project sessions" — unlike `fetchSuggestedNextObjects`
     /// (a bare object name), this proposes a whole session: name, goal, target objects, and which
     /// project to attach it to. Driven by the user-editable `AppSettings.sessionSuggestionSkill`

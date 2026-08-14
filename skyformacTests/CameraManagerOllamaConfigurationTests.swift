@@ -83,52 +83,6 @@ struct CameraManagerOllamaConfigurationTests {
         }
     }
 
-    // MARK: - fetchSuggestedNextObjects
-
-    @Test func fetchSuggestedNextObjectsReturnsTheAIListWhenOllamaIsAvailable() async {
-        let transport = FakeOllamaTransport()
-        transport.responseText = #"{"objects": ["M13", "M57"]}"#
-        let (manager, root) = makeManager(withOllamaTransport: transport)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let result = await manager.fetchSuggestedNextObjects(fallback: ["Saturn"])
-
-        #expect(result == ["M13", "M57"])
-    }
-
-    @Test func fetchSuggestedNextObjectsFallsBackWhenOllamaIsUnreachable() async {
-        let transport = FakeOllamaTransport()
-        transport.isUnreachable = true
-        let (manager, root) = makeManager(withOllamaTransport: transport)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let result = await manager.fetchSuggestedNextObjects(fallback: ["Saturn", "M13"])
-
-        #expect(result == ["Saturn", "M13"])
-    }
-
-    @Test func fetchSuggestedNextObjectsFallsBackWhenTheReplyIsUnusable() async {
-        let transport = FakeOllamaTransport()
-        transport.responseText = "not JSON at all"
-        let (manager, root) = makeManager(withOllamaTransport: transport)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let result = await manager.fetchSuggestedNextObjects(fallback: ["Saturn"])
-
-        #expect(result == ["Saturn"])
-    }
-
-    @Test func fetchSuggestedNextObjectsFallsBackWhenTheAIReturnsAnEmptyList() async {
-        let transport = FakeOllamaTransport()
-        transport.responseText = #"{"objects": []}"#
-        let (manager, root) = makeManager(withOllamaTransport: transport)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let result = await manager.fetchSuggestedNextObjects(fallback: ["Saturn"])
-
-        #expect(result == ["Saturn"])
-    }
-
     // MARK: - fetchSuggestedNextSession / acceptSuggestedSession
 
     @Test func fetchSuggestedNextSessionReturnsThePlanWhenOllamaIsAvailable() async {

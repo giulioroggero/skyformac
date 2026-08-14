@@ -20,17 +20,10 @@ struct DashboardHomeView: View {
     var onShowInsights: () -> Void
     var onShowSettings: () -> Void
 
-    /// Starts out as `insights.suggestedNextObjects` (the catalog-based fallback, available
-    /// immediately/synchronously) and is replaced by `CameraManager.fetchSuggestedNextObjects`'s
-    /// AI-generated list once that resolves, if Ollama's actually available — "ideas for next
-    /// time must be calculated by AI … if not present ollama fall back to the list of the
-    /// wizard." Never shows an empty state while the AI call is in flight.
-    @State private var ideas: [String] = []
-
     /// "Add the skill for the AI that suggests project sessions" — a whole session proposal
     /// (name, goal, objects, target project), computed via `CameraManager.fetchSuggestedNextSession()`.
-    /// Unlike `ideas`, there's no synchronous fallback to show first: a full session plan has no
-    /// wizard-list equivalent, so the card simply doesn't appear until (if) Ollama actually answers.
+    /// There's no synchronous fallback to show first: a full session plan has no catalog-list
+    /// equivalent, so the card simply doesn't appear until (if) Ollama actually answers.
     @State private var suggestedSession: OllamaPlanner.SuggestedSessionPlan?
 
     /// The single most recently active session across every project — what "resume the last
@@ -191,27 +184,11 @@ struct DashboardHomeView: View {
                     }
                 }
 
-                if !insights.suggestedNextObjects.isEmpty {
-                    PageSection(title: "Ideas for Next Time") {
-                        ForEach(ideas.prefix(3), id: \.self) { object in
-                            HStack {
-                                Text(object)
-                                Spacer()
-                                Button("Quick Start…") { cameraManager.quickStart(forObjectName: object) }
-                                    .buttonStyle(.borderless)
-                            }
-                        }
-                    }
-                }
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Home")
-        .task(id: insights.suggestedNextObjects) {
-            ideas = insights.suggestedNextObjects
-            ideas = await cameraManager.fetchSuggestedNextObjects(fallback: insights.suggestedNextObjects)
-        }
         .task {
             suggestedSession = await cameraManager.fetchSuggestedNextSession()
         }
@@ -221,7 +198,11 @@ struct DashboardHomeView: View {
                     .accessibilityIdentifier("DashboardSettingsToolbarButton")
             }
         }
-        .frame(minWidth: 820, minHeight: 600)
+        // See `ProjectsBrowserView`'s own matching `.frame(minWidth: 600, ...)` doc comment —
+        // this one (applied to the Dashboard, the NavigationStack's own root content) contributes
+        // to the same overall window-width floor and needed the identical fix, or the window
+        // would still be forced past a 1024pt-wide screen regardless of the other one changing.
+        .frame(minWidth: 600, minHeight: 600)
     }
 
     @ViewBuilder

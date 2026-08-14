@@ -341,7 +341,7 @@ already in your library.
 The Projects page's toolbar has a third view alongside the thumbnail grid and
 table: an **Atlas** — every session across every project plotted on a
 right-ascension/declination sky chart by its planned target's real position
-(matched against the app's own bundled Messier/bright-star catalog), filterable
+(matched against the app's own bundled Messier/Caldwell/bright-star catalog), filterable
 by project, object, or date range, with a tap to jump straight to that session.
 
 ### AI panel
@@ -379,7 +379,7 @@ one-file-per-item approach the Projects folder already uses.
 
 The Home page's **Filters** button narrows the project/session list (on top
 of free-text search) to an exact tag, an exact observed object (planets, the
-Moon, the bundled Messier/bright-star catalog, or anything already typed
+Moon, the bundled Messier/Caldwell/bright-star catalog, or anything already typed
 into a project), an equipment system, and/or a date range.
 
 ### Application Log

@@ -88,6 +88,9 @@ enum ObservedObjectCatalog {
         for object in SkyCatalog.messierObjects {
             names.insert(object.displayName)
         }
+        for object in SkyCatalog.caldwellObjects {
+            names.insert(object.displayName)
+        }
         for star in SkyCatalog.brightStars {
             names.insert(star.displayName)
         }

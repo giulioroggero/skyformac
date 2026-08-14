@@ -2,11 +2,12 @@ import Foundation
 
 /// Resolves a free-text observed-object name (as typed/picked into `Session.plannedObjects`)
 /// into a fixed sky position — "the sky atlas is in stellarium, leverage it": reuses the same
-/// bundled `SkyCatalog` (Messier objects + bright stars, extracted from Stellarium's own DSO
-/// catalog — see `SkyCatalog`'s own doc comment) the rest of the app already treats as its
-/// Stellarium data, rather than parsing the sibling `stellarium` source repository directly (a
-/// fragile, non-shippable dependency on one development machine's local path — the same call
-/// `ObservedObjectCatalog` already made for the Filters popover's own object list).
+/// bundled `SkyCatalog` (Messier + Caldwell objects, and bright stars, extracted from
+/// Stellarium's own DSO catalog — see `SkyCatalog`'s own doc comment) the rest of the app already
+/// treats as its Stellarium data, rather than parsing the sibling `stellarium` source repository
+/// directly at runtime (a fragile, non-shippable dependency on one development machine's local
+/// path — the same call `ObservedObjectCatalog` already made for the Filters popover's own
+/// object list).
 ///
 /// Deliberately can't resolve everything: planets and the Moon (`PlanetaryPreset`) move across
 /// the sky and have no single fixed position a static atlas can place them at without real
@@ -25,17 +26,24 @@ enum SkyAtlasLookup {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        // A Messier designation can show up in several different spellings across this app
-        // ("M13" typed free-hand, "M13 (Hercules Cluster)" from the Quick Start/`DeepSkyObject`
-        // list) — extracting just the catalog number and matching it against `SkyCatalog`'s own
-        // `id` (always the bare "M13" form) handles all of them at once, rather than requiring
-        // an exact string match against whichever format happened to be used.
-        if let messierID = messierCatalogID(in: trimmed),
+        // A Messier/Caldwell designation can show up in several different spellings across this
+        // app ("M13" typed free-hand, "M13 (Hercules Cluster)" from the Quick Start/
+        // `DeepSkyObject` list) — extracting just the catalog number and matching it against
+        // `SkyCatalog`'s own `id` (always the bare "M13"/"C14" form) handles all of them at once,
+        // rather than requiring an exact string match against whichever format happened to be
+        // used.
+        if let messierID = catalogID(prefix: "M", in: trimmed),
            let match = SkyCatalog.messierObjects.first(where: { $0.id.caseInsensitiveCompare(messierID) == .orderedSame }) {
             return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
         }
+        if let caldwellID = catalogID(prefix: "C", in: trimmed),
+           let match = SkyCatalog.caldwellObjects.first(where: { $0.id.caseInsensitiveCompare(caldwellID) == .orderedSame }) {
+            return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
+        }
 
-        if let match = SkyCatalog.messierObjects.first(where: { ($0.commonName?.caseInsensitiveCompare(trimmed)) == .orderedSame }) {
+        if let match = (SkyCatalog.messierObjects + SkyCatalog.caldwellObjects).first(where: {
+            ($0.commonName?.caseInsensitiveCompare(trimmed)) == .orderedSame
+        }) {
             return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
         }
 
@@ -58,12 +66,15 @@ enum SkyAtlasLookup {
         PlanetaryPreset.allCases.contains { $0.rawValue.caseInsensitiveCompare(name) == .orderedSame }
     }
 
-    private static func messierCatalogID(in text: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: #"^M\s?(\d+)"#, options: [.caseInsensitive]) else { return nil }
+    /// Extracts a bare "M13"/"C14"-style designation from the start of `text` for `prefix`
+    /// ("M" or "C"), regardless of a space between the letter and number or trailing text
+    /// ("M13 (Hercules Cluster)" still yields "M13").
+    private static func catalogID(prefix: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: "^\(prefix)\\s?(\\d+)", options: [.caseInsensitive]) else { return nil }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         guard let match = regex.firstMatch(in: text, range: range), let numberRange = Range(match.range(at: 1), in: text) else {
             return nil
         }
-        return "M\(text[numberRange])"
+        return "\(prefix)\(text[numberRange])"
     }
 }

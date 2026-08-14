@@ -502,7 +502,7 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Home: where everything starts",
-                body: "**Home** is an orientation dashboard, not just a project list — resume the most recently active session in one click, jump to a common task (**Quick Start**, **New Project**, **All Projects**, **Equipment**, **Insights** — Settings is one click away in the toolbar instead), see the last few projects and sessions you've touched, a monthly activity chart, your most-captured object and most-used equipment at a glance, a **Suggested Session** card when the AI has a full next-session idea ready, and a few \"try this next\" object suggestions. The full project list moved one level down to its own **Projects** page — tap **All Projects** to get there, or pick **Show All Projects** from the menu bar's **Project** menu."
+                body: "**Home** is an orientation dashboard, not just a project list — resume the most recently active session in one click, jump to a common task (**Quick Start**, **New Project**, **All Projects**, **Equipment**, **Insights** — Settings is one click away in the toolbar instead), see the last few projects and sessions you've touched, a monthly activity chart, your most-captured object and most-used equipment at a glance, and a **Suggested Session** card when the AI has a full next-session idea ready. The full project list moved one level down to its own **Projects** page — tap **All Projects** to get there, or pick **Show All Projects** from the menu bar's **Project** menu."
             ),
             HelpSection(
                 id: "setting.newProject", heading: "Creating a project",
@@ -518,7 +518,7 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Atlas view",
-                body: "The Atlas plots every session across every project on a right-ascension/declination sky chart, positioned by its planned target's real coordinates (matched against the app's own bundled Messier/bright-star catalog). Filter by project name, observed object, or a date range; tap a point to see which session it is and jump straight to it. Planets and the Moon move across the sky and have no single fixed position to plot — they, along with anything not in the bundled catalog, are listed separately underneath instead of being dropped silently."
+                body: "The Atlas plots every session across every project on a right-ascension/declination sky chart, positioned by its planned target's real coordinates (matched against the app's own bundled Messier/Caldwell/bright-star catalog). Filter by project name, observed object, or a date range; tap a point to see which session it is and jump straight to it. Planets and the Moon move across the sky and have no single fixed position to plot — they, along with anything not in the bundled catalog, are listed separately underneath instead of being dropped silently."
             ),
             HelpSection(
                 heading: "Ratings and favorites",
@@ -566,7 +566,7 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Insights",
-                body: "The **Insights** tile (Home page) is a dedicated page over every capture across every project: total projects/sessions/captures, a monthly activity chart, and breakdowns of the most-captured objects, most-used equipment systems, and most common acquisition mode — plus \"try this next\" suggestions for objects you haven't captured yet, each with its own **Quick Start…** button. Those suggestions are computed by the AI when a local Ollama server is reachable, falling back automatically to the same catalog-based list otherwise — either way, something useful shows up immediately."
+                body: "The **Insights** tile (Home page) is a dedicated page over every capture across every project: total projects/sessions/captures, a monthly activity chart, and breakdowns of the most-captured objects, most-used equipment systems, and most common acquisition mode."
             ),
             HelpSection(
                 heading: "Equipment",
@@ -582,7 +582,7 @@ enum HelpContent {
             ),
             HelpSection(
                 heading: "Filters",
-                body: "The Projects page toolbar's **Filters** button narrows the project/session list — on top of whatever's typed into the search box — to an exact tag, an exact observed object (drawn from the planets and Moon, the bundled Messier/bright-star catalog, and anything already typed into any project's own object list), an equipment system, and/or a date range. A session matches an equipment filter through its own *effective* system — its own override if it has one, otherwise its project's. **Clear Filters** resets all of them at once; the button's icon fills in whenever any filter is active."
+                body: "The Projects page toolbar's **Filters** button narrows the project/session list — on top of whatever's typed into the search box — to an exact tag, an exact observed object (drawn from the planets and Moon, the bundled Messier/Caldwell/bright-star catalog, and anything already typed into any project's own object list), an equipment system, and/or a date range. A session matches an equipment filter through its own *effective* system — its own override if it has one, otherwise its project's. **Clear Filters** resets all of them at once; the button's icon fills in whenever any filter is active."
             ),
             HelpSection(
                 heading: "Selecting multiple projects",
@@ -610,7 +610,7 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.assistant", heading: "AI",
-                body: "A chat panel on the right of every page — the Dashboard, Projects, a Project or Session page, and the live camera view all share the exact same conversation. It's grounded in whatever's currently relevant: the project/session you're viewing (if any), the connected camera, your ratings/favorites, and a snapshot of your own activity (most-captured objects, \"try this next\" candidates). Ask it a question, or ask it to create a project, create a session, or change the camera's gain/exposure/mode — **any proposed change always shows its own Approve/Reject card first; nothing is applied automatically.** The compose box is a multi-line text area for longer prompts. A model picker in its header (also in Settings) lists whatever's actually installed on your configured Ollama server. **Minimize** (the chevron button) collapses it to a thin rail with its own expand button always reachable; **Detach** moves it into its own floating window (**Dock** brings it back), and its sidebar width is freely resizable by dragging its left edge; **Close** hides it entirely — reopen it from **skyformac → AI** (⌘⇧J) or the toolbar toggle. While the camera view is running, the AI panel is always detached (never embedded in the sidebar) so it doesn't crowd the live preview — it returns to the sidebar automatically once you're back to browsing, if that's where it was before."
+                body: "A chat panel on the right of every page — the Dashboard, Projects, a Project or Session page, and the live camera view all share the exact same conversation. It's grounded in whatever's currently relevant: the project/session you're viewing (if any), the connected camera, the current date/time and observer location, your ratings/favorites, a snapshot of your own activity (most-captured objects), and the Astronomy Knowledge reference notes. Ask it a question, or ask it to create a project, create a session, or change the camera's gain/exposure/mode — **any proposed change always shows its own Approve/Reject card first; nothing is applied automatically.** Replies render as Markdown, not literal asterisks. The compose box is a multi-line text area for longer prompts. A model picker in its header (also in Settings) lists whatever's actually installed on your configured Ollama server. A **Stop** button appears next to \"Thinking…\" to cancel a reply in progress. **Minimize** (the chevron button) collapses it to a thin rail with its own expand button always reachable; **Detach** moves it into its own floating window (**Dock** brings it back), and its sidebar width is freely resizable by dragging its left edge; **Close** hides it entirely — reopen it from **skyformac → AI** (⌘⇧J) or the toolbar toggle. While the camera view is running, the AI panel is always detached (never embedded in the sidebar) so it doesn't crowd the live preview — it returns to the sidebar automatically once you're back to browsing, if that's where it was before."
             ),
             HelpSection(
                 heading: "Archive, delete, and Recently Deleted",

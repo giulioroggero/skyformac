@@ -21,6 +21,28 @@ actually tagged. Tags on GitHub: [v0.3.0](https://github.com/giulioroggero/skyfo
   ones. Add/edit/delete files directly in Finder; **Restore Default
   Content** resets just the shipped defaults, leaving anything else added
   untouched.
+- The AI panel now includes the current date/time and observer location
+  (session's, else project's, else the last GPS fix) in every request, and
+  the **Caldwell catalog** (109 objects, Patrick Moore's "beyond Messier"
+  complement) alongside Messier in the bundled sky catalog — used by the
+  Atlas view, `SkyAtlasLookup`, and the Filters popover's object list.
+- A **Stop** button next to the AI panel's "Thinking…" indicator cancels an
+  in-flight request; replies now render as Markdown instead of literal
+  `**asterisks**`; AI planning/chat failures are logged to the Application
+  Log, not just shown inline.
+
+### Changed
+- Removed "Ideas for Next Time" (the bare-object-name suggestion list) from
+  the Dashboard and Insights pages — the AI panel chat is the intended
+  place to ask what to look at next, and the Dashboard's own "Suggested
+  Session" card already covers the same ground with a fuller answer.
+- Reduced the Projects browser/Dashboard's minimum width so the whole
+  window (browser + AI sidebar) can no longer be forced wider than a
+  1024pt-wide screen — on a smaller display this previously pushed the
+  Settings toolbar button and the rightmost "Common Tasks" tile out of
+  reach entirely, not just visually cramped (caught via two CI-only UI
+  test failures that never reproduced locally, tracked down by downloading
+  and inspecting the actual `.xcresult` from a failed run).
 
 ## [0.3.0] - 2026-08-14
 

@@ -2451,3 +2451,68 @@ made along the way.
     caching in memory, so an edit takes effect on the very next message with no reload step. The
     cap exists so a user who keeps expanding their own knowledge base doesn't inadvertently turn
     every single AI request into something a small local model takes minutes to chew through.
+
+- **A real app bug found the hard way: the window can open wider than the screen.** Two CI-only
+  UI test failures (`testInsightsTileOpensTheInsightsPage`, `testSettingsToolbarButtonOpensThe
+  SettingsSheet`) had already gone through two rounds of "just widen the timeout" fixes that never
+  actually helped — CI's `.xcresult`, once actually downloaded and inspected (screen recording,
+  frame-by-frame via `ffmpeg`, and the raw accessibility-tree dump), showed the real cause:
+  `ProjectsBrowserView`'s `.frame(minWidth: 820, minHeight: 600)` plus the AI sidebar's default
+  `320`pt width plus its `6`pt resize handle forces the *whole window* to at least `1146`pt wide
+  (`RootView` lays browser + sidebar out in one `HStack`) — exactly the width the CI dump reported.
+  On a `1024`×`768` virtual display (`"Apple Virtual Machine"` in the run's own device info), a
+  window that's *required* to be `1146`pt wide is forced partially off-screen, taking the trailing
+  Settings toolbar button and the rightmost "Common Tasks" tiles genuinely out of reach — not just
+  visually cramped, actually un-clickable, which is exactly what "exists but isn't hittable"/"tap
+  lands on the wrong thing" looked like. Reduced the minWidth (on both `ProjectsBrowserView`'s own
+  frame and `DashboardHomeView`'s own — the Dashboard is the `NavigationStack`'s root content, so
+  its frame contributes to the same overall minimum independently) to `600`, bringing the combined
+  floor down to `926`pt — comfortably under `1024`. This isn't purely a CI artifact either: any
+  real user on a modest external display or an older/smaller laptop screen could hit the exact same
+  "can't reach the Settings button" problem in real life.
+  - **How the evidence was actually gathered** — added an `actions/upload-artifact` CI step
+    (`if: failure()`) uploading `build/Logs/Test/*.xcresult` so a failure that never reproduced
+    locally could actually be inspected instead of guessed at repeatedly. `gh run download` pulled
+    the artifact; `xcrun xcresulttool get test-results activities --test-id "..."` listed each
+    attachment (screen recordings, "Debug description"/"App UI hierarchy" text dumps);
+    `xcresulttool export object --legacy --type file` extracted them; `ffmpeg -vf fps=1` turned a
+    screen recording into individual frames to actually *look* at what was on screen at the moment
+    of failure, rather than inferring it from log lines alone.
+  - **Two more distinct bugs found the same way, in the Settings toolbar button specifically**: a
+    `ToolbarItem`'s own accessibility representation duplicates its identifier onto two nodes — an
+    outer layout container spanning the toolbar's full height (never hittable) and the real inner
+    button nested inside it (hittable) — so neither a unique-match subscript nor a blind
+    `firstMatch` reliably picks the right one; fixed by polling `allElementsBoundByIndex` for
+    whichever one is actually hittable. Separately, the "Common Tasks" row's 5th tile (Insights)
+    could be scrolled out of view in its horizontal `ScrollView` on a narrower window — macOS
+    XCUITest doesn't auto-scroll an off-screen element into view before tapping (unlike iOS), so a
+    tap on an existing-but-off-screen element landed on whatever was actually on screen (the AI
+    panel) instead; fixed by giving the `ScrollView` an accessibility identifier and scrolling it
+    explicitly when the target tile isn't yet hittable.
+
+- **Removed "Ideas for Next Time" (the bare-object-name AI/catalog suggestion list) from both the
+  Dashboard and Insights pages** per explicit feedback — the AI panel chat is the intended place
+  to ask "what should I look at next," and the Dashboard's own "Suggested Session" card already
+  covers the same ground with a fuller answer (name, goal, objects, project). Removed the now-dead
+  `CameraManager.fetchSuggestedNextObjects`, `OllamaPlanner.suggestNextObjects`/
+  `suggestNextObjectsPrompt`, and their tests along with it — `InsightsData.suggestedNextObjects`
+  itself stays, since `CameraManager.assistantContext()` still folds it into the AI panel's own
+  context as "candidates for what to see next," which is a different (and still wanted) use of the
+  same underlying data.
+
+- **Added the Caldwell catalog (109 objects) alongside Messier** — "leverage the Stellarium
+  atlas... for providing correct answers," scoped specifically to expanding the bundled reference
+  data (not building a real position/visibility calculator, a much larger separate feature).
+  Extracted from the same `stellarium` source repo the Messier list originally came from:
+  `nebulae/default/catalog.txt` for RA/Dec/magnitude/type (matched via its own "C number" column),
+  cross-referenced against `nebulae/default/names.dat` for common names (preferring a "WK"
+  well-known-sourced name when more than one is listed for the same object, the same way multiple
+  names can exist per NGC/IC number). Two real data quirks surfaced and were handled explicitly
+  rather than silently dropped: two Caldwell objects (C68, C99 — the latter is the Coalsack, a
+  *dark* nebula that blocks light rather than emitting/reflecting it) have no defined magnitude in
+  the source data at all, kept with the same `99` "no data" sentinel the raw Stellarium data
+  itself uses rather than being excluded; and C14 (the Double Cluster) is genuinely two adjacent
+  NGC objects sharing one Caldwell number in the source data, deduplicated to a single entry.
+  Wired into `SkyAtlasLookup` (a Caldwell designation resolves the same way a Messier one does —
+  `catalogID(prefix:in:)` replaces the old Messier-only `messierCatalogID` to handle both) and
+  `ObservedObjectCatalog` (the Filters popover's object list).

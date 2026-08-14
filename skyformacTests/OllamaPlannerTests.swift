@@ -360,36 +360,6 @@ struct OllamaPlannerTests {
         #expect(prompt.contains("some context"))
     }
 
-    @Test func suggestNextObjectsParsesTheObjectsArray() async throws {
-        let transport = FakeTransport()
-        transport.responseText = #"{"objects": ["M13", "Saturn", "NGC 7000"]}"#
-        let planner = OllamaPlanner(transport: transport)
-
-        let objects = try await planner.suggestNextObjects(context: "some context")
-        #expect(objects == ["M13", "Saturn", "NGC 7000"])
-    }
-
-    @Test func suggestNextObjectsThrowsInvalidPlanJSONWhenNoJSONIsPresent() async {
-        let transport = FakeTransport()
-        transport.responseText = "I'm not sure what to suggest."
-        let planner = OllamaPlanner(transport: transport)
-
-        await #expect(throws: OllamaError.invalidPlanJSON) {
-            try await planner.suggestNextObjects(context: "some context")
-        }
-    }
-
-    @Test func suggestNextObjectsExtractsJSONAfterAThinkingBlock() async throws {
-        let transport = FakeTransport()
-        transport.responseText = """
-        <think>The user wants object suggestions...</think>
-        {"objects": ["M31"]}
-        """
-        let planner = OllamaPlanner(transport: transport)
-
-        let objects = try await planner.suggestNextObjects(context: "some context")
-        #expect(objects == ["M31"])
-    }
 
     // MARK: - suggestNextSession
 

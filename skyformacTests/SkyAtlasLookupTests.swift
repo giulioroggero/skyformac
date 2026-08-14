@@ -30,6 +30,24 @@ struct SkyAtlasLookupTests {
         #expect(byCommonName != nil)
     }
 
+    @Test func resolvesABareCaldwellDesignation() {
+        let position = SkyAtlasLookup.position(forObjectName: "C14")
+        #expect(position != nil)
+    }
+
+    @Test func resolvesACaldwellDesignationCaseInsensitively() {
+        #expect(SkyAtlasLookup.position(forObjectName: "c14") == SkyAtlasLookup.position(forObjectName: "C14"))
+    }
+
+    @Test func resolvesACaldwellObjectByItsCommonNameAlone() {
+        // C14's bundled entry is the Double Cluster — matching by that name (no "C14" anywhere in
+        // the string) should still find the same coordinates as the bare designation.
+        let byCommonName = SkyAtlasLookup.position(forObjectName: "Double Cluster")
+        let byDesignation = SkyAtlasLookup.position(forObjectName: "C14")
+        #expect(byCommonName == byDesignation)
+        #expect(byCommonName != nil)
+    }
+
     @Test func resolvesABrightStarByName() {
         guard let firstStar = SkyCatalog.brightStars.first else {
             Issue.record("Expected at least one bundled bright star to test against")

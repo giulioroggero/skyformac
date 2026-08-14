@@ -305,13 +305,8 @@ session persistence design and the browser-as-main-window architecture)
   Start, New Project, All Projects, Equipment, Insights — Settings is
   reachable from the toolbar/⌘, instead, not its own "Common Tasks" tile),
   see the
-  last few touched projects and sessions, a monthly activity chart, the
-  most-captured object/most-used equipment at a glance, and a few curated
-  "try this next" suggestions (`DashboardHomeView`) — computed by the
-  Ollama model when it's reachable, falling back to the same
-  catalog-derived candidate list whenever Ollama is unavailable or returns
-  nothing usable (`CameraManager.fetchSuggestedNextObjects`; the fallback
-  list shows immediately, then is silently replaced if the AI responds) — all
+  last few touched projects and sessions, a monthly activity chart, and the
+  most-captured object/most-used equipment at a glance — all
   before ever drilling into the full project list, which moved one level
   down to its
   own **Projects** page (what used to be Home). Home also shows a
@@ -344,8 +339,7 @@ session persistence design and the browser-as-main-window architecture)
   read-only page over every capture across every project: total
   projects/sessions/captures, a monthly activity chart, and breakdowns of
   the most-captured objects, most-used equipment systems, and most common
-  acquisition mode — plus the same "try this next" suggestions the Home
-  page teases (`InsightsData.build`, `InsightsView`). Answers "what have I
+  acquisition mode (`InsightsData.build`, `InsightsView`). Answers "what have I
   actually been doing" at a glance instead of piecing it together project
   by project. The activity chart plots a categorical month axis (`MonthlyActivity.label`),
   not a continuous date one — a continuous axis showed automatic tick marks
@@ -392,7 +386,7 @@ session persistence design and the browser-as-main-window architecture)
 - **Atlas view** (`AtlasView`) — every session across every project,
   positioned on a right-ascension/declination scatter plot by its first
   planned object's real sky position, resolved from the app's own bundled
-  Stellarium-derived catalog (`SkyAtlasLookup`, matching Messier
+  Stellarium-derived catalog (`SkyAtlasLookup`, matching Messier/Caldwell
   designations in any spelling and bright-star names against `SkyCatalog`).
   Filter by project name, observed object, or a date range; tap a point to
   see which project/session it is and jump straight to it. Solar System
@@ -491,7 +485,7 @@ session persistence design and the browser-as-main-window architecture)
   projects and sessions; a single search box matches name, goal, tags,
   planned/observed objects, and note text, optionally narrowed with the
   Projects page's own Filters popover to an exact tag, an exact observed
-  object (drawn from `PlanetaryPreset`, the bundled Messier/bright-star
+  object (drawn from `PlanetaryPreset`, the bundled Messier/Caldwell/bright-star
   catalog, and every object either has actually planned —
   `ObservedObjectCatalog`), an equipment system (matched against a session's
   own *effective*, inheritance resolved system), and/or a date range — all
@@ -530,9 +524,11 @@ session persistence design and the browser-as-main-window architecture)
   toggle, on by default), the same one conversation regardless of whether
   you're on the Dashboard, browsing Projects, or running a live camera
   session. Grounded in the current project/session (if any), the connected
-  camera, an Insights snapshot (most-captured objects, "try this next"
-  candidates), and the user's own ratings/favorites/top-rated past actions
-  (see below), it can answer questions, or propose creating a project,
+  camera, an Insights snapshot (most-captured objects), the current
+  date/time and observer location (session's, else project's, else the
+  last GPS fix), the user's own ratings/favorites/top-rated past actions
+  (see below), and the **Astronomy Knowledge** reference notes (see
+  below), it can answer questions, or propose creating a project,
   creating a session, or changing the camera's gain/exposure/mode
   (`OllamaPlanner.respond(to:context:history:)`). **Any proposed change
   always shows its own Approve/Reject card and is never applied
@@ -554,7 +550,11 @@ session persistence design and the browser-as-main-window architecture)
   has installed, plus an "Auto" default; the server URL is also editable
   from Settings. Since a local model has no real multi-turn conversation
   state of its own, the "conversation" is entirely client-side — the last
-  few turns are folded as plain text into every new request.
+  few turns are folded as plain text into every new request. Replies are
+  rendered as Markdown (bold/italic/inline code), not literal asterisks.
+  A **Stop** button appears next to "Thinking…" to cancel an in-flight
+  request early; any planning/chat failure is also logged to the
+  Application Log, not just shown inline.
 - **Ratings and favorites** — projects, sessions, and individual captures
   can each be rated 1–5 stars (tap the stars in their header/detail page);
   projects and sessions can additionally be marked as favorites (a single
@@ -652,7 +652,7 @@ session persistence design and the browser-as-main-window architecture)
   for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 512 unit tests (Swift Testing) across 73 suites, covering
+- `skyformacTests` — 510 unit tests (Swift Testing) across 73 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

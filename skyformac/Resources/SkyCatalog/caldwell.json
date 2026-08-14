@@ -1,0 +1,1092 @@
+[
+  {
+    "id": "C1",
+    "commonName": "Polarissima Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 12.108,
+    "decDegrees": 85.255,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C2",
+    "commonName": "Bow-Tie Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 3.25421,
+    "decDegrees": 72.52197,
+    "magnitude": 10.7,
+    "majorAxisArcmin": 0.63,
+    "minorAxisArcmin": 0.58
+  },
+  {
+    "id": "C3",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 184.17549,
+    "decDegrees": 69.46257,
+    "magnitude": 10.5,
+    "majorAxisArcmin": 21.9,
+    "minorAxisArcmin": 7.2
+  },
+  {
+    "id": "C4",
+    "commonName": "Iris Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 315.4037,
+    "decDegrees": 68.1633,
+    "magnitude": 6.8,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 8.0
+  },
+  {
+    "id": "C5",
+    "commonName": "Maffei 1 Group",
+    "objectType": "*",
+    "raDegrees": 56.70214,
+    "decDegrees": 68.09611,
+    "magnitude": 9.1,
+    "majorAxisArcmin": 21.4,
+    "minorAxisArcmin": 20.9
+  },
+  {
+    "id": "C6",
+    "commonName": "Cat's Eye Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 269.63926,
+    "decDegrees": 66.6332,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 0.33,
+    "minorAxisArcmin": 0.5
+  },
+  {
+    "id": "C7",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 114.21415,
+    "decDegrees": 65.60255,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 21.9,
+    "minorAxisArcmin": 12.3
+  },
+  {
+    "id": "C8",
+    "commonName": "Ghost's Goblet",
+    "objectType": "Open Cluster",
+    "raDegrees": 22.38,
+    "decDegrees": 63.302,
+    "magnitude": 9.5,
+    "majorAxisArcmin": 7.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C9",
+    "commonName": null,
+    "objectType": "HII Region",
+    "raDegrees": 344.3208,
+    "decDegrees": 62.4758,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 50.0,
+    "minorAxisArcmin": 30.0
+  },
+  {
+    "id": "C10",
+    "commonName": "Horseshoe Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 26.537,
+    "decDegrees": 61.235,
+    "magnitude": 7.1,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C11",
+    "commonName": "Bubble Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 350.2012,
+    "decDegrees": 61.2017,
+    "magnitude": 10.0,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": 8.0
+  },
+  {
+    "id": "C12",
+    "commonName": "Fireworks Galaxy",
+    "objectType": "*",
+    "raDegrees": 308.71805,
+    "decDegrees": 60.15368,
+    "magnitude": 9.6,
+    "majorAxisArcmin": 11.5,
+    "minorAxisArcmin": 9.8
+  },
+  {
+    "id": "C13",
+    "commonName": "Dragonfly Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 19.896,
+    "decDegrees": 58.287,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C14",
+    "commonName": "Double Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 34.75,
+    "decDegrees": 57.128,
+    "magnitude": 3.8,
+    "majorAxisArcmin": 30.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C15",
+    "commonName": "Blinking Planetary Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 296.20063,
+    "decDegrees": 50.52507,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 0.45,
+    "minorAxisArcmin": 0.4
+  },
+  {
+    "id": "C16",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 333.783,
+    "decDegrees": 49.898,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 30.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C17",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 8.3005,
+    "decDegrees": 48.50874,
+    "magnitude": 9.5,
+    "majorAxisArcmin": 13.2,
+    "minorAxisArcmin": 7.8
+  },
+  {
+    "id": "C18",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 9.74154,
+    "decDegrees": 48.33738,
+    "magnitude": 9.2,
+    "majorAxisArcmin": 11.7,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "C19",
+    "commonName": "Cocoon Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 328.35,
+    "decDegrees": 47.267,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": 12.0
+  },
+  {
+    "id": "C20",
+    "commonName": "North America Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 314.696,
+    "decDegrees": 44.33,
+    "magnitude": 4.0,
+    "majorAxisArcmin": 120.0,
+    "minorAxisArcmin": 100.0
+  },
+  {
+    "id": "C21",
+    "commonName": "The Box Galaxy",
+    "objectType": "*",
+    "raDegrees": 187.04632,
+    "decDegrees": 44.09356,
+    "magnitude": 9.4,
+    "majorAxisArcmin": 6.2,
+    "minorAxisArcmin": 4.4
+  },
+  {
+    "id": "C22",
+    "commonName": "Blue Snowball",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 351.4733,
+    "decDegrees": 42.535,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 0.62,
+    "minorAxisArcmin": 0.26
+  },
+  {
+    "id": "C23",
+    "commonName": "The Silver Sliver Galaxy",
+    "objectType": "*",
+    "raDegrees": 35.63711,
+    "decDegrees": 42.34832,
+    "magnitude": 10.1,
+    "majorAxisArcmin": 13.5,
+    "minorAxisArcmin": 2.5
+  },
+  {
+    "id": "C24",
+    "commonName": "Perseus A",
+    "objectType": "*",
+    "raDegrees": 49.95067,
+    "decDegrees": 41.5117,
+    "magnitude": 12.48,
+    "majorAxisArcmin": 2.91,
+    "minorAxisArcmin": 2.41
+  },
+  {
+    "id": "C25",
+    "commonName": "Intergalactic Wanderer",
+    "objectType": "Globular Cluster",
+    "raDegrees": 114.53546,
+    "decDegrees": 38.88192,
+    "magnitude": 9.06,
+    "majorAxisArcmin": 4.6,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C26",
+    "commonName": "Silver Needle Galaxy",
+    "objectType": "*",
+    "raDegrees": 184.37358,
+    "decDegrees": 37.80711,
+    "magnitude": 10.0,
+    "majorAxisArcmin": 16.6,
+    "minorAxisArcmin": 1.9
+  },
+  {
+    "id": "C27",
+    "commonName": "Crescent Nebula",
+    "objectType": "Emission Nebula",
+    "raDegrees": 303.029,
+    "decDegrees": 38.355,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "C28",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 29.421,
+    "decDegrees": 37.785,
+    "magnitude": 5.7,
+    "majorAxisArcmin": 75.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C29",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 197.73463,
+    "decDegrees": 37.05894,
+    "magnitude": 13.67,
+    "majorAxisArcmin": 3.91,
+    "minorAxisArcmin": 1.64
+  },
+  {
+    "id": "C30",
+    "commonName": "Deer Lick Group",
+    "objectType": "*",
+    "raDegrees": 339.26709,
+    "decDegrees": 34.41592,
+    "magnitude": 9.48,
+    "majorAxisArcmin": 10.5,
+    "minorAxisArcmin": 3.7
+  },
+  {
+    "id": "C31",
+    "commonName": "Flaming Star Nebula",
+    "objectType": "Emission Nebula",
+    "raDegrees": 79.35,
+    "decDegrees": 34.38,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 50.0,
+    "minorAxisArcmin": 30.0
+  },
+  {
+    "id": "C32",
+    "commonName": "Whale Galaxy",
+    "objectType": "*",
+    "raDegrees": 190.53337,
+    "decDegrees": 32.54151,
+    "magnitude": 9.19,
+    "majorAxisArcmin": 9.25,
+    "minorAxisArcmin": 2.78
+  },
+  {
+    "id": "C33",
+    "commonName": "East Veil Nebula",
+    "objectType": "Supernova Remnant",
+    "raDegrees": 314.079,
+    "decDegrees": 31.743,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 230.0,
+    "minorAxisArcmin": 160.0
+  },
+  {
+    "id": "C34",
+    "commonName": "Filamentary Nebula",
+    "objectType": "Supernova Remnant",
+    "raDegrees": 311.4083,
+    "decDegrees": 30.7083,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 210.0,
+    "minorAxisArcmin": 160.0
+  },
+  {
+    "id": "C35",
+    "commonName": "Coma B",
+    "objectType": "*",
+    "raDegrees": 195.03374,
+    "decDegrees": 27.97703,
+    "magnitude": 11.3,
+    "majorAxisArcmin": 2.66,
+    "minorAxisArcmin": 1.81
+  },
+  {
+    "id": "C36",
+    "commonName": "Koi Fish Galaxy",
+    "objectType": "*",
+    "raDegrees": 188.99037,
+    "decDegrees": 27.95976,
+    "magnitude": 10.01,
+    "majorAxisArcmin": 10.7,
+    "minorAxisArcmin": 4.4
+  },
+  {
+    "id": "C37",
+    "commonName": "20 Vulpeculae Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 303.004,
+    "decDegrees": 26.478,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C38",
+    "commonName": "Needle Galaxy",
+    "objectType": "*",
+    "raDegrees": 189.08668,
+    "decDegrees": 25.98739,
+    "magnitude": 12.43,
+    "majorAxisArcmin": 15.9,
+    "minorAxisArcmin": 1.85
+  },
+  {
+    "id": "C39",
+    "commonName": "Eskimo Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 112.29486,
+    "decDegrees": 20.9118,
+    "magnitude": 9.61,
+    "majorAxisArcmin": 0.8,
+    "minorAxisArcmin": 0.75
+  },
+  {
+    "id": "C40",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 170.01581,
+    "decDegrees": 18.35679,
+    "magnitude": 11.2,
+    "majorAxisArcmin": 2.16,
+    "minorAxisArcmin": 1.21
+  },
+  {
+    "id": "C41",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 66.75,
+    "decDegrees": 15.8667,
+    "magnitude": 0.5,
+    "majorAxisArcmin": 330.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C42",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 315.37277,
+    "decDegrees": 16.18791,
+    "magnitude": 10.46,
+    "majorAxisArcmin": 1.53,
+    "minorAxisArcmin": 1.47
+  },
+  {
+    "id": "C43",
+    "commonName": "The Little Sombrero Galaxy",
+    "objectType": "*",
+    "raDegrees": 0.81228,
+    "decDegrees": 16.14523,
+    "magnitude": 11.6,
+    "majorAxisArcmin": 5.5,
+    "minorAxisArcmin": 2.3
+  },
+  {
+    "id": "C44",
+    "commonName": "Propeller Galaxy",
+    "objectType": "*",
+    "raDegrees": 346.23612,
+    "decDegrees": 12.32288,
+    "magnitude": 10.85,
+    "majorAxisArcmin": 4.1,
+    "minorAxisArcmin": 3.1
+  },
+  {
+    "id": "C45",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 204.38362,
+    "decDegrees": 8.88506,
+    "magnitude": 10.97,
+    "majorAxisArcmin": 6.2,
+    "minorAxisArcmin": 4.5
+  },
+  {
+    "id": "C46",
+    "commonName": "Hubble's Variable Nebula",
+    "objectType": "Reflection Nebula",
+    "raDegrees": 99.79146,
+    "decDegrees": 8.73603,
+    "magnitude": 9.0,
+    "majorAxisArcmin": 2.0,
+    "minorAxisArcmin": 1.0
+  },
+  {
+    "id": "C47",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 308.54737,
+    "decDegrees": 7.40447,
+    "magnitude": 8.83,
+    "majorAxisArcmin": 8.4,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C48",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 137.5838,
+    "decDegrees": 7.03793,
+    "magnitude": 10.48,
+    "majorAxisArcmin": 4.3,
+    "minorAxisArcmin": 3.3
+  },
+  {
+    "id": "C49",
+    "commonName": "Rosette Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 97.62,
+    "decDegrees": 5.05,
+    "magnitude": 9.0,
+    "majorAxisArcmin": 80.0,
+    "minorAxisArcmin": 60.0
+  },
+  {
+    "id": "C50",
+    "commonName": "Rosette Nebula",
+    "objectType": "Open Cluster",
+    "raDegrees": 97.979,
+    "decDegrees": 4.942,
+    "magnitude": 4.8,
+    "majorAxisArcmin": 24.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C51",
+    "commonName": "Scarecrow Galaxy",
+    "objectType": "*",
+    "raDegrees": 16.19917,
+    "decDegrees": 2.11778,
+    "magnitude": 9.21,
+    "majorAxisArcmin": 16.2,
+    "minorAxisArcmin": 14.5
+  },
+  {
+    "id": "C52",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 192.14961,
+    "decDegrees": -5.80085,
+    "magnitude": 10.97,
+    "majorAxisArcmin": 4.4,
+    "minorAxisArcmin": 2.77
+  },
+  {
+    "id": "C53",
+    "commonName": "Spindle Galaxy",
+    "objectType": "*",
+    "raDegrees": 151.30824,
+    "decDegrees": -7.71858,
+    "magnitude": 9.9,
+    "majorAxisArcmin": 7.2,
+    "minorAxisArcmin": 2.5
+  },
+  {
+    "id": "C54",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 120.004,
+    "decDegrees": -10.77,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C55",
+    "commonName": "Saturn Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 316.04532,
+    "decDegrees": -11.36341,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 0.69,
+    "minorAxisArcmin": 0.58
+  },
+  {
+    "id": "C56",
+    "commonName": "Skull Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 11.76391,
+    "decDegrees": -11.87193,
+    "magnitude": 10.9,
+    "majorAxisArcmin": 3.73,
+    "minorAxisArcmin": 3.73
+  },
+  {
+    "id": "C57",
+    "commonName": "Barnard's Galaxy",
+    "objectType": "*",
+    "raDegrees": 296.23416,
+    "decDegrees": -14.79758,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 15.5,
+    "minorAxisArcmin": 13.5
+  },
+  {
+    "id": "C58",
+    "commonName": "Caroline's Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 109.429,
+    "decDegrees": -15.642,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 14.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C59",
+    "commonName": "Ghost of Jupiter Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 156.19211,
+    "decDegrees": -18.6424,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 0.42,
+    "minorAxisArcmin": 0.62
+  },
+  {
+    "id": "C60",
+    "commonName": "Antennae",
+    "objectType": "Gx",
+    "raDegrees": 180.47084,
+    "decDegrees": -18.86759,
+    "magnitude": 10.91,
+    "majorAxisArcmin": 5.2,
+    "minorAxisArcmin": 3.1
+  },
+  {
+    "id": "C61",
+    "commonName": "Antennae",
+    "objectType": "Gx",
+    "raDegrees": 180.4737,
+    "decDegrees": -18.8856,
+    "magnitude": 11.08,
+    "majorAxisArcmin": 3.1,
+    "minorAxisArcmin": 1.6
+  },
+  {
+    "id": "C62",
+    "commonName": "Needle's Eye Galaxy",
+    "objectType": "*",
+    "raDegrees": 11.78564,
+    "decDegrees": -20.7604,
+    "magnitude": 9.11,
+    "majorAxisArcmin": 21.4,
+    "minorAxisArcmin": 6.9
+  },
+  {
+    "id": "C63",
+    "commonName": "Helix Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 337.41059,
+    "decDegrees": -20.83712,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 13.4
+  },
+  {
+    "id": "C64",
+    "commonName": "\u03c4 CMa Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 109.671,
+    "decDegrees": -24.955,
+    "magnitude": 4.1,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C65",
+    "commonName": "Sculptor Galaxy",
+    "objectType": "*",
+    "raDegrees": 11.88806,
+    "decDegrees": -25.2888,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 27.5,
+    "minorAxisArcmin": 6.8
+  },
+  {
+    "id": "C66",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 219.90217,
+    "decDegrees": -26.53833,
+    "magnitude": 10.89,
+    "majorAxisArcmin": 4.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C67",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 41.57941,
+    "decDegrees": -30.27491,
+    "magnitude": 9.48,
+    "majorAxisArcmin": 6.01,
+    "minorAxisArcmin": 3.31
+  },
+  {
+    "id": "C68",
+    "commonName": "R CrA Nebula",
+    "objectType": "Nebula",
+    "raDegrees": 285.4433,
+    "decDegrees": -36.9611,
+    "magnitude": 99.0,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "C69",
+    "commonName": "Bug Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 258.43421,
+    "decDegrees": -37.10443,
+    "magnitude": 9.6,
+    "majorAxisArcmin": 1.48,
+    "minorAxisArcmin": 0.74
+  },
+  {
+    "id": "C70",
+    "commonName": "Sculptor Pinwheel Galaxy",
+    "objectType": "*",
+    "raDegrees": 13.72283,
+    "decDegrees": -37.68438,
+    "magnitude": 8.13,
+    "majorAxisArcmin": 21.9,
+    "minorAxisArcmin": 15.5
+  },
+  {
+    "id": "C71",
+    "commonName": "Electric Guitar Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 118.042,
+    "decDegrees": -38.53,
+    "magnitude": 5.8,
+    "majorAxisArcmin": 27.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C72",
+    "commonName": "String of Pearls",
+    "objectType": "*",
+    "raDegrees": 3.72334,
+    "decDegrees": -39.19663,
+    "magnitude": 7.87,
+    "majorAxisArcmin": 32.4,
+    "minorAxisArcmin": 5.6
+  },
+  {
+    "id": "C73",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 78.52817,
+    "decDegrees": -40.04656,
+    "magnitude": 7.23,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C74",
+    "commonName": "Eight-Burst Planetary Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 151.75735,
+    "decDegrees": -40.43641,
+    "magnitude": 10.01,
+    "majorAxisArcmin": 1.03,
+    "minorAxisArcmin": 0.72
+  },
+  {
+    "id": "C75",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 246.333,
+    "decDegrees": -40.653,
+    "magnitude": 5.8,
+    "majorAxisArcmin": 29.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C76",
+    "commonName": "False Comet Nebula",
+    "objectType": "Open Cluster",
+    "raDegrees": 253.53546,
+    "decDegrees": -41.82667,
+    "magnitude": 2.6,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C77",
+    "commonName": "Centaurus A",
+    "objectType": "*",
+    "raDegrees": 201.36506,
+    "decDegrees": -43.01911,
+    "magnitude": 6.84,
+    "majorAxisArcmin": 25.7,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "C78",
+    "commonName": "Cacciatore Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 272.00983,
+    "decDegrees": -43.71489,
+    "magnitude": 7.33,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C79",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 154.40342,
+    "decDegrees": -46.41247,
+    "magnitude": 8.24,
+    "majorAxisArcmin": 18.2,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C80",
+    "commonName": "\u03c9 Cen Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 201.697,
+    "decDegrees": -47.47947,
+    "magnitude": 5.33,
+    "majorAxisArcmin": 55.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C81",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 261.37129,
+    "decDegrees": -48.42217,
+    "magnitude": 8.87,
+    "majorAxisArcmin": 7.1,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C82",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 250.333,
+    "decDegrees": -48.763,
+    "magnitude": 5.2,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C83",
+    "commonName": "The Tweezers Galaxy",
+    "objectType": "*",
+    "raDegrees": 196.36366,
+    "decDegrees": -49.4679,
+    "magnitude": 9.3,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 3.8
+  },
+  {
+    "id": "C84",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 206.61171,
+    "decDegrees": -51.37425,
+    "magnitude": 8.31,
+    "majorAxisArcmin": 11.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C85",
+    "commonName": "\u03bf Vel Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 130.133,
+    "decDegrees": -53.033,
+    "magnitude": 2.5,
+    "majorAxisArcmin": 60.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C86",
+    "commonName": "Ara Globular Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 265.17538,
+    "decDegrees": -53.67433,
+    "magnitude": 5.17,
+    "majorAxisArcmin": 32.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C87",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 48.06754,
+    "decDegrees": -55.21622,
+    "magnitude": 8.63,
+    "majorAxisArcmin": 12.9,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C88",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 226.38,
+    "decDegrees": -55.595,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C89",
+    "commonName": "S Nor Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 244.708,
+    "decDegrees": -57.935,
+    "magnitude": 5.4,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C90",
+    "commonName": null,
+    "objectType": "Planetary Nebula",
+    "raDegrees": 140.35557,
+    "decDegrees": -58.3113,
+    "magnitude": 10.0,
+    "majorAxisArcmin": 0.2,
+    "minorAxisArcmin": 0.27
+  },
+  {
+    "id": "C91",
+    "commonName": "Wishing Well Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 166.413,
+    "decDegrees": -58.753,
+    "magnitude": 3.0,
+    "majorAxisArcmin": 50.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C92",
+    "commonName": "\u03b7 Car Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 161.0792,
+    "decDegrees": -59.8892,
+    "magnitude": 1.0,
+    "majorAxisArcmin": 120.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C93",
+    "commonName": "Pavo Globular Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 287.71712,
+    "decDegrees": -59.98456,
+    "magnitude": 6.28,
+    "majorAxisArcmin": 20.4,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C94",
+    "commonName": "Jewel Box",
+    "objectType": "Open Cluster",
+    "raDegrees": 193.412,
+    "decDegrees": -60.362,
+    "magnitude": 4.2,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C95",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 240.821,
+    "decDegrees": -60.432,
+    "magnitude": 5.1,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C96",
+    "commonName": "Southern Beehive",
+    "objectType": "Open Cluster",
+    "raDegrees": 119.517,
+    "decDegrees": -60.753,
+    "magnitude": 3.8,
+    "majorAxisArcmin": 22.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C97",
+    "commonName": "Pearl Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 174.075,
+    "decDegrees": -61.615,
+    "magnitude": 5.3,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C98",
+    "commonName": "Coalsack Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 190.575,
+    "decDegrees": -62.995,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 6.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C99",
+    "commonName": null,
+    "objectType": "Dark Nebula",
+    "raDegrees": 192.5,
+    "decDegrees": -62.5,
+    "magnitude": 99.0,
+    "majorAxisArcmin": 430.0,
+    "minorAxisArcmin": 300.0
+  },
+  {
+    "id": "C100",
+    "commonName": "Running Chicken Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 174.585,
+    "decDegrees": -63.3728,
+    "magnitude": 4.5,
+    "majorAxisArcmin": 40.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "C101",
+    "commonName": null,
+    "objectType": "*",
+    "raDegrees": 287.44208,
+    "decDegrees": -63.85754,
+    "magnitude": 8.25,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 12.9
+  },
+  {
+    "id": "C102",
+    "commonName": "Southern Pleiades",
+    "objectType": "Open Cluster",
+    "raDegrees": 160.742,
+    "decDegrees": -64.4,
+    "magnitude": 1.9,
+    "majorAxisArcmin": 100.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C103",
+    "commonName": "Tarantula Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 84.675,
+    "decDegrees": -69.1,
+    "magnitude": 7.25,
+    "majorAxisArcmin": 30.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "C104",
+    "commonName": "75 Tucanae",
+    "objectType": "Globular Cluster",
+    "raDegrees": 15.80942,
+    "decDegrees": -70.84878,
+    "magnitude": 6.58,
+    "majorAxisArcmin": 12.9,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C105",
+    "commonName": "The Southern Butterfly",
+    "objectType": "Globular Cluster",
+    "raDegrees": 194.89133,
+    "decDegrees": -70.8765,
+    "magnitude": 7.79,
+    "majorAxisArcmin": 13.5,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C106",
+    "commonName": "47 Tuc",
+    "objectType": "Globular Cluster",
+    "raDegrees": 6.02233,
+    "decDegrees": -72.08144,
+    "magnitude": 4.09,
+    "majorAxisArcmin": 30.9,
+    "minorAxisArcmin": 12.42
+  },
+  {
+    "id": "C107",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 246.4505,
+    "decDegrees": -72.20219,
+    "magnitude": 10.08,
+    "majorAxisArcmin": 10.7,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C108",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 186.43929,
+    "decDegrees": -72.65908,
+    "magnitude": 9.85,
+    "majorAxisArcmin": 5.0,
+    "minorAxisArcmin": null
+  },
+  {
+    "id": "C109",
+    "commonName": null,
+    "objectType": "Planetary Nebula",
+    "raDegrees": 152.33712,
+    "decDegrees": -80.85854,
+    "magnitude": 11.6,
+    "majorAxisArcmin": 0.67,
+    "minorAxisArcmin": 0.58
+  }
+]

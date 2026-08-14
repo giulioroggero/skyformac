@@ -195,28 +195,9 @@ struct OllamaPlanner: Sendable {
         return stripped
     }
 
-    /// "Ideas for next time must be calculated by AI … if not present ollama fall back to the
-    /// list of the wizard" — a grounded, AI-generated "what to observe next" list. Callers
-    /// (`CameraManager.fetchSuggestedNextObjects`) are the ones responsible for the "fall back"
-    /// half: this throws like every other call here when Ollama's unreachable or replies with
-    /// something unusable, rather than silently returning the fallback itself, so the fallback
-    /// logic lives in exactly one place.
-    private struct SuggestedObjectsResponse: Codable {
-        var objects: [String]
-    }
-
-    func suggestNextObjects(context: String) async throws -> [String] {
-        let text = try await generate(prompt: Self.suggestNextObjectsPrompt(context: context))
-        guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.invalidPlanJSON }
-        guard let decoded = try? JSONDecoder().decode(SuggestedObjectsResponse.self, from: json) else {
-            throw OllamaError.invalidPlanJSON
-        }
-        return decoded.objects
-    }
-
     /// A full next-session suggestion — name, goal, target objects, *and* which project it belongs
-    /// to (an existing one by exact name, or a new one) — rather than just a bare object name the
-    /// way `suggestNextObjects` does. Driven by a user-editable "skill" (`AppSettings
+    /// to (an existing one by exact name, or a new one), not just a bare object name. Driven by a
+    /// user-editable "skill" (`AppSettings
     /// .sessionSuggestionSkill`) folded into the prompt as standing instructions, so the caller
     /// controls the model's preferences without a code change.
     struct SuggestedSessionPlan: Codable, Equatable, Sendable {
@@ -398,19 +379,6 @@ struct OllamaPlanner: Sendable {
         \(context)
         Respond with a plain-text paragraph only — no JSON, no markdown formatting, no preamble like \
         "Here's a description:".
-        """
-    }
-
-    private static func suggestNextObjectsPrompt(context: String) -> String {
-        """
-        You are an assistant helping an amateur astronomer decide what to observe next.
-        \(context)
-        Suggest up to 5 real astronomical objects worth trying next, in order of preference — \
-        prefer ones not already captured when that's reasonable, but a genuinely good repeat \
-        under different conditions is fine too. Use real object names/designations (e.g. "M13", \
-        "Saturn", "NGC 7000"), not vague descriptions.
-        Respond with ONLY a JSON object, no other text, matching exactly this shape:
-        {"objects": ["object1", "object2"]}
         """
     }
 

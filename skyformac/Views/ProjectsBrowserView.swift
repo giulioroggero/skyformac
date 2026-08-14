@@ -120,7 +120,15 @@ struct ProjectsBrowserView: View {
         .onChange(of: cameraManager.isShowingAllProjectsRequested) { _, _ in consumePendingNavigationRequests() }
         .onChange(of: cameraManager.isShowingEquipmentRequested) { _, _ in consumePendingNavigationRequests() }
         .onChange(of: cameraManager.isAddingNewEquipmentRequested) { _, _ in consumePendingNavigationRequests() }
-        .frame(minWidth: 820, minHeight: 600)
+        // This browser's own minWidth combines with the AI sidebar's default width (320, plus a
+        // 6pt resize handle) to become the WHOLE WINDOW's effective minimum width, since RootView
+        // lays both out side by side in one HStack — 820 previously meant a forced minimum of
+        // 1146pt. On a screen smaller than that (a modest external display, an older/smaller
+        // laptop screen, or — how this was actually caught — a CI runner's 1024×768 virtual
+        // display), the window is forced partially off-screen, taking the trailing toolbar
+        // button and the rightmost "Common Tasks" tiles out of reach entirely, not just visually
+        // cramped. 600 (a total of 926pt with the sidebar) comfortably fits a 1024pt-wide screen.
+        .frame(minWidth: 600, minHeight: 600)
     }
 
     /// "Project → Show All Projects" / "Equipment → View" / "Equipment → Add New" — each just sets
@@ -241,14 +249,7 @@ struct ProjectsBrowserView: View {
                 ContentUnavailableView("Equipment System No Longer Exists", systemImage: "wrench.and.screwdriver")
             }
         case .insights:
-            InsightsView(
-                data: insightsData,
-                cameraManager: cameraManager,
-                onBack: { path.removeLast() },
-                onSuggestQuickStart: { objectName in
-                    cameraManager.quickStart(forObjectName: objectName)
-                }
-            )
+            InsightsView(data: insightsData, onBack: { path.removeLast() })
         }
     }
 }

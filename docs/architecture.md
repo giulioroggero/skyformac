@@ -58,7 +58,7 @@ graph TB
     end
 
     subgraph ResourcesArea["Resources (bundled, read-only)"]
-        SkyCatalog["SkyCatalog/*.json<br/>(Messier + bright stars)"]
+        SkyCatalog["SkyCatalog/*.json<br/>(Messier + Caldwell + bright stars)"]
         AstroSqlite["AstroCatalog/astro_catalog.sqlite"]
     end
 
@@ -230,9 +230,11 @@ logic beyond layout and local `@State`.
   next-session plan driven by a user-editable "skill" text, and the
   sidebar AI panel's own classify-then-propose replies).
 - **`skyformac/Resources/`**:
-  - `SkyCatalog/` — `messier.json` (110 Messier objects, extracted from
-    Stellarium's real DSO catalog at `stellarium/nebulae/default/catalog.txt`)
-    and `bright_stars.json` (a small hand-curated bright-star list, public
+  - `SkyCatalog/` — `messier.json` (110 Messier objects) and `caldwell.json`
+    (109 Caldwell objects — Patrick Moore's "beyond Messier" complement),
+    both extracted from Stellarium's real DSO catalog and names files
+    (`stellarium/nebulae/default/catalog.txt`/`names.dat`), and
+    `bright_stars.json` (a small hand-curated bright-star list, public
     J2000 coordinates) — what `SkyCatalog.swift` loads.
   - `AstroCatalog/astro_catalog.sqlite` — the bundled catalog
     `CatalogRepository` queries; rebuilt by `scripts/build_astro_catalog.py`.
@@ -258,9 +260,9 @@ logic beyond layout and local `@State`.
   Planetary / Deep Sky) filtering which of its tool sections show.
   `ProjectsBrowserView` (a `NavigationStack` drill-down) roots at
   `DashboardHomeView` — an orientation dashboard (resume the last session,
-  common-task shortcuts, recent projects, an activity chart, AI-computed
-  "Ideas for Next Time" and a "Suggested Session" card, both falling back
-  gracefully with no Ollama server) — and pushes **Projects** (thumbnail
+  common-task shortcuts, recent projects, an activity chart, and an
+  AI-computed "Suggested Session" card that simply doesn't appear with no
+  Ollama server) — and pushes **Projects** (thumbnail
   grid, table, or the RA/Dec **Atlas** view — `AtlasView` — of every
   session across every project) → **Project Detail** (`ProjectDetailPane`)
   → **Session** (`SessionDetailPane`, history/timeline) → **Capture**
