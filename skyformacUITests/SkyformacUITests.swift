@@ -72,7 +72,16 @@ final class SkyformacUITests: XCTestCase {
 
         // The Home page's own "Settings" tile was removed from "Common Tasks" — Settings is still
         // reachable via this toolbar button (and ⌘,), so this now drives that instead.
-        app.buttons["DashboardSettingsToolbarButton"].tap()
+        // `.matching(identifier:).firstMatch` rather than the `buttons[...]` subscript: a
+        // `ToolbarItem`'s own accessibility proxy can transiently expose the same identifier on
+        // more than one node before the toolbar settles, which makes the (must-be-exactly-one)
+        // subscript form flaky here — `firstMatch` tolerates that without caring which one it is,
+        // since both represent the same visual button. `waitForExistence` first, rather than
+        // tapping immediately after `launch()`, for the same "give the toolbar a moment to
+        // render" reason every other tile/button in this file already waits for.
+        let settingsButton = app.buttons.matching(identifier: "DashboardSettingsToolbarButton").firstMatch
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10))
+        settingsButton.tap()
 
         // The Projects Folder section header is unique to `SettingsView` — its presence confirms
         // the sheet actually opened rather than the tap silently doing nothing.
@@ -83,13 +92,19 @@ final class SkyformacUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        app.buttons["DashboardInsightsTile"].tap()
+        // Unlike `launchIntoCameraView`'s own Quick Start tile, this tapped the tile immediately
+        // after `launch()` with no `waitForExistence` — on a slow/cold CI runner the tap can land
+        // before the button is actually hittable and silently do nothing, leaving the app stuck on
+        // the Dashboard for the rest of the timeout below (the likely cause of an otherwise
+        // unreproducible-locally CI failure here). Waiting first, matching every tap-then-navigate
+        // test elsewhere in this file, removes that race outright.
+        let insightsTile = app.buttons["DashboardInsightsTile"]
+        XCTAssertTrue(insightsTile.waitForExistence(timeout: 10))
+        insightsTile.tap()
 
         // macOS `NavigationStack` titles don't surface as an XCUITest `NavigationBar` element the
         // way they do on iOS, so this checks for "Overview" — `InsightsView`'s own first
-        // `PageSection` title, unique to that page — instead. A 10s timeout (matching the other
-        // navigation tests in this file) rather than 5s: a one-off CI-runner scheduling delay was
-        // observed missing a 5s window even though the section renders synchronously.
+        // `PageSection` title, unique to that page — instead.
         XCTAssertTrue(app.staticTexts["Overview"].waitForExistence(timeout: 10))
     }
 
@@ -97,7 +112,11 @@ final class SkyformacUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        app.buttons["DashboardAllProjectsTile"].tap()
+        // Same "wait before tapping" fix as `testInsightsTileOpensTheInsightsPage` above — this
+        // had the identical race (tapping right after `launch()`, no wait).
+        let allProjectsTile = app.buttons["DashboardAllProjectsTile"]
+        XCTAssertTrue(allProjectsTile.waitForExistence(timeout: 10))
+        allProjectsTile.tap()
 
         // "Filters" is `ProjectsHomeView`'s own toolbar button, unique to that page.
         XCTAssertTrue(app.buttons["Filters"].waitForExistence(timeout: 10))
