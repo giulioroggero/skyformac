@@ -36,3 +36,7 @@ Carthage/Build/
 # 100MB); hosted as assets on the GitHub release instead and linked from README.md. The
 # example screenshots (small PNGs) are still checked in normally.
 examples/*.mov
+
+# Ad-hoc local manual-testing scratch space (screen recordings, raw captures, scratch
+# presets) — many GB, not meant to ever be committed.
+testsessionlocal/

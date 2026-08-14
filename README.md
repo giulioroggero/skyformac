@@ -11,6 +11,7 @@
   <a href="docs/architecture.md">Architecture</a> ·
   <a href="docs/design-notes.md">Design Notes</a> ·
   <a href="EXAMPLES.md">Examples</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
   <a href="specs/README.md">Contributing</a> ·
   <a href="LICENSE.md">License</a> ·
   <a href="https://github.com/giulioroggero/skyformac/releases">Releases</a> ·
