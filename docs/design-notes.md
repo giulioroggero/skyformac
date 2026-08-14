@@ -2108,3 +2108,67 @@ made along the way.
     (Features/Architecture/Design Notes/Examples/Contributing/License/Releases/Issues), and the
     hero GIF now renders via `<img width="100%">` instead of a plain Markdown image tag, so it
     fills the page width instead of showing at its native pixel size.
+
+- **Multi-session AI project planning with a clarification round-trip, and AI-written
+  descriptions grounded in real captured data.** Two related additions to the existing Ollama
+  planning feature.
+  - **`OllamaPlanner.planProject` already returned a full multi-session plan** — the model was
+    never limited to one session per call, that capability just hadn't been exercised by a prompt
+    that actually asks for "one session per object" or fed the location/date context a real
+    "nicest Messier objects visible in August from Orta San Giulio" request needs. `projectPrompt`
+    now explicitly instructs one session per target when the goal names or implies a list of
+    distinct objects, and `AIPlanProjectSheet.fullContext()` automatically folds in the project's
+    own `location.displayName` and today's date — context the user shouldn't have to retype into
+    the goal by hand every time.
+  - **`OllamaPlanner.ProjectPlanResponse`** (new enum: `.plan(ProjectPlanSuggestion)` /
+    `.needsMoreInfo(question:)`) is what `planProject` returns now instead of the bare suggestion
+    — the model can ask a single clarifying question first (an unclear date range, an ambiguous
+    location) rather than guessing at a plan that's likely wrong. Decoded via a small
+    `NeedsMoreInfoProbe` (`needsMoreInfo: Bool?`, `question: String?`) tried first; a real plan
+    response simply has no top-level `needsMoreInfo` key so the probe's `== true` check naturally
+    never matches one, letting the same decode attempt safely fall through to
+    `ProjectPlanSuggestion` — no wrapper envelope or discriminated-union gymnastics needed.
+  - **No real conversational state** — `/api/generate` is a single-shot completion endpoint, not a
+    chat session, so `AIPlanProjectSheet`'s "ask a question, get an answer, ask again" loop is
+    actually just calling `planProject` again with the accumulated Q&A folded into `notes`; the
+    illusion of a back-and-forth is entirely client-side state (`accumulatedContext`), not a real
+    multi-turn conversation with the server.
+  - **`OllamaPlanner.summarize(context:)`** (new) is "use AI to write a description/annotation
+    leveraging the information gathered during the sessions" — a plain-text (not JSON) prompt
+    asking the model to write from *only* the facts it's given, explicitly told not to invent
+    equipment/dates/objects that aren't in the context. Reasoning models can still prepend a
+    `<think>...</think>` block even to a prose request the same way they sometimes do to a JSON
+    one; `stripReasoningPreamble` handles that (there's no `{`/`}` pair to extract the real answer
+    from the way `extractJSONObject` does for the planning calls). A new `OllamaError.emptySummary`
+    case covers the one real failure mode specific to this call — a reply that's nothing but a
+    `<think>` block, with no actual answer.
+  - **`AIDescriptionContext`** (new, in `skyformac/Projects/` alongside the other pure model code)
+    is what actually builds `summarize`'s input — plain functions over `Project`/`Session`, no
+    `CameraManager`/async, so "what facts do we hand the model" is unit-testable independent of
+    ever calling Ollama. `equipmentName` is injected as a closure (`(UUID) -> String?`) rather than
+    an `EquipmentLibrary` instance for the same testability reason — a literal `[UUID: String]`
+    lookup in tests, `cameraManager.equipmentLibrary.system(withID:)?.name` in the app.
+  - **`AIDescribeSheet`** (new, in `AIPlanSheets.swift` alongside the existing plan sheets) is one
+    shared sheet for both `ProjectDetailPane` and `SessionDetailPane` — auto-generates on
+    `.task { await generate() }`, shown editable in a `TextEditor` before anything is applied, with
+    two explicit actions rather than one implicit save: **Set as Aim** (overwrites the goal field)
+    or **Add as Note** (appends a dated `Annotation` instead) — the caller supplies both as plain
+    closures (`onSetAim`/`onAddNote`), so the sheet itself has no idea whether it's describing a
+    project or a session.
+  - **Fixed a latent staleness bug surfaced by adding this** — `ProjectDetailPane`/
+    `SessionDetailPane`'s `name`/`goal` fields are local `@State` (so typing doesn't fight
+    `save()` on every keystroke), which already meant an *external* change to `project.goal`/
+    `session.goal` — Ask AI to Plan filling in a previously-empty name/goal, and now Ask AI to
+    Describe's own "Set as Aim" — would silently not show up in the text field until the page was
+    reopened, since same-identity SwiftUI views don't re-run `init` just because a new value flows
+    into an already-existing `@State`. Fixed with `.onChange(of: project)`/`.onChange(of: session)`
+    resyncing both fields whenever the underlying model actually changes.
+  - **Caught a pbxproj mistake while wiring this up**: `AIDescriptionContext.swift` (main-app
+    source) was first added to the *test target's* `PBXSourcesBuildPhase` by copy-paste from a
+    neighboring test-file entry, not the main `skyformac` target's — `make build` still succeeded
+    (the file just silently wasn't part of the app binary at all, only the test bundle, which
+    happens to also compile it harmlessly via `@testable import`), so this class of mistake doesn't
+    surface as a build error the way a missing-entirely registration does. Caught by inspecting the
+    actual phase context after adding the entry, not by a compile failure — a reminder that a
+    successful `make build` after a pbxproj edit isn't sufficient proof the file landed in the
+    right *target*, only that it landed in *some* target that happens to see the same symbols.

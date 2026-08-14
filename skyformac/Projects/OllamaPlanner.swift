@@ -34,6 +34,10 @@ enum OllamaError: Error, Equatable {
     /// `model` was left `nil` (auto-detect) but the server reports zero installed models — there
     /// is nothing to fall back to; the user needs to `ollama pull` something first.
     case noModelsInstalled
+    /// `summarize(context:)`'s reply was blank after stripping any `<think>` preamble — the model
+    /// "answered" with nothing usable. Kept distinct from `invalidPlanJSON` since that case is
+    /// specifically about JSON shape, which a plain-text summary was never expected to have.
+    case emptySummary
 
     /// What `AIPlanSheets` actually shows — a plain sentence rather than `String(describing:)`'s
     /// `badResponse(message: Optional("..."))`-shaped debug dump.
@@ -42,6 +46,7 @@ enum OllamaError: Error, Equatable {
         case .badResponse(let message): message ?? "Couldn't reach the Ollama server."
         case .invalidPlanJSON: "The model's reply didn't contain a usable plan — try again, or try a different model."
         case .noModelsInstalled: "No models are installed. Run `ollama pull <model>` first."
+        case .emptySummary: "The model didn't return any text — try again, or try a different model."
         }
     }
 }
@@ -61,6 +66,24 @@ struct OllamaPlanner: Sendable {
         var name: String
         var goal: String
         var sessions: [SessionPlanSuggestion]
+    }
+
+    /// What `planProject` actually returns — either the plan itself, or (new) a single clarifying
+    /// question the model asked for first. Modeled as two cases rather than an optional question
+    /// alongside an optional plan, so a caller can't end up with — or have to guard against —
+    /// both or neither being present at once.
+    enum ProjectPlanResponse: Equatable, Sendable {
+        case plan(ProjectPlanSuggestion)
+        case needsMoreInfo(question: String)
+    }
+
+    /// The probe type `planProject` decodes first to tell the two response shapes apart —
+    /// `needsMoreInfo`/`question` are the only fields it cares about; a full plan response simply
+    /// doesn't have a top-level `needsMoreInfo` key, so `raw.needsMoreInfo == true` never matches
+    /// one, letting the same decode attempt safely fall through to `ProjectPlanSuggestion` below.
+    private struct NeedsMoreInfoProbe: Codable {
+        var needsMoreInfo: Bool?
+        var question: String?
     }
 
     var baseURL: URL
@@ -113,14 +136,37 @@ struct OllamaPlanner: Sendable {
         }
     }
 
-    func planProject(goal: String, notes: String = "") async throws -> ProjectPlanSuggestion {
+    /// Plans a whole multi-session project from one goal — e.g. "the nicest Messier objects
+    /// visible in August from Orta San Giulio" becomes one session per object. The model can
+    /// respond either with the full plan, or (if it decides it needs more to go on — an unclear
+    /// date range, an ambiguous object list) a single clarifying question instead; the caller
+    /// (`AIPlanProjectSheet`) shows that question, collects an answer, and calls this again with
+    /// the answer folded into `notes` — the same one-shot `generate` call each time, not a real
+    /// back-and-forth chat session, since `/api/generate` has no conversation state of its own.
+    func planProject(goal: String, notes: String = "") async throws -> ProjectPlanResponse {
         let text = try await generate(prompt: Self.projectPrompt(goal: goal, notes: notes))
         guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.invalidPlanJSON }
+        if let probe = try? JSONDecoder().decode(NeedsMoreInfoProbe.self, from: json),
+           probe.needsMoreInfo == true, let question = probe.question, !question.isEmpty {
+            return .needsMoreInfo(question: question)
+        }
         do {
-            return try JSONDecoder().decode(ProjectPlanSuggestion.self, from: json)
+            return .plan(try JSONDecoder().decode(ProjectPlanSuggestion.self, from: json))
         } catch {
             throw OllamaError.invalidPlanJSON
         }
+    }
+
+    /// Writes a plain-English description/annotation for a project or session, grounded in what
+    /// was actually observed/captured (`AIDescriptionContext.forProject`/`forSession`) rather than
+    /// invented from the goal alone — "leveraging the information gathered during the sessions."
+    /// Unlike `planSession`/`planProject`, this asks for plain text, not JSON, since there's no
+    /// structured shape to fill in, just a paragraph.
+    func summarize(context: String) async throws -> String {
+        let text = try await generate(prompt: Self.summaryPrompt(context: context))
+        let stripped = Self.stripReasoningPreamble(from: text)
+        guard !stripped.isEmpty else { throw OllamaError.emptySummary }
+        return stripped
     }
 
     /// The model this app actually wants when it's available — a good balance of capability vs.
@@ -170,6 +216,17 @@ struct OllamaPlanner: Sendable {
         return String(text[start...end]).data(using: .utf8)
     }
 
+    /// For plain-text (non-JSON) replies, like `summarize(context:)`'s — reasoning models still
+    /// sometimes prepend a `<think>...</think>` block even for a simple prose request, and unlike
+    /// a JSON reply there's no `{`/`}` pair to extract the real answer from instead, so this just
+    /// drops everything up to and including the closing tag when one's present.
+    private static func stripReasoningPreamble(from text: String) -> String {
+        if let range = text.range(of: "</think>") {
+            return String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func sessionPrompt(goal: String, notes: String) -> String {
         """
         You are an assistant helping an amateur astronomer plan a single observing session.
@@ -184,10 +241,28 @@ struct OllamaPlanner: Sendable {
         """
         You are an assistant helping an amateur astronomer plan a multi-session observing project.
         Goal: \(goal)
-        \(notes.isEmpty ? "" : "Notes: \(notes)\n")\
-        Respond with ONLY a JSON object, no other text, matching exactly this shape:
+        \(notes.isEmpty ? "" : "Context: \(notes)\n")\
+        If the goal names or implies a list of distinct targets (e.g. "the nicest Messier objects \
+        visible in August"), plan one session per target, each session's plannedObjects containing \
+        just that one object, rather than lumping several into a single session.
+        If — and only if — you genuinely cannot produce a good plan without more information (an \
+        unclear date range, an ambiguous or missing location, "some objects" with no way to pick \
+        which), respond with ONLY this JSON object instead, asking exactly one clarifying question:
+        {"needsMoreInfo": true, "question": "your one clarifying question"}
+        Otherwise, respond with ONLY a JSON object, no other text, matching exactly this shape:
         {"name": "short project title", "goal": "one sentence goal", "sessions": [\
         {"name": "short session title", "goal": "one sentence goal", "plannedObjects": ["object1"]}]}
+        """
+    }
+
+    private static func summaryPrompt(context: String) -> String {
+        """
+        You are an assistant helping an amateur astronomer write a short, engaging description of \
+        their observing project or session, grounded only in the facts given below — don't invent \
+        details (equipment, dates, objects) that aren't in this data.
+        \(context)
+        Respond with a plain-text paragraph only — no JSON, no markdown formatting, no preamble like \
+        "Here's a description:".
         """
     }
 }

@@ -452,6 +452,25 @@ session persistence design and the browser-as-main-window architecture)
   can legitimately take a while. Errors surface the server's own
   explanation (a missing model, an unreachable server) instead of a
   generic failure.
+  - **One request can plan a whole multi-session project** — "the nicest
+    Messier objects visible in August from Orta San Giulio" comes back as
+    one session per object (not everything lumped into one), automatically
+    grounded in the project's own location and today's date without having
+    to type either into the goal. Nothing is created until "Create
+    Sessions" is pressed, same as a single-session plan.
+  - **The AI can ask a clarifying question first** — an unclear date range,
+    an ambiguous location, "some objects" with no way to pick which — shown
+    with its own answer field; answering loops back into another plan
+    request with that answer folded in, until it actually has enough to
+    produce a reviewable plan.
+  - **Ask AI to Describe…** (Project Detail and Session pages) writes a
+    plain-English description grounded only in what was actually planned
+    and captured — objects, dates, capture counts, equipment, location —
+    never inventing details (`AIDescriptionContext`, `OllamaPlanner
+    .summarize(context:)`). Shown editable before doing anything; **Set as
+    Aim** overwrites the project's/session's own goal field, **Add as
+    Note** appends it as a dated annotation instead — the user picks which,
+    nothing is applied automatically.
 - **Archive, delete (with a 30-day grace period), and Recently Deleted** —
   a project can be archived (hidden from the Home page, still fully intact,
   restorable from the new Archived page) or deleted (also hidden from Home,
@@ -509,7 +528,7 @@ session persistence design and the browser-as-main-window architecture)
   for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 416 unit tests (Swift Testing) across 67 suites, covering
+- `skyformacTests` — 431 unit tests (Swift Testing) across 68 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

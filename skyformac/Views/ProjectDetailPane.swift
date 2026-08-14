@@ -25,6 +25,7 @@ struct ProjectDetailPane: View {
     @State private var newTag = ""
     @State private var newNote = ""
     @State private var isPlanningProject = false
+    @State private var isDescribingProject = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
@@ -48,8 +49,12 @@ struct ProjectDetailPane: View {
                     TextField("Name", text: $name, prompt: Text("Untitled Project"))
                         .onSubmit(save)
                         .onChange(of: name) { _, _ in save() }
-                    TextField("Goal", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
-                        .onChange(of: goal) { _, _ in save() }
+                    HStack(alignment: .top) {
+                        TextField("Goal", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
+                            .onChange(of: goal) { _, _ in save() }
+                        Button("Ask AI to Describe…", systemImage: "sparkles") { isDescribingProject = true }
+                            .help("Write a description grounded in what this project has actually planned and captured")
+                    }
                     LocationEditorView(project: project, session: nil, cameraManager: cameraManager)
                 }
 
@@ -143,8 +148,33 @@ struct ProjectDetailPane: View {
                 Button("Back", systemImage: "chevron.left", action: onBack)
             }
         }
+        // `name`/`goal` are local `@State` (so typing doesn't fight `save()` on every keystroke),
+        // which otherwise goes stale the moment something *external* to this page's own text
+        // fields changes them — Ask AI to Plan filling in an empty name/goal, or Ask AI to
+        // Describe setting the goal as this project's Aim.
+        .onChange(of: project) { _, updated in
+            name = updated.name
+            goal = updated.goal
+        }
         .sheet(isPresented: $isPlanningProject) {
             AIPlanProjectSheet(project: project, cameraManager: cameraManager)
+        }
+        .sheet(isPresented: $isDescribingProject) {
+            AIDescribeSheet(
+                title: "Ask AI to Describe This Project",
+                context: AIDescriptionContext.forProject(project) { cameraManager.equipmentLibrary.system(withID: $0)?.name },
+                cameraManager: cameraManager,
+                onSetAim: { text in
+                    var updated = project
+                    updated.goal = text
+                    try? library.save(updated)
+                },
+                onAddNote: { text in
+                    var updated = project
+                    updated.notes.append(Annotation(date: Date(), text: text))
+                    try? library.save(updated)
+                }
+            )
         }
     }
 

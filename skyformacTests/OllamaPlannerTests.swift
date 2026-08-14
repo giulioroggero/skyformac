@@ -169,10 +169,39 @@ struct OllamaPlannerTests {
         """#
         let planner = OllamaPlanner(transport: transport)
 
-        let plan = try await planner.planProject(goal: "messier marathon")
+        let response = try await planner.planProject(goal: "messier marathon")
+        guard case .plan(let plan) = response else {
+            Issue.record("expected .plan, got \(response)")
+            return
+        }
         #expect(plan.name == "Messier Marathon")
         #expect(plan.sessions.count == 2)
         #expect(plan.sessions.last?.plannedObjects == ["M31", "M51"])
+    }
+
+    @Test func planProjectReturnsNeedsMoreInfoWhenTheModelAsksAQuestion() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"needsMoreInfo": true, "question": "Which month and location?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.planProject(goal: "the nicest deep-sky objects")
+        #expect(response == .needsMoreInfo(question: "Which month and location?"))
+    }
+
+    @Test func planProjectIgnoresAnExplicitFalseNeedsMoreInfoFlag() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"""
+        {"needsMoreInfo": false, "name": "Messier Marathon", "goal": "See many objects",
+         "sessions": [{"name": "Night 1", "goal": "Clusters", "plannedObjects": ["M13"]}]}
+        """#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.planProject(goal: "messier marathon")
+        guard case .plan(let plan) = response else {
+            Issue.record("expected .plan, got \(response)")
+            return
+        }
+        #expect(plan.name == "Messier Marathon")
     }
 
     @Test func planSessionThrowsBadResponseOnAServerError() async {
@@ -200,5 +229,44 @@ struct OllamaPlannerTests {
         #expect(json?["model"] as? String == "custom-model")
         // An explicitly configured model skips the /api/tags round trip entirely.
         #expect(!transport.requestedPaths.contains("/api/tags"))
+    }
+
+    @Test func summarizeReturnsThePlainTextResponseTrimmed() async throws {
+        let transport = FakeTransport()
+        transport.responseText = "  A great night under dark skies.  \n"
+        let planner = OllamaPlanner(transport: transport)
+
+        let summary = try await planner.summarize(context: "Project: Test")
+        #expect(summary == "A great night under dark skies.")
+    }
+
+    @Test func summarizeStripsAThinkingBlockPreamble() async throws {
+        let transport = FakeTransport()
+        transport.responseText = "<think>Let me consider the facts given...</think>\nA great night under dark skies."
+        let planner = OllamaPlanner(transport: transport)
+
+        let summary = try await planner.summarize(context: "Project: Test")
+        #expect(summary == "A great night under dark skies.")
+    }
+
+    @Test func summarizeThrowsEmptySummaryWhenNothingIsLeftAfterStripping() async {
+        let transport = FakeTransport()
+        transport.responseText = "<think>Only thinking, no actual answer.</think>"
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.emptySummary) {
+            try await planner.summarize(context: "Project: Test")
+        }
+    }
+
+    @Test func summarizeDoesNotRequireJSONFormatting() async throws {
+        // Unlike planSession/planProject, summarize's prompt asks for plain prose — a response
+        // with no braces at all should still work rather than throwing invalidPlanJSON.
+        let transport = FakeTransport()
+        transport.responseText = "Just a plain sentence with no JSON in it whatsoever."
+        let planner = OllamaPlanner(transport: transport)
+
+        let summary = try await planner.summarize(context: "Session: Test")
+        #expect(summary == "Just a plain sentence with no JSON in it whatsoever.")
     }
 }

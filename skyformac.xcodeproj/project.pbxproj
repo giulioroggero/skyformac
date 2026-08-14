@@ -115,6 +115,8 @@
 		C4A8C6AF3843ED60F917394A /* EquipmentModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */; };
 		30737B80E2D54DE1B8E41543 /* EquipmentLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60E80083BB3A2A7B05436F7 /* EquipmentLibraryTests.swift */; };
 		9C5D89801144516B3045566A /* InsightsDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */; };
+		DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */; };
+		64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */; };
 		AF70883DC4C841CBC4DA62CE /* SessionReuseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D73D8098F2265E5CD371A4 /* SessionReuseTests.swift */; };
 		BFCD7A5D9232810B14153610 /* CameraManagerRecallParametersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */; };
 		8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */; };
@@ -242,6 +244,8 @@
 		EE1AAD41550B27056C25269C /* RecallParametersView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecallParametersView.swift; sourceTree = "<group>"; };
 		466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0E40C3B7D92593FA18E2A97B /* InsightsData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsData.swift; sourceTree = "<group>"; };
+		D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIDescriptionContext.swift; sourceTree = "<group>"; };
+		70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIDescriptionContextTests.swift; sourceTree = "<group>"; };
 		E88925FDFCDFD5CD1889D56E /* InsightsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
 		EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DashboardHomeView.swift; sourceTree = "<group>"; };
 		D6E7866DFCEC932D3B738897 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -518,6 +522,7 @@
 				6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */,
 				82D73D8098F2265E5CD371A4 /* SessionReuseTests.swift */,
 				9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */,
+				70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
@@ -612,6 +617,7 @@
 				6B7C615644A9BCEC78CE2465 /* OllamaPlanner.swift */,
 				659ACD8B5F1ABC8965FF7816 /* ProjectsLibrary.swift */,
 				0E40C3B7D92593FA18E2A97B /* InsightsData.swift */,
+				D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */,
 			);
 			name = Projects;
 			path = Projects;
@@ -1005,6 +1011,7 @@
 				3E946BCE3689D6DF88FFE542 /* LiveWCSSolver.swift in Sources */,
 				EF109FFB0C5449ACAE62F6D3 /* CatalogRepository.swift in Sources */,
 				62FDFFA0A3724251AAC9D828 /* SkyHUDView.swift in Sources */,
+				DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1036,6 +1043,7 @@
 				9C5D89801144516B3045566A /* InsightsDataTests.swift in Sources */,
 				AF70883DC4C841CBC4DA62CE /* SessionReuseTests.swift in Sources */,
 				BFCD7A5D9232810B14153610 /* CameraManagerRecallParametersTests.swift in Sources */,
+				64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,

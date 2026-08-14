@@ -24,6 +24,7 @@ struct SessionDetailPane: View {
     @State private var plannedDate: Date
     @State private var isPlanningSession = false
     @State private var isCreatingSessionFromThis = false
+    @State private var isDescribingSession = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     private var isActive: Bool { cameraManager.activeSession?.id == session.id }
@@ -80,6 +81,8 @@ struct SessionDetailPane: View {
                         }
                         .help("Create a new session with this one's goal, objects, location, and equipment — without any of its captures")
                         Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningSession = true }
+                        Button("Ask AI to Describe…", systemImage: "text.quote") { isDescribingSession = true }
+                            .help("Write a description grounded in what this session has actually planned and captured")
                     }
                 }
 
@@ -152,6 +155,13 @@ struct SessionDetailPane: View {
                 Button("Back to Project", systemImage: "chevron.left", action: onBack)
             }
         }
+        // Same reasoning as `ProjectDetailPane`'s own `.onChange(of: project)` — local `@State`
+        // for name/goal otherwise goes stale the moment something external (Ask AI to Plan, Ask
+        // AI to Describe) changes them.
+        .onChange(of: session) { _, updated in
+            name = updated.name
+            goal = updated.goal
+        }
         .sheet(isPresented: $isPlanningSession) {
             AIPlanSessionSheet(project: project, session: session, cameraManager: cameraManager)
         }
@@ -163,6 +173,23 @@ struct SessionDetailPane: View {
                     onSessionCreated(created)
                 }
             }
+        }
+        .sheet(isPresented: $isDescribingSession) {
+            AIDescribeSheet(
+                title: "Ask AI to Describe This Session",
+                context: AIDescriptionContext.forSession(session, project: project) { cameraManager.equipmentLibrary.system(withID: $0)?.name },
+                cameraManager: cameraManager,
+                onSetAim: { text in
+                    var updated = session
+                    updated.goal = text
+                    applyAndSave(updated)
+                },
+                onAddNote: { text in
+                    var updated = session
+                    updated.notes.append(Annotation(date: Date(), text: text))
+                    applyAndSave(updated)
+                }
+            )
         }
     }
 

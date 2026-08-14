@@ -581,6 +581,14 @@ enum HelpContent {
                 body: "Type a one-line goal and this sends it to a **local Ollama server** (nothing leaves your machine) for a suggested name, goal, and session list. Nothing is created until you review the suggestion and click **Create Sessions**/**Apply**. Prefers **qwen3:8b** if it's installed, otherwise whatever's actually installed (`ollama list`) — no model needs to be configured by hand. Requires Ollama running with at least one model pulled — see [ollama.com](https://ollama.com) — the button still works without it, it just reports exactly what's wrong (server unreachable, no models installed), and waits up to 3 minutes before giving up on a slower local model."
             ),
             HelpSection(
+                heading: "Planning a whole project at once",
+                body: "A project-level plan ('the nicest Messier objects visible in August from Orta San Giulio') can come back as **one session per object** rather than everything lumped together — the project's own location and today's date are included automatically, without needing to type either into the goal. If the AI decides it needs more to go on first — an unclear date range, an ambiguous location — it asks a single question instead of guessing; answer it and it tries again with that answer folded in, as many rounds as it takes."
+            ),
+            HelpSection(
+                heading: "Ask AI to Describe…",
+                body: "On a Project Detail or Session page, **Ask AI to Describe…** writes a plain-English description grounded only in what that project/session has actually planned and captured — objects, dates, capture counts, equipment, location — never inventing anything not already there. Review (and freely edit) the result, then either **Set as Aim** (overwrites the goal field) or **Add as Note** (appends it as a dated annotation instead) — nothing is applied until you choose one."
+            ),
+            HelpSection(
                 heading: "Archive, delete, and Recently Deleted",
                 body: "A project's own Danger Zone (bottom of its page) can **Archive** it (hidden from Home, still fully intact — restore it from the Home page toolbar's **Archived** button) or **Delete** it. Deleting doesn't remove anything right away — it moves to **Recently Deleted** (Home page toolbar) for 30 days, where it can be **Restore**d or **Delete Permanently**'d immediately; **Delete All Permanently** clears everything there at once. Anything past its own 30 days is purged automatically the next time the app launches."
             ),
