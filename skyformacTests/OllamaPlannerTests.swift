@@ -62,6 +62,31 @@ struct OllamaPlannerTests {
         #expect(json?["model"] as? String == "qwen3.5:4b")
     }
 
+    @Test func planSessionPrefersQwen3_8bWhenInstalledAlongsideOthers() async throws {
+        let transport = FakeTransport()
+        transport.installedModels = ["gemma4:e2b", "qwen3:8b", "deepseek-r1:8b"]
+        transport.responseText = #"{"name": "n", "goal": "g", "plannedObjects": []}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        _ = try await planner.planSession(goal: "see saturn")
+
+        let request = try #require(transport.lastRequest)
+        let body = try #require(request.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        #expect(json?["model"] as? String == "qwen3:8b")
+    }
+
+    @Test func generateRequestUsesAGenerousTimeout() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"name": "n", "goal": "g", "plannedObjects": []}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        _ = try await planner.planSession(goal: "see saturn")
+
+        let request = try #require(transport.lastRequest)
+        #expect(request.timeoutInterval >= 120)
+    }
+
     @Test func planSessionThrowsNoModelsInstalledWhenTheServerHasNone() async {
         let transport = FakeTransport()
         transport.installedModels = []

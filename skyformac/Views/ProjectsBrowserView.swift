@@ -8,6 +8,8 @@ private enum ProjectsRoute: Hashable {
     case project(Project.ID)
     case sessionHistory(Project.ID, Session.ID)
     case capture(Project.ID, Session.ID, CaptureRecord.ID)
+    case archived
+    case recentlyDeleted
 }
 
 /// The iMovie-style library for the Projects feature and — since `RootView` shows this whenever
@@ -27,12 +29,14 @@ struct ProjectsBrowserView: View {
     @State private var isShowingNewProjectSheet = false
     @State private var isShowingQuickStartSheet = false
     @State private var searchText = ""
-    @State private var showArchived = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
+    /// Never includes archived or deleted projects — those have their own dedicated pages
+    /// (`ArchivedProjectsPage`/`RecentlyDeletedPage`) precisely so the Home page itself always
+    /// just shows what's actually active, the same way archiving/deleting mail or files works.
     private var visibleProjects: [Project] {
-        let base = library.projects.filter { showArchived || !$0.isArchived }
+        let base = library.activeProjects.filter { !$0.isArchived }
         guard !searchText.isEmpty else { return base }
         let matchingIDs = Set(ProjectSearch.search(base, text: searchText).map(\.project.id))
         return base.filter { matchingIDs.contains($0.id) }
@@ -41,11 +45,13 @@ struct ProjectsBrowserView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ProjectsHomeView(
-                projects: visibleProjects, searchText: $searchText, showArchived: $showArchived,
+                projects: visibleProjects, searchText: $searchText,
                 activeProjectID: cameraManager.activeProject?.id, store: cameraManager.projectStore,
                 onSelectProject: { path.append(.project($0.id)) },
                 onNewProject: { isShowingNewProjectSheet = true },
-                onQuickStart: { isShowingQuickStartSheet = true }
+                onQuickStart: { isShowingQuickStartSheet = true },
+                onShowArchived: { path.append(.archived) },
+                onShowRecentlyDeleted: { path.append(.recentlyDeleted) }
             )
             .navigationDestination(for: ProjectsRoute.self) { route in
                 destination(for: route)
@@ -90,7 +96,8 @@ struct ProjectsBrowserView: View {
             if let project = library.projects.first(where: { $0.id == projectID }) {
                 ProjectDetailPane(
                     project: project, cameraManager: cameraManager,
-                    onShowSessionHistory: { session in path.append(.sessionHistory(projectID, session.id)) }
+                    onShowSessionHistory: { session in path.append(.sessionHistory(projectID, session.id)) },
+                    onProjectDeleted: { path.removeAll() }
                 )
             } else {
                 ContentUnavailableView("Project No Longer Exists", systemImage: "folder")
@@ -117,6 +124,93 @@ struct ProjectsBrowserView: View {
             } else {
                 ContentUnavailableView("Capture No Longer Exists", systemImage: "photo")
             }
+        case .archived:
+            ArchivedProjectsPage(
+                projects: library.activeProjects.filter(\.isArchived),
+                onSelect: { path.append(.project($0.id)) },
+                onUnarchive: { try? library.setArchived(false, for: $0) }
+            )
+        case .recentlyDeleted:
+            RecentlyDeletedPage(
+                projects: library.deletedProjects,
+                onRestore: { try? library.restore($0) },
+                onDeletePermanently: { try? library.permanentlyDelete($0) },
+                onDeleteAllPermanently: { library.permanentlyDeleteAllDeleted() }
+            )
+        }
+    }
+}
+
+/// The Archived Projects page — every archived (but not deleted) project, tappable to open its
+/// own Project Detail page like any other project; "Unarchive" restores it to the Home page.
+private struct ArchivedProjectsPage: View {
+    let projects: [Project]
+    var onSelect: (Project) -> Void
+    var onUnarchive: (Project) -> Void
+
+    var body: some View {
+        List {
+            ForEach(projects) { project in
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(project.name.isEmpty ? "Untitled Project" : project.name).font(.headline)
+                        Text("\(project.sessions.count) session\(project.sessions.count == 1 ? "" : "s")")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Unarchive", systemImage: "archivebox") { onUnarchive(project) }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { onSelect(project) }
+            }
+        }
+        .overlay {
+            if projects.isEmpty {
+                ContentUnavailableView("No Archived Projects", systemImage: "archivebox")
+            }
+        }
+        .navigationTitle("Archived Projects")
+    }
+}
+
+/// The Recently Deleted page — every soft-deleted project still within its 30-day grace period.
+/// Deliberately not tappable into its own Project Detail page (unlike `ArchivedProjectsPage`) —
+/// a deleted project isn't something to keep editing, just restore or purge for good.
+private struct RecentlyDeletedPage: View {
+    let projects: [Project]
+    var onRestore: (Project) -> Void
+    var onDeletePermanently: (Project) -> Void
+    var onDeleteAllPermanently: () -> Void
+
+    var body: some View {
+        List {
+            ForEach(projects) { project in
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(project.name.isEmpty ? "Untitled Project" : project.name).font(.headline)
+                        if let expiration = project.gracePeriodExpirationDate {
+                            Text("Deleted permanently \(expiration.formatted(.relative(presentation: .named)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Button("Restore", systemImage: "arrow.uturn.backward") { onRestore(project) }
+                    Button("Delete Permanently", systemImage: "trash", role: .destructive) { onDeletePermanently(project) }
+                }
+            }
+        }
+        .overlay {
+            if projects.isEmpty {
+                ContentUnavailableView("Nothing Recently Deleted", systemImage: "trash")
+            }
+        }
+        .navigationTitle("Recently Deleted")
+        .toolbar {
+            ToolbarItem {
+                Button("Delete All Permanently", systemImage: "trash.fill", role: .destructive, action: onDeleteAllPermanently)
+                    .disabled(projects.isEmpty)
+            }
         }
     }
 }
@@ -134,12 +228,13 @@ private enum ProjectsHomeViewMode: String {
 private struct ProjectsHomeView: View {
     let projects: [Project]
     @Binding var searchText: String
-    @Binding var showArchived: Bool
     let activeProjectID: Project.ID?
     let store: ProjectStore
     var onSelectProject: (Project) -> Void
     var onNewProject: () -> Void
     var onQuickStart: () -> Void
+    var onShowArchived: () -> Void
+    var onShowRecentlyDeleted: () -> Void
 
     /// Persisted like `ControlsPanelView`'s own sidebar-tab choice — a view mode picked once
     /// shouldn't reset back to the default every relaunch — but thumbnail is what a fresh install
@@ -179,7 +274,12 @@ private struct ProjectsHomeView: View {
                 .labelStyle(.iconOnly)
             }
             ToolbarItem {
-                Toggle("Show Archived", systemImage: "archivebox", isOn: $showArchived)
+                Button("Archived", systemImage: "archivebox", action: onShowArchived)
+                    .help("Projects you've archived — still around, just out of the way")
+            }
+            ToolbarItem {
+                Button("Recently Deleted", systemImage: "trash", action: onShowRecentlyDeleted)
+                    .help("Deleted projects still within their 30-day grace period — restore or delete them for good")
             }
             ToolbarItem {
                 Button("Quick Start…", systemImage: "bolt.fill", action: onQuickStart)

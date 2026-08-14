@@ -13,6 +13,14 @@ struct SkyformacCommands: Commands {
     @AppStorage("sidebarTab") private var tab: SidebarTab = .cameraControls
 
     var body: some Commands {
+        // "skyformac → Show Log…" — right after "About skyformac," in the app's own first menu,
+        // since grabbing the log is exactly the kind of thing someone reporting a problem looks
+        // for right where "About"/version info already lives.
+        CommandGroup(after: .appInfo) {
+            Button("Show Log…") { cameraManager.isLogViewerPresented = true }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+        }
+
         // Replaces the default (otherwise inert, since this app ships no Apple Help Book)
         // "skyformac Help" menu item with one that actually opens something — a `.sheet` on
         // `ContentView`, not a second `Window` scene, since this app is deliberately

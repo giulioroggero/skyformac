@@ -11,6 +11,11 @@ struct ProjectDetailPane: View {
     let project: Project
     var cameraManager: CameraManager
     var onShowSessionHistory: (Session) -> Void
+    /// Called after this project is deleted (soft-deleted, per `ProjectsLibrary.softDelete(_:)`)
+    /// from its own Danger Zone section — there's nothing left to show here, so the caller
+    /// (`ProjectsBrowserView`) pops all the way back to Home rather than leaving this page
+    /// displayed for a project that no longer shows up anywhere except Recently Deleted.
+    var onProjectDeleted: () -> Void
 
     @State private var name: String
     @State private var goal: String
@@ -20,10 +25,14 @@ struct ProjectDetailPane: View {
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
-    init(project: Project, cameraManager: CameraManager, onShowSessionHistory: @escaping (Session) -> Void) {
+    init(
+        project: Project, cameraManager: CameraManager, onShowSessionHistory: @escaping (Session) -> Void,
+        onProjectDeleted: @escaping () -> Void
+    ) {
         self.project = project
         self.cameraManager = cameraManager
         self.onShowSessionHistory = onShowSessionHistory
+        self.onProjectDeleted = onProjectDeleted
         self._name = State(initialValue: project.name)
         self._goal = State(initialValue: project.goal)
     }
@@ -84,6 +93,17 @@ struct ProjectDetailPane: View {
                     Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningProject = true }
                     Button("Add Session", systemImage: "plus") { addSession() }
                 }
+            }
+
+            Section {
+                Button(project.isArchived ? "Unarchive Project" : "Archive Project", systemImage: "archivebox") {
+                    try? library.setArchived(!project.isArchived, for: project)
+                }
+                Button("Delete Project", systemImage: "trash", role: .destructive) {
+                    try? library.softDelete(project)
+                    onProjectDeleted()
+                }
+                .help("Kept for 30 days in Recently Deleted before being removed for good — you can undo this")
             }
         }
         .formStyle(.grouped)

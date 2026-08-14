@@ -11,10 +11,20 @@ struct RootView: View {
     @Environment(CameraManager.self) private var cameraManager
 
     var body: some View {
-        if cameraManager.activeSession == nil {
-            ProjectsBrowserView(cameraManager: cameraManager)
-        } else {
-            ContentView()
+        Group {
+            if cameraManager.activeSession == nil {
+                ProjectsBrowserView(cameraManager: cameraManager)
+            } else {
+                ContentView()
+            }
+        }
+        // Attached here, not on `ContentView`/`ProjectsBrowserView` individually, so "skyformac →
+        // Show Log…" works no matter which of the two is currently showing.
+        .sheet(isPresented: Binding(
+            get: { cameraManager.isLogViewerPresented },
+            set: { cameraManager.isLogViewerPresented = $0 }
+        )) {
+            LogViewerView()
         }
     }
 }

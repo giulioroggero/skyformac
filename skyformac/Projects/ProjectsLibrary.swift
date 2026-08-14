@@ -16,11 +16,21 @@ final class ProjectsLibrary {
     init(store: ProjectStore = ProjectStore()) {
         self.store = store
         reload()
+        purgeExpiredSoftDeletes()
     }
 
     func reload() {
         projects = store.loadAllProjects().sorted { $0.createdDate > $1.createdDate }
     }
+
+    /// Every project neither soft-deleted — what the Home page (further filtered there by
+    /// archived state) and search actually draw from; a deleted project only ever shows on the
+    /// Recently Deleted page.
+    var activeProjects: [Project] { projects.filter { $0.deletedAt == nil } }
+
+    /// Soft-deleted but still within (or exactly at) their 30-day grace period — not yet purged
+    /// from disk. What the Recently Deleted page shows.
+    var deletedProjects: [Project] { projects.filter { $0.deletedAt != nil } }
 
     /// Adds a new, purely in-memory project. `NewProjectSheet` is the only caller — it always
     /// passes a non-empty `name`, so the very next `save(_:)` call (which it also makes) persists
@@ -41,12 +51,61 @@ final class ProjectsLibrary {
         try store.save(project)
     }
 
-    /// Deletes `project` — from disk too, if it was ever actually saved there.
-    func delete(_ project: Project) throws {
+    /// Marks `project` deleted — kept on disk for a 30-day grace period
+    /// (`Project.gracePeriodExpirationDate`) rather than removed immediately, so a mistaken
+    /// delete is recoverable via `restore(_:)`. An unnamed project was never on disk in the first
+    /// place (see `save(_:)`), so there's nothing to keep around for a grace period — it's just
+    /// removed outright, the same as the old immediate-delete behavior for that one case.
+    func softDelete(_ project: Project) throws {
+        guard !project.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            projects.removeAll { $0.id == project.id }
+            return
+        }
+        var updated = project
+        updated.deletedAt = Date()
+        try store.save(updated)
+        replace(updated)
+    }
+
+    /// Undoes `softDelete(_:)` — clears `deletedAt` so `project` shows up as a normal project
+    /// again, indistinguishable from one that was never deleted.
+    func restore(_ project: Project) throws {
+        var updated = project
+        updated.deletedAt = nil
+        try store.save(updated)
+        replace(updated)
+    }
+
+    /// Actually removes `project`'s folder from disk — no grace period, no undo. Used both for
+    /// "Delete Permanently" on an already soft-deleted project, and by
+    /// `purgeExpiredSoftDeletes()` once a soft delete's grace period has genuinely elapsed.
+    func permanentlyDelete(_ project: Project) throws {
         if !project.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             try store.delete(project)
         }
         projects.removeAll { $0.id == project.id }
+    }
+
+    /// Permanently deletes every currently soft-deleted project regardless of how much of its own
+    /// grace period remains — the Recently Deleted page's own "Delete All Permanently" action.
+    func permanentlyDeleteAllDeleted() {
+        for project in deletedProjects {
+            try? permanentlyDelete(project)
+        }
+    }
+
+    /// Sweeps every soft-deleted project whose grace period has actually elapsed and permanently
+    /// deletes it. Called once at launch (`init`) — the closest this single-user, no-background-
+    /// scheduling app gets to a real "empty the trash after 30 days" timer; a project deleted
+    /// while the app isn't running still gets purged the next time it launches; one just gets
+    /// purged the moment its 30 days are up, whichever comes first is checked at.
+    func purgeExpiredSoftDeletes() {
+        let now = Date()
+        for project in deletedProjects {
+            if let expiration = project.gracePeriodExpirationDate, expiration <= now {
+                try? permanentlyDelete(project)
+            }
+        }
     }
 
     func setArchived(_ isArchived: Bool, for project: Project) throws {

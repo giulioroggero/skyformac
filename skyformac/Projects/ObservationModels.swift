@@ -168,10 +168,28 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
     var notes: [Annotation]
     var sessions: [Session]
     var isArchived: Bool
+    /// `nil` for a normal project. Set by `ProjectsLibrary.softDelete(_:)` — the project (and its
+    /// folder) stays on disk for a 30-day grace period (`gracePeriodExpirationDate`) rather than
+    /// being removed immediately, so a mistaken delete is recoverable via `restore(_:)`. Missing
+    /// entirely from a `project.json` written before this field existed, which decodes the same
+    /// as `nil` (Swift's synthesized `Decodable` treats a missing key for an `Optional` property
+    /// as absent, not an error) — an old project is never treated as deleted just because it
+    /// predates this feature.
+    var deletedAt: Date?
     /// Stable, folder-safe name for this project's own directory — see `Session.makeFolderName`'s
     /// doc comment for the identical reasoning (decoupled from `name` so renaming never moves
     /// anything on disk).
     var folderName: String
+
+    var isDeleted: Bool { deletedAt != nil }
+
+    /// When a soft-deleted project's 30-day grace period actually ends — `nil` for a project
+    /// that isn't deleted at all. `ProjectsLibrary.purgeExpiredSoftDeletes()` is what actually
+    /// acts on this.
+    var gracePeriodExpirationDate: Date? {
+        guard let deletedAt else { return nil }
+        return Calendar.current.date(byAdding: .day, value: 30, to: deletedAt)
+    }
 
     /// Every object planned across every session, deduplicated — what search actually matches
     /// against for "observed objects," alongside each session's own `plannedObjects`.
@@ -220,7 +238,7 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
         let id = UUID()
         return Project(
             id: id, name: name, goal: goal, plannedStartDate: nil, plannedEndDate: nil, createdDate: Date(),
-            location: nil, tags: [], notes: [], sessions: [], isArchived: false,
+            location: nil, tags: [], notes: [], sessions: [], isArchived: false, deletedAt: nil,
             folderName: makeFolderName(name: name, id: id)
         )
     }

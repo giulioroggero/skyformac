@@ -78,6 +78,8 @@
 		6CF833B56A2CF5FCE1A4B713 /* SessionDetailPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DEFB869ABA587829E6F5A72 /* SessionDetailPane.swift */; };
 		B0C2F7C35F16D15AE0D2767E /* AIPlanSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09CEC70CD60D51339EAB38EA /* AIPlanSheets.swift */; };
 		996DB3C1418971AAAEC7AAC9 /* SkyformacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54A0AEC3C0487BE791B3AF11 /* SkyformacApp.swift */; };
+		E4495077D3085CD19C1E0D5D /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B17820B7F74A47F6E4F8314 /* AppLog.swift */; };
+		3A3D0F6CB865CD988868E4B3 /* LogViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7A02CC02BDD7A1184DC158 /* LogViewerView.swift */; };
 		9A53D460709CB09BE9591343 /* ImageEnhancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D096BA93F69912E52AB7D663 /* ImageEnhancer.swift */; };
 		9F3706562428F173206180CB /* libASICamera2.dylib in Embed ZWO SDK */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A05020090FAE2338A11DB166 /* ZWOCameraInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF58D85B9F8A4D2487C38AB6 /* ZWOCameraInfo.swift */; };
@@ -100,6 +102,7 @@
 		1E39FF799CAC5407841A7354 /* OllamaPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79AC1FEA6E74EB19701D1F40 /* OllamaPlannerTests.swift */; };
 		AC88102D5E61CA51F4A2E951 /* ProjectsLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */; };
 		6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */; };
+		9B66BD0AAA8CDF013F69A40D /* AppLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */; };
 		8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */; };
 		C4F70E862029FEA852476B6C /* PlanetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */; };
 		C50F2712D4496D9621959232 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
@@ -205,6 +208,7 @@
 		79AC1FEA6E74EB19701D1F40 /* OllamaPlannerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OllamaPlannerTests.swift; sourceTree = "<group>"; };
 		90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectsLibraryTests.swift; sourceTree = "<group>"; };
 		65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerFirstRunTests.swift; sourceTree = "<group>"; };
+		7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLogTests.swift; sourceTree = "<group>"; };
 		94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerSessionLifecycleTests.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
 		0C438170FE21AEABA0E72DB0 /* PreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
@@ -248,6 +252,8 @@
 		4E60DE976E78E63EEC051F93 /* Debayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Debayer.swift; sourceTree = "<group>"; };
 		4F48776C296AA793CBA49158 /* ZWOControlCaps.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ZWOControlCaps.swift; sourceTree = "<group>"; };
 		54A0AEC3C0487BE791B3AF11 /* SkyformacApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyformacApp.swift; sourceTree = "<group>"; };
+		8B17820B7F74A47F6E4F8314 /* AppLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
+		7C7A02CC02BDD7A1184DC158 /* LogViewerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LogViewerView.swift; sourceTree = "<group>"; };
 		55BE7F71EFFEA8087964D1C9 /* PolarAlignmentSolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PolarAlignmentSolver.swift; sourceTree = "<group>"; };
 		57206D2F89E34EB8DEE0EFCE /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		60759144D69321A911094B7E /* ExposureOptimizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExposureOptimizer.swift; sourceTree = "<group>"; };
@@ -449,6 +455,7 @@
 			isa = PBXGroup;
 			children = (
 				54A0AEC3C0487BE791B3AF11 /* SkyformacApp.swift */,
+				8B17820B7F74A47F6E4F8314 /* AppLog.swift */,
 				AEF040EFD1A707E65E5EDB36 /* App-Bridging-Header.h */,
 				F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */,
 			);
@@ -476,6 +483,7 @@
 				79AC1FEA6E74EB19701D1F40 /* OllamaPlannerTests.swift */,
 				90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */,
 				65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */,
+				7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
@@ -597,6 +605,7 @@
 				1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */,
 				0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */,
 				EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */,
+				7C7A02CC02BDD7A1184DC158 /* LogViewerView.swift */,
 				D6E7866DFCEC932D3B738897 /* RootView.swift */,
 				B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */,
 				5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */,
@@ -856,6 +865,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				996DB3C1418971AAAEC7AAC9 /* SkyformacApp.swift in Sources */,
+				E4495077D3085CD19C1E0D5D /* AppLog.swift in Sources */,
+				3A3D0F6CB865CD988868E4B3 /* LogViewerView.swift in Sources */,
 				E06CA48D0F91C0D87E7D2FED /* ObservationModels.swift in Sources */,
 				09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */,
 				47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */,
@@ -968,6 +979,7 @@
 				1E39FF799CAC5407841A7354 /* OllamaPlannerTests.swift in Sources */,
 				AC88102D5E61CA51F4A2E951 /* ProjectsLibraryTests.swift in Sources */,
 				6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */,
+				9B66BD0AAA8CDF013F69A40D /* AppLogTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,

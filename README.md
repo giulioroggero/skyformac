@@ -295,7 +295,22 @@ title-bar navigation, and the menu bar's **Project** menu covers every
 project/session action — ending the session, opening the next one, adding a
 new one, deleting it, switching projects — without a trip back to the
 browser. "Ask AI to Plan…" sends a one-line goal to a local Ollama server and
-shows the suggested session(s) before creating anything.
+shows the suggested session(s) before creating anything — it prefers
+`qwen3:8b` when installed, otherwise whatever's actually installed, and
+waits up to 3 minutes for a slower local model.
+
+A project's own Danger Zone can **Archive** it (hidden from Home, restorable
+from the toolbar's **Archived** button) or **Delete** it — deletes move to
+**Recently Deleted** (toolbar) for a 30-day grace period before being purged
+automatically, with **Restore** and **Delete Permanently** (individually or
+all at once) available immediately.
+
+### Application Log
+
+**skyformac → Show Log…** (⌘⇧D) — every connection event, error, Quick
+Start, and Ollama planning failure, timestamped, in one window. Select and
+copy any line, or use **Copy All**/**Export…** to grab the whole log when
+reporting a problem.
 
 ### Permissions
 

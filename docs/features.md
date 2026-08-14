@@ -374,10 +374,20 @@ session persistence design and the browser-as-main-window architecture)
 - **AI-assisted planning** — "Ask AI to Plan…" sends a one-line goal to a
   local Ollama server (`OllamaPlanner`) and shows the suggested session(s)
   before anything is created; no cloud dependency, matches this app's
-  everything-runs-locally stance. The model to use is auto-detected from
-  whatever's actually installed (`ollama list`) rather than a hardcoded
-  name that may not be pulled — errors surface the server's own explanation
-  (a missing model, an unreachable server) instead of a generic failure.
+  everything-runs-locally stance. Prefers `qwen3:8b` if it's installed,
+  otherwise whatever's actually installed (`ollama list`) rather than a
+  hardcoded name that may not be pulled; a generous (180s) request timeout
+  since a local model — especially a reasoning one that "thinks" first —
+  can legitimately take a while. Errors surface the server's own
+  explanation (a missing model, an unreachable server) instead of a
+  generic failure.
+- **Archive, delete (with a 30-day grace period), and Recently Deleted** —
+  a project can be archived (hidden from the Home page, still fully intact,
+  restorable from the new Archived page) or deleted (also hidden from Home,
+  but kept on disk for 30 days on the new Recently Deleted page, where it
+  can be restored or purged immediately — "Delete All Permanently" clears
+  every currently-deleted project at once). Deletes past their own 30-day
+  grace period are purged automatically the next time the app launches.
 
 **Monitoring & UI**
 - **All-Sky / rig monitor** — picture-in-picture feed from a secondary webcam
@@ -414,9 +424,15 @@ session persistence design and the browser-as-main-window architecture)
   workflows, troubleshooting, Q&A, and license/credits (with a link to the
   GitHub repository). Plain structured content (`HelpContent.swift`)
   rendered with real SwiftUI typography, not a bundled webpage.
+- **Application Log** (skyformac menu, ⌘⇧D) — every connection event, error
+  (`CameraManager.lastErrorMessage`'s `didSet` captures most of these for
+  free), Quick Start, and Ollama planning failure logged with a timestamp,
+  in one modal window. Select and copy any line directly, right-click a
+  line for "Copy Line," "Copy All," or export the whole log to a text file
+  for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 137 unit tests (Swift Testing) across 31 suites, covering
+- `skyformacTests` — 371 unit tests (Swift Testing) across 58 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

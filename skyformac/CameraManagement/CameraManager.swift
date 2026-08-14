@@ -323,7 +323,17 @@ final class CameraManager {
     private(set) var controls: [ZWOControlCaps] = []
     private(set) var controlValues: [Int32: ZWOControlValue] = [:]
     private(set) var connectionState: CameraConnectionState = .disconnected
-    private(set) var lastErrorMessage: String?
+    /// Every non-`nil` assignment also logs to `AppLog` — since this is already the one property
+    /// nearly every failure path in this class sets, that single hook captures most real errors
+    /// for the log viewer for free, without instrumenting every individual call site.
+    private(set) var lastErrorMessage: String? {
+        didSet {
+            if let lastErrorMessage {
+                AppLog.shared.log("Error: \(lastErrorMessage)")
+            }
+        }
+    }
+    var isLogViewerPresented = false
 
     /// ZWO's own recommended gain/offset reference points for the connected camera model — see
     /// `ZWOSDK.GainOffsetPresets`'s doc comment. `nil` when no camera's connected, or the
@@ -1194,6 +1204,7 @@ final class CameraManager {
     /// selection itself still happens exactly as it always does, Quick Start doesn't skip that.
     @discardableResult
     func quickStart(with target: AcquisitionTarget) -> Session {
+        AppLog.shared.log("Quick Start: \(target.name)")
         var project = Project.newProject(name: target.name, goal: target.summary)
         let session = Session.newSession(name: target.name, goal: target.summary, plannedObjects: [target.name])
         project.sessions = [session]
@@ -1406,6 +1417,7 @@ final class CameraManager {
             refreshGainOffsetPresets()
             startDiagnosticsPolling()
             await startPreview(using: engine)
+            AppLog.shared.log("Connected to \(camera.name)")
 
             // A Quick Start picked before any camera was connected left its recommended setup
             // with nothing to apply to yet — `applyAcquisitionPreset` itself silently no-ops
@@ -2719,6 +2731,9 @@ final class CameraManager {
     }
 
     func disconnect() {
+        if let name = connectedCamera?.name {
+            AppLog.shared.log("Disconnected from \(name)")
+        }
         frameConsumerTask?.cancel()
         frameConsumerTask = nil
         captureROIWidth = nil

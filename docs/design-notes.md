@@ -1900,3 +1900,44 @@ made along the way.
     can't), the file's own info, the owning session's context (aim/objects/position) so there's no
     need to go back just to remember what session this was, and that session's own Stats —
     reusing `PageSection`/`StatsGridView` rather than inventing another layout.
+
+- **Ollama timeout + model preference, an in-app Application Log, and Project archive/delete
+  with a grace period.** Three independent fixes/additions from the same round of feedback.
+  - **`OllamaPlanner.generate`'s request now sets `timeoutInterval = 180`** — "Ollama goes in
+    timeout" was `URLRequest`'s own default 60s expiring before a local model (especially a
+    reasoning one that "thinks" before answering, as seen with the real `qwen3.5` models tested
+    against earlier) finished, not Ollama itself failing. `resolveModel()` now also prefers
+    `qwen3:8b` when it's actually installed (`OllamaPlanner.preferredModel`), falling back to the
+    first installed model exactly as before when it isn't — a preference, not a requirement.
+  - **`AppLog`** (new, `skyformac/App/AppLog.swift`) is a `@MainActor` singleton holding
+    timestamped `LogEntry` lines — deliberately not a real logging framework (no levels/
+    categories/`os_log` integration), just enough to answer "what actually happened" when
+    reporting a problem. `CameraManager.lastErrorMessage`'s `didSet` logs every non-`nil`
+    assignment automatically — since nearly every failure path in that class already sets this one
+    property, that single hook captures most real errors for free, without instrumenting every
+    individual call site — plus a handful of manually logged lifecycle events (camera connect/
+    disconnect, Quick Start). `LogViewerView` ("skyformac → Show Log…", ⌘⇧D, `CommandGroup(after:
+    .appInfo)` — the app's own first menu) supports per-line `.textSelection(.enabled)`/"Copy
+    Line," "Copy All," and exporting the full log to a text file via `NSSavePanel`. Attached as a
+    `.sheet` on `RootView` itself (not `ContentView`/`ProjectsBrowserView` individually) so it
+    works regardless of which of the two is currently showing.
+  - **`Project.deletedAt: Date?`** (new, defaults to `nil`, absent from an older `project.json`
+    decodes the same as `nil` since Swift's synthesized `Decodable` treats a missing key for an
+    `Optional` property as absent) is what makes "delete" a soft delete: `ProjectsLibrary
+    .softDelete(_:)` sets it and saves rather than removing anything from disk, `restore(_:)`
+    clears it, and `permanentlyDelete(_:)` is the actual `store.delete` — the same operation the
+    old, immediately-destructive `delete(_:)` used to perform on its own, now reserved for the
+    Recently Deleted page's own explicit action (and `purgeExpiredSoftDeletes()`, called once at
+    `ProjectsLibrary.init`, which sweeps every soft-deleted project whose 30-day
+    `gracePeriodExpirationDate` has actually elapsed — the closest a single-user, no-background-
+    scheduling app gets to a real "empty the trash" timer). An unnamed, never-persisted project has
+    nothing to keep around for a grace period, so `softDelete` just removes it from memory outright
+    for that one case, same as the old immediate delete always did for it.
+  - **`ProjectsLibrary.activeProjects`/`deletedProjects`** split `projects` (every project on disk,
+    unfiltered) into "what Home/search actually draw from" vs. "what Recently Deleted shows" — the
+    Home page's own `visibleProjects` filters `activeProjects` further by `!isArchived`, so archived
+    and deleted projects both disappeared from the main grid/table entirely in favor of their own
+    dedicated `ArchivedProjectsPage`/`RecentlyDeletedPage` (new routes), replacing the old inline
+    "Show Archived" toggle that mixed them back into the same list. `RecentlyDeletedPage` rows are
+    deliberately not tappable into a full Project Detail page the way `ArchivedProjectsPage`'s
+    are — a deleted project isn't something to keep editing, just restore or purge for good.

@@ -550,7 +550,11 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.aiPlanning", heading: "Ask AI to Plan…",
-                body: "Type a one-line goal and this sends it to a **local Ollama server** (nothing leaves your machine) for a suggested name, goal, and session list. Nothing is created until you review the suggestion and click **Create Sessions**/**Apply**. The model is auto-detected from whatever's actually installed (`ollama list`) — no model needs to be configured by hand. Requires Ollama running with at least one model pulled — see [ollama.com](https://ollama.com) — the button still works without it, it just reports exactly what's wrong (server unreachable, or no models installed)."
+                body: "Type a one-line goal and this sends it to a **local Ollama server** (nothing leaves your machine) for a suggested name, goal, and session list. Nothing is created until you review the suggestion and click **Create Sessions**/**Apply**. Prefers **qwen3:8b** if it's installed, otherwise whatever's actually installed (`ollama list`) — no model needs to be configured by hand. Requires Ollama running with at least one model pulled — see [ollama.com](https://ollama.com) — the button still works without it, it just reports exactly what's wrong (server unreachable, no models installed), and waits up to 3 minutes before giving up on a slower local model."
+            ),
+            HelpSection(
+                heading: "Archive, delete, and Recently Deleted",
+                body: "A project's own Danger Zone (bottom of its page) can **Archive** it (hidden from Home, still fully intact — restore it from the Home page toolbar's **Archived** button) or **Delete** it. Deleting doesn't remove anything right away — it moves to **Recently Deleted** (Home page toolbar) for 30 days, where it can be **Restore**d or **Delete Permanently**'d immediately; **Delete All Permanently** clears everything there at once. Anything past its own 30 days is purged automatically the next time the app launches."
             ),
         ]
     )
@@ -616,6 +620,14 @@ enum HelpContent {
         title: "Troubleshooting",
         icon: "wrench.and.screwdriver",
         sections: [
+            HelpSection(
+                heading: "Reporting a problem",
+                body: "**skyformac → Show Log…** (⌘⇧D) shows every connection event, error, Quick Start, and Ollama planning failure logged this run, with a timestamp. Select and copy any line, or use **Copy All**/**Export…** to grab the whole thing when filing a report."
+            ),
+            HelpSection(
+                heading: "\"Ask AI to Plan…\" times out or fails",
+                body: "A local model — especially a reasoning one that \"thinks\" before answering — can genuinely take a while; this app waits up to 3 minutes before giving up. If it still fails, check **Show Log…** for the actual server message (a missing model, an unreachable server) rather than a generic failure. It prefers **qwen3:8b** if that's installed, otherwise whatever `ollama list` already shows — pulling that model isn't required, just what's used if present."
+            ),
             HelpSection(
                 heading: "\"No ZWO Cameras Found\"",
                 body: "Check the physical USB connection first — a direct port or a powered hub, not an unpowered hub some cameras can't draw enough current from. Click the refresh icon in the Cameras list (or ⌘R). If it's still not found, unplug/replug and rescan again; USB camera enumeration occasionally needs a fresh connection event."

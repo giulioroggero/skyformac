@@ -123,11 +123,19 @@ struct OllamaPlanner: Sendable {
         }
     }
 
-    /// `model` if explicitly set, otherwise the first name `installedModels()` reports — throws
-    /// `noModelsInstalled` rather than falling through to a name that's likely to 404 anyway.
+    /// The model this app actually wants when it's available — a good balance of capability vs.
+    /// speed for the short planning prompts this feature sends. Just a preference, not a
+    /// requirement: `resolveModel()` falls back to whatever's actually installed when it isn't.
+    static let preferredModel = "qwen3:8b"
+
+    /// `model` if explicitly set; otherwise `preferredModel` if that's actually installed;
+    /// otherwise the first name `installedModels()` reports. Throws `noModelsInstalled` rather
+    /// than falling through to a name that's likely to 404 anyway.
     private func resolveModel() async throws -> String {
         if let model { return model }
-        guard let first = try await installedModels().first else { throw OllamaError.noModelsInstalled }
+        let installed = try await installedModels()
+        if installed.contains(Self.preferredModel) { return Self.preferredModel }
+        guard let first = installed.first else { throw OllamaError.noModelsInstalled }
         return first
     }
 
@@ -139,6 +147,10 @@ struct OllamaPlanner: Sendable {
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "model": resolvedModel, "prompt": prompt, "stream": false,
         ])
+        // A local model — especially a reasoning one that "thinks" before answering — can
+        // legitimately take well past URLRequest's normal 60s default, which is what "Ollama goes
+        // in timeout" actually was: the request timing out, not Ollama itself failing.
+        request.timeoutInterval = 180
         let data = try await transport.send(request)
         guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let response = envelope["response"] as? String
