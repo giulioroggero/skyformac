@@ -86,6 +86,32 @@ struct OllamaPlanner: Sendable {
         var question: String?
     }
 
+    /// What `respond(to:context:history:)` returns — either a plain answer, or a proposed
+    /// `AssistantAction` with the plain-English explanation to show alongside its Approve/Reject
+    /// buttons. Never applies anything itself; that's `CameraManager.confirmAssistantAction()`'s
+    /// job, strictly after the user approves.
+    enum AssistantResponse: Equatable, Sendable {
+        case reply(String)
+        case action(AssistantAction, message: String)
+    }
+
+    /// The one shape every assistant reply decodes into first — `kind` picks which of the other,
+    /// all-optional fields actually matter; unused ones for a given `kind` are simply `nil` and
+    /// ignored. One flexible struct rather than four separate ones since only one `kind` at a
+    /// time is ever populated, and this is decoded exactly once per reply either way.
+    private struct AssistantRawResponse: Codable {
+        var kind: String
+        var text: String?
+        var message: String?
+        var name: String?
+        var goal: String?
+        var projectName: String?
+        var plannedObjects: [String]?
+        var gain: Int?
+        var exposureSeconds: Double?
+        var mode: String?
+    }
+
     var baseURL: URL
     /// `nil` (the default) means "ask the server which models are actually installed and use the
     /// first one" — a specific hardcoded model name reliably 404s on any machine that hasn't
@@ -167,6 +193,44 @@ struct OllamaPlanner: Sendable {
         let stripped = Self.stripReasoningPreamble(from: text)
         guard !stripped.isEmpty else { throw OllamaError.emptySummary }
         return stripped
+    }
+
+    /// The sidebar assistant's own entry point — "provide insight, create projects and sessions,
+    /// suggest camera configuration, suggest what to see next," all through one classification
+    /// call: the model either just answers, or proposes exactly one `AssistantAction` alongside a
+    /// plain-English explanation, never both and never applying anything itself (that's strictly
+    /// `CameraManager.confirmAssistantAction()`'s job, after the user approves). `history` is the
+    /// last few turns folded into the prompt as plain text, since `/api/generate` has no
+    /// conversation state of its own — the same reasoning `planProject`'s clarification round trip
+    /// already relies on.
+    func respond(to message: String, context: String, history: [AssistantMessage]) async throws -> AssistantResponse {
+        let text = try await generate(prompt: Self.assistantPrompt(message: message, context: context, history: history))
+        guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.invalidPlanJSON }
+        guard let raw = try? JSONDecoder().decode(AssistantRawResponse.self, from: json) else { throw OllamaError.invalidPlanJSON }
+        switch raw.kind {
+        case "createProject":
+            guard let name = raw.name, !name.isEmpty else { throw OllamaError.invalidPlanJSON }
+            let message = raw.message ?? "Create a new project named \"\(name)\"?"
+            return .action(.createProject(name: name, goal: raw.goal ?? ""), message: message)
+        case "createSession":
+            guard let name = raw.name, !name.isEmpty, let projectName = raw.projectName, !projectName.isEmpty else {
+                throw OllamaError.invalidPlanJSON
+            }
+            let message = raw.message ?? "Create a new session \"\(name)\" in \"\(projectName)\"?"
+            return .action(
+                .createSession(projectName: projectName, sessionName: name, goal: raw.goal ?? "", plannedObjects: raw.plannedObjects ?? []),
+                message: message
+            )
+        case "applyCameraSettings":
+            guard raw.gain != nil || raw.exposureSeconds != nil || raw.mode != nil else { throw OllamaError.invalidPlanJSON }
+            let mode = raw.mode.flatMap(AcquisitionMode.init(rawValue:))
+            let message = raw.message ?? "Apply the suggested camera settings?"
+            return .action(.applyCameraSettings(gain: raw.gain, exposureSeconds: raw.exposureSeconds, mode: mode), message: message)
+        case "reply":
+            return .reply(raw.text ?? raw.message ?? "")
+        default:
+            throw OllamaError.invalidPlanJSON
+        }
     }
 
     /// The model this app actually wants when it's available — a good balance of capability vs.
@@ -252,6 +316,35 @@ struct OllamaPlanner: Sendable {
         Otherwise, respond with ONLY a JSON object, no other text, matching exactly this shape:
         {"name": "short project title", "goal": "one sentence goal", "sessions": [\
         {"name": "short session title", "goal": "one sentence goal", "plannedObjects": ["object1"]}]}
+        """
+    }
+
+    private static func assistantPrompt(message: String, context: String, history: [AssistantMessage]) -> String {
+        let historyText = history.suffix(6).map { entry in
+            "\(entry.role == .user ? "User" : "Assistant"): \(entry.text)"
+        }.joined(separator: "\n")
+        return """
+        You are an assistant embedded in the sidebar of an astrophotography capture app, grounded \
+        in the current page's own context below — use it, don't ignore it.
+        Context:
+        \(context)
+        \(historyText.isEmpty ? "" : "Recent conversation:\n\(historyText)\n")\
+        User message: \(message)
+
+        You can either just answer (insight, advice, what to see next), or propose ONE of: \
+        creating a new project, creating a new session, or changing the camera's gain/exposure/mode. \
+        Never claim to have already done something — a proposal is only ever applied after the user \
+        approves it separately, so always include a short "message" field describing the proposal in \
+        plain English for that approval step.
+
+        Respond with ONLY a JSON object, no other text, in exactly one of these shapes:
+        {"kind": "reply", "text": "your answer"}
+        {"kind": "createProject", "name": "...", "goal": "...", "message": "..."}
+        {"kind": "createSession", "projectName": "...", "name": "...", "goal": "...", "plannedObjects": ["..."], "message": "..."}
+        {"kind": "applyCameraSettings", "gain": 100, "exposureSeconds": 2.0, "mode": "liveStack", "message": "..."}
+        For applyCameraSettings, "mode" must be exactly one of "liveStack", "luckyImaging", or "both" \
+        if included, and any of gain/exposureSeconds/mode may be omitted if you're not proposing to \
+        change that one.
         """
     }
 

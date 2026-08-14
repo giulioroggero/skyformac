@@ -315,7 +315,18 @@ session persistence design and the browser-as-main-window architecture)
   acquisition mode — plus the same "try this next" suggestions the Home
   page teases (`InsightsData.build`, `InsightsView`). Answers "what have I
   actually been doing" at a glance instead of piecing it together project
-  by project.
+  by project. The activity chart plots a categorical month axis (`MonthlyActivity.label`),
+  not a continuous date one — a continuous axis showed automatic tick marks
+  for every month between two real ones with activity, which read as
+  spurious past dates with no actual activity even though the underlying
+  data was correct.
+- **Bulk select on the Projects page** — the toolbar's **Select** button
+  turns the thumbnail grid into tap-to-select mode (a `Table`, being
+  natively multi-select via click/⌘-click/shift-click already, needs no
+  mode toggle); once anything's selected, a bar above the list offers
+  **Archive**/**Delete** for the whole selection at once, or **Clear**.
+  Delete still only soft-deletes (30-day grace period) — bulk selection
+  doesn't bypass that safety net.
 - **Create/run/manage** — "New Project…" (Home page toolbar, or the menu
   bar's **Project** menu) is the one modal in the feature — it requires a
   name up front, so the project's name is always visible from the moment it
@@ -471,6 +482,24 @@ session persistence design and the browser-as-main-window architecture)
     Aim** overwrites the project's/session's own goal field, **Add as
     Note** appends it as a dated annotation instead — the user picks which,
     nothing is applied automatically.
+- **Sidebar Assistant** — a chat panel on the right of every page (⌘⇧J to
+  toggle, on by default), the same one conversation regardless of whether
+  you're on the Dashboard, browsing Projects, or running a live camera
+  session. Grounded in the current project/session (if any), the connected
+  camera, and an Insights snapshot (most-captured objects, "try this next"
+  candidates), it can answer questions, or propose creating a project,
+  creating a session, or changing the camera's gain/exposure/mode
+  (`OllamaPlanner.respond(to:context:history:)`). **Any proposed change
+  always shows its own Approve/Reject card and is never applied
+  automatically** — "if the chat changes something, ask before acting."
+  **Minimize** collapses it to a thin rail (its own expand button always
+  stays reachable); **Detach** moves it into a real floating `NSPanel`
+  (`AssistantChatPanelController`, the same detach mechanism the
+  Histogram/Curves panel already uses) that can sit outside the main
+  window; **Dock** brings it back. Since a local model has no real
+  multi-turn conversation state of its own, the "conversation" is entirely
+  client-side — the last few turns are folded as plain text into every new
+  request.
 - **Archive, delete (with a 30-day grace period), and Recently Deleted** —
   a project can be archived (hidden from the Home page, still fully intact,
   restorable from the new Archived page) or deleted (also hidden from Home,
@@ -508,8 +537,14 @@ session persistence design and the browser-as-main-window architecture)
   central `SettingsView` sheet for the preferences most worth reviewing in
   one place: the Projects folder location (defaults to `~/Documents/
   Skyformac Projects`; **Choose Folder…** picks anywhere else, takes effect
-  the next launch — existing files aren't moved automatically), plus the
-  renderer/night-mode toggles already in the camera view's own toolbar.
+  the next launch — existing files aren't moved automatically), the
+  renderer/night-mode toggles already in the camera view's own toolbar, and
+  an **AI (Ollama)** section showing the server URL and preferred model,
+  with a **Test Connection** button that checks both reachability and
+  which models are actually installed (`OllamaPlanner.isAvailable()`/
+  `installedModels()`) — reporting exactly which one would actually be used
+  (`qwen3:8b` if installed, otherwise the first one found), not just
+  "reachable/unreachable."
 
 **Help**
 - **In-app Help** (Help menu, ⌘?) — a sheet on the app's one window (this app
@@ -528,7 +563,7 @@ session persistence design and the browser-as-main-window architecture)
   for sharing when reporting a problem.
 
 **Testing**
-- `skyformacTests` — 431 unit tests (Swift Testing) across 68 suites, covering
+- `skyformacTests` — 447 unit tests (Swift Testing) across 69 suites, covering
   every piece of pixel/geometry/signal-processing math in the app.
 - `skyformacUITests` — XCUITest UI-level tests driving the real SwiftUI view
   tree.

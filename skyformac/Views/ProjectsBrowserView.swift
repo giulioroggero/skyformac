@@ -120,7 +120,19 @@ struct ProjectsBrowserView: View {
                 onQuickStart: { isShowingQuickStartSheet = true },
                 onShowArchived: { path.append(.archived) },
                 onShowRecentlyDeleted: { path.append(.recentlyDeleted) },
-                onShowEquipment: { path.append(.equipment) }
+                onShowEquipment: { path.append(.equipment) },
+                onBulkArchive: { ids in
+                    for id in ids {
+                        guard let project = library.projects.first(where: { $0.id == id }) else { continue }
+                        try? library.setArchived(true, for: project)
+                    }
+                },
+                onBulkDelete: { ids in
+                    for id in ids {
+                        guard let project = library.projects.first(where: { $0.id == id }) else { continue }
+                        try? library.softDelete(project)
+                    }
+                }
             )
         case .project(let projectID):
             if let project = library.projects.first(where: { $0.id == projectID }) {
@@ -318,8 +330,19 @@ private struct ProjectsHomeView: View {
     var onShowArchived: () -> Void
     var onShowRecentlyDeleted: () -> Void
     var onShowEquipment: () -> Void
+    /// Archives/soft-deletes every project whose ID is in the set — the Home page's own bulk
+    /// actions, so multi-select doesn't need its own dedicated Archive/Delete implementation
+    /// beyond looping the existing single-project ones the Project Detail page already uses.
+    var onBulkArchive: (Set<Project.ID>) -> Void
+    var onBulkDelete: (Set<Project.ID>) -> Void
 
     @State private var isShowingFilters = false
+    /// Shared by both view modes so switching between Thumbnails/Table mid-selection doesn't lose
+    /// it — a `Table`'s own multi-select (click, ⌘-click, shift-click) already writes into this
+    /// directly; the thumbnail grid only reads/writes it while `isSelecting` is on, since a plain
+    /// tap there normally opens the project instead.
+    @State private var selectedIDs: Set<Project.ID> = []
+    @State private var isSelecting = false
 
     /// Persisted like `ControlsPanelView`'s own sidebar-tab choice — a view mode picked once
     /// shouldn't reset back to the default every relaunch — but thumbnail is what a fresh install
@@ -328,23 +351,32 @@ private struct ProjectsHomeView: View {
     private var viewMode: ProjectsHomeViewMode { ProjectsHomeViewMode(rawValue: viewModeRaw) ?? .thumbnail }
 
     var body: some View {
-        Group {
-            switch viewMode {
-            case .thumbnail:
-                ProjectsThumbnailGrid(
-                    projects: projects, activeProjectID: activeProjectID, store: store,
-                    onSelect: onSelectProject, onNewProject: onNewProject, onQuickStart: onQuickStart
-                )
-            case .table:
-                ProjectsTableView(projects: projects, activeProjectID: activeProjectID, onSelect: onSelectProject)
+        VStack(spacing: 0) {
+            if !selectedIDs.isEmpty {
+                bulkActionBar
             }
-        }
-        .overlay {
-            if projects.isEmpty {
-                ContentUnavailableView(
-                    "No Projects Yet", systemImage: "folder",
-                    description: Text("Create a project to get started.")
-                )
+            Group {
+                switch viewMode {
+                case .thumbnail:
+                    ProjectsThumbnailGrid(
+                        projects: projects, activeProjectID: activeProjectID, store: store,
+                        isSelecting: isSelecting, selectedIDs: $selectedIDs,
+                        onSelect: onSelectProject, onNewProject: onNewProject, onQuickStart: onQuickStart
+                    )
+                case .table:
+                    ProjectsTableView(
+                        projects: projects, activeProjectID: activeProjectID, selectedIDs: $selectedIDs,
+                        onSelect: onSelectProject
+                    )
+                }
+            }
+            .overlay {
+                if projects.isEmpty {
+                    ContentUnavailableView(
+                        "No Projects Yet", systemImage: "folder",
+                        description: Text("Create a project to get started.")
+                    )
+                }
             }
         }
         .searchable(text: $searchText, prompt: "Search goal, objects, tags…")
@@ -357,6 +389,15 @@ private struct ProjectsHomeView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelStyle(.iconOnly)
+            }
+            ToolbarItem {
+                // Only the thumbnail grid needs an explicit mode toggle — a `Table` already
+                // supports multi-select natively via click/⌘-click/shift-click without one.
+                Button(isSelecting ? "Done Selecting" : "Select", systemImage: isSelecting ? "checkmark.circle.fill" : "checkmark.circle") {
+                    isSelecting.toggle()
+                    if !isSelecting { selectedIDs.removeAll() }
+                }
+                .help("Select multiple projects for bulk actions (archive, delete)")
             }
             ToolbarItem {
                 Button("Filters", systemImage: filter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") {
@@ -387,6 +428,29 @@ private struct ProjectsHomeView: View {
                 Button("New Project…", systemImage: "plus", action: onNewProject)
             }
         }
+    }
+
+    /// Shown above the grid/table the moment anything's selected — "N selected," Archive/Delete
+    /// acting on the whole set at once, and Clear. `Delete` still only soft-deletes (30-day grace
+    /// period), same as a single project's own Danger Zone — bulk selection doesn't get a
+    /// shortcut around that safety net.
+    private var bulkActionBar: some View {
+        HStack {
+            Text("\(selectedIDs.count) selected").font(.subheadline)
+            Spacer()
+            Button("Archive", systemImage: "archivebox") {
+                onBulkArchive(selectedIDs)
+                selectedIDs.removeAll()
+            }
+            Button("Delete", systemImage: "trash", role: .destructive) {
+                onBulkDelete(selectedIDs)
+                selectedIDs.removeAll()
+            }
+            Button("Clear") { selectedIDs.removeAll() }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.background.secondary)
     }
 }
 
@@ -454,6 +518,10 @@ private struct ProjectsThumbnailGrid: View {
     let projects: [Project]
     let activeProjectID: Project.ID?
     let store: ProjectStore
+    /// While on, tapping a card toggles it into `selectedIDs` instead of opening it — the
+    /// Quick Start/New Project tiles are hidden too, since neither makes sense to "select."
+    let isSelecting: Bool
+    @Binding var selectedIDs: Set<Project.ID>
     var onSelect: (Project) -> Void
     var onNewProject: () -> Void
     var onQuickStart: () -> Void
@@ -463,16 +531,30 @@ private struct ProjectsThumbnailGrid: View {
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
-                ActionCard(
-                    title: "Quick Start", icon: "bolt.fill", tint: .orange,
-                    subtitle: "A planet, the Moon, or a deep-sky object — ready to run", action: onQuickStart
-                )
-                ForEach(projects) { project in
-                    ProjectCard(project: project, isOpen: project.id == activeProjectID, store: store)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onSelect(project) }
+                if !isSelecting {
+                    ActionCard(
+                        title: "Quick Start", icon: "bolt.fill", tint: .orange,
+                        subtitle: "A planet, the Moon, or a deep-sky object — ready to run", action: onQuickStart
+                    )
                 }
-                ActionCard(title: "New Project", icon: "plus", tint: .accentColor, action: onNewProject)
+                ForEach(projects) { project in
+                    ProjectCard(
+                        project: project, isOpen: project.id == activeProjectID, store: store,
+                        showsSelectionIndicator: isSelecting, isSelected: selectedIDs.contains(project.id)
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if isSelecting {
+                            if selectedIDs.contains(project.id) { selectedIDs.remove(project.id) }
+                            else { selectedIDs.insert(project.id) }
+                        } else {
+                            onSelect(project)
+                        }
+                    }
+                }
+                if !isSelecting {
+                    ActionCard(title: "New Project", icon: "plus", tint: .accentColor, action: onNewProject)
+                }
             }
             .padding(16)
         }
@@ -516,6 +598,12 @@ struct ProjectCard: View {
     let project: Project
     let isOpen: Bool
     let store: ProjectStore
+    /// Both default `false` so every other place this card is reused (the Dashboard's "Recent
+    /// Projects," say) doesn't need to know selection exists at all. `showsSelectionIndicator`
+    /// is the Home page's bulk-select mode being on at all (draws an empty circle so it's obvious
+    /// the card is tappable-to-select); `isSelected` is this particular card's own state.
+    var showsSelectionIndicator: Bool = false
+    var isSelected: Bool = false
 
     private var thumbnailURL: URL? { store.mostRecentThumbnailURL(for: project) }
 
@@ -536,6 +624,13 @@ struct ProjectCard: View {
                         .foregroundStyle(.red)
                         .padding(6)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
+                if showsSelectionIndicator {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                        .background(Circle().fill(.background))
+                        .padding(6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }
             .frame(height: 130)
@@ -582,9 +677,12 @@ struct ProjectCard: View {
 private struct ProjectsTableView: View {
     let projects: [Project]
     let activeProjectID: Project.ID?
+    /// A `Table`'s own selection is multi-select out of the box with a `Set` binding (click,
+    /// ⌘-click, shift-click) — no separate "select mode" needed the way the thumbnail grid's
+    /// plain taps do, since a single click here already just selects rather than opening.
+    @Binding var selectedIDs: Set<Project.ID>
     var onSelect: (Project) -> Void
 
-    @State private var selection: Project.ID?
     @State private var sortOrder = [KeyPathComparator(\Project.name)]
 
     private var sortedProjects: [Project] {
@@ -592,7 +690,7 @@ private struct ProjectsTableView: View {
     }
 
     var body: some View {
-        Table(sortedProjects, selection: $selection, sortOrder: $sortOrder) {
+        Table(sortedProjects, selection: $selectedIDs, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.name) { project in
                 HStack(spacing: 4) {
                     if project.id == activeProjectID {

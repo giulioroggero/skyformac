@@ -269,4 +269,94 @@ struct OllamaPlannerTests {
         let summary = try await planner.summarize(context: "Session: Test")
         #expect(summary == "Just a plain sentence with no JSON in it whatsoever.")
     }
+
+    @Test func respondParsesAPlainReply() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "reply", "text": "M13 is well placed tonight."}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "what should I see tonight?", context: "", history: [])
+        #expect(response == .reply("M13 is well placed tonight."))
+    }
+
+    @Test func respondParsesACreateProjectProposal() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "createProject", "name": "Messier Marathon", "goal": "See many objects", "message": "Create it?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "start a messier marathon project", context: "", history: [])
+        #expect(response == .action(.createProject(name: "Messier Marathon", goal: "See many objects"), message: "Create it?"))
+    }
+
+    @Test func respondParsesACreateSessionProposal() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"""
+        {"kind": "createSession", "projectName": "Messier Marathon", "name": "Night 1", "goal": "Clusters",
+         "plannedObjects": ["M13"], "message": "Add this session?"}
+        """#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "add a session for M13", context: "", history: [])
+        #expect(response == .action(
+            .createSession(projectName: "Messier Marathon", sessionName: "Night 1", goal: "Clusters", plannedObjects: ["M13"]),
+            message: "Add this session?"
+        ))
+    }
+
+    @Test func respondParsesAnApplyCameraSettingsProposal() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "applyCameraSettings", "gain": 150, "exposureSeconds": 3.0, "mode": "liveStack", "message": "Try these?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "suggest settings for M31", context: "", history: [])
+        #expect(response == .action(.applyCameraSettings(gain: 150, exposureSeconds: 3.0, mode: .liveStack), message: "Try these?"))
+    }
+
+    @Test func respondAllowsPartialCameraSettings() async throws {
+        // Only some of gain/exposureSeconds/mode may be proposed at once — the rest should stay
+        // untouched by the caller, not default to some made-up value.
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "applyCameraSettings", "gain": 200, "message": "Bump the gain?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "increase the gain", context: "", history: [])
+        #expect(response == .action(.applyCameraSettings(gain: 200, exposureSeconds: nil, mode: nil), message: "Bump the gain?"))
+    }
+
+    @Test func respondThrowsInvalidPlanJSONForAnUnknownKind() async {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "doSomethingElse"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.invalidPlanJSON) {
+            try await planner.respond(to: "test", context: "", history: [])
+        }
+    }
+
+    @Test func respondThrowsInvalidPlanJSONWhenCreateProjectHasNoName() async {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "createProject", "goal": "no name given"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.invalidPlanJSON) {
+            try await planner.respond(to: "test", context: "", history: [])
+        }
+    }
+
+    @Test func respondIncludesRecentHistoryInThePrompt() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "reply", "text": "ok"}"#
+        let planner = OllamaPlanner(transport: transport)
+        let history = [AssistantMessage(role: .user, text: "earlier question"), AssistantMessage(role: .assistant, text: "earlier answer")]
+
+        _ = try await planner.respond(to: "follow-up", context: "some context", history: history)
+
+        let request = try #require(transport.lastRequest)
+        let body = try #require(request.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        let prompt = try #require(json?["prompt"] as? String)
+        #expect(prompt.contains("earlier question"))
+        #expect(prompt.contains("earlier answer"))
+        #expect(prompt.contains("some context"))
+    }
 }

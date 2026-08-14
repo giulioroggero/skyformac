@@ -99,4 +99,31 @@ final class SkyformacUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Filters"].waitForExistence(timeout: 5))
     }
 
+    func testAssistantPanelIsVisibleByDefaultOnTheDashboard() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // "Assistant" is `AssistantChatPanel`'s own header label — present by default (a chat "on
+        // the right bar of all pages" should be there without the user having to discover a menu
+        // item first), not dependent on the Dashboard vs. Projects vs. camera view underneath it.
+        XCTAssertTrue(app.staticTexts["Assistant"].waitForExistence(timeout: 10))
+    }
+
+    func testAssistantPanelStaysVisibleAfterOpeningTheCameraView() throws {
+        let app = XCUIApplication()
+        launchIntoCameraView(app)
+
+        XCTAssertTrue(app.staticTexts["Assistant"].waitForExistence(timeout: 10))
+    }
+
+    func testMinimizingTheAssistantShowsTheExpandRail() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Minimize"].waitForExistence(timeout: 10))
+        app.buttons["Minimize"].tap()
+
+        XCTAssertTrue(app.buttons["Expand Assistant"].waitForExistence(timeout: 5))
+    }
+
 }

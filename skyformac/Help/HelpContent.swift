@@ -573,8 +573,12 @@ enum HelpContent {
                 body: "The Projects page toolbar's **Filters** button narrows the project/session list — on top of whatever's typed into the search box — to an exact tag, an exact observed object (drawn from the planets and Moon, the bundled Messier/bright-star catalog, and anything already typed into any project's own object list), an equipment system, and/or a date range. A session matches an equipment filter through its own *effective* system — its own override if it has one, otherwise its project's. **Clear Filters** resets all of them at once; the button's icon fills in whenever any filter is active."
             ),
             HelpSection(
+                heading: "Selecting multiple projects",
+                body: "The Projects page toolbar's **Select** button turns the thumbnail grid into tap-to-select mode; a table is already multi-select (click, ⌘-click, shift-click) without needing it. Once anything's selected, a bar appears above the list with **Archive** and **Delete** for the whole selection at once, plus **Clear**. Delete still only soft-deletes — selected projects land in Recently Deleted with the same 30-day grace period a single project's own Danger Zone gives."
+            ),
+            HelpSection(
                 heading: "Settings",
-                body: "**Settings…** (⌘, or the Home page's own tile) is the central place to review preferences: the Projects folder location (**Choose Folder…** picks anywhere else — takes effect the next time Skyformac launches, existing files aren't moved automatically), plus the renderer and Night Mode toggles already in the camera view's toolbar."
+                body: "**Settings…** (⌘, or the Home page's own tile) is the central place to review preferences: the Projects folder location (**Choose Folder…** picks anywhere else — takes effect the next time Skyformac launches, existing files aren't moved automatically), the renderer and Night Mode toggles already in the camera view's toolbar, and an **AI (Ollama)** section — **Test Connection** checks both that the server answers and which models are actually installed, reporting exactly which one Ask AI to Plan/Describe would use."
             ),
             HelpSection(
                 id: "setting.aiPlanning", heading: "Ask AI to Plan…",
@@ -587,6 +591,10 @@ enum HelpContent {
             HelpSection(
                 heading: "Ask AI to Describe…",
                 body: "On a Project Detail or Session page, **Ask AI to Describe…** writes a plain-English description grounded only in what that project/session has actually planned and captured — objects, dates, capture counts, equipment, location — never inventing anything not already there. Review (and freely edit) the result, then either **Set as Aim** (overwrites the goal field) or **Add as Note** (appends it as a dated annotation instead) — nothing is applied until you choose one."
+            ),
+            HelpSection(
+                id: "setting.assistant", heading: "Sidebar Assistant",
+                body: "A chat panel on the right of every page — the Dashboard, Projects, a Project or Session page, and the live camera view all share the exact same conversation. It's grounded in whatever's currently relevant: the project/session you're viewing (if any), the connected camera, and a snapshot of your own activity (most-captured objects, \"try this next\" candidates). Ask it a question, or ask it to create a project, create a session, or change the camera's gain/exposure/mode — **any proposed change always shows its own Approve/Reject card first; nothing is applied automatically.** **Minimize** (the chevron button) collapses it to a thin rail with its own expand button always reachable; **Detach** moves it into its own floating window (**Dock** brings it back); **Close** hides it entirely — reopen it from **skyformac → Assistant** (⌘⇧J) or the toolbar toggle."
             ),
             HelpSection(
                 heading: "Archive, delete, and Recently Deleted",

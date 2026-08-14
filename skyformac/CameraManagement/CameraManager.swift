@@ -337,6 +337,128 @@ final class CameraManager {
     var isRecallParametersPresented = false
     var isSettingsPresented = false
 
+    // MARK: - Sidebar assistant
+
+    /// Shown by default — "a chat on the right bar of all pages," not something buried behind a
+    /// menu item the user has to discover first. `RootView` reads this (alongside `isAssistant
+    /// Minimized`/`isAssistantDetached`) to decide whether/how to show `AssistantChatPanel`.
+    var isAssistantPanelVisible = true
+    var isAssistantMinimized = false
+    /// When `true`, `RootView` hosts the panel in a floating `AssistantChatPanelController`
+    /// (an `NSPanel`, the same "detach" mechanism `HistogramCurvesPanelController` already uses)
+    /// instead of embedding it in the main window.
+    var isAssistantDetached = false
+    var isAssistantThinking = false
+    var assistantMessages: [AssistantMessage] = []
+    /// Set by `sendAssistantMessage(_:)` when the model proposes an action instead of just
+    /// answering — shown with Approve/Reject; never applied until `confirmAssistantAction()` is
+    /// called explicitly, per "if the chat change something ask before act." A plain `var`, not
+    /// `private(set)`, so tests can drive `confirmAssistantAction()`/`rejectAssistantAction()`
+    /// directly without a real Ollama round trip through `sendAssistantMessage`.
+    var assistantPendingAction: AssistantPendingAction?
+
+    /// Sends `text` to the sidebar assistant and appends both sides of the exchange to
+    /// `assistantMessages` — a plain reply becomes an assistant message by itself; a proposed
+    /// action becomes one (its own `message` explaining the proposal) plus `assistantPending
+    /// Action` for the confirmation card to pick up.
+    func sendAssistantMessage(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        assistantMessages.append(AssistantMessage(role: .user, text: trimmed))
+        isAssistantThinking = true
+        defer { isAssistantThinking = false }
+        do {
+            let response = try await ollamaPlanner.respond(to: trimmed, context: assistantContext(), history: assistantMessages)
+            switch response {
+            case .reply(let replyText):
+                assistantMessages.append(AssistantMessage(role: .assistant, text: replyText))
+            case .action(let action, let message):
+                assistantMessages.append(AssistantMessage(role: .assistant, text: message))
+                assistantPendingAction = AssistantPendingAction(action: action, message: message)
+            }
+        } catch let error as OllamaError {
+            assistantMessages.append(AssistantMessage(role: .assistant, text: error.userFacingMessage))
+        } catch {
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Couldn't reach Ollama — make sure it's running locally."))
+        }
+    }
+
+    /// Actually performs `assistantPendingAction`, then clears it — the one place any of the
+    /// three `AssistantAction` cases actually mutates anything, strictly after explicit user
+    /// approval (never from `sendAssistantMessage` itself).
+    func confirmAssistantAction() {
+        guard let pending = assistantPendingAction else { return }
+        assistantPendingAction = nil
+        switch pending.action {
+        case .createProject(let name, let goal):
+            try? projectsLibrary.save(Project.newProject(name: name, goal: goal))
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Created project \"\(name)\"."))
+
+        case .createSession(let projectName, let sessionName, let goal, let plannedObjects):
+            let matchedProject = projectsLibrary.projects.first { $0.name.caseInsensitiveCompare(projectName) == .orderedSame }
+            let targetProject = matchedProject ?? Project.newProject(name: projectName, goal: "")
+            if matchedProject == nil { try? projectsLibrary.save(targetProject) }
+            let session = Session.newSession(name: sessionName, goal: goal, plannedObjects: plannedObjects)
+            try? projectsLibrary.addSession(session, to: targetProject)
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Created session \"\(sessionName)\" in \"\(targetProject.name)\"."))
+
+        case .applyCameraSettings(let gain, let exposureSeconds, let mode):
+            guard connectedCamera != nil else {
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "No camera is connected, so I couldn't apply that."))
+                return
+            }
+            var preset = currentAcquisitionPreset(name: "Assistant Suggestion")
+            if let gain { preset.gain = gain }
+            if let exposureSeconds { preset.exposureSeconds = exposureSeconds }
+            if let mode { preset.mode = mode }
+            applyAcquisitionPreset(preset)
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Applied the suggested camera settings."))
+        }
+    }
+
+    /// Declines `assistantPendingAction` without doing anything — the chat records that
+    /// explicitly rather than the action just silently vanishing.
+    func rejectAssistantAction() {
+        guard assistantPendingAction != nil else { return }
+        assistantPendingAction = nil
+        assistantMessages.append(AssistantMessage(role: .assistant, text: "Okay, I won't do that."))
+    }
+
+    /// The assistant's approximation of "the current page's content" — this app's pages are a
+    /// `NavigationStack` owned privately by `ProjectsBrowserView`, not something `CameraManager`
+    /// can introspect directly, so this uses the same state every other cross-cutting feature
+    /// (the breadcrumb, "Go Home") already keys off instead: the active project/session if any,
+    /// the connected camera, and an `InsightsData` snapshot for "what have I actually been doing"
+    /// / "what haven't I captured yet" questions.
+    private func assistantContext() -> String {
+        var lines: [String] = []
+        if let project = activeProject {
+            lines.append("Currently viewing project: \(project.name.isEmpty ? "(untitled)" : project.name). Goal: \(project.goal).")
+            if let session = activeSession {
+                lines.append("Currently in session: \(session.name). Planned objects: \(session.plannedObjects.joined(separator: ", ")).")
+            }
+        }
+        if let camera = connectedCamera {
+            lines.append("Connected camera: \(camera.name).")
+        } else {
+            lines.append("No camera is currently connected.")
+        }
+        let activeProjects = projectsLibrary.activeProjects
+        lines.append("Total projects: \(activeProjects.count).")
+        let insights = InsightsData.build(
+            projects: activeProjects, equipmentSystems: equipmentLibrary.systems,
+            knownObjects: ObservedObjectCatalog.allKnownObjectNames(projects: activeProjects), now: Date()
+        )
+        if !insights.byObject.isEmpty {
+            let topObjects = insights.byObject.prefix(3).map { "\($0.name) (\($0.count))" }.joined(separator: ", ")
+            lines.append("Most captured objects so far: \(topObjects).")
+        }
+        if !insights.suggestedNextObjects.isEmpty {
+            lines.append("Objects not yet captured — candidates for \"what to see next\": \(insights.suggestedNextObjects.joined(separator: ", ")).")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// ZWO's own recommended gain/offset reference points for the connected camera model — see
     /// `ZWOSDK.GainOffsetPresets`'s doc comment. `nil` when no camera's connected, or the
     /// connected one doesn't support the underlying `ASIGetGainOffset`/`ASIGetLMHGainOffset`

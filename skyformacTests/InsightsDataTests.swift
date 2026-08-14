@@ -103,4 +103,34 @@ struct InsightsDataTests {
         #expect(data.monthlyActivity.allSatisfy { $0.count == 1 })
         #expect(data.monthlyActivity == data.monthlyActivity.sorted { $0.month < $1.month })
     }
+
+    @Test func monthlyActivityLabelIsAStableCategoryNotAContinuousDate() {
+        // The chart plots `label`, not `month`, specifically so two real months with activity
+        // never get connected by a continuous date axis that implies (and labels) every empty
+        // month in between as if something happened then too.
+        let calendar = Calendar.current
+        let january = calendar.date(from: DateComponents(year: 2026, month: 1, day: 5))!
+        let bucket = MonthlyActivity(month: january, count: 3)
+        #expect(bucket.label == "Jan 26")
+    }
+
+    @Test func monthlyActivitySkipsMonthsWithNoCapturesEntirely() {
+        // A capture in January and one in August must produce exactly two buckets — not one
+        // per month across the whole span — since `Dictionary(grouping:)` only ever creates an
+        // entry for a month that actually has at least one capture.
+        let calendar = Calendar.current
+        let january = calendar.date(from: DateComponents(year: 2026, month: 1, day: 5))!
+        let august = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12))!
+        var project = Project.newProject(name: "P")
+        var session = Session.newSession(name: "S")
+        session.captures = [
+            makeCapture(object: nil, equipmentSystemID: nil, mode: nil, date: january),
+            makeCapture(object: nil, equipmentSystemID: nil, mode: nil, date: august),
+        ]
+        project.sessions = [session]
+
+        let data = InsightsData.build(projects: [project], equipmentSystems: [], knownObjects: [], now: Date())
+        #expect(data.monthlyActivity.count == 2)
+        #expect(Set(data.monthlyActivity.map(\.label)) == ["Jan 26", "Aug 26"])
+    }
 }

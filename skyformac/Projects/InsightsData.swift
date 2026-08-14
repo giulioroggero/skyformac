@@ -6,6 +6,17 @@ struct MonthlyActivity: Identifiable, Equatable {
     var id: Date { month }
     let month: Date
     let count: Int
+
+    /// What the chart actually plots along its x-axis — a `BarMark` keyed on `month` as a `Date`
+    /// with a `unit: .month` component uses a *continuous* time axis, so a gap between two real
+    /// months with activity (say, January and August) renders intermediate month tick marks for
+    /// every month in between even though nothing happened then — which is exactly what looked
+    /// like "dates in the past without real activities." A categorical (`String`) x-axis instead
+    /// only ever shows the months that actually exist in `monthlyActivity`, since there's no
+    /// continuous date domain for Charts to interpolate ticks across.
+    var label: String {
+        month.formatted(.dateTime.month(.abbreviated).year(.twoDigits))
+    }
 }
 
 /// A named count — "M13, 6" — the shape every one of the Insights page's own breakdowns (by

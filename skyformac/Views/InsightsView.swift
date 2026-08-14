@@ -31,8 +31,11 @@ struct InsightsView: View {
                 } else {
                     if !data.monthlyActivity.isEmpty {
                         PageSection(title: "Activity Over Time") {
+                            // A categorical (`label`) x-axis, not `bucket.month` directly — see
+                            // `MonthlyActivity.label`'s own doc comment for why a continuous date
+                            // axis showed misleading gaps between real months.
                             Chart(data.monthlyActivity) { bucket in
-                                BarMark(x: .value("Month", bucket.month, unit: .month), y: .value("Captures", bucket.count))
+                                BarMark(x: .value("Month", bucket.label), y: .value("Captures", bucket.count))
                             }
                             .frame(height: 180)
                         }

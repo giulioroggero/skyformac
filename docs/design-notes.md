@@ -2172,3 +2172,57 @@ made along the way.
     actual phase context after adding the entry, not by a compile failure — a reminder that a
     successful `make build` after a pbxproj edit isn't sufficient proof the file landed in the
     right *target*, only that it landed in *some* target that happens to see the same symbols.
+
+- **Fixed the Insights activity chart showing phantom past dates, added a sidebar Assistant,
+  Ollama diagnostics in Settings, and bulk-select on the Projects page.** Four independent items
+  from the same round of feedback.
+  - **`MonthlyActivity.label` (new) replaces plotting `bucket.month` directly** — a `BarMark`
+    keyed on a `Date` with `unit: .month` uses a *continuous* time axis, so a gap between two real
+    months with activity (January and August, say) rendered automatic tick marks for every month
+    in between even though nothing happened then, which is exactly what read as "dates in the past
+    without real activities." Both `InsightsView` and `DashboardHomeView`'s own copy of the chart
+    now plot `bucket.label` (a formatted `String`) instead — a categorical axis can only ever show
+    months that actually exist in the data, since there's no continuous domain left to interpolate
+    empty ticks across. `InsightsData.build`'s own grouping was already correct (`Dictionary
+    (grouping:)` only creates an entry for a month with at least one real capture); the bug was
+    entirely in how the chart *displayed* already-correct data, not in the aggregation.
+  - **Sidebar Assistant** (`AssistantChatPanel`, `AssistantChatPanelController`, new) — "a chat on
+    the right bar of all pages" is `RootView` itself now laid out as an `HStack` (the Projects
+    browser or `ContentView` on the left, the panel on the right) rather than each page hosting its
+    own copy, so it's one continuous conversation regardless of navigation. `AssistantAction` (new,
+    in `AssistantModels.swift`) is a deliberately small, closed set of operations — create a
+    project, create a session, change gain/exposure/mode — not "run arbitrary code," so every
+    possible action is exactly as safe/reviewable as the equivalent manual button already is
+    elsewhere (New Project, New Session, applying an `AcquisitionPreset`). `OllamaPlanner
+    .respond(to:context:history:)` classifies a message into either `.reply(String)` or
+    `.action(AssistantAction, message:)` via the same single-shot JSON-classification approach
+    `planProject`'s clarification round trip already established — one flexible
+    `AssistantRawResponse` decode target with a `kind` discriminator, since only one `kind`'s
+    fields are ever populated per reply. **No action is ever applied by `sendAssistantMessage`
+    itself** — it only ever sets `CameraManager.assistantPendingAction`; `confirmAssistantAction()`
+    is the one place anything actually mutates, called strictly after the user presses Approve —
+    "if the chat change something ask before act" is enforced structurally, not just by UI
+    convention. Context is a pragmatic approximation of "the current page's content"
+    (`CameraManager.assistantContext()`): the active project/session, the connected camera, and an
+    `InsightsData` snapshot — not literal introspection of `ProjectsBrowserView`'s own private
+    `NavigationStack` path, which nothing outside that view can see. "Detach" reuses
+    `HistogramCurvesPanelController`'s exact same floating-`NSPanel`-not-a-second-`Scene` approach
+    rather than inventing a second detach mechanism. "Minimize" collapses to a thin
+    `AssistantMinimizedRail` with its own expand button always present, so collapsing the panel can
+    never mean losing track of where it went.
+  - **Settings' new "AI (Ollama)" section** — a **Test Connection** button that checks both
+    `isAvailable()` (server reachability) and `installedModels()` (what's actually pulled), since a
+    reachable server with nothing installed fails every real plan/describe/assistant request the
+    same way an unreachable one does; reporting just "reachable" would have been misleading on its
+    own. Also names which model would actually be used (`qwen3:8b` if installed, else the first one
+    found) — the same preference order `resolveModel()` already applies, surfaced rather than left
+    for the user to infer.
+  - **Bulk select on the Projects page** — a `Table`'s selection is multi-select out of the box
+    with a `Set<Project.ID>` binding (click/⌘-click/shift-click), so it needed no new mode, just
+    changing `@State private var selection: Project.ID?` to a shared `Set`. The thumbnail grid
+    needed an explicit **Select** mode toggle instead, since a plain tap there normally opens the
+    project — `ProjectCard` gained `showsSelectionIndicator`/`isSelected` (both defaulting `false`
+    so its other call sites, like the Dashboard's "Recent Projects," don't need to know selection
+    exists at all). A bulk-action bar appears above the list the moment anything's selected,
+    offering Archive/Delete over the whole set at once (looping the same single-project
+    `ProjectsLibrary` methods the Project Detail page's own Danger Zone already uses) plus Clear.

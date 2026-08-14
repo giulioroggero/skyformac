@@ -134,8 +134,10 @@ struct DashboardHomeView: View {
                 if insights.totalCaptures > 0 {
                     PageSection(title: "Activity") {
                         if !insights.monthlyActivity.isEmpty {
+                            // Categorical (`label`) x-axis — see `MonthlyActivity.label`'s doc
+                            // comment for why a continuous `Date` axis showed misleading gaps.
                             Chart(insights.monthlyActivity) { bucket in
-                                BarMark(x: .value("Month", bucket.month, unit: .month), y: .value("Captures", bucket.count))
+                                BarMark(x: .value("Month", bucket.label), y: .value("Captures", bucket.count))
                             }
                             .frame(height: 140)
                         }

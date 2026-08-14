@@ -9,13 +9,35 @@ import SwiftUI
 /// or "Run This Session" in the browser, cleared by "End Session"/"Switch Project"/deleting it.
 struct RootView: View {
     @Environment(CameraManager.self) private var cameraManager
+    /// Owns the floating panel's lifetime while detached — `nil` whenever
+    /// `cameraManager.isAssistantDetached` is `false`, created/closed in lockstep with it via the
+    /// `.onChange` below, the same pattern this app doesn't otherwise need since
+    /// `HistogramCurvesPanelController` is owned by `ContentView` instead (that one lives and
+    /// dies with the camera view; the assistant needs to survive across both pages).
+    @State private var detachedAssistantController: AssistantChatPanelController?
 
     var body: some View {
-        Group {
-            if cameraManager.activeSession == nil {
-                ProjectsBrowserView(cameraManager: cameraManager)
-            } else {
-                ContentView()
+        HStack(spacing: 0) {
+            Group {
+                if cameraManager.activeSession == nil {
+                    ProjectsBrowserView(cameraManager: cameraManager)
+                } else {
+                    ContentView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // "A chat on the right bar of all pages" — sits alongside whichever of the two above
+            // is showing, rather than being reimplemented per page, so it's one continuous
+            // conversation regardless of where the user navigates.
+            if cameraManager.isAssistantPanelVisible && !cameraManager.isAssistantDetached {
+                Divider()
+                if cameraManager.isAssistantMinimized {
+                    AssistantMinimizedRail(cameraManager: cameraManager)
+                } else {
+                    AssistantChatPanel(cameraManager: cameraManager)
+                        .frame(width: 320)
+                }
             }
         }
         // Attached here, not on `ContentView`/`ProjectsBrowserView` individually, so "skyformac →
@@ -40,6 +62,18 @@ struct RootView: View {
             set: { cameraManager.isSettingsPresented = $0 }
         )) {
             SettingsView(cameraManager: cameraManager)
+        }
+        .onChange(of: cameraManager.isAssistantDetached) { _, isDetached in
+            if isDetached {
+                let controller = AssistantChatPanelController(cameraManager: cameraManager) {
+                    cameraManager.isAssistantDetached = false
+                }
+                controller.showWindow(nil)
+                detachedAssistantController = controller
+            } else {
+                detachedAssistantController?.close()
+                detachedAssistantController = nil
+            }
         }
     }
 }
