@@ -103,6 +103,7 @@
 		AC88102D5E61CA51F4A2E951 /* ProjectsLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */; };
 		6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */; };
 		9B66BD0AAA8CDF013F69A40D /* AppLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */; };
+		4D13D0C44BEEDB8C1CC59876 /* CameraManagerCaptureNoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */; };
 		8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */; };
 		C4F70E862029FEA852476B6C /* PlanetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */; };
 		C50F2712D4496D9621959232 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
@@ -209,6 +210,7 @@
 		90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectsLibraryTests.swift; sourceTree = "<group>"; };
 		65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerFirstRunTests.swift; sourceTree = "<group>"; };
 		7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLogTests.swift; sourceTree = "<group>"; };
+		A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerCaptureNoteTests.swift; sourceTree = "<group>"; };
 		94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerSessionLifecycleTests.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
 		0C438170FE21AEABA0E72DB0 /* PreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
@@ -484,6 +486,7 @@
 				90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */,
 				65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */,
 				7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */,
+				A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
 				80894C1E1239360CE6EB098D /* FrameArithmeticTests.swift */,
 				BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */,
@@ -980,6 +983,7 @@
 				AC88102D5E61CA51F4A2E951 /* ProjectsLibraryTests.swift in Sources */,
 				6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */,
 				9B66BD0AAA8CDF013F69A40D /* AppLogTests.swift in Sources */,
+				4D13D0C44BEEDB8C1CC59876 /* CameraManagerCaptureNoteTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,
 				13BFC1AD6E5185A14F435B07 /* FrameArithmeticTests.swift in Sources */,
 				4BF069EE014A2E084C38860F /* LiveStackerTests.swift in Sources */,

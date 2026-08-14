@@ -158,11 +158,11 @@ final class ProjectStore {
     /// `CameraManager.recordActiveSessionCapture` for where it's called from.
     @discardableResult
     func recordCapture(
-        movingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?,
+        movingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String? = nil,
         into session: Session, project: inout Project
     ) throws -> CaptureRecord {
         try recordCapture(
-            at: sourceURL, kind: kind, thumbnail: thumbnail, into: session, project: &project,
+            at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, into: session, project: &project,
             transfer: fileManager.moveItem
         )
     }
@@ -174,17 +174,17 @@ final class ProjectStore {
     /// instead of stealing the user's file out from under them.
     @discardableResult
     func recordCapture(
-        copyingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?,
+        copyingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String? = nil,
         into session: Session, project: inout Project
     ) throws -> CaptureRecord {
         try recordCapture(
-            at: sourceURL, kind: kind, thumbnail: thumbnail, into: session, project: &project,
+            at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, into: session, project: &project,
             transfer: fileManager.copyItem
         )
     }
 
     private func recordCapture(
-        at sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?,
+        at sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String?,
         into session: Session, project: inout Project, transfer: (URL, URL) throws -> Void
     ) throws -> CaptureRecord {
         let sessionFolder = sessionFolderURL(for: session, in: project)
@@ -205,7 +205,8 @@ final class ProjectStore {
         }
 
         let record = CaptureRecord(
-            date: Date(), fileName: destinationURL.lastPathComponent, thumbnailFileName: thumbnailFileName, kind: kind
+            date: Date(), fileName: destinationURL.lastPathComponent, thumbnailFileName: thumbnailFileName, kind: kind,
+            note: note
         )
         guard let sessionIndex = project.sessions.firstIndex(where: { $0.id == session.id }) else { return record }
         project.sessions[sessionIndex].captures.append(record)

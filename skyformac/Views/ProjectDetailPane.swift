@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// The Projects browser's "Project Detail" page — pushed onto the browser's `NavigationStack`
-/// when a project is tapped on the Home page. Shows the project's own metadata (name/goal/tags/
-/// location/notes) plus its session list; tapping a session always pushes on to
+/// when a project is tapped on the Home page. A plain full-width `ScrollView`, not a `Form` (see
+/// `PageSection`), same as the Session/Capture pages. Shows the project's own metadata (name/
+/// goal/tags/location/notes) plus its session list; tapping a session always pushes on to
 /// `onShowSessionHistory`'s Session page — the camera view only opens via an explicit
 /// "Run"/"Resume" button, never just by tapping a row. Every edit calls `ProjectsLibrary.save`
 /// directly — see that type's doc comment for why an unnamed project's edits never hit disk
@@ -11,6 +12,8 @@ struct ProjectDetailPane: View {
     let project: Project
     var cameraManager: CameraManager
     var onShowSessionHistory: (Session) -> Void
+    /// Pops back to the Home page (or wherever this page was pushed from).
+    var onBack: () -> Void
     /// Called after this project is deleted (soft-deleted, per `ProjectsLibrary.softDelete(_:)`)
     /// from its own Danger Zone section — there's nothing left to show here, so the caller
     /// (`ProjectsBrowserView`) pops all the way back to Home rather than leaving this page
@@ -27,87 +30,100 @@ struct ProjectDetailPane: View {
 
     init(
         project: Project, cameraManager: CameraManager, onShowSessionHistory: @escaping (Session) -> Void,
-        onProjectDeleted: @escaping () -> Void
+        onBack: @escaping () -> Void, onProjectDeleted: @escaping () -> Void
     ) {
         self.project = project
         self.cameraManager = cameraManager
         self.onShowSessionHistory = onShowSessionHistory
+        self.onBack = onBack
         self.onProjectDeleted = onProjectDeleted
         self._name = State(initialValue: project.name)
         self._goal = State(initialValue: project.goal)
     }
 
     var body: some View {
-        Form {
-            Section("Project") {
-                TextField("Name", text: $name, prompt: Text("Untitled Project"))
-                    .onSubmit(save)
-                    .onChange(of: name) { _, _ in save() }
-                TextField("Goal", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
-                    .onChange(of: goal) { _, _ in save() }
-                LocationEditorView(project: project, session: nil, cameraManager: cameraManager)
-            }
-
-            Section("Stats") {
-                StatsGridView(stats: projectStats)
-            }
-
-            Section("Tags") {
-                TagsEditorView(tags: project.tags) { tags in
-                    var updated = project
-                    updated.tags = tags
-                    try? library.save(updated)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PageSection(title: "Project") {
+                    TextField("Name", text: $name, prompt: Text("Untitled Project"))
+                        .onSubmit(save)
+                        .onChange(of: name) { _, _ in save() }
+                    TextField("Goal", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
+                        .onChange(of: goal) { _, _ in save() }
+                    LocationEditorView(project: project, session: nil, cameraManager: cameraManager)
                 }
-            }
 
-            Section("Notes") {
-                NotesEditorView(notes: project.notes) { notes in
-                    var updated = project
-                    updated.notes = notes
-                    try? library.save(updated)
+                PageSection(title: "Stats") {
+                    StatsGridView(stats: projectStats)
                 }
-            }
 
-            Section {
-                ForEach(project.sessions) { session in
-                    SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
-                        .contentShape(Rectangle())
-                        // Tapping a session always opens its own Session page (detail/history) —
-                        // the camera view only ever opens via an explicit "Run"/"Resume"/"Run
-                        // This Session" button (on the card itself, or on the Session page),
-                        // never just by tapping the row.
-                        .onTapGesture { onShowSessionHistory(session) }
-                        .contextMenu {
-                            Button(session.isArchived ? "Unarchive" : "Archive") {
-                                try? library.setArchived(!session.isArchived, forSessionID: session.id, in: project)
+                PageSection(title: "Tags") {
+                    TagsEditorView(tags: project.tags) { tags in
+                        var updated = project
+                        updated.tags = tags
+                        try? library.save(updated)
+                    }
+                }
+
+                PageSection(title: "Notes") {
+                    NotesEditorView(notes: project.notes) { notes in
+                        var updated = project
+                        updated.notes = notes
+                        try? library.save(updated)
+                    }
+                }
+
+                PageSection {
+                    HStack {
+                        Text("Sessions").font(.headline)
+                        Spacer()
+                        Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningProject = true }
+                        Button("Add Session", systemImage: "plus") { addSession() }
+                    }
+                    ForEach(project.sessions) { session in
+                        SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
+                            .contentShape(Rectangle())
+                            // Tapping a session always opens its own Session page (detail/history)
+                            // — the camera view only ever opens via an explicit "Run"/"Resume"/
+                            // "Run This Session" button (on the card itself, or on the Session
+                            // page), never just by tapping the row.
+                            .onTapGesture { onShowSessionHistory(session) }
+                            .contextMenu {
+                                Button(session.isArchived ? "Unarchive" : "Archive") {
+                                    try? library.setArchived(!session.isArchived, forSessionID: session.id, in: project)
+                                }
+                                Button("Delete", role: .destructive) {
+                                    try? library.deleteSession(session.id, in: project)
+                                }
                             }
-                            Button("Delete", role: .destructive) {
-                                try? library.deleteSession(session.id, in: project)
-                            }
+                        if session.id != project.sessions.last?.id {
+                            Divider()
                         }
+                    }
                 }
-            } header: {
-                HStack {
-                    Text("Sessions")
-                    Spacer()
-                    Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningProject = true }
-                    Button("Add Session", systemImage: "plus") { addSession() }
+
+                PageSection {
+                    HStack {
+                        Button(project.isArchived ? "Unarchive Project" : "Archive Project", systemImage: "archivebox") {
+                            try? library.setArchived(!project.isArchived, for: project)
+                        }
+                        Button("Delete Project", systemImage: "trash", role: .destructive) {
+                            try? library.softDelete(project)
+                            onProjectDeleted()
+                        }
+                        .help("Kept for 30 days in Recently Deleted before being removed for good — you can undo this")
+                    }
                 }
             }
-
-            Section {
-                Button(project.isArchived ? "Unarchive Project" : "Archive Project", systemImage: "archivebox") {
-                    try? library.setArchived(!project.isArchived, for: project)
-                }
-                Button("Delete Project", systemImage: "trash", role: .destructive) {
-                    try? library.softDelete(project)
-                    onProjectDeleted()
-                }
-                .help("Kept for 30 days in Recently Deleted before being removed for good — you can undo this")
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .navigationTitle(project.name.isEmpty ? "Untitled Project" : project.name)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button("Back", systemImage: "chevron.left", action: onBack)
             }
         }
-        .formStyle(.grouped)
-        .navigationTitle(project.name.isEmpty ? "Untitled Project" : project.name)
         .sheet(isPresented: $isPlanningProject) {
             AIPlanProjectSheet(project: project, cameraManager: cameraManager)
         }
@@ -267,18 +283,23 @@ struct PageSection<Content: View>: View {
 /// of which level it's summarizing.
 struct StatsGridView: View {
     let stats: [StatItem]
-    private let columns = [GridItem(.adaptive(minimum: 100, maximum: 160), spacing: 12)]
 
+    /// A real `Table`, not a fixed-width grid — its columns fill the section's full width by
+    /// default and the user can still drag either one wider (macOS `Table` columns are
+    /// user-resizable out of the box), so a long value never gets clipped the way a capped-width
+    /// grid cell would.
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-            ForEach(stats) { stat in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(stat.value).font(.headline)
-                    Text(stat.label).font(.caption2).foregroundStyle(.secondary)
-                }
+        Table(stats) {
+            TableColumn("Label") { stat in
+                Text(stat.label).foregroundStyle(.secondary)
             }
+            .width(min: 100, ideal: 140, max: 220)
+            TableColumn("Value") { stat in
+                Text(stat.value)
+            }
+            .width(min: 160, ideal: 320)
         }
-        .padding(.vertical, 4)
+        .frame(height: CGFloat(max(stats.count, 1)) * 28 + 32)
     }
 }
 

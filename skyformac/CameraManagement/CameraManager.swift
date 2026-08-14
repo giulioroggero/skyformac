@@ -2392,7 +2392,10 @@ final class CameraManager {
         guard var project = activeProject, let session = activeSession else { return }
         let thumbnail = image.flatMap(ThumbnailGenerator.makeThumbnail(from:))
         do {
-            try projectStore.recordCapture(copyingFileAt: url, kind: kind, thumbnail: thumbnail, into: session, project: &project)
+            try projectStore.recordCapture(
+                copyingFileAt: url, kind: kind, thumbnail: thumbnail, note: captureActionNote(for: kind, session: session),
+                into: session, project: &project
+            )
         } catch {
             lastErrorMessage = String(describing: error)
             return
@@ -2400,6 +2403,32 @@ final class CameraManager {
         activeProject = project
         activeSession = project.sessions.first(where: { $0.id == session.id })
         projectsLibrary.syncInMemory(project)
+    }
+
+    /// A plain-English record of what actually happened, alongside the file/thumbnail itself —
+    /// "Captured Saturn in Live Stack for 30 sec" rather than just a filename and a timestamp,
+    /// since that's what actually makes a timeline recognizable at a glance later. Built from
+    /// whatever real state is available at the moment of capture — the session's own planned
+    /// object (falling back to its name), which acquisition mode was actually active, and (for an
+    /// SER recording specifically) how long it actually ran.
+    func captureActionNote(for kind: CaptureRecord.Kind, session: Session) -> String {
+        let target = session.plannedObjects.first ?? session.name
+        switch kind {
+        case .serVideo:
+            let seconds = Int(serRecordingElapsedSeconds.rounded())
+            return "Recorded \(target) as an SER video for \(seconds) sec"
+        case .recording:
+            return "Recorded \(target) to a continuous capture sequence"
+        case .fits, .png, .tiff:
+            let formatName = kind == .fits ? "FITS" : (kind == .png ? "PNG" : "TIFF")
+            if isLiveStackingEnabled {
+                return "Captured \(target) in Live Stack as \(formatName)"
+            } else if luckyImagingSession != nil {
+                return "Captured \(target) in Lucky Imaging as \(formatName)"
+            } else {
+                return "Captured \(target) as a single \(formatName) frame"
+            }
+        }
     }
 
     // MARK: - Exported Files: history + opening a file back up for viewing
