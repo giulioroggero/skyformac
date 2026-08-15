@@ -23,6 +23,23 @@ and linked from here; see [`.gitignore`](.gitignore)'s `examples/*.mov` rule.
 | [`arcturus-first-test-picture.png`](examples/arcturus-first-test-picture.png) | Arcturus | First-light test — see below. |
 | [`m13-test-picture.png`](examples/m13-test-picture.png) | M13 (Hercules Cluster) | First-light test, with Live GPU Enhancement Controls on — see below. |
 
+## App screenshots
+
+Screens of the app itself, rather than a captured target — shown in the README's own
+[Screenshots](README.md#screenshots) section.
+
+| File | Page | Notes |
+| --- | --- | --- |
+| [`Home Page.png`](<examples/Home Page.png>) | Dashboard/Home | "Resume Where You Left Off," Common Tasks, Recent Projects, Highlighted Sessions. |
+| [`Quick Start.png`](<examples/Quick Start.png>) | Quick Start picker | Over the Projects grid — Planets & Moon and Deep Sky target lists. |
+| [`Project.png`](examples/Project.png) | Project Detail | Stats, the zoomable Activity Timeline chart, Equipment, Tags. |
+| [`Sessions.png`](examples/Sessions.png) | Project Detail (session list) | Tags/Notes, and every session with a one-click Resume. |
+| [`Sessions Details.ong.png`](<examples/Sessions Details.ong.png>) | Session Detail | Aim/Objects/Location, Run/Recall Parameters/New Session Like This/Ask AI, History, Stats. |
+| [`Session Capture Timeline.png`](<examples/Session Capture Timeline.png>) | Session Detail (timeline) | The capture filmstrip, newest first, each with its own plain-English note. |
+| [`Nebula Capture.png`](<examples/Nebula Capture.png>) | Capture Detail | Full preview with Prev/Next overlay buttons, plus the per-capture Camera Settings (mode/gain/exposure). |
+| [`Stats.png`](examples/Stats.png) | Insights | Overview, Activity Over Time, Most Captured Objects, Most Used Equipment, Most Common Acquisition Mode. |
+| [`Equipment.png`](examples/Equipment.png) | Equipment system detail | Camera/Mount/Optical Tube sections for one named system. |
+
 ## Videos (GitHub release assets, not in the repository)
 
 | File | Subject | Duration | Released with |

@@ -17,6 +17,7 @@
   <a href="docs/architecture.md">Architecture</a> ·
   <a href="docs/design-notes.md">Design Notes</a> ·
   <a href="docs/distribution.md">Distribution</a> ·
+  <a href="#screenshots">Screenshots</a> ·
   <a href="EXAMPLES.md">Examples</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="specs/README.md">Contributing</a> ·
@@ -402,6 +403,37 @@ First connection to a USB ASI camera may prompt via System Settings → Privacy 
 Security — keep the camera connected when you grant it. Using a webcam/iPhone
 source, or the optional All-Sky Monitor, requests separate camera access the
 first time each is used; declining either leaves the rest of the app unaffected.
+
+## Screenshots
+
+A quick visual tour of the app itself, following the same path as
+[Using Skyformac](#using-skyformac) above — the Dashboard, Quick Start, a
+project's own page (with its zoomable Activity Timeline), a session's page and
+capture timeline, a single capture's detail page (Camera Settings, Prev/Next),
+Insights, and an Equipment system.
+
+<table>
+<tr>
+<td width="50%"><img src="examples/Home Page.png" alt="Dashboard/Home page"></td>
+<td width="50%"><img src="examples/Quick Start.png" alt="Quick Start target picker"></td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/Project.png" alt="Project Detail page with Activity Timeline"></td>
+<td width="50%"><img src="examples/Sessions.png" alt="Project Detail page's session list"></td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/Sessions Details.ong.png" alt="Session Detail page"></td>
+<td width="50%"><img src="examples/Session Capture Timeline.png" alt="Session capture timeline filmstrip"></td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/Nebula Capture.png" alt="Capture Detail page with Camera Settings and Prev/Next"></td>
+<td width="50%"><img src="examples/Stats.png" alt="Insights page"></td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/Equipment.png" alt="An equipment system's detail page"></td>
+<td width="50%"></td>
+</tr>
+</table>
 
 ## Examples
 
