@@ -100,6 +100,40 @@ struct ProjectStoreTests {
         #expect(reloaded?.sessions.count == 1)
     }
 
+    @Test func deleteSessionSucceedsWhenTheFolderIsAlreadyMissing() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Project")
+        let session = Session.newSession(name: "Already Gone")
+        project.sessions = [session]
+        try store.save(project)
+        try FileManager.default.removeItem(at: store.sessionFolderURL(for: session, in: project))
+
+        try store.deleteSession(session.id, in: &project)
+        #expect(project.sessions.isEmpty)
+    }
+
+    @Test func deleteSessionThrowsAndKeepsTheSessionWhenFolderRemovalFails() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Locked Project")
+        let session = Session.newSession(name: "Undeletable")
+        project.sessions = [session]
+        try store.save(project)
+        // Deleting a folder requires write permission on its *parent* — locking the project
+        // folder (the session folder's parent) down to read-only makes the removal fail without
+        // needing to touch anything OS-specific beyond POSIX permission bits.
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: store.projectFolderURL(for: project).path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: store.projectFolderURL(for: project).path) }
+
+        #expect(throws: (any Error).self) {
+            try store.deleteSession(session.id, in: &project)
+        }
+        #expect(project.sessions.count == 1)
+    }
+
     @Test func moveSessionRelocatesItsFolderAndUpdatesBothProjects() throws {
         let (store, root) = makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -160,6 +194,7 @@ struct ProjectStoreTests {
         #expect(throws: ProjectStore.MoveSessionError.self) {
             try store.moveSession(session.id, from: &source, to: &destination)
         }
+        #expect(ProjectStore.MoveSessionError.destinationFolderAlreadyExists.errorDescription != nil)
     }
 
     @Test func setArchivedPersists() throws {

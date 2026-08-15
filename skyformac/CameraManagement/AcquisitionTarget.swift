@@ -5,6 +5,12 @@ enum AcquisitionMode: String, Codable, CaseIterable, Identifiable {
     case liveStack
     case luckyImaging
     case both
+    /// Neither Live Stack nor a Lucky Imaging burst is active — a single plain exposure. Only
+    /// ever produced by `current(isLiveStackingEnabled:hasLuckyImagingSession:)`'s "neither" case,
+    /// tagging a capture record/preset snapshot accurately; deliberately excluded from
+    /// `AcquisitionWizardView`'s Mode picker, since a saved preset always represents one of the
+    /// three real toggleable acquisition techniques, never "none of them."
+    case single
 
     var id: String { rawValue }
 
@@ -13,6 +19,7 @@ enum AcquisitionMode: String, Codable, CaseIterable, Identifiable {
         case .liveStack: return "Live Stack"
         case .luckyImaging: return "Lucky Imaging"
         case .both: return "Live Stack + Lucky Imaging"
+        case .single: return "Single Exposure"
         }
     }
 
@@ -26,7 +33,8 @@ enum AcquisitionMode: String, Codable, CaseIterable, Identifiable {
         switch (isLiveStackingEnabled, hasLuckyImagingSession) {
         case (true, true): return .both
         case (true, false): return .liveStack
-        case (false, _): return .luckyImaging
+        case (false, true): return .luckyImaging
+        case (false, false): return .single
         }
     }
 }

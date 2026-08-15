@@ -110,9 +110,12 @@ struct AcquisitionTargetTests {
         #expect(AcquisitionMode.current(isLiveStackingEnabled: true, hasLuckyImagingSession: true) == .both)
     }
 
-    @Test func currentModeIsLuckyImagingWhenLiveStackingIsOff() {
-        #expect(AcquisitionMode.current(isLiveStackingEnabled: false, hasLuckyImagingSession: false) == .luckyImaging)
+    @Test func currentModeIsLuckyImagingWhenALuckySessionIsActiveWithoutLiveStacking() {
         #expect(AcquisitionMode.current(isLiveStackingEnabled: false, hasLuckyImagingSession: true) == .luckyImaging)
+    }
+
+    @Test func currentModeIsSingleWhenNeitherLiveStackingNorALuckySessionIsActive() {
+        #expect(AcquisitionMode.current(isLiveStackingEnabled: false, hasLuckyImagingSession: false) == .single)
     }
 
     @Test func summaryLineIncludesEveryPresentField() {

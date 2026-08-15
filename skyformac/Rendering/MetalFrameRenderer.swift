@@ -355,10 +355,21 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         let byteCount = frame.width * frame.height * 3
         ensureRGBSourceBuffer(byteCount: byteCount)
         let needsRGBAProcessing = isDenoisingEnabled || isWaveletSharpeningEnabled
+        // Each scratch texture only actually needs to exist for the stage(s) currently enabled —
+        // but a `device.makeTexture` allocation failure (e.g. real memory pressure) in
+        // `ensureOutputTexture` can leave any one of them `nil` independently of the others. Without
+        // checking the specific texture a stage is about to use, that stage's own `if let` guard
+        // (further below) would just silently skip it — including when it's the *last* enabled
+        // stage, the one responsible for actually writing into `outputTexture` — leaving the
+        // previous frame's content on screen with no error surfaced. Bailing out here instead skips
+        // the whole frame, which is safe: the previous frame stays on screen either way, but at
+        // least consistently instead of via a silently-broken pipeline.
         guard let outputTexture, let rgbSourceBuffer,
               let commandBuffer = commandQueue.makeCommandBuffer(),
               let encoder = commandBuffer.makeComputeCommandEncoder(),
-              !needsRGBAProcessing || rgbaStretchTexture != nil
+              !needsRGBAProcessing || rgbaStretchTexture != nil,
+              !isDenoisingEnabled || rgbaDenoiseTexture != nil,
+              !isWaveletSharpeningEnabled || (rgbaWaveletLayer0Texture != nil && rgbaWaveletLayer1Texture != nil)
         else { return }
 
         frame.data.withUnsafeBytes { raw in

@@ -151,7 +151,10 @@ struct AcquisitionWizardView: View {
                     .textFieldStyle(.roundedBorder)
 
                 Picker("Mode", selection: modeBinding) {
-                    ForEach(AcquisitionMode.allCases) { mode in
+                    // `.single` ("neither live-stacking nor a lucky imaging burst") only ever
+                    // comes from tagging a capture record after the fact — a saved preset always
+                    // deliberately turns on one of the three real techniques below, never "none."
+                    ForEach(AcquisitionMode.allCases.filter { $0 != .single }) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }

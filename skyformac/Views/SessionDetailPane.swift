@@ -31,6 +31,7 @@ struct SessionDetailPane: View {
     @State private var isCreatingSessionFromThis = false
     @State private var isDescribingSession = false
     @State private var isMovingToProject = false
+    @State private var moveErrorMessage: String?
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     private var isActive: Bool { cameraManager.activeSession?.id == session.id }
@@ -206,12 +207,25 @@ struct SessionDetailPane: View {
         }
         .sheet(isPresented: $isMovingToProject) {
             MoveSessionToProjectSheet(candidates: otherProjects) { destination in
-                try? library.moveSession(session.id, from: project, to: destination)
-                // The session no longer belongs to `project` — this page's own route is now
-                // stale, so pop back to the (still-valid) Project page rather than keep showing
-                // a session that isn't there anymore.
-                onBack()
+                do {
+                    try library.moveSession(session.id, from: project, to: destination)
+                    // The session no longer belongs to `project` — this page's own route is now
+                    // stale, so pop back to the (still-valid) Project page rather than keep
+                    // showing a session that isn't there anymore. Only reached on success — a
+                    // failed move must not navigate away as though it worked.
+                    onBack()
+                } catch {
+                    moveErrorMessage = error.localizedDescription
+                }
             }
+        }
+        .alert("Couldn't Move Session", isPresented: Binding(
+            get: { moveErrorMessage != nil },
+            set: { isPresented in if !isPresented { moveErrorMessage = nil } }
+        ), presenting: moveErrorMessage) { _ in
+            Button("OK") { moveErrorMessage = nil }
+        } message: { message in
+            Text(message)
         }
         .sheet(isPresented: $isCreatingSessionFromThis) {
             NewSessionFromExistingSheet(session: session) { name, plannedDate in

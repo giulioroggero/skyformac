@@ -145,18 +145,31 @@ final class ProjectStore {
 
     /// Deletes one session's folder (and everything captured in it) from `project`, then
     /// re-saves the project's own metadata without that session listed. Same real-data-loss
-    /// caveat as `delete(_:)` above.
+    /// caveat as `delete(_:)` above. The folder removal is a real `try`, not `try?` — a failure
+    /// there (permissions, a file still open) now aborts before the session is stripped from
+    /// `project.sessions`, rather than proceeding to make the session vanish from the UI while its
+    /// files are silently orphaned on disk.
     func deleteSession(_ sessionID: UUID, in project: inout Project) throws {
         guard let session = project.sessions.first(where: { $0.id == sessionID }) else { return }
-        try? fileManager.removeItem(at: sessionFolderURL(for: session, in: project))
+        let folder = sessionFolderURL(for: session, in: project)
+        if fileManager.fileExists(atPath: folder.path) {
+            try fileManager.removeItem(at: folder)
+        }
         project.sessions.removeAll { $0.id == sessionID }
         try save(project)
     }
 
-    enum MoveSessionError: Error {
+    enum MoveSessionError: Error, LocalizedError {
         /// Extremely unlikely given `Session.folderName` embeds a UUID prefix, but refused
         /// outright rather than risking silently overwriting whatever's already there.
         case destinationFolderAlreadyExists
+
+        var errorDescription: String? {
+            switch self {
+            case .destinationFolderAlreadyExists:
+                return "A folder for this session already exists in the destination project."
+            }
+        }
     }
 
     /// Moves `sessionID` from `source` to `destination` — a real on-disk folder move (not

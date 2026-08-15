@@ -297,7 +297,7 @@ struct ContentView: View {
             isPresented: errorBinding,
             presenting: cameraManager.lastErrorMessage
         ) { _ in
-            Button("OK") {}
+            Button("OK") { cameraManager.dismissError() }
         } message: { message in
             Text(message)
         }
@@ -358,7 +358,7 @@ struct ContentView: View {
     private var errorBinding: Binding<Bool> {
         Binding(
             get: { cameraManager.lastErrorMessage != nil },
-            set: { if !$0 { } }
+            set: { isPresented in if !isPresented { cameraManager.dismissError() } }
         )
     }
 }

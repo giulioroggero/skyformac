@@ -333,6 +333,14 @@ final class CameraManager {
             }
         }
     }
+    /// Clears whatever `lastErrorMessage` currently holds — the Camera Error alert's "OK" button
+    /// calls this so a dismissed alert actually stays dismissed. Without it, the next unrelated
+    /// re-render of `ContentView` would find `lastErrorMessage` still non-`nil` and show the exact
+    /// same alert again.
+    func dismissError() {
+        lastErrorMessage = nil
+    }
+
     var isLogViewerPresented = false
     var isRecallParametersPresented = false
     var isSettingsPresented = false
