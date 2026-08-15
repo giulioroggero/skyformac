@@ -1595,6 +1595,16 @@ final class CameraManager {
         return index + 1 < project.sessions.count
     }
 
+    /// Same as `hasNextSession`, the other direction — "Open Previous Session" used to not exist
+    /// at all, only "Open Next Session" did, so there was no way back to a session already
+    /// stepped past without a trip back through the browser.
+    var hasPreviousSession: Bool {
+        guard let project = activeProject, let session = activeSession,
+              let index = project.sessions.firstIndex(where: { $0.id == session.id })
+        else { return false }
+        return index > 0
+    }
+
     /// Moves straight to the next session in the active project without a trip back through the
     /// browser — a no-op (not a wraparound) once there is none; see `hasNextSession`.
     func openNextSession() {
@@ -1603,6 +1613,15 @@ final class CameraManager {
               index + 1 < project.sessions.count
         else { return }
         activeSession = project.sessions[index + 1]
+    }
+
+    /// Same as `openNextSession()`, the other direction; see `hasPreviousSession`.
+    func openPreviousSession() {
+        guard let project = activeProject, let session = activeSession,
+              let index = project.sessions.firstIndex(where: { $0.id == session.id }),
+              index > 0
+        else { return }
+        activeSession = project.sessions[index - 1]
     }
 
     /// Adds a new session to the active project — the same "New Session" default name

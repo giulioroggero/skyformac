@@ -69,6 +69,46 @@ struct CameraManagerSessionLifecycleTests {
         #expect(manager.activeSession?.id == project.sessions[1].id)
     }
 
+    @Test func hasPreviousSessionIsFalseOnTheFirstSession() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(2)
+        manager.setActive(project: project, session: project.sessions[0])
+
+        #expect(!manager.hasPreviousSession)
+    }
+
+    @Test func hasPreviousSessionIsTrueWhenAnEarlierSessionExists() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(2)
+        manager.setActive(project: project, session: project.sessions[1])
+
+        #expect(manager.hasPreviousSession)
+    }
+
+    @Test func openPreviousSessionMovesToTheEarlierSession() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(2)
+        manager.setActive(project: project, session: project.sessions[1])
+
+        manager.openPreviousSession()
+
+        #expect(manager.activeSession?.id == project.sessions[0].id)
+    }
+
+    @Test func openPreviousSessionIsANoOpOnTheFirstSession() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = makeProjectWithSessions(2)
+        manager.setActive(project: project, session: project.sessions[0])
+
+        manager.openPreviousSession()
+
+        #expect(manager.activeSession?.id == project.sessions[0].id)
+    }
+
     @Test func createSessionInActiveProjectAddsItAndPersists() throws {
         let (manager, root) = makeManager()
         defer { try? FileManager.default.removeItem(at: root) }

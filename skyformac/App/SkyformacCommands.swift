@@ -126,6 +126,9 @@ struct SkyformacCommands: Commands {
             Button("End Session") { cameraManager.endActiveSession() }
                 .keyboardShortcut(".", modifiers: .command)
                 .disabled(cameraManager.activeSession == nil)
+            Button("Open Previous Session") { cameraManager.openPreviousSession() }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .shift])
+                .disabled(!cameraManager.hasPreviousSession)
             Button("Open Next Session") { cameraManager.openNextSession() }
                 .keyboardShortcut(.rightArrow, modifiers: [.command, .shift])
                 .disabled(!cameraManager.hasNextSession)
