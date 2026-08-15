@@ -2103,45 +2103,44 @@ struct ControlsPanelView: View {
     }
 }
 
-/// Exposure-duration control shared by "Single Exposure", "Dark Frames", and "Flat Frames":
-/// real ASI sensors expose exposure lengths from tens of microseconds (planetary/lucky imaging)
-/// up to hundreds of seconds (deep sky), a range a linear seconds slider can't usefully cover —
-/// at 0.1s resolution over a 60s span, there's no way to dial in, say, 500µs. The slider itself
-/// operates in log10(seconds) space so every decade (µs/ms/s) gets equal room, while the
-/// underlying binding stays plain seconds — `CameraManager.captureSingleExposure`/
-/// `captureDarkFrame`/`captureFlatFrame` all already take fractional seconds and convert to
-/// microseconds internally, so no call site needed to change.
-private struct ExposureField: View {
-    @Binding var seconds: Double
-    var minSeconds: Double = 0.000_001 // 1 µs — comfortably below any real ASI sensor's floor
-    var maxSeconds: Double = 60
+/// Shared "zoom similar to histogram" scaffolding behind both `ExposureField` and `GainField` —
+/// each independently duplicated ~90 lines of identical state (a `1...100` zoom slider, a
+/// snapshotted zoom center rather than the live value so dragging the main slider mid-zoom
+/// doesn't fight a `Slider`'s gesture recognizer over a moving `in:` bound, manual-entry text/
+/// focus), the same zoomed-position-range math, the same `TextField` + `Slider` + zoom-row body
+/// layout, and the same parse-or-revert manual-entry commit logic. The only real differences were
+/// the value<->slider-position mapping (log10 vs. a piecewise-linear breakpoint) and text
+/// formatting/parsing (µs/ms/s units vs. a plain `Int`) — both are supplied as closures, with
+/// `toPosition`/`fromPosition` operating in a normalized `0...1` position space regardless of what
+/// `Value` actually is.
+private struct ZoomableValueField<Value: Equatable>: View {
+    @Binding var value: Value
+    let toPosition: (Value) -> Double
+    let fromPosition: (Double) -> Value
+    let format: (Value) -> String
+    let parse: (String) -> Value?
+    var textFieldWidth: CGFloat = 64
 
-    /// "Zoom similar to histogram" — same shape as `HistogramView`'s own zoom: a `1...100` slider
-    /// narrowing the range around a *snapshotted* center (not the live value) so dragging the
-    /// main slider mid-zoom doesn't fight a `Slider`'s gesture recognizer over a moving `in:`
-    /// bound. Operates in the same log10(seconds) space the main slider already uses.
     @State private var zoom: Double = 1
-    @State private var zoomCenterLog: Double?
+    @State private var zoomCenter: Double?
     @State private var manualEntryText = ""
     @FocusState private var isManualEntryFocused: Bool
 
-    private var fullLogRange: ClosedRange<Double> { log10(minSeconds)...log10(maxSeconds) }
+    private var currentPosition: Double { toPosition(value) }
 
-    private var logRange: ClosedRange<Double> {
-        guard zoom > 1 else { return fullLogRange }
-        let center = zoomCenterLog ?? currentLog
-        let halfWidth = (fullLogRange.upperBound - fullLogRange.lowerBound) / zoom / 2
-        let lower = max(fullLogRange.lowerBound, center - halfWidth)
-        let upper = min(fullLogRange.upperBound, center + halfWidth)
-        return lower < upper ? lower...upper : fullLogRange
+    private var positionRange: ClosedRange<Double> {
+        guard zoom > 1 else { return 0...1 }
+        let center = zoomCenter ?? currentPosition
+        let halfWidth = 1 / zoom / 2
+        let lower = max(0, center - halfWidth)
+        let upper = min(1, center + halfWidth)
+        return lower < upper ? lower...upper : 0...1
     }
 
-    private var currentLog: Double { log10(min(max(seconds, minSeconds), maxSeconds)) }
-
-    private var logValue: Binding<Double> {
+    private var position: Binding<Double> {
         Binding(
-            get: { min(max(currentLog, logRange.lowerBound), logRange.upperBound) },
-            set: { seconds = pow(10, $0) }
+            get: { min(max(currentPosition, positionRange.lowerBound), positionRange.upperBound) },
+            set: { value = fromPosition($0) }
         )
     }
 
@@ -2150,37 +2149,69 @@ private struct ExposureField: View {
             HStack {
                 TextField("", text: $manualEntryText, onCommit: commitManualEntry)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 64)
+                    .frame(width: textFieldWidth)
                     .focused($isManualEntryFocused)
-                    .onAppear { manualEntryText = Self.format(seconds) }
-                    .onChange(of: seconds) { _, newValue in
+                    .onAppear { manualEntryText = format(value) }
+                    .onChange(of: value) { _, newValue in
                         guard !isManualEntryFocused else { return }
-                        manualEntryText = Self.format(newValue)
+                        manualEntryText = format(newValue)
                     }
-                Slider(value: logValue, in: logRange)
+                Slider(value: position, in: positionRange)
             }
             HStack(spacing: 6) {
                 Image(systemName: "plus.magnifyingglass").font(.caption2).foregroundStyle(.secondary)
                 Slider(value: $zoom, in: 1...100)
                 if zoom > 1 {
-                    Button("Reset") { zoom = 1; zoomCenterLog = nil }
+                    Button("Reset") { zoom = 1; zoomCenter = nil }
                         .font(.caption)
                         .buttonStyle(.borderless)
                 }
             }
             .onChange(of: zoom) { _, _ in
-                if zoomCenterLog == nil { zoomCenterLog = currentLog }
+                if zoomCenter == nil { zoomCenter = currentPosition }
             }
         }
     }
 
     private func commitManualEntry() {
-        guard let parsed = Self.parse(manualEntryText) else {
-            manualEntryText = Self.format(seconds) // invalid entry — revert rather than silently clamp to something else
+        guard let parsed = parse(manualEntryText) else {
+            manualEntryText = format(value) // invalid entry — revert rather than silently clamp to something else
             return
         }
-        seconds = min(max(parsed, minSeconds), maxSeconds)
-        manualEntryText = Self.format(seconds)
+        value = parsed
+        manualEntryText = format(value)
+    }
+}
+
+/// Exposure-duration control shared by "Single Exposure", "Dark Frames", and "Flat Frames":
+/// real ASI sensors expose exposure lengths from tens of microseconds (planetary/lucky imaging)
+/// up to hundreds of seconds (deep sky), a range a linear seconds slider can't usefully cover —
+/// at 0.1s resolution over a 60s span, there's no way to dial in, say, 500µs. The slider itself
+/// operates in log10(seconds) space (normalized to `0...1`, see `ZoomableValueField`) so every
+/// decade (µs/ms/s) gets equal room, while the underlying binding stays plain seconds —
+/// `CameraManager.captureSingleExposure`/`captureDarkFrame`/`captureFlatFrame` all already take
+/// fractional seconds and convert to microseconds internally, so no call site needed to change.
+private struct ExposureField: View {
+    @Binding var seconds: Double
+    var minSeconds: Double = 0.000_001 // 1 µs — comfortably below any real ASI sensor's floor
+    var maxSeconds: Double = 60
+
+    private var logRange: ClosedRange<Double> { log10(minSeconds)...log10(maxSeconds) }
+
+    var body: some View {
+        ZoomableValueField(
+            value: $seconds,
+            toPosition: { seconds in
+                let log = log10(min(max(seconds, minSeconds), maxSeconds))
+                return (log - logRange.lowerBound) / (logRange.upperBound - logRange.lowerBound)
+            },
+            fromPosition: { position in
+                pow(10, logRange.lowerBound + position * (logRange.upperBound - logRange.lowerBound))
+            },
+            format: Self.format,
+            parse: { text in Self.parse(text).map { min(max($0, minSeconds), maxSeconds) } },
+            textFieldWidth: 64
+        )
     }
 
     /// Accepts a plain number of seconds ("0.001"), or the same value with an explicit unit
@@ -2235,45 +2266,16 @@ private struct ExposureCountdownView: View {
 
 /// `ASI_GAIN` control: devotes most (`fineFraction`) of the slider's width to the
 /// `minValue...fineBreakpoint` sub-range and the rest to `fineBreakpoint...maxValue` — a
-/// piecewise-linear remap of the same shape as `ExposureField`'s log10 mapping, just linear
-/// instead of logarithmic (gain doesn't have exposure's natural log distribution across decades;
-/// it just needs one deliberate breakpoint at the range that actually matters).
+/// piecewise-linear remap of the same shape as `ExposureField`'s log10 mapping (see
+/// `ZoomableValueField`), just linear instead of logarithmic (gain doesn't have exposure's
+/// natural log distribution across decades; it just needs one deliberate breakpoint at the range
+/// that actually matters).
 private struct GainField: View {
     @Binding var value: Int
     var minValue: Int
     var maxValue: Int
     var fineBreakpoint: Int
     var fineFraction: Double = 0.7
-
-    /// "Zoom similar to histogram" — same shape as `HistogramView`'s own zoom and
-    /// `ExposureField`'s copy of it: a `1...100` slider narrowing the `0...1` position range
-    /// around a *snapshotted* center, so dragging the main slider mid-zoom doesn't fight a
-    /// `Slider`'s gesture recognizer over a moving `in:` bound.
-    @State private var zoom: Double = 1
-    @State private var zoomCenter: Double?
-    @State private var manualEntryText = ""
-    @FocusState private var isManualEntryFocused: Bool
-
-    /// Slider position in `0...1`, split at `fineFraction` between the two sub-ranges.
-    private var position: Binding<Double> {
-        Binding(
-            get: { min(max(currentPosition, positionRange.lowerBound), positionRange.upperBound) },
-            set: { value = Self.fromPosition($0, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction) }
-        )
-    }
-
-    private var currentPosition: Double {
-        Self.toPosition(value, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction)
-    }
-
-    private var positionRange: ClosedRange<Double> {
-        guard zoom > 1 else { return 0...1 }
-        let center = zoomCenter ?? currentPosition
-        let halfWidth = 1 / zoom / 2
-        let lower = max(0, center - halfWidth)
-        let upper = min(1, center + halfWidth)
-        return lower < upper ? lower...upper : 0...1
-    }
 
     /// `fineBreakpoint` must sit strictly between `minValue` and `maxValue` for the piecewise
     /// split to be meaningful — clamped rather than asserted, since a camera's actual gain range
@@ -2283,41 +2285,14 @@ private struct GainField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                TextField("", text: $manualEntryText, onCommit: commitManualEntry)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 44)
-                    .focused($isManualEntryFocused)
-                    .onAppear { manualEntryText = "\(value)" }
-                    .onChange(of: value) { _, newValue in
-                        guard !isManualEntryFocused else { return }
-                        manualEntryText = "\(newValue)"
-                    }
-                Slider(value: position, in: positionRange)
-            }
-            HStack(spacing: 6) {
-                Image(systemName: "plus.magnifyingglass").font(.caption2).foregroundStyle(.secondary)
-                Slider(value: $zoom, in: 1...100)
-                if zoom > 1 {
-                    Button("Reset") { zoom = 1; zoomCenter = nil }
-                        .font(.caption)
-                        .buttonStyle(.borderless)
-                }
-            }
-            .onChange(of: zoom) { _, _ in
-                if zoomCenter == nil { zoomCenter = currentPosition }
-            }
-        }
-    }
-
-    private func commitManualEntry() {
-        guard let parsed = Int(manualEntryText.trimmingCharacters(in: .whitespaces)) else {
-            manualEntryText = "\(value)" // invalid entry — revert rather than silently clamp
-            return
-        }
-        value = min(max(parsed, minValue), maxValue)
-        manualEntryText = "\(value)"
+        ZoomableValueField(
+            value: $value,
+            toPosition: { value in Self.toPosition(value, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction) },
+            fromPosition: { position in Self.fromPosition(position, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction) },
+            format: { "\($0)" },
+            parse: { text in Int(text.trimmingCharacters(in: .whitespaces)).map { min(max($0, minValue), maxValue) } },
+            textFieldWidth: 44
+        )
     }
 
     private static func toPosition(_ value: Int, minValue: Int, maxValue: Int, breakpoint: Int, fineFraction: Double) -> Double {
