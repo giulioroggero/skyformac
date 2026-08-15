@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 /// The Projects browser's "Project Detail" page — pushed onto the browser's `NavigationStack`
@@ -80,6 +81,10 @@ struct ProjectDetailPane: View {
 
                 PageSection(title: "Stats") {
                     StatsGridView(stats: projectStats)
+                }
+
+                PageSection(title: "Activity Timeline") {
+                    ActivityTimelineChart(project: project)
                 }
 
                 PageSection(title: "Equipment") {
@@ -307,10 +312,17 @@ private struct SessionCard: View {
                     Text(session.plannedObjects.joined(separator: ", ")).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
                 }
                 HStack(spacing: 10) {
-                    if let planned = session.plannedDate {
-                        Label(planned.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
-                    } else if let last = session.lastCaptureDate {
-                        Label(last.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                    // "Show time of sessions" — a session that's actually been run shows exactly
+                    // when (not just the date), plus how long it ran for; one still only planned
+                    // shows its planned date and time instead — either way, a real time, not just
+                    // a bare date the way this card previously showed for a planned session.
+                    if let first = session.firstCaptureDate {
+                        Label(first.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                        if let duration = session.duration, let formatted = Self.durationFormatter.string(from: duration) {
+                            Text("(\(formatted))")
+                        }
+                    } else if let planned = session.plannedDate {
+                        Label(planned.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
                     }
                     Label("\(session.captures.count)", systemImage: "camera")
                     if let location = session.effectiveLocation(inProject: project) {
@@ -335,6 +347,14 @@ private struct SessionCard: View {
         .padding(.vertical, 4)
         .opacity(session.isArchived ? 0.5 : 1)
     }
+
+    private static let durationFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter
+    }()
 
     @ViewBuilder
     private var statusBadge: some View {
@@ -612,6 +632,77 @@ struct LocationEditorView: View {
             }
             .padding()
             .frame(width: 220)
+        }
+    }
+}
+
+/// "Zoom in to all activities" — every capture across every session in the project, plotted by
+/// its exact timestamp (x) against which session it belongs to (y, categorical — one swimlane per
+/// session), so this doubles as "show time of sessions" at a glance: when each session actually
+/// ran, and roughly how long each stayed active, without opening any of them individually.
+private struct ActivityTimelineChart: View {
+    let project: Project
+
+    /// Same "zoom similar to histogram" shape used elsewhere (`HistogramView`,
+    /// `ExposureField`/`GainField`) — narrows the visible date range around a snapshotted center
+    /// rather than the live value, so dragging mid-zoom doesn't fight the zoom slider's own
+    /// gesture recognizer over a moving domain.
+    @State private var zoom: Double = 1
+    @State private var zoomCenter: Date?
+
+    private var entries: [(session: String, date: Date)] {
+        project.sessions.flatMap { session in session.captures.map { (session.name, $0.date) } }
+    }
+
+    private var fullRange: ClosedRange<Date> {
+        let dates = entries.map(\.date)
+        guard let earliest = dates.min(), let latest = dates.max() else {
+            let now = Date()
+            return now...now.addingTimeInterval(3600)
+        }
+        // A single capture (or several at the exact same instant) still needs a real, non-empty
+        // range for `chartXScale`/zoom math to operate over.
+        return earliest < latest ? earliest...latest : earliest...earliest.addingTimeInterval(1800)
+    }
+
+    private var visibleRange: ClosedRange<Date> {
+        guard zoom > 1 else { return fullRange }
+        let center = zoomCenter ?? fullRangeMidpoint
+        let fullWidth = fullRange.upperBound.timeIntervalSince(fullRange.lowerBound)
+        let halfWidth = fullWidth / zoom / 2
+        let lower = max(fullRange.lowerBound, center.addingTimeInterval(-halfWidth))
+        let upper = min(fullRange.upperBound, center.addingTimeInterval(halfWidth))
+        return lower < upper ? lower...upper : fullRange
+    }
+
+    private var fullRangeMidpoint: Date {
+        fullRange.lowerBound.addingTimeInterval(fullRange.upperBound.timeIntervalSince(fullRange.lowerBound) / 2)
+    }
+
+    var body: some View {
+        if entries.isEmpty {
+            Text("Nothing captured yet.").font(.caption).foregroundStyle(.secondary)
+        } else {
+            let sessionCount = Set(entries.map(\.session)).count
+            VStack(alignment: .leading, spacing: 6) {
+                Chart(entries, id: \.date) { entry in
+                    PointMark(x: .value("Time", entry.date), y: .value("Session", entry.session))
+                }
+                .chartXScale(domain: visibleRange)
+                .frame(height: CGFloat(min(max(sessionCount, 1), 8)) * 24 + 40)
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.magnifyingglass").font(.caption2).foregroundStyle(.secondary)
+                    Slider(value: $zoom, in: 1...50)
+                    if zoom > 1 {
+                        Button("Reset") { zoom = 1; zoomCenter = nil }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                    }
+                }
+                .onChange(of: zoom) { _, _ in
+                    if zoomCenter == nil { zoomCenter = fullRangeMidpoint }
+                }
+            }
         }
     }
 }
