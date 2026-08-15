@@ -2116,22 +2116,88 @@ private struct ExposureField: View {
     var minSeconds: Double = 0.000_001 // 1 µs — comfortably below any real ASI sensor's floor
     var maxSeconds: Double = 60
 
-    private var logRange: ClosedRange<Double> { log10(minSeconds)...log10(maxSeconds) }
+    /// "Zoom similar to histogram" — same shape as `HistogramView`'s own zoom: a `1...100` slider
+    /// narrowing the range around a *snapshotted* center (not the live value) so dragging the
+    /// main slider mid-zoom doesn't fight a `Slider`'s gesture recognizer over a moving `in:`
+    /// bound. Operates in the same log10(seconds) space the main slider already uses.
+    @State private var zoom: Double = 1
+    @State private var zoomCenterLog: Double?
+    @State private var manualEntryText = ""
+    @FocusState private var isManualEntryFocused: Bool
+
+    private var fullLogRange: ClosedRange<Double> { log10(minSeconds)...log10(maxSeconds) }
+
+    private var logRange: ClosedRange<Double> {
+        guard zoom > 1 else { return fullLogRange }
+        let center = zoomCenterLog ?? currentLog
+        let halfWidth = (fullLogRange.upperBound - fullLogRange.lowerBound) / zoom / 2
+        let lower = max(fullLogRange.lowerBound, center - halfWidth)
+        let upper = min(fullLogRange.upperBound, center + halfWidth)
+        return lower < upper ? lower...upper : fullLogRange
+    }
+
+    private var currentLog: Double { log10(min(max(seconds, minSeconds), maxSeconds)) }
 
     private var logValue: Binding<Double> {
         Binding(
-            get: { log10(min(max(seconds, minSeconds), maxSeconds)) },
+            get: { min(max(currentLog, logRange.lowerBound), logRange.upperBound) },
             set: { seconds = pow(10, $0) }
         )
     }
 
     var body: some View {
-        HStack {
-            Text(Self.format(seconds))
-                .font(.caption.monospacedDigit())
-                .frame(width: 64, alignment: .leading)
-            Slider(value: logValue, in: logRange)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                TextField("", text: $manualEntryText, onCommit: commitManualEntry)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 64)
+                    .focused($isManualEntryFocused)
+                    .onAppear { manualEntryText = Self.format(seconds) }
+                    .onChange(of: seconds) { _, newValue in
+                        guard !isManualEntryFocused else { return }
+                        manualEntryText = Self.format(newValue)
+                    }
+                Slider(value: logValue, in: logRange)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "plus.magnifyingglass").font(.caption2).foregroundStyle(.secondary)
+                Slider(value: $zoom, in: 1...100)
+                if zoom > 1 {
+                    Button("Reset") { zoom = 1; zoomCenterLog = nil }
+                        .font(.caption)
+                        .buttonStyle(.borderless)
+                }
+            }
+            .onChange(of: zoom) { _, _ in
+                if zoomCenterLog == nil { zoomCenterLog = currentLog }
+            }
         }
+    }
+
+    private func commitManualEntry() {
+        guard let parsed = Self.parse(manualEntryText) else {
+            manualEntryText = Self.format(seconds) // invalid entry — revert rather than silently clamp to something else
+            return
+        }
+        seconds = min(max(parsed, minSeconds), maxSeconds)
+        manualEntryText = Self.format(seconds)
+    }
+
+    /// Accepts a plain number of seconds ("0.001"), or the same value with an explicit unit
+    /// suffix matching what `format(_:)` displays ("500 µs", "1.5 ms", "2.5 s") — so typing back
+    /// exactly what's shown always round-trips.
+    private static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).lowercased()
+        if trimmed.hasSuffix("µs"), let value = Double(trimmed.dropLast(2).trimmingCharacters(in: .whitespaces)) {
+            return value / 1_000_000
+        }
+        if trimmed.hasSuffix("ms"), let value = Double(trimmed.dropLast(2).trimmingCharacters(in: .whitespaces)) {
+            return value / 1_000
+        }
+        if trimmed.hasSuffix("s"), let value = Double(trimmed.dropLast(1).trimmingCharacters(in: .whitespaces)) {
+            return value
+        }
+        return Double(trimmed)
     }
 
     private static func format(_ seconds: Double) -> String {
@@ -2179,12 +2245,34 @@ private struct GainField: View {
     var fineBreakpoint: Int
     var fineFraction: Double = 0.7
 
+    /// "Zoom similar to histogram" — same shape as `HistogramView`'s own zoom and
+    /// `ExposureField`'s copy of it: a `1...100` slider narrowing the `0...1` position range
+    /// around a *snapshotted* center, so dragging the main slider mid-zoom doesn't fight a
+    /// `Slider`'s gesture recognizer over a moving `in:` bound.
+    @State private var zoom: Double = 1
+    @State private var zoomCenter: Double?
+    @State private var manualEntryText = ""
+    @FocusState private var isManualEntryFocused: Bool
+
     /// Slider position in `0...1`, split at `fineFraction` between the two sub-ranges.
     private var position: Binding<Double> {
         Binding(
-            get: { Self.toPosition(value, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction) },
+            get: { min(max(currentPosition, positionRange.lowerBound), positionRange.upperBound) },
             set: { value = Self.fromPosition($0, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction) }
         )
+    }
+
+    private var currentPosition: Double {
+        Self.toPosition(value, minValue: minValue, maxValue: maxValue, breakpoint: clampedBreakpoint, fineFraction: fineFraction)
+    }
+
+    private var positionRange: ClosedRange<Double> {
+        guard zoom > 1 else { return 0...1 }
+        let center = zoomCenter ?? currentPosition
+        let halfWidth = 1 / zoom / 2
+        let lower = max(0, center - halfWidth)
+        let upper = min(1, center + halfWidth)
+        return lower < upper ? lower...upper : 0...1
     }
 
     /// `fineBreakpoint` must sit strictly between `minValue` and `maxValue` for the piecewise
@@ -2195,12 +2283,41 @@ private struct GainField: View {
     }
 
     var body: some View {
-        HStack {
-            Text("\(value)")
-                .font(.caption.monospacedDigit())
-                .frame(width: 36, alignment: .leading)
-            Slider(value: position, in: 0...1)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                TextField("", text: $manualEntryText, onCommit: commitManualEntry)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 44)
+                    .focused($isManualEntryFocused)
+                    .onAppear { manualEntryText = "\(value)" }
+                    .onChange(of: value) { _, newValue in
+                        guard !isManualEntryFocused else { return }
+                        manualEntryText = "\(newValue)"
+                    }
+                Slider(value: position, in: positionRange)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "plus.magnifyingglass").font(.caption2).foregroundStyle(.secondary)
+                Slider(value: $zoom, in: 1...100)
+                if zoom > 1 {
+                    Button("Reset") { zoom = 1; zoomCenter = nil }
+                        .font(.caption)
+                        .buttonStyle(.borderless)
+                }
+            }
+            .onChange(of: zoom) { _, _ in
+                if zoomCenter == nil { zoomCenter = currentPosition }
+            }
         }
+    }
+
+    private func commitManualEntry() {
+        guard let parsed = Int(manualEntryText.trimmingCharacters(in: .whitespaces)) else {
+            manualEntryText = "\(value)" // invalid entry — revert rather than silently clamp
+            return
+        }
+        value = min(max(parsed, minValue), maxValue)
+        manualEntryText = "\(value)"
     }
 
     private static func toPosition(_ value: Int, minValue: Int, maxValue: Int, breakpoint: Int, fineFraction: Double) -> Double {
