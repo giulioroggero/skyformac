@@ -386,7 +386,6 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
         Dictionary(grouping: sessions.flatMap(\.captures), by: \.kind).mapValues(\.count)
     }
 
-    var activeSessionsCount: Int { sessions.filter { !$0.isArchived }.count }
     var archivedSessionsCount: Int { sessions.filter(\.isArchived).count }
 
     /// Stable, folder-safe project directory name — see `Session.makeFolderName`'s doc comment

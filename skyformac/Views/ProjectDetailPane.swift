@@ -28,8 +28,6 @@ struct ProjectDetailPane: View {
 
     @State private var name: String
     @State private var goal: String
-    @State private var newTag = ""
-    @State private var newNote = ""
     @State private var isPlanningProject = false
     @State private var isDescribingProject = false
 
@@ -274,7 +272,6 @@ private struct SessionCard: View {
     var cameraManager: CameraManager
     let store: ProjectStore
 
-    private var isActive: Bool { cameraManager.activeSession?.id == session.id }
     private var hasRun: Bool { !session.captures.isEmpty }
     private var thumbnailURL: URL? { store.mostRecentThumbnailURL(for: session, in: project) }
 
@@ -299,9 +296,6 @@ private struct SessionCard: View {
                     Text(session.name).font(.headline)
                     if session.isFavorite {
                         Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption)
-                    }
-                    if isActive {
-                        Image(systemName: "record.circle.fill").foregroundStyle(.red).font(.caption)
                     }
                     statusBadge
                 }
@@ -336,10 +330,9 @@ private struct SessionCard: View {
 
             Spacer()
 
-            Button(isActive ? "Running" : (hasRun ? "Resume" : "Run"), systemImage: "play.fill") {
+            Button(hasRun ? "Resume" : "Run", systemImage: "play.fill") {
                 cameraManager.setActive(project: project, session: session)
             }
-            .disabled(isActive)
             .buttonStyle(.borderedProminent)
             .tint(.accentColor)
             .controlSize(.regular)

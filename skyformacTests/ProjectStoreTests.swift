@@ -500,13 +500,12 @@ struct ProjectStoreTests {
         #expect(project.firstActivityDate == nil)
     }
 
-    @Test func projectActiveAndArchivedSessionCounts() {
+    @Test func projectArchivedSessionCount() {
         var project = Project.newProject(name: "Counts")
         var archived = Session.newSession(name: "Archived")
         archived.isArchived = true
         project.sessions = [Session.newSession(name: "Active 1"), Session.newSession(name: "Active 2"), archived]
 
-        #expect(project.activeSessionsCount == 2)
         #expect(project.archivedSessionsCount == 1)
     }
 }

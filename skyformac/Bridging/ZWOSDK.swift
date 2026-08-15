@@ -170,11 +170,6 @@ enum ZWOSDK {
         )
     }
 
-    static func sdkVersion() -> String {
-        guard let cString = ASIGetSDKVersion() else { return "unknown" }
-        return String(cString: cString)
-    }
-
     /// ZWO's own recommended gain/offset reference points for this specific camera model — the
     /// same numbers SharpCap's "gain presets" and ZWO's own ASICap show. Not every camera model
     /// supports this call (older/simpler sensors don't have separate dynamic-range/read-noise

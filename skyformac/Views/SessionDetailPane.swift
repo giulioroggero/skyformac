@@ -34,7 +34,6 @@ struct SessionDetailPane: View {
     @State private var moveErrorMessage: String?
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
-    private var isActive: Bool { cameraManager.activeSession?.id == session.id }
     /// "Move to Project…"'s own candidate list — every other active project, alphabetically;
     /// excludes the current one (nothing to move to) and archived/deleted projects (not
     /// realistically where anyone wants to relocate a session they're actively looking at).
@@ -94,10 +93,9 @@ struct SessionDetailPane: View {
                     }
                     LocationEditorView(project: project, session: session, cameraManager: cameraManager)
                     HStack {
-                        Button(isActive ? "Running Now" : "Run This Session", systemImage: "play.fill") {
+                        Button("Run This Session", systemImage: "play.fill") {
                             cameraManager.setActive(project: project, session: session)
                         }
-                        .disabled(isActive)
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                         .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
