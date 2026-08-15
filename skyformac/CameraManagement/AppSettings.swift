@@ -33,6 +33,7 @@ enum AppSettings {
         case customProjectsRootDirectoryPath
         case customEquipmentDirectoryPath
         case customKnowledgeBaseDirectoryPath
+        case customAIChatsDirectoryPath
         case ollamaServerURLString
         case ollamaModel
         case sessionSuggestionSkill
@@ -245,6 +246,16 @@ enum AppSettings {
     static var customKnowledgeBaseDirectoryPath: String? {
         get { UserDefaults.standard.string(forKey: Key.customKnowledgeBaseDirectoryPath.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.customKnowledgeBaseDirectoryPath.rawValue) }
+    }
+
+    // MARK: - AI Chats folder
+
+    /// Same "user-chosen folder instead of a default" shape as Projects/Equipment above —
+    /// `AIChatLibrary` reads this once at `init`, the same "read once at launch" timing
+    /// `ProjectStore`/`EquipmentLibrary` already use for their own folders.
+    static var customAIChatsDirectoryPath: String? {
+        get { UserDefaults.standard.string(forKey: Key.customAIChatsDirectoryPath.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.customAIChatsDirectoryPath.rawValue) }
     }
 
     // MARK: - Ollama (AI)

@@ -16,6 +16,9 @@ struct AssistantChatPanel: View {
     @State private var inputText = ""
     @FocusState private var isInputFocused: Bool
     @State private var availableModels: [String] = []
+    @State private var isRenamingChatSession = false
+    @State private var renamingSessionID: AIChatSession.ID?
+    @State private var renameText = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,6 +84,10 @@ struct AssistantChatPanel: View {
             Label("AI", systemImage: "bubble.left.and.bubble.right").font(.headline)
             modelMenu
             Spacer()
+            historyMenu
+            Button("New Chat", systemImage: "square.and.pencil") { cameraManager.startNewChatSession() }
+                .buttonStyle(.borderless)
+                .help("Start a new AI conversation")
             if isDetachedWindow {
                 if canDock {
                     Button("Dock", systemImage: "pin.fill") { cameraManager.isAssistantDetached = false }
@@ -130,6 +137,59 @@ struct AssistantChatPanel: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Choose which Ollama model the AI uses")
+    }
+
+    /// "The user can create a new AI session and see the history, recalling and continuing a
+    /// conversation" — a compact history menu next to "New Chat," one entry per saved
+    /// conversation (most-recently-updated first, via `CameraManager.chatSessions`), each with its
+    /// own Open/Rename/Delete submenu so switching, renaming, and cleaning up old chats never
+    /// needs a separate page.
+    private var historyMenu: some View {
+        Menu {
+            if cameraManager.chatSessions.isEmpty {
+                Text("No saved chats yet")
+            } else {
+                ForEach(cameraManager.chatSessions) { session in
+                    Menu(session.title) {
+                        Button("Open") { cameraManager.switchToChatSession(session.id) }
+                        Button("Rename…") {
+                            renameText = session.title
+                            renamingSessionID = session.id
+                            isRenamingChatSession = true
+                        }
+                        Button("Delete", role: .destructive) { cameraManager.deleteChatSession(session.id) }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Browse previous AI conversations")
+        .popover(isPresented: $isRenamingChatSession) { renameSheetContent }
+    }
+
+    private var renameSheetContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Rename Chat").font(.headline)
+            TextField("Title", text: $renameText)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(commitRename)
+            HStack {
+                Spacer()
+                Button("Cancel") { isRenamingChatSession = false }
+                Button("Save", action: commitRename).buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .frame(width: 260)
+    }
+
+    private func commitRename() {
+        guard let id = renamingSessionID else { return }
+        cameraManager.renameChatSession(id, to: renameText)
+        isRenamingChatSession = false
     }
 
     private func refreshAvailableModels() async {

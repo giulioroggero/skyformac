@@ -2,11 +2,28 @@ import Foundation
 import Testing
 @testable import skyformac
 
+/// Always fails fast (`.cannotConnectToHost`) rather than making a real network call — the
+/// multi-session chat-history tests below only care that a user's own message gets appended and
+/// persisted immediately, not what (if anything) Ollama replies with.
+private final class UnreachableOllamaTransport: OllamaTransport, @unchecked Sendable {
+    func send(_ request: URLRequest) async throws -> Data {
+        throw URLError(.cannotConnectToHost)
+    }
+}
+
 @MainActor
 struct CameraManagerAssistantTests {
     private func makeManager() -> (manager: CameraManager, root: URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        return (CameraManager(projectStore: ProjectStore(rootDirectory: root)), root)
+        let chatsRoot = root.appendingPathComponent("AIChats")
+        return (
+            CameraManager(
+                projectStore: ProjectStore(rootDirectory: root),
+                ollamaPlanner: OllamaPlanner(transport: UnreachableOllamaTransport()),
+                aiChatLibrary: AIChatLibrary(rootDirectory: chatsRoot)
+            ),
+            root
+        )
     }
 
     @Test func confirmingCreateProjectSavesANewProject() {
@@ -176,5 +193,70 @@ struct CameraManagerAssistantTests {
         manager.isAssistantPanelVisible = true
 
         #expect(manager.isAssistantDetached)
+    }
+
+    // MARK: - Multi-session chat history
+
+    @Test func sendingAMessagePersistsANewChatSessionAutoTitledFromIt() async {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        await manager.sendAssistantMessage("What can I see tonight from home?")
+
+        #expect(manager.chatSessions.count == 1)
+        #expect(manager.chatSessions.first?.title == "What can I see tonight from home?")
+        #expect(manager.currentChatSessionID == manager.chatSessions.first?.id)
+    }
+
+    @Test func startingANewChatSessionClearsMessagesButKeepsThePreviousOneSaved() async {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        await manager.sendAssistantMessage("First conversation")
+
+        manager.startNewChatSession()
+
+        #expect(manager.assistantMessages.isEmpty)
+        #expect(manager.currentChatSessionID == nil)
+        #expect(manager.chatSessions.count == 1)
+        #expect(manager.chatSessions.first?.messages.isEmpty == false)
+    }
+
+    @Test func switchingToAPastChatSessionRestoresItsMessages() async {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        await manager.sendAssistantMessage("First conversation")
+        let firstID = try! #require(manager.currentChatSessionID)
+        manager.startNewChatSession()
+        await manager.sendAssistantMessage("Second conversation")
+
+        manager.switchToChatSession(firstID)
+
+        #expect(manager.currentChatSessionID == firstID)
+        #expect(manager.assistantMessages.first?.text == "First conversation")
+    }
+
+    @Test func deletingTheCurrentlyOpenChatSessionStartsAFreshBlankOne() async {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        await manager.sendAssistantMessage("Only conversation")
+        let id = try! #require(manager.currentChatSessionID)
+
+        manager.deleteChatSession(id)
+
+        #expect(manager.chatSessions.isEmpty)
+        #expect(manager.currentChatSessionID == nil)
+        #expect(manager.assistantMessages.isEmpty)
+    }
+
+    @Test func renamingAChatSessionUpdatesItsTitleWithoutTouchingItsMessages() async {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        await manager.sendAssistantMessage("Original text")
+        let id = try! #require(manager.currentChatSessionID)
+
+        manager.renameChatSession(id, to: "My Renamed Chat")
+
+        #expect(manager.chatSessions.first?.title == "My Renamed Chat")
+        #expect(manager.chatSessions.first?.messages.first?.text == "Original text")
     }
 }

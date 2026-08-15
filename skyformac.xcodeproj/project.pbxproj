@@ -11,6 +11,7 @@
 		09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */; };
 		4527E949643DEA91F18F3AC3 /* EquipmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F697DCCE35D7667955614A48 /* EquipmentModels.swift */; };
 		9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */; };
+		FE141537F39F4A529188CB62 /* AIChatLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4668DD1AFF704C72AB5B01D3 /* AIChatLibrary.swift */; };
 		47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */; };
 		DC9D7D8B7D1D90D151ED606B /* CoreLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */; };
 		18F32B6D347E62F801858544 /* ProjectSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6503F6FAB5EE60511276664 /* ProjectSearch.swift */; };
@@ -126,6 +127,7 @@
 		FC937EB1EE3B6DA870560471 /* ProjectArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856CFC352A6DA2D53157A5A3 /* ProjectArchive.swift */; };
 		64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */; };
 		336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */; };
+		0C760640A9B541049ABF8220 /* AIChatLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C69378FA454BEBA05177EE /* AIChatLibraryTests.swift */; };
 		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
 		98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */; };
 		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
@@ -265,6 +267,7 @@
 		856CFC352A6DA2D53157A5A3 /* ProjectArchive.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectArchive.swift; sourceTree = "<group>"; };
 		70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIDescriptionContextTests.swift; sourceTree = "<group>"; };
 		711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerAssistantTests.swift; sourceTree = "<group>"; };
+		81C69378FA454BEBA05177EE /* AIChatLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatLibraryTests.swift; sourceTree = "<group>"; };
 		83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerOllamaConfigurationTests.swift; sourceTree = "<group>"; };
 		85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RatingAndFavoriteTests.swift; sourceTree = "<group>"; };
 		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
@@ -333,6 +336,7 @@
 		33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
 		F697DCCE35D7667955614A48 /* EquipmentModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentModels.swift; sourceTree = "<group>"; };
 		DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentLibrary.swift; sourceTree = "<group>"; };
+		4668DD1AFF704C72AB5B01D3 /* AIChatLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatLibrary.swift; sourceTree = "<group>"; };
 		4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGenerator.swift; sourceTree = "<group>"; };
 		F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreLocationProvider.swift; sourceTree = "<group>"; };
 		E6503F6FAB5EE60511276664 /* ProjectSearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectSearch.swift; sourceTree = "<group>"; };
@@ -552,6 +556,7 @@
 				9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */,
 				70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */,
 				711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */,
+				81C69378FA454BEBA05177EE /* AIChatLibraryTests.swift */,
 				83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */,
 				85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */,
 				B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */,
@@ -646,6 +651,7 @@
 				33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */,
 				F697DCCE35D7667955614A48 /* EquipmentModels.swift */,
 				DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */,
+				4668DD1AFF704C72AB5B01D3 /* AIChatLibrary.swift */,
 				4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */,
 				F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */,
 				E6503F6FAB5EE60511276664 /* ProjectSearch.swift */,
@@ -962,6 +968,7 @@
 				09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */,
 				4527E949643DEA91F18F3AC3 /* EquipmentModels.swift in Sources */,
 				9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */,
+				FE141537F39F4A529188CB62 /* AIChatLibrary.swift in Sources */,
 				47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */,
 				DC9D7D8B7D1D90D151ED606B /* CoreLocationProvider.swift in Sources */,
 				18F32B6D347E62F801858544 /* ProjectSearch.swift in Sources */,
@@ -1095,6 +1102,7 @@
 				BFCD7A5D9232810B14153610 /* CameraManagerRecallParametersTests.swift in Sources */,
 				64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */,
 				336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */,
+				0C760640A9B541049ABF8220 /* AIChatLibraryTests.swift in Sources */,
 				5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */,
 				98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */,
 				063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */,

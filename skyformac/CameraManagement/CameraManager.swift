@@ -362,13 +362,27 @@ final class CameraManager {
     /// instead of embedding it in the main window.
     var isAssistantDetached = false
     var isAssistantThinking = false
+    let aiChatLibrary: AIChatLibrary
+    /// The chat currently shown in `assistantMessages` — `nil` means "not saved yet," which is
+    /// true for a brand-new blank conversation until its first message actually gets persisted.
+    /// Not `private(set)`: `startNewChatSession()`/`switchToChatSession(_:)`/`deleteChatSession(_:)`
+    /// are the only things that should change it, but tests construct chats through those same
+    /// entry points already, so there's no need for a separate internal setter.
+    private(set) var currentChatSessionID: AIChatSession.ID?
+    /// Suppresses `assistantMessages`' own persist-on-change while `switchToChatSession(_:)`/
+    /// `startNewChatSession()` assign a whole new array wholesale — without this, loading a saved
+    /// chat back in would immediately "persist" it again, bumping its `updatedDate` and reshuffling
+    /// the history list even though nothing actually changed.
+    private var isLoadingChatSession = false
     /// Remembers whether the panel was docked in the sidebar right before the camera view took
     /// over — "in camera mode the AI is only detached" (enforced by `AssistantChatPanel` hiding
     /// its own Dock button whenever a session is active, not just by this flag) — so
     /// `syncAssistantDockStateForCameraMode()` knows whether to put it back once the user returns
     /// to browsing, versus leaving it wherever they explicitly moved/closed it meanwhile.
     private var wasAssistantDockedBeforeCameraMode = false
-    var assistantMessages: [AssistantMessage] = []
+    var assistantMessages: [AssistantMessage] = [] {
+        didSet { persistCurrentChatMessages() }
+    }
     /// Set by `sendAssistantMessage(_:)` when the model proposes an action instead of just
     /// answering — shown with Approve/Reject; never applied until `confirmAssistantAction()` is
     /// called explicitly, per "if the chat change something ask before act." A plain `var`, not
@@ -471,6 +485,71 @@ final class CameraManager {
         guard assistantPendingAction != nil else { return }
         assistantPendingAction = nil
         assistantMessages.append(AssistantMessage(role: .assistant, text: "Okay, I won't do that."))
+    }
+
+    /// Saves `assistantMessages` into `currentChatSessionID`'s file, creating that chat's own
+    /// saved session on its very first message rather than up front — a chat abandoned after
+    /// zero messages never becomes a stray empty entry in the history list. Auto-titled from the
+    /// first user message; see `AIChatSession.autoTitle(from:)`.
+    private func persistCurrentChatMessages() {
+        guard !isLoadingChatSession, !assistantMessages.isEmpty else { return }
+        if let id = currentChatSessionID, var session = aiChatLibrary.session(withID: id) {
+            session.messages = assistantMessages
+            session.updatedDate = Date()
+            aiChatLibrary.save(session)
+        } else {
+            let firstUserText = assistantMessages.first { $0.role == .user }?.text
+            var session = aiChatLibrary.createSession(firstMessageText: firstUserText)
+            session.messages = assistantMessages
+            aiChatLibrary.save(session)
+            currentChatSessionID = session.id
+        }
+    }
+
+    /// Every saved chat, most-recently-updated first — what the AI panel's history menu lists.
+    var chatSessions: [AIChatSession] { aiChatLibrary.sessions }
+
+    /// "The user can create a new AI session" — starts a blank conversation. The previous one (if
+    /// it had any messages) is already saved on disk from its own last message, so nothing is
+    /// lost; this just stops appending to it.
+    func startNewChatSession() {
+        stopAssistantMessage()
+        assistantPendingAction = nil
+        isAssistantThinking = false
+        currentChatSessionID = nil
+        isLoadingChatSession = true
+        assistantMessages = []
+        isLoadingChatSession = false
+    }
+
+    /// "See the history recalling and continue a conversation" — reloads a previously saved chat
+    /// exactly where it left off, so sending a new message appends to that same saved file instead
+    /// of starting a fresh one.
+    func switchToChatSession(_ id: AIChatSession.ID) {
+        guard let session = aiChatLibrary.session(withID: id) else { return }
+        stopAssistantMessage()
+        assistantPendingAction = nil
+        isAssistantThinking = false
+        currentChatSessionID = session.id
+        isLoadingChatSession = true
+        assistantMessages = session.messages
+        isLoadingChatSession = false
+    }
+
+    /// Deletes a saved chat outright. Falls back to a blank new chat if it was the one currently
+    /// open, rather than leaving messages on screen for a conversation that no longer exists on
+    /// disk.
+    func deleteChatSession(_ id: AIChatSession.ID) {
+        aiChatLibrary.delete(id)
+        if currentChatSessionID == id {
+            startNewChatSession()
+        }
+    }
+
+    /// Renames a saved chat — the history list's own "Rename" action; doesn't require that chat to
+    /// be the one currently open.
+    func renameChatSession(_ id: AIChatSession.ID, to title: String) {
+        aiChatLibrary.rename(id, to: title)
     }
 
     /// The assistant's approximation of "the current page's content" — this app's pages are a
@@ -1606,12 +1685,14 @@ final class CameraManager {
 
     init(
         projectStore: ProjectStore = ProjectStore(), locationProvider: CoreLocationProvider = CoreLocationProvider(),
-        ollamaPlanner: OllamaPlanner = OllamaPlanner(baseURL: AppSettings.ollamaServerURL, model: AppSettings.ollamaModel)
+        ollamaPlanner: OllamaPlanner = OllamaPlanner(baseURL: AppSettings.ollamaServerURL, model: AppSettings.ollamaModel),
+        aiChatLibrary: AIChatLibrary = AIChatLibrary()
     ) {
         self.projectStore = projectStore
         self.locationProvider = locationProvider
         self.projectsLibrary = ProjectsLibrary(store: projectStore)
         self.ollamaPlanner = ollamaPlanner
+        self.aiChatLibrary = aiChatLibrary
         AstronomyKnowledgeBase.ensureDefaultsExist()
         refreshCameraList()
         // `activeProject` starts `nil` on every launch, full stop — there's no "resume last

@@ -1,9 +1,10 @@
 import Foundation
 
 /// One line of the sidebar assistant's conversation — `role` distinguishes which side of the
-/// chat wrote it, the same shape any chat UI needs.
-struct AssistantMessage: Identifiable, Equatable, Sendable {
-    enum Role: Equatable, Sendable {
+/// chat wrote it, the same shape any chat UI needs. `Codable` so a whole conversation can be
+/// persisted as part of an `AIChatSession`.
+struct AssistantMessage: Identifiable, Equatable, Sendable, Codable {
+    enum Role: Equatable, Sendable, Codable {
         case user
         case assistant
     }
@@ -11,6 +12,33 @@ struct AssistantMessage: Identifiable, Equatable, Sendable {
     var id = UUID()
     var role: Role
     var text: String
+}
+
+/// One saved AI conversation — "the user can create a new AI session and see the history,
+/// recalling and continuing a conversation." Persisted by `AIChatLibrary` as one JSON file per
+/// session, the same "small dataset, no database needed" shape `EquipmentSystem` already uses.
+struct AIChatSession: Identifiable, Equatable, Sendable, Codable {
+    var id = UUID()
+    var title: String
+    var createdDate: Date
+    var updatedDate: Date
+    var messages: [AssistantMessage]
+
+    /// `firstMessageText` (the conversation's first user message, if any yet) seeds an
+    /// auto-title — "Messier Marathon suggestions…" reads far better in a history list than
+    /// "New Chat 1", "New Chat 2". Renaming later (`AIChatLibrary.rename(_:to:)`) always wins
+    /// over this.
+    static func newSession(firstMessageText: String? = nil) -> AIChatSession {
+        let now = Date()
+        return AIChatSession(title: autoTitle(from: firstMessageText), createdDate: now, updatedDate: now, messages: [])
+    }
+
+    static func autoTitle(from text: String?) -> String {
+        guard let text else { return "New Chat" }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "New Chat" }
+        return trimmed.count > 40 ? String(trimmed.prefix(40)) + "…" : trimmed
+    }
 }
 
 /// Something the assistant wants to actually change, rather than just answer — always shown to
