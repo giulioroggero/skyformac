@@ -30,5 +30,7 @@
 	<string>Used for the optional all-sky/rig safety monitor, and to use an iPhone or other Continuity Camera/USB webcam as a live capture source (e.g. eyepiece afocal photography) — the ZWO ASI SDK path talks to ASI cameras directly over USB and doesn't need this permission.</string>
 	<key>NSCameraUseContinuityCameraDeviceType</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Used to tag a project or session with your observing location — recorded once per request, not tracked continuously, and only when you tap "Use Current Location."</string>
 </dict>
 </plist>

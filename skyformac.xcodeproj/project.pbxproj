@@ -60,6 +60,7 @@
 		82139E50DB9D90D78A54EEEE /* PolarAlignmentSolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675A55FA670A0F46DEA13428 /* PolarAlignmentSolverTests.swift */; };
 		824562588A54967510B43C37 /* messier.json in Resources */ = {isa = PBXBuildFile; fileRef = 641C33BB916938FB885F1453 /* messier.json */; };
 		B7C61F33C3CC1878AE0FD411 /* caldwell.json in Resources */ = {isa = PBXBuildFile; fileRef = 16543672876684614E3A17BE /* caldwell.json */; };
+		AF544BD4594F4990AED3122B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 392148FF8E1F44F886E731F8 /* PrivacyInfo.xcprivacy */; };
 		82E7FD4137BD27113C8C516B /* AllSkyMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC6E0E0C0F50079C03C013D8 /* AllSkyMonitorView.swift */; };
 		86FC232F65510B942E12093E /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8294B26F98035A7FF1A95728 /* CameraManager.swift */; };
 		890021C06EE5390F034AFAC1 /* CalibrationLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EBFCB3EEF2743F5F87DBE0 /* CalibrationLibrary.swift */; };
@@ -319,6 +320,7 @@
 		60759144D69321A911094B7E /* ExposureOptimizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExposureOptimizer.swift; sourceTree = "<group>"; };
 		641C33BB916938FB885F1453 /* messier.json */ = {isa = PBXFileReference; includeInIndex = 1; path = messier.json; sourceTree = "<group>"; };
 		16543672876684614E3A17BE /* caldwell.json */ = {isa = PBXFileReference; includeInIndex = 1; path = caldwell.json; sourceTree = "<group>"; };
+		392148FF8E1F44F886E731F8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		657EB226C032AB1BEA5B12E0 /* HFDCalculatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HFDCalculatorTests.swift; sourceTree = "<group>"; };
 		675A55FA670A0F46DEA13428 /* PolarAlignmentSolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PolarAlignmentSolverTests.swift; sourceTree = "<group>"; };
 		677FF3C30B5127A43DE05797 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -672,6 +674,7 @@
 			isa = PBXGroup;
 			children = (
 				57206D2F89E34EB8DEE0EFCE /* Info.plist */,
+				392148FF8E1F44F886E731F8 /* PrivacyInfo.xcprivacy */,
 				45347BEB6CA354F563145EEF /* skyformac.entitlements */,
 				677FF3C30B5127A43DE05797 /* Assets.xcassets */,
 				71EA5D50903AA8F57A1DD320 /* SkyCatalog */,
@@ -950,6 +953,7 @@
 				824562588A54967510B43C37 /* messier.json in Resources */,
 				43490D1033FA607BFEF52E50 /* bright_stars.json in Resources */,
 				B7C61F33C3CC1878AE0FD411 /* caldwell.json in Resources */,
+				AF544BD4594F4990AED3122B /* PrivacyInfo.xcprivacy in Resources */,
 				6E7AEC0C260D4688ABF71497 /* astro_catalog.sqlite in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -2,11 +2,34 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	App Sandbox stays OFF for now — see docs/app-store-readiness.md. Turning it on changes
+	where FileManager's own `.documentDirectory` points (a private per-app container instead
+	of the real ~/Documents), which would silently orphan any existing user's real
+	~/Documents/Skyformac Projects folder unless a migration/security-scoped-bookmark path is
+	built and tested first, and the ZWO ASI SDK's raw USB access hasn't been verified to work
+	under App Sandbox at all (no camera available in this environment to test with).
+	-->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
 	<key>com.apple.security.device.usb</key>
 	<true/>
+	<!--
+	Required for the ZWO ASI SDK's own dylib (signed with ZWO's certificate, not this app's) to
+	load at all — a real App Store review risk if App Sandbox is ever turned on; see
+	docs/app-store-readiness.md.
+	-->
 	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<!--
+	Inert while App Sandbox is off, above — added now so both entitlements are already in place
+	the moment sandboxing is actually turned on. Network client: the AI panel's Ollama server
+	connection (typically localhost, but user-configurable). Files user-selected: the custom
+	Projects/Equipment/Knowledge/AI Chats folder pickers in Settings.
+	-->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 </dict>
 </plist>
