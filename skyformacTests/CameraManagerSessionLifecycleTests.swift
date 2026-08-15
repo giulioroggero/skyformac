@@ -193,4 +193,33 @@ struct CameraManagerSessionLifecycleTests {
         #expect(manager.pendingAcquisitionPreset != nil)
         #expect(manager.pendingAcquisitionPreset?.targetID == AcquisitionTarget.deepSky(.m13).id)
     }
+
+    // MARK: - Disconnect-path session cleanup (handleCameraRemoved/handleWebcamDisconnected)
+
+    /// A ZWO camera being unplugged mid-session used to leave a stale Lucky Imaging burst and a
+    /// live-view-paused flag behind — reconnecting could then resume into what looked like an
+    /// already-running burst from before, rather than a clean slate. `handleCameraRemoved()` now
+    /// shares the same session-reset logic `disconnect()` always used.
+    @Test func handleCameraRemovedClearsTheLuckyImagingSessionAndResetsLiveView() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.startLuckyImagingBurst(frameCount: 20)
+        #expect(manager.luckyImagingSession != nil)
+
+        manager.handleCameraRemoved()
+
+        #expect(manager.luckyImagingSession == nil)
+        #expect(manager.isLiveViewActive)
+        #expect(manager.currentFrame == nil)
+    }
+
+    @Test func handleCameraRemovedClearsSmartLiveStackState() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.isSmartLiveStackEnabled = true
+
+        manager.handleCameraRemoved()
+
+        #expect(!manager.isSmartLiveStackEnabled)
+    }
 }

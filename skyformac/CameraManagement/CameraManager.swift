@@ -1862,8 +1862,7 @@ final class CameraManager {
     private func handleWebcamDisconnected() {
         webcamEngine?.stop()
         webcamEngine = nil
-        currentImage = nil
-        currentFrame = nil
+        resetCaptureSessionState()
         connectionState = .error("Camera disconnected")
         lastErrorMessage = "The camera was disconnected."
         connectedCamera = nil
@@ -3340,23 +3339,23 @@ final class CameraManager {
         }
     }
 
-    func disconnect() {
-        if let name = connectedCamera?.name {
-            AppLog.shared.log("Disconnected from \(name)")
-        }
-        frameConsumerTask?.cancel()
-        frameConsumerTask = nil
+    /// Everything about the *current capture session* — recording, live stack, lucky imaging,
+    /// every background analysis task, ROI, polar alignment, cloud sentinel — reset regardless of
+    /// *why* the camera stopped being usable (an explicit Disconnect, a ZWO camera unplugged, or a
+    /// webcam disconnecting). Previously only `disconnect()` did all of this; `handleCameraRemoved()`
+    /// and `handleWebcamDisconnected()` each did only a small subset, so unplugging a camera mid-
+    /// SER/FITS recording and reconnecting could resume writing the *new* camera's frames into the
+    /// *old*, never-finalized recording (stale `serWriter`/`isRecordingSERVideo`, no header/trailer
+    /// patch), or leave a stale live-stack/lucky-imaging session hanging around. Deliberately
+    /// excludes anything genuinely specific to *how* the camera stopped (which engine to tear down,
+    /// `connectionState`'s exact value, which camera list to refresh) — those stay in each caller.
+    private func resetCaptureSessionState() {
         captureROIWidth = nil
         captureROIHeight = nil
         captureROICenterX = nil
         captureROICenterY = nil
         captureROIAppliedStartX = nil
         captureROIAppliedStartY = nil
-        diagnosticsPollTask?.cancel()
-        diagnosticsPollTask = nil
-        droppedFrameCount = nil
-        gainOffsetPresets = nil
-        lmhGainOffsetPresets = nil
         if isRecordingSERVideo { stopSERRecording() }
         cancelIPhoneNightModeCapture()
         isWebcamFocusLocked = false
@@ -3375,8 +3374,6 @@ final class CameraManager {
         catalogFetchTask?.cancel()
         catalogFetchTask = nil
         liveWCS = nil
-        webcamEngine?.stop()
-        webcamEngine = nil
         isLiveViewActive = true
         isCapturingExposure = false
         currentImage = nil
@@ -3403,6 +3400,22 @@ final class CameraManager {
         maxObservedSharpness = 0
         // Deliberately NOT clearing darkFrame/isDarkSubtractionEnabled — a captured dark frame
         // is reusable across a reconnect of the same camera/settings.
+    }
+
+    func disconnect() {
+        if let name = connectedCamera?.name {
+            AppLog.shared.log("Disconnected from \(name)")
+        }
+        frameConsumerTask?.cancel()
+        frameConsumerTask = nil
+        diagnosticsPollTask?.cancel()
+        diagnosticsPollTask = nil
+        droppedFrameCount = nil
+        gainOffsetPresets = nil
+        lmhGainOffsetPresets = nil
+        resetCaptureSessionState()
+        webcamEngine?.stop()
+        webcamEngine = nil
         if connectedCamera?.cameraID ?? -1 >= 0 {
             let engine = captureEngine
             Task {
@@ -3436,18 +3449,18 @@ final class CameraManager {
     func handleCameraRemoved() {
         frameConsumerTask?.cancel()
         frameConsumerTask = nil
-        currentImage = nil
+        diagnosticsPollTask?.cancel()
+        diagnosticsPollTask = nil
+        droppedFrameCount = nil
+        gainOffsetPresets = nil
+        lmhGainOffsetPresets = nil
+        resetCaptureSessionState()
         connectionState = .error(ZWOError.cameraRemoved.description)
         lastErrorMessage = ZWOError.cameraRemoved.description
         captureEngine = nil
         connectedCamera = nil
         controls = []
         controlValues = [:]
-        diagnosticsPollTask?.cancel()
-        diagnosticsPollTask = nil
-        droppedFrameCount = nil
-        gainOffsetPresets = nil
-        lmhGainOffsetPresets = nil
         refreshCameraList()
     }
 }
