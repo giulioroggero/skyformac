@@ -449,5 +449,8 @@ GPLv3 — see [`LICENSE.md`](LICENSE.md), including the additional permission
 closed-source camera driver SDKs. The vendored ZWO ASI Camera SDK under
 `Vendor/ZWO/` (`ASICamera2.h`, `libASICamera2.dylib`) is proprietary
 third-party software, © ZWO Co., Ltd., under its own SDK terms, used here
-under that permission — see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
-for the full notice.
+under that permission. The bundled Messier/Caldwell/bright-star catalog
+(`skyformac/Resources/SkyCatalog/`) is a small extracted subset of the
+[Stellarium](https://stellarium.org) project's own DSO catalog and
+object-name data (GPLv2) — see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+for both full notices.
