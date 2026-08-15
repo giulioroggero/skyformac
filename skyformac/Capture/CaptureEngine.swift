@@ -55,6 +55,13 @@ actor CaptureEngine {
 
     private var continuation: AsyncStream<CapturedFrame>.Continuation?
     private var onCameraRemoved: (@Sendable () -> Void)?
+    /// Fires for any `pollLoop` error that isn't `.timeout` (expected, retried silently) or
+    /// `.cameraRemoved` (its own callback, which also forgets the camera) — e.g. a flaky USB link
+    /// returning a general SDK error mid-stream. Without this, `pollLoop` used to just quietly end
+    /// the stream: the caller's `for await` loop exited with nothing after it, `isLiveViewActive`
+    /// stayed `true`, and no error ever surfaced — the app looked like it was still streaming while
+    /// producing nothing, with no way to recover short of a full disconnect/reconnect.
+    private var onStreamError: (@Sendable (Error) -> Void)?
 
     init(camera: ZWOCameraInfo) {
         self.camera = camera
@@ -113,8 +120,14 @@ actor CaptureEngine {
     /// Live frame stream for the currently-connected camera. Consuming code (the renderer)
     /// should iterate this with `for await`; frames stop arriving once `stop()` is called.
     /// `onCameraRemoved` fires (off the actor) if a poll reports `ASI_ERROR_CAMERA_REMOVED`.
-    func frames(onCameraRemoved: @escaping @Sendable () -> Void) -> AsyncStream<CapturedFrame> {
+    /// `onStreamError` fires for any other real error the poll loop hits (not a `.timeout`, which
+    /// is expected and retried silently) — see its own doc comment for why this exists separately.
+    func frames(
+        onCameraRemoved: @escaping @Sendable () -> Void,
+        onStreamError: @escaping @Sendable (Error) -> Void
+    ) -> AsyncStream<CapturedFrame> {
         self.onCameraRemoved = onCameraRemoved
+        self.onStreamError = onStreamError
         return AsyncStream { continuation in
             self.continuation = continuation
         }
@@ -369,8 +382,10 @@ actor CaptureEngine {
                 onCameraRemoved?()
                 break
             } catch {
-                // Any other SDK error: stop cleanly rather than spinning on a broken capture.
+                // Any other SDK error: stop cleanly rather than spinning on a broken capture, but
+                // tell the caller *why* — see `onStreamError`'s own doc comment.
                 isRunning = false
+                onStreamError?(error)
                 break
             }
         }

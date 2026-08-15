@@ -2021,9 +2021,14 @@ final class CameraManager {
     /// `imageType` (RAW8 by default; Milestone 4 adds RAW16 for higher dynamic range).
     private func startPreview(using engine: CaptureEngine, imageType: ASI_IMG_TYPE = ASI_IMG_RAW8) async {
         isLiveViewActive = true
-        let stream = await engine.frames { [weak self] in
-            Task { @MainActor in self?.handleCameraRemoved() }
-        }
+        let stream = await engine.frames(
+            onCameraRemoved: { [weak self] in
+                Task { @MainActor in self?.handleCameraRemoved() }
+            },
+            onStreamError: { [weak self] error in
+                Task { @MainActor in self?.handleStreamError(error) }
+            }
+        )
         frameConsumerTask = Task { [weak self] in
             for await frame in stream {
                 guard let self else { return }
@@ -3443,6 +3448,32 @@ final class CameraManager {
         } catch {
             lastErrorMessage = String(describing: error)
         }
+    }
+
+    /// Called by `CaptureEngine` when the background poll loop hits any error other than the
+    /// camera being physically removed (that's `handleCameraRemoved`, which also forgets the
+    /// camera entirely) — e.g. a flaky USB link returning a general SDK error mid-stream.
+    /// Previously the poll loop just quietly ended the stream here: `isLiveViewActive` stayed
+    /// `true` (so "Resume Live View" — only shown when it's `false` — never appeared) and no error
+    /// was ever shown, leaving the app looking like it was still streaming while producing
+    /// nothing. The stream is genuinely dead either way, so recording/live-stack/lucky-imaging
+    /// state gets the same reset a full disconnect would give it (see
+    /// `resetCaptureSessionState()` — leaving a recording "in progress" while no frames arrive is
+    /// exactly the corrupted-file bug that reset exists to prevent), but unlike
+    /// `handleCameraRemoved`, `connectedCamera`/`captureEngine`/`controls` are left alone — the
+    /// camera may well still be physically present and responsive, so "Resume Live View" can
+    /// retry without a full reconnect.
+    private func handleStreamError(_ error: Error) {
+        frameConsumerTask?.cancel()
+        frameConsumerTask = nil
+        resetCaptureSessionState()
+        // `resetCaptureSessionState()` sets `isLiveViewActive = true` (the right default after a
+        // full disconnect, ready for the next connect) — override back to `false` here so the
+        // "Resume Live View" affordance actually shows up, matching `startPreview`'s own failure
+        // path just below.
+        isLiveViewActive = false
+        lastErrorMessage = String(describing: error)
+        connectionState = .error(String(describing: error))
     }
 
     /// Called by `CaptureEngine` when a background call reports `ASI_ERROR_CAMERA_REMOVED`.
