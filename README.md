@@ -89,6 +89,33 @@ can't do as directly:
 - A ZWO ASI camera connected over USB, or a webcam/iPhone — see
   [Connecting a camera](#connecting-a-camera) below for what to do without either.
 
+## Installing a downloaded release
+
+The [GitHub releases](https://github.com/giulioroggero/skyformac/releases) and
+the [website](https://giulioroggero.github.io/skyformac-website/) both ship a
+`skyformac-vX.Y.Z-macOS.zip`. Skyformac isn't notarized by Apple yet (that
+needs a paid Apple Developer Program membership — see
+[docs/distribution.md](docs/distribution.md)), so the first time you open it
+macOS Gatekeeper will refuse to launch it and say it "cannot be opened because
+the developer cannot be verified" (or, once a browser has quarantined the
+download, "is damaged and can't be opened").
+
+The zip includes a `Fix Gatekeeper Warning.command` file alongside
+`skyformac.app` to clear this automatically:
+
+1. Unzip the download.
+2. Double-click `Fix Gatekeeper Warning.command` (it opens a Terminal window,
+   clears the quarantine flag, and closes on its own).
+3. Double-click `skyformac.app` — it now opens normally.
+
+If macOS still won't run the script itself, right-click it, choose **Open**,
+then confirm **Open** in the dialog — the same one-time trust step as any
+unsigned app. You can also do the fix by hand from Terminal:
+
+```
+xattr -dr com.apple.quarantine skyformac.app
+```
+
 ## Building and running
 
 ```
