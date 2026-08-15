@@ -342,7 +342,20 @@ final class CameraManager {
     /// Shown by default — "a chat on the right bar of all pages," not something buried behind a
     /// menu item the user has to discover first. `RootView` reads this (alongside `isAssistant
     /// Minimized`/`isAssistantDetached`) to decide whether/how to show `AssistantChatPanel`.
-    var isAssistantPanelVisible = true
+    ///
+    /// The `didSet` re-forces `isAssistantDetached = true` when the panel becomes visible again
+    /// while a camera session is active — `syncAssistantDockStateForCameraMode()` only forces
+    /// that on the `activeSession` nil↔non-nil *transition*, so closing the detached panel during
+    /// camera mode (which resets `isAssistantDetached` to `false` via the floating window's own
+    /// `windowWillClose` callback — see `RootView`) and then reopening it from the menu bar's own
+    /// "AI" toggle, still in camera mode, left neither the embedded-sidebar condition nor the
+    /// detached-panel condition true — the panel silently failed to reappear at all.
+    var isAssistantPanelVisible = true {
+        didSet {
+            guard isAssistantPanelVisible, !oldValue, activeSession != nil else { return }
+            isAssistantDetached = true
+        }
+    }
     var isAssistantMinimized = false
     /// When `true`, `RootView` hosts the panel in a floating `AssistantChatPanelController`
     /// (an `NSPanel`, the same "detach" mechanism `HistogramCurvesPanelController` already uses)
@@ -659,6 +672,19 @@ final class CameraManager {
     /// gain. `ingest()` consumes this exactly once, auto-stretching from the first real frame's
     /// own histogram (`DisplayStretch.autoStretch`) as soon as one arrives.
     private var pendingAutoStretch = false
+    /// Throttles the periodic Live Stack re-stretch below — `nil` right after (re)starting a
+    /// stack, so the very first check re-stretches immediately rather than waiting a full
+    /// interval.
+    private var lastLiveStackAutoStretchDate: Date?
+    /// How often `ingest()` re-derives the display stretch from the *accumulated* (averaged)
+    /// frame while Live Stack is running, rather than the once-per-connection stretch computed
+    /// from a single noisy frame at `pendingAutoStretch` time. "I don't see the image become
+    /// bright" during Live Stack: averaging genuinely doesn't change mean brightness (only noise),
+    /// but a stretch frozen at the very first frame's histogram also never lets the *now-cleaner*
+    /// accumulated image's own black/white points adapt — so it can look static even as SNR
+    /// actually improves underneath. Every 5s is fast enough to feel responsive without recomputing
+    /// a histogram (and, on the GPU path, reading the accumulator back to the CPU) every frame.
+    private static let liveStackAutoStretchInterval: TimeInterval = 5
 
     /// `true` while continuously polling video frames; `false` while showing a still frame
     /// from `captureSingleExposure`.
@@ -817,14 +843,30 @@ final class CameraManager {
     // well-understood, verifiable classical technique instead. Wavelet sharpening is a real
     // 2-level à trous decomposition (RegiStax-style multiscale sharpening). Both have a Metal
     // path (`Shaders.metal`, used when `useMetalRenderer`) and a CPU fallback (`ImageEnhancer`).
+    // The `refreshCurrentImage()` call in each of these three `didSet`s is the CPU-render-path
+    // fix for "enhancement applied to the next frame, not the last visible one": `scheduleCPU
+    // EnhancementIfNeeded` was previously only ever invoked from `refreshCurrentImage()`, which
+    // itself only ran when a brand-new frame arrived via `ingest` — so toggling/adjusting denoise
+    // or sharpening had no visible effect on the frame already on screen until the next capture
+    // happened to arrive. Re-running it here re-processes the same `currentFrame` immediately.
+    // A no-op with no camera connected/no frame yet (`refreshCurrentImage` guards on both).
     var isDenoisingEnabled = AppSettings.isDenoisingEnabled {
-        didSet { AppSettings.isDenoisingEnabled = isDenoisingEnabled }
+        didSet {
+            AppSettings.isDenoisingEnabled = isDenoisingEnabled
+            refreshCurrentImage()
+        }
     }
     var isWaveletSharpeningEnabled = AppSettings.isWaveletSharpeningEnabled {
-        didSet { AppSettings.isWaveletSharpeningEnabled = isWaveletSharpeningEnabled }
+        didSet {
+            AppSettings.isWaveletSharpeningEnabled = isWaveletSharpeningEnabled
+            refreshCurrentImage()
+        }
     }
     var waveletSharpenAmount: Double = AppSettings.waveletSharpenAmount {
-        didSet { AppSettings.waveletSharpenAmount = waveletSharpenAmount }
+        didSet {
+            AppSettings.waveletSharpenAmount = waveletSharpenAmount
+            refreshCurrentImage()
+        }
     }
 
     /// "Live GPU Enhancement Controls" (specs/skyformac_GPU_Live_Controls_Spec.md) — a separate,
@@ -946,6 +988,7 @@ final class CameraManager {
             smartStackRejectedCount = 0
             smartStackLastRejectionReason = nil
             smartStackMaxObservedScore = 0
+            lastLiveStackAutoStretchDate = nil
             if !isLiveStackingEnabled { isSmartLiveStackEnabled = false }
         }
     }
@@ -966,6 +1009,7 @@ final class CameraManager {
         smartStackRejectedCount = 0
         smartStackLastRejectionReason = nil
         smartStackMaxObservedScore = 0
+        lastLiveStackAutoStretchDate = nil
     }
 
     // MARK: - Smart Live Stack (autopilot: live-curates which frames actually join the stack)
@@ -2310,6 +2354,22 @@ final class CameraManager {
             currentFrame = liveStacker.currentAverage() ?? processed
         } else {
             currentFrame = processed
+        }
+
+        if isLiveStackingEnabled, !effectiveLiveStackPaused {
+            let restretchNow = Date()
+            if lastLiveStackAutoStretchDate == nil
+                || restretchNow.timeIntervalSince(lastLiveStackAutoStretchDate!) >= Self.liveStackAutoStretchInterval {
+                lastLiveStackAutoStretchDate = restretchNow
+                // The averaged frame, not the raw one just ingested — on the CPU path `currentFrame`
+                // already is that average (see just above); on the GPU path the accumulation lives
+                // entirely inside `MetalFrameRenderer`, reachable only via the same
+                // `gpuAccumulatedFrameProvider` readback `frameForExport()` uses.
+                let stackedFrame = usesCPUStack ? currentFrame : gpuAccumulatedFrameProvider?(selectedImageType)
+                if let stackedFrame, let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: stackedFrame)) {
+                    stretch = auto
+                }
+            }
         }
 
         // Rate-limits the *visible* refresh (this is what drives `MetalPreviewView`'s per-frame

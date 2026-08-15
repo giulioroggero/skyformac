@@ -152,4 +152,29 @@ struct CameraManagerAssistantTests {
 
         #expect(!manager.isAssistantPanelVisible)
     }
+
+    @Test func reopeningThePanelWhileStillInCameraModeShowsItDetachedAgain() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.isAssistantPanelVisible = true
+        manager.isAssistantDetached = false
+        let (project, session) = makeProjectWithSession()
+        manager.setActive(project: project, session: session)
+        #expect(manager.isAssistantDetached) // sanity: entered camera mode detached
+
+        // The detached panel's own Close button sets isAssistantPanelVisible = false and (via its
+        // floating window's own close callback) isAssistantDetached = false too — simulated here
+        // directly since that second part happens through AssistantChatPanelController/RootView,
+        // not CameraManager itself.
+        manager.isAssistantPanelVisible = false
+        manager.isAssistantDetached = false
+
+        // Reopening from the menu bar's "AI" toggle, still in camera mode — this used to leave
+        // isAssistantDetached false, matching neither RootView's embedded-sidebar condition (which
+        // requires activeSession == nil) nor its detached-panel condition (which requires
+        // isAssistantDetached), so the panel silently never reappeared at all.
+        manager.isAssistantPanelVisible = true
+
+        #expect(manager.isAssistantDetached)
+    }
 }

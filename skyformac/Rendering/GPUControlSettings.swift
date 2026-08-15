@@ -3,7 +3,7 @@ import Foundation
 /// Plain value snapshot of `GPUControlSettings`, threaded through `MetalPreviewView.pendingUpdate`
 /// into `MetalFrameRenderer` — mirrors how `sharpenAmount`/`isDenoisingEnabled` etc. are already
 /// passed as primitives rather than handing the renderer a live `@Observable` reference.
-struct GPULiveControlsSnapshot: Sendable {
+struct GPULiveControlsSnapshot: Equatable, Sendable {
     var isEnabled: Bool
     var temporalAlpha: Float
     var spatialSigma: Float

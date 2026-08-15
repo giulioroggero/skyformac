@@ -1469,12 +1469,28 @@ struct MetalPreviewView: NSViewRepresentable {
             renderer.resetTemporalAccumulator()
         }
 
-        guard let camera = cameraManager.connectedCamera,
-              let frame = cameraManager.currentFrame,
-              context.coordinator.lastRenderedFrameID != cameraManager.frameID
-        else { return }
+        guard let camera = cameraManager.connectedCamera, let frame = cameraManager.currentFrame else { return }
+
+        // Re-render whenever a genuinely new frame arrives (`frameID` changed) OR when the
+        // enhancement settings themselves changed since the last render — previously this only
+        // checked `frameID`, so adjusting a Live GPU Enhancement/denoise/sharpen/stretch control
+        // had no visible effect until the *next* captured frame happened to arrive, rather than
+        // applying immediately to the frame currently on screen ("applied to the last visible and
+        // not to the next one being acquired").
+        let signature = EnhancementSignature(
+            stretch: cameraManager.stretch,
+            channelStretch: cameraManager.effectiveChannelStretch,
+            isDenoisingEnabled: cameraManager.isDenoisingEnabled,
+            isWaveletSharpeningEnabled: cameraManager.isWaveletSharpeningEnabled,
+            sharpenAmount: Float(cameraManager.waveletSharpenAmount),
+            liveGPUControls: cameraManager.gpuControls.snapshot
+        )
+        let frameChanged = context.coordinator.lastRenderedFrameID != cameraManager.frameID
+        let settingsChanged = context.coordinator.lastAppliedSignature != signature
+        guard frameChanged || settingsChanged else { return }
 
         context.coordinator.lastRenderedFrameID = cameraManager.frameID
+        context.coordinator.lastAppliedSignature = signature
         renderer.pendingUpdate = (
             frame: frame,
             isColorCamera: camera.isColorCamera,
@@ -1495,9 +1511,24 @@ struct MetalPreviewView: NSViewRepresentable {
         nsView.setNeedsDisplay(nsView.bounds)
     }
 
+    /// The subset of enhancement-affecting settings worth re-rendering the *current* frame for
+    /// the instant they change, rather than waiting for the next captured frame — deliberately
+    /// excludes `streakMask`/`toneCurves`/`meshDriftConfig` (not cheaply `Equatable`, and not what
+    /// was actually reported as laggy) and live-stack toggles (their own state change already
+    /// comes with a real new accumulated frame each time, so there's nothing stale to re-apply).
+    fileprivate struct EnhancementSignature: Equatable {
+        var stretch: DisplayStretch
+        var channelStretch: PerChannelStretch
+        var isDenoisingEnabled: Bool
+        var isWaveletSharpeningEnabled: Bool
+        var sharpenAmount: Float
+        var liveGPUControls: GPULiveControlsSnapshot
+    }
+
     final class Coordinator {
         var renderer: MetalFrameRenderer?
         var lastRenderedFrameID: UInt64?
         var lastSeenStackGeneration = 0
+        fileprivate var lastAppliedSignature: EnhancementSignature?
     }
 }
