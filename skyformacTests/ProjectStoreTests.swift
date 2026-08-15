@@ -100,6 +100,68 @@ struct ProjectStoreTests {
         #expect(reloaded?.sessions.count == 1)
     }
 
+    @Test func moveSessionRelocatesItsFolderAndUpdatesBothProjects() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var source = Project.newProject(name: "Source Project")
+        var destination = Project.newProject(name: "Destination Project")
+        let session = Session.newSession(name: "Night One")
+        source.sessions = [session]
+        try store.save(source)
+        try store.save(destination)
+
+        let oldSessionFolder = store.sessionFolderURL(for: session, in: source)
+        try Data("capture bytes".utf8).write(to: oldSessionFolder.appendingPathComponent("capture.fits"))
+
+        try store.moveSession(session.id, from: &source, to: &destination)
+
+        #expect(source.sessions.isEmpty)
+        #expect(destination.sessions.count == 1)
+        #expect(destination.sessions.first?.id == session.id)
+
+        let newSessionFolder = store.sessionFolderURL(for: session, in: destination)
+        #expect(!FileManager.default.fileExists(atPath: oldSessionFolder.path))
+        #expect(FileManager.default.fileExists(atPath: newSessionFolder.appendingPathComponent("capture.fits").path))
+
+        let reloaded = store.loadAllProjects()
+        #expect(reloaded.first { $0.id == source.id }?.sessions.isEmpty == true)
+        #expect(reloaded.first { $0.id == destination.id }?.sessions.count == 1)
+    }
+
+    @Test func moveSessionIsANoOpWhenTheSessionIsntInTheSourceProject() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var source = Project.newProject(name: "Source Project")
+        var destination = Project.newProject(name: "Destination Project")
+        try store.save(source)
+        try store.save(destination)
+
+        try store.moveSession(UUID(), from: &source, to: &destination)
+
+        #expect(source.sessions.isEmpty)
+        #expect(destination.sessions.isEmpty)
+    }
+
+    @Test func moveSessionThrowsWhenTheDestinationFolderAlreadyExists() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var source = Project.newProject(name: "Source Project")
+        var destination = Project.newProject(name: "Destination Project")
+        let session = Session.newSession(name: "Night One")
+        source.sessions = [session]
+        try store.save(source)
+        try store.save(destination)
+        // Pre-create a folder collision at the exact destination path the move would target.
+        try FileManager.default.createDirectory(at: store.sessionFolderURL(for: session, in: destination), withIntermediateDirectories: true)
+
+        #expect(throws: ProjectStore.MoveSessionError.self) {
+            try store.moveSession(session.id, from: &source, to: &destination)
+        }
+    }
+
     @Test func setArchivedPersists() throws {
         let (store, root) = makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

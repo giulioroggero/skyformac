@@ -153,6 +153,37 @@ final class ProjectStore {
         try save(project)
     }
 
+    enum MoveSessionError: Error {
+        /// Extremely unlikely given `Session.folderName` embeds a UUID prefix, but refused
+        /// outright rather than risking silently overwriting whatever's already there.
+        case destinationFolderAlreadyExists
+    }
+
+    /// Moves `sessionID` from `source` to `destination` — a real on-disk folder move (not
+    /// delete-then-recreate, so a failure partway through can't lose any captures), then updates
+    /// both projects' in-memory `sessions` arrays and re-saves both `project.json`s. `source`/
+    /// `destination` are updated in place so the caller doesn't need to re-derive which project is
+    /// which afterward. A no-op if `sessionID` isn't actually in `source`.
+    func moveSession(_ sessionID: UUID, from source: inout Project, to destination: inout Project) throws {
+        guard let index = source.sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        let session = source.sessions[index]
+        let sourceFolder = sessionFolderURL(for: session, in: source)
+        let destinationFolder = sessionFolderURL(for: session, in: destination)
+        guard !fileManager.fileExists(atPath: destinationFolder.path) else {
+            throw MoveSessionError.destinationFolderAlreadyExists
+        }
+
+        try fileManager.createDirectory(at: projectFolderURL(for: destination), withIntermediateDirectories: true)
+        if fileManager.fileExists(atPath: sourceFolder.path) {
+            try fileManager.moveItem(at: sourceFolder, to: destinationFolder)
+        }
+
+        source.sessions.remove(at: index)
+        destination.sessions.insert(session, at: 0)
+        try save(source)
+        try save(destination)
+    }
+
     // MARK: - Captures
 
     /// Copies `sourceURL` (wherever the actual export/recording was just written) into the

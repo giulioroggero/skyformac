@@ -176,4 +176,23 @@ struct ProjectsLibraryTests {
         try library.deleteSession(session.id, in: updated)
         #expect(library.projects.first?.sessions.isEmpty == true)
     }
+
+    @Test func moveSessionRelocatesItBetweenProjectsInMemoryToo() throws {
+        let (library, root) = makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = library.createProject(name: "Source")
+        try library.save(source)
+        let destination = library.createProject(name: "Destination")
+        try library.save(destination)
+        let session = Session.newSession(name: "Night 1")
+        let updatedSource = try library.addSession(session, to: source)
+
+        try library.moveSession(session.id, from: updatedSource, to: destination)
+
+        let reloadedSource = library.projects.first { $0.id == source.id }
+        let reloadedDestination = library.projects.first { $0.id == destination.id }
+        #expect(reloadedSource?.sessions.isEmpty == true)
+        #expect(reloadedDestination?.sessions.first?.id == session.id)
+    }
 }

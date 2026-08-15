@@ -126,6 +126,18 @@ final class ProjectsLibrary {
         replace(updated)
     }
 
+    /// Moves a session from one project to another — its on-disk folder (`session.json`, every
+    /// capture file, `Thumbnails/`) physically relocates to sit under the destination project's
+    /// own folder instead, via `ProjectStore.moveSession`, so nothing about the move is just an
+    /// in-memory relabeling. Both projects' in-memory copies are replaced afterward.
+    func moveSession(_ sessionID: UUID, from sourceProject: Project, to destinationProject: Project) throws {
+        var source = sourceProject
+        var destination = destinationProject
+        try store.moveSession(sessionID, from: &source, to: &destination)
+        replace(source)
+        replace(destination)
+    }
+
     /// Adds `session` to `project` and saves — the one entry point both the "new session" button
     /// and the AI planner's "create the sessions it suggested" flow go through.
     @discardableResult

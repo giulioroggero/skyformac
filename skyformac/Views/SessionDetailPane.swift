@@ -25,9 +25,18 @@ struct SessionDetailPane: View {
     @State private var isPlanningSession = false
     @State private var isCreatingSessionFromThis = false
     @State private var isDescribingSession = false
+    @State private var isMovingToProject = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     private var isActive: Bool { cameraManager.activeSession?.id == session.id }
+    /// "Move to Project…"'s own candidate list — every other active project, alphabetically;
+    /// excludes the current one (nothing to move to) and archived/deleted projects (not
+    /// realistically where anyone wants to relocate a session they're actively looking at).
+    private var otherProjects: [Project] {
+        library.activeProjects
+            .filter { $0.id != project.id && !$0.isArchived }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
 
     init(
         project: Project, session: Session, cameraManager: CameraManager,
@@ -152,6 +161,8 @@ struct SessionDetailPane: View {
                         Button("Archive Session", systemImage: "archivebox") {
                             try? library.setArchived(true, forSessionID: session.id, in: project)
                         }
+                        Button("Move to Project…", systemImage: "folder") { isMovingToProject = true }
+                            .disabled(otherProjects.isEmpty)
                         Button("Delete Session", systemImage: "trash", role: .destructive) {
                             try? library.deleteSession(session.id, in: project)
                         }
@@ -176,6 +187,15 @@ struct SessionDetailPane: View {
         }
         .sheet(isPresented: $isPlanningSession) {
             AIPlanSessionSheet(project: project, session: session, cameraManager: cameraManager)
+        }
+        .sheet(isPresented: $isMovingToProject) {
+            MoveSessionToProjectSheet(candidates: otherProjects) { destination in
+                try? library.moveSession(session.id, from: project, to: destination)
+                // The session no longer belongs to `project` — this page's own route is now
+                // stale, so pop back to the (still-valid) Project page rather than keep showing
+                // a session that isn't there anymore.
+                onBack()
+            }
         }
         .sheet(isPresented: $isCreatingSessionFromThis) {
             NewSessionFromExistingSheet(session: session) { name, plannedDate in
@@ -340,5 +360,42 @@ private struct NewSessionFromExistingSheet: View {
         guard !trimmedName.isEmpty else { return }
         onCreate(trimmedName, hasPlannedDate ? plannedDate : nil)
         dismiss()
+    }
+}
+
+/// "Move to Project…" — a plain pick-one list rather than a full project browser, since the
+/// only decision here is *which* project, not any of that project's own details.
+private struct MoveSessionToProjectSheet: View {
+    let candidates: [Project]
+    var onMove: (Project) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Move Session to Project").font(.headline).padding()
+            Divider()
+            List(candidates) { candidate in
+                Button {
+                    onMove(candidate)
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(candidate.name.isEmpty ? "Untitled Project" : candidate.name)
+                        Spacer()
+                        Text("\(candidate.sessions.count) session\(candidate.sessions.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            Divider()
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+            .padding()
+        }
+        .frame(width: 360, height: 420)
     }
 }
