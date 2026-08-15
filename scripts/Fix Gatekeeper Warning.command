@@ -28,5 +28,16 @@ fi
 echo "==> Clearing the quarantine flag from \"$APP\"…"
 find "$APP" -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
 
+# Ad-hoc signing (no paid Apple Developer ID yet — see docs/distribution.md) means the app's
+# code signature changes on every release build, which can make macOS forget or stick to a
+# stale Camera permission decision from a previous version — showing "no permission" for the
+# iPhone/webcam source with no prompt to re-grant it, even though the ZWO ASI camera (which
+# doesn't need this permission at all) works fine. Resetting it here is harmless either way:
+# if it was already granted, this just makes macOS ask again next time you connect a webcam.
+echo "==> Resetting the Camera permission so macOS prompts for it fresh…"
+tccutil reset Camera com.giulioroggero.skyformac 2>/dev/null || true
+
 echo "==> Done. \"$APP\" should now open normally — double-click it in Finder."
+echo "    If you use the iPhone/webcam camera source, you'll be asked to allow Camera access"
+echo "    again the first time you connect it — that's expected."
 read -r -p "Press Return to close this window…"
