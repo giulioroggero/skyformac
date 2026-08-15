@@ -6,6 +6,12 @@
 
 <h1 align="center">Sky For Mac</h1>
 
+> **Status: still in active development.** No official release has been published yet.
+> Contributions are very welcome — testing against real cameras/mounts, feature proposals, code,
+> bug reports, anything. If you have ZWO (or other) camera or astro gear you'd be willing to lend
+> or send to the author for compatibility testing, that's especially appreciated — please reach
+> out via [Issues](https://github.com/giulioroggero/skyformac/issues).
+
 <p align="center">
   <a href="docs/features.md">Features</a> ·
   <a href="docs/architecture.md">Architecture</a> ·

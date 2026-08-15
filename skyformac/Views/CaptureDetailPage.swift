@@ -46,19 +46,35 @@ struct CaptureDetailPage: View {
                 PageSection {
                     HStack {
                         Spacer(minLength: 0)
-                        if let previewImage {
-                            Image(nsImage: previewImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxHeight: 480)
-                        } else {
-                            VStack(spacing: 8) {
-                                Image(systemName: capture.kind.icon).font(.system(size: 48)).foregroundStyle(.secondary)
-                                Text("No preview available for \(capture.kind.displayName) files")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        Group {
+                            if let previewImage {
+                                Image(nsImage: previewImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxHeight: 480)
+                            } else {
+                                VStack(spacing: 8) {
+                                    Image(systemName: capture.kind.icon).font(.system(size: 48)).foregroundStyle(.secondary)
+                                    Text("No preview available for \(capture.kind.displayName) files")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(height: 240)
                             }
-                            .frame(height: 240)
+                        }
+                        // Directly on/beside the image itself — not just the toolbar's own
+                        // Previous/Next Capture buttons, which sit far from what they're actually
+                        // stepping through — the same "step through siblings from right where
+                        // you're looking at one" idea as a standard photo browser.
+                        .overlay(alignment: .leading) {
+                            if let onPreviousCapture {
+                                captureStepButton(label: "Previous Capture", systemImage: "chevron.left", action: onPreviousCapture)
+                            }
+                        }
+                        .overlay(alignment: .trailing) {
+                            if let onNextCapture {
+                                captureStepButton(label: "Next Capture", systemImage: "chevron.right", action: onNextCapture)
+                            }
                         }
                         Spacer(minLength: 0)
                     }
@@ -78,8 +94,31 @@ struct CaptureDetailPage: View {
                         updatedProject.sessions[sessionIndex] = updatedSession
                         try? cameraManager.projectsLibrary.save(updatedProject)
                     }
-                    Button("Show in Finder", systemImage: "folder") {
-                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    HStack {
+                        // FITS gets the app's own real viewer (black/white-point stretch,
+                        // debayer) — nicer than whatever (if anything) the system associates
+                        // with the extension. Every other kind (SER, a continuous-recording
+                        // folder, PNG/TIFF) opens in whatever the system already handles it
+                        // with — "if it's not a capture image ... I want to see it" without
+                        // this app needing its own SER/video player.
+                        if capture.kind == .fits {
+                            Button("Open in Viewer", systemImage: "eye") {
+                                cameraManager.openExportedFile(fileURL)
+                            }
+                        } else {
+                            Button("Open", systemImage: "arrow.up.forward.app") {
+                                NSWorkspace.shared.open(fileURL)
+                            }
+                        }
+                        Button("Show in Finder", systemImage: "folder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                        }
+                    }
+                }
+
+                if let cameraSettingsStats {
+                    PageSection(title: "Camera Settings") {
+                        StatsGridView(stats: cameraSettingsStats)
                     }
                 }
 
@@ -110,6 +149,28 @@ struct CaptureDetailPage: View {
                 }
             }
         }
+        // FITS's "Open in Viewer" button (above) sets `cameraManager.viewingExportedFile` —
+        // `ContentView` already has the equivalent `.sheet` for the live camera view, but this
+        // page lives on the Projects-browsing side of the app (`ContentView` only exists while a
+        // session is active), so it needs its own.
+        .sheet(isPresented: Binding(
+            get: { cameraManager.viewingExportedFile != nil },
+            set: { if !$0 { cameraManager.viewingExportedFile = nil } }
+        )) {
+            ExportedFileViewerView(cameraManager: cameraManager)
+        }
+    }
+
+    @ViewBuilder
+    private func captureStepButton(label: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(label, systemImage: systemImage, action: action)
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .controlSize(.large)
+            .padding(10)
+            .background(.thinMaterial, in: Circle())
+            .padding(12)
+            .help(label)
     }
 
     private var fileStats: [StatItem] {
@@ -118,6 +179,36 @@ struct CaptureDetailPage: View {
             StatItem(label: "Kind", value: capture.kind.displayName),
             StatItem(label: "Date", value: capture.date.formatted(date: .abbreviated, time: .shortened)),
         ]
+    }
+
+    /// "All details about camera settings" for this specific capture — `nil` for a capture
+    /// recorded before `preset` existed (an older saved session), so the section itself just
+    /// doesn't show rather than showing a block of "—" placeholders.
+    private var cameraSettingsStats: [StatItem]? {
+        guard let preset = capture.preset else { return nil }
+        var stats = [StatItem(label: "Mode", value: preset.mode.label)]
+        if let gain = preset.gain { stats.append(StatItem(label: "Gain", value: "\(gain)")) }
+        if let exposureSeconds = preset.exposureSeconds {
+            let formatted = exposureSeconds.formatted(.number.precision(.fractionLength(0...3)))
+            stats.append(StatItem(label: "Exposure", value: "\(formatted)s"))
+        }
+        if let roiWidth = preset.roiWidth, let roiHeight = preset.roiHeight {
+            stats.append(StatItem(label: "ROI", value: "\(roiWidth)×\(roiHeight)"))
+        }
+        if preset.mode.usesLiveStack {
+            stats.append(StatItem(label: "Drift Reduction", value: preset.isDriftReductionEnabled ? "On" : "Off"))
+            stats.append(StatItem(label: "Smart Live Stack", value: preset.isSmartLiveStackEnabled ? "On" : "Off"))
+            if preset.isMeshDriftCorrectionEnabled == true {
+                stats.append(StatItem(label: "Mesh Drift Correction", value: "On"))
+            }
+        }
+        if let luckyBurstCount = preset.luckyBurstCount {
+            stats.append(StatItem(label: "Lucky Imaging Burst", value: "\(luckyBurstCount) frames"))
+        }
+        if let serDurationSeconds = preset.serDurationSeconds {
+            stats.append(StatItem(label: "SER Duration", value: "\(Int(serDurationSeconds))s"))
+        }
+        return stats
     }
 
     private var sessionContextStats: [StatItem] {

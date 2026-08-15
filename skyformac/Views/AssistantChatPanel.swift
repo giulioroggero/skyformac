@@ -88,20 +88,25 @@ struct AssistantChatPanel: View {
             if isDetachedWindow {
                 if canDock {
                     Button("Dock", systemImage: "pin.fill") { cameraManager.isAssistantDetached = false }
+                        .labelStyle(.iconOnly)
                         .buttonStyle(.borderless)
                         .help("Return the AI panel to the main window")
                 }
                 Button("Close", systemImage: "xmark") { cameraManager.isAssistantPanelVisible = false }
+                    .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .help("Hide the AI panel — reopen from the Skyformac menu")
             } else {
                 Button("Minimize", systemImage: "chevron.right") { cameraManager.isAssistantMinimized = true }
+                    .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .help("Collapse the AI panel to a thin rail")
                 Button("Detach", systemImage: "arrow.up.left.and.arrow.down.right") { cameraManager.isAssistantDetached = true }
+                    .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .help("Move the AI panel into its own floating window")
                 Button("Close", systemImage: "xmark") { cameraManager.isAssistantPanelVisible = false }
+                    .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .help("Hide the AI panel — reopen from the Skyformac menu")
             }
