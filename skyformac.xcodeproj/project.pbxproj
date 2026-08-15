@@ -132,6 +132,7 @@
 		336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */; };
 		0C760640A9B541049ABF8220 /* AIChatLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C69378FA454BEBA05177EE /* AIChatLibraryTests.swift */; };
 		BB91BB4248D7481EB70A0E62 /* ThumbnailCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AD039A6ED048AFB2646C82 /* ThumbnailCacheTests.swift */; };
+		A93435E3C6234349A1C9E57F /* CameraManagerAutoCaptureFilenameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF315211E9A5418D902AA839 /* CameraManagerAutoCaptureFilenameTests.swift */; };
 		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
 		98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */; };
 		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
@@ -273,6 +274,7 @@
 		711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerAssistantTests.swift; sourceTree = "<group>"; };
 		81C69378FA454BEBA05177EE /* AIChatLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatLibraryTests.swift; sourceTree = "<group>"; };
 		54AD039A6ED048AFB2646C82 /* ThumbnailCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailCacheTests.swift; sourceTree = "<group>"; };
+		AF315211E9A5418D902AA839 /* CameraManagerAutoCaptureFilenameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerAutoCaptureFilenameTests.swift; sourceTree = "<group>"; };
 		83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerOllamaConfigurationTests.swift; sourceTree = "<group>"; };
 		85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RatingAndFavoriteTests.swift; sourceTree = "<group>"; };
 		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
@@ -566,6 +568,7 @@
 				711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */,
 				81C69378FA454BEBA05177EE /* AIChatLibraryTests.swift */,
 				54AD039A6ED048AFB2646C82 /* ThumbnailCacheTests.swift */,
+				AF315211E9A5418D902AA839 /* CameraManagerAutoCaptureFilenameTests.swift */,
 				83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */,
 				85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */,
 				B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */,
@@ -1119,6 +1122,7 @@
 				336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */,
 				0C760640A9B541049ABF8220 /* AIChatLibraryTests.swift in Sources */,
 				BB91BB4248D7481EB70A0E62 /* ThumbnailCacheTests.swift in Sources */,
+				A93435E3C6234349A1C9E57F /* CameraManagerAutoCaptureFilenameTests.swift in Sources */,
 				5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */,
 				98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */,
 				063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */,

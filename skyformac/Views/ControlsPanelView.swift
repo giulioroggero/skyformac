@@ -1014,10 +1014,21 @@ struct ControlsPanelView: View {
                         .frame(width: 44, alignment: .leading)
                     Slider(value: $serRecordingDurationSeconds, in: 10...600, step: 10)
                 }
-                Button("Choose File & Start…") {
+                // Same "the app already organizes captures by session, don't also ask for a
+                // folder" reasoning as `CameraManager.exportCurrentFrame` — saves straight into
+                // the active session's own folder with an auto-generated object-date-time name.
+                // Falls back to the old save-panel behavior with no session to organize into.
+                Button(cameraManager.activeSession != nil ? "Start Recording" : "Choose File & Start…") {
+                    if let project = cameraManager.activeProject, let session = cameraManager.activeSession {
+                        let filename = CameraManager.autoCaptureFilename(object: session.plannedObjects.first, extension: "ser")
+                        let folder = cameraManager.projectStore.sessionFolderURL(for: session, in: project)
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        cameraManager.startSERRecording(to: folder.appendingPathComponent(filename), durationSeconds: serRecordingDurationSeconds)
+                        return
+                    }
                     let panel = NSSavePanel()
                     panel.allowedContentTypes = []
-                    panel.nameFieldStringValue = "capture.ser"
+                    panel.nameFieldStringValue = CameraManager.autoCaptureFilename(object: nil, extension: "ser")
                     panel.prompt = "Start Recording"
                     if panel.runModal() == .OK, let url = panel.url {
                         cameraManager.startSERRecording(to: url, durationSeconds: serRecordingDurationSeconds)

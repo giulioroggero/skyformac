@@ -239,10 +239,17 @@ final class ProjectStore {
         let sessionFolder = sessionFolderURL(for: session, in: project)
         try fileManager.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
         let destinationURL = sessionFolder.appendingPathComponent(sourceURL.lastPathComponent)
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            try? fileManager.removeItem(at: destinationURL)
+        // A caller that already wrote directly into the session's own folder (no separate
+        // NSSavePanel step — see `CameraManager.exportCurrentFrame`) passes a `sourceURL` that's
+        // already exactly `destinationURL`. Without this check, the "remove whatever's already
+        // at the destination" step just below would delete that same file out from under itself
+        // before `transfer` ever ran, leaving a `CaptureRecord` pointing at nothing.
+        if sourceURL.path != destinationURL.path {
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try? fileManager.removeItem(at: destinationURL)
+            }
+            try transfer(sourceURL, destinationURL)
         }
-        try transfer(sourceURL, destinationURL)
 
         var thumbnailFileName: String?
         if let thumbnail {

@@ -276,6 +276,34 @@ struct ProjectStoreTests {
         #expect(project.sessions.first?.captures.first?.kind == .serVideo)
     }
 
+    /// `CameraManager.exportCurrentFrame`/the SER "Start Recording" button now write directly
+    /// into the session's own folder (no `NSSavePanel`), so `sourceURL` and the computed
+    /// destination end up identical — this must not delete the file it's supposedly "replacing"
+    /// out from under itself before recording it.
+    @Test func recordCaptureSucceedsWhenTheSourceIsAlreadyAtTheDestination() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Already There Project")
+        let session = Session.newSession(name: "Already There Session")
+        project.sessions = [session]
+        try store.save(project)
+
+        let sessionFolder = store.sessionFolderURL(for: session, in: project)
+        try FileManager.default.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
+        let alreadyThereURL = sessionFolder.appendingPathComponent("M13-2026-08-15-120000.fits")
+        try Data([1, 2, 3]).write(to: alreadyThereURL)
+
+        let record = try store.recordCapture(
+            copyingFileAt: alreadyThereURL, kind: .fits, thumbnail: nil, into: session, project: &project
+        )
+
+        #expect(FileManager.default.fileExists(atPath: alreadyThereURL.path))
+        #expect(try Data(contentsOf: alreadyThereURL) == Data([1, 2, 3]))
+        #expect(record.fileName == "M13-2026-08-15-120000.fits")
+        #expect(project.sessions.first?.captures.first?.fileName == "M13-2026-08-15-120000.fits")
+    }
+
     @Test func recordCaptureStoresObjectLocationEquipmentAndPreset() throws {
         let (store, root) = makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

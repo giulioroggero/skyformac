@@ -2885,25 +2885,36 @@ final class CameraManager {
 
     // MARK: - Export
 
-    /// Presents a save panel and writes `currentFrame`/`currentImage` in the requested format:
-    /// FITS carries the raw (pre-debayer) sensor data — the standard way capture software
-    /// archives what the sensor actually saw; PNG/TIFF export the already-debayered, stretched
-    /// display image for quick sharing.
+    /// Writes `currentFrame`/`currentImage` in the requested format: FITS carries the raw
+    /// (pre-debayer) sensor data — the standard way capture software archives what the sensor
+    /// actually saw; PNG/TIFF export the already-debayered, stretched display image for quick
+    /// sharing.
+    ///
+    /// While a project/session is active, this saves straight into that session's own folder
+    /// with an auto-generated `<object>-<date>-<time>` name — no `NSSavePanel` folder picker at
+    /// all. The app already organizes every capture by project/session; asking the user to also
+    /// choose a folder here was a redundant step, not meaningful control, and it's exactly the
+    /// session folder `recordActiveSessionCapture` copies the file into anyway right afterward.
+    /// With no active session there's nowhere "already organized" to save into, so this falls
+    /// back to the old save-panel behavior (still with the same smarter default filename).
     func exportCurrentFrame(as kind: ExportKind) {
         guard currentFrame != nil else { return }
-        let panel = NSSavePanel()
-        switch kind {
-        case .fits:
-            panel.allowedContentTypes = [UTType(filenameExtension: "fits") ?? .data]
-            panel.nameFieldStringValue = "capture.fits"
-        case .png:
-            panel.allowedContentTypes = [.png]
-            panel.nameFieldStringValue = "capture.png"
-        case .tiff:
-            panel.allowedContentTypes = [.tiff]
-            panel.nameFieldStringValue = "capture.tiff"
+        let ext = Self.fileExtension(for: kind)
+        if let project = activeProject, let session = activeSession {
+            let filename = Self.autoCaptureFilename(object: session.plannedObjects.first, extension: ext)
+            let folder = projectStore.sessionFolderURL(for: session, in: project)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            finishExport(kind: kind, to: folder.appendingPathComponent(filename))
+            return
         }
 
+        let panel = NSSavePanel()
+        switch kind {
+        case .fits: panel.allowedContentTypes = [UTType(filenameExtension: "fits") ?? .data]
+        case .png: panel.allowedContentTypes = [.png]
+        case .tiff: panel.allowedContentTypes = [.tiff]
+        }
+        panel.nameFieldStringValue = Self.autoCaptureFilename(object: nil, extension: ext)
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             Task { @MainActor [weak self] in
@@ -2911,6 +2922,30 @@ final class CameraManager {
             }
         }
     }
+
+    private static func fileExtension(for kind: ExportKind) -> String {
+        switch kind {
+        case .fits: return "fits"
+        case .png: return "png"
+        case .tiff: return "tiff"
+        }
+    }
+
+    /// A default filename built from what's actually being captured — "M13-2026-08-15-213045.fits"
+    /// — rather than a generic "capture.fits", used both when saving straight into a session
+    /// folder (no dialog at all) and as the still-smarter default when a save panel is shown
+    /// (no active session to organize into).
+    static func autoCaptureFilename(object: String?, extension ext: String, date: Date = Date()) -> String {
+        let trimmedObject = object?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let objectPart = (trimmedObject?.isEmpty == false ? trimmedObject : nil) ?? "capture"
+        return "\(ProjectStore.sanitizeForFilename(objectPart))-\(autoCaptureFilenameDateFormatter.string(from: date)).\(ext)"
+    }
+
+    private static let autoCaptureFilenameDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        return formatter
+    }()
 
     private func finishExport(kind: ExportKind, to url: URL) {
         do {
