@@ -742,7 +742,7 @@ struct ProjectCard: View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8).fill(.quaternary)
-                if let thumbnailURL, let image = NSImage(contentsOf: thumbnailURL) {
+                if let thumbnailURL, let image = ThumbnailCache.image(at: thumbnailURL) {
                     Image(nsImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)

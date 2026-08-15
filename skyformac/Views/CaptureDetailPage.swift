@@ -34,9 +34,9 @@ struct CaptureDetailPage: View {
     private var previewImage: NSImage? {
         switch capture.kind {
         case .png, .tiff:
-            return NSImage(contentsOf: fileURL) ?? thumbnailURL.flatMap(NSImage.init(contentsOf:))
+            return ThumbnailCache.image(at: fileURL) ?? thumbnailURL.flatMap(ThumbnailCache.image(at:))
         case .fits, .serVideo, .recording:
-            return thumbnailURL.flatMap(NSImage.init(contentsOf:))
+            return thumbnailURL.flatMap(ThumbnailCache.image(at:))
         }
     }
 
