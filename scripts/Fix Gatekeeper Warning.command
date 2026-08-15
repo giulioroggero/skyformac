@@ -25,6 +25,29 @@ if [ -z "$APP" ] || [ ! -d "$APP" ]; then
   exit 1
 fi
 
+APP_NAME=$(basename "$APP")
+DEST="/Applications/$APP_NAME"
+
+# A quarantined app run from outside /Applications (e.g. straight out of ~/Downloads, where
+# the zip was unzipped) launches under App Translocation — macOS runs it from a randomized,
+# read-only shadow copy instead of its real location. Permission prompts (Camera especially)
+# can silently fail to register at all for an app running translocated, with no entry ever
+# appearing in System Settings > Privacy & Security > Camera. Moving it into /Applications
+# first avoids this entirely.
+if [ "$(cd "$(dirname "$APP")" && pwd)" != "/Applications" ]; then
+  echo "==> Moving \"$APP_NAME\" to /Applications (avoids macOS App Translocation, which"
+  echo "    otherwise breaks Camera permission prompts for apps run from Downloads)…"
+  if [ -e "$DEST" ]; then
+    rm -rf "$DEST" 2>/dev/null || true
+  fi
+  if ditto "$APP" "$DEST" 2>/dev/null; then
+    APP="$DEST"
+  else
+    echo "    couldn't write to /Applications automatically — please drag \"$APP_NAME\""
+    echo "    into /Applications yourself, then run this script again."
+  fi
+fi
+
 echo "==> Clearing the quarantine flag from \"$APP\"…"
 find "$APP" -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
 
@@ -37,7 +60,8 @@ find "$APP" -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
 echo "==> Resetting the Camera permission so macOS prompts for it fresh…"
 tccutil reset Camera com.giulioroggero.skyformac 2>/dev/null || true
 
-echo "==> Done. \"$APP\" should now open normally — double-click it in Finder."
+echo "==> Done. \"$APP\" should now open normally — open it from /Applications (Launchpad,"
+echo "    Spotlight, or double-click it there), not from the original download location."
 echo "    If you use the iPhone/webcam camera source, you'll be asked to allow Camera access"
 echo "    again the first time you connect it — that's expected."
 read -r -p "Press Return to close this window…"

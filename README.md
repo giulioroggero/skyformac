@@ -104,14 +104,20 @@ The zip includes a `Fix Gatekeeper Warning.command` file alongside
 `skyformac.app` to clear this automatically:
 
 1. Unzip the download.
-2. Double-click `Fix Gatekeeper Warning.command` (it opens a Terminal window,
-   clears the quarantine flag and resets the Camera permission, then closes on
-   its own). The Camera reset is there because ad-hoc signing makes the app's
-   signature change on every release, which can leave macOS stuck denying the
-   iPhone/webcam source with no re-prompt — the ZWO ASI camera doesn't need
-   this permission at all, so it isn't affected. You'll just be asked to allow
-   Camera access again the first time you connect a webcam.
-3. Double-click `skyformac.app` — it now opens normally.
+2. Double-click `Fix Gatekeeper Warning.command` (it opens a Terminal window
+   and closes on its own once done). It:
+   - Moves `skyformac.app` into `/Applications` if it isn't there already.
+     Running it straight out of `~/Downloads` while quarantined triggers
+     macOS's App Translocation, which silently breaks Camera permission
+     prompts for the iPhone/webcam source (the ZWO ASI camera isn't affected,
+     since it doesn't need that permission at all).
+   - Clears the quarantine flag.
+   - Resets the Camera permission, since ad-hoc signing makes the app's
+     signature change on every release, which can otherwise leave macOS
+     stuck denying access with no re-prompt. You'll just be asked to allow
+     Camera access again the first time you connect a webcam.
+3. Open `skyformac.app` from `/Applications` (Launchpad, Spotlight, or
+   double-click it there) — it now opens normally.
 
 If macOS still won't run the script itself, right-click it, choose **Open**,
 then confirm **Open** in the dialog — the same one-time trust step as any
