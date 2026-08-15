@@ -149,4 +149,23 @@ struct CameraManagerOllamaConfigurationTests {
         let project = try #require(manager.projectsLibrary.projects.first)
         #expect(project.sessions.contains { $0.name == "Second Night" })
     }
+
+    @Test func acceptSuggestedSessionSurfacesAnErrorWhenItsRootFolderCannotBeWrittenTo() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: root.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let manager = CameraManager(projectStore: ProjectStore(rootDirectory: root))
+        let plan = OllamaPlanner.SuggestedSessionPlan(
+            projectName: "Locked Out", name: "First Night", goal: "See M13", plannedObjects: ["M13"]
+        )
+
+        manager.acceptSuggestedSession(plan)
+
+        #expect(manager.projectsLibrary.projects.isEmpty)
+        #expect(manager.lastErrorMessage != nil)
+    }
 }

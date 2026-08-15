@@ -45,10 +45,16 @@ final class ProjectsLibrary {
 
     /// Persists `project` — but only once it has a real name; an unnamed project is updated in
     /// memory (so its edits, like a newly-added session, aren't lost) without ever touching disk.
+    /// For a named project, the disk write happens *before* `replace(_:)` — so a failure (a full
+    /// disk, a permissions issue) throws without leaving a "ghost" project in memory that only
+    /// ever existed for the rest of this run and was never actually saved.
     func save(_ project: Project) throws {
-        replace(project)
-        guard !project.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !project.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            replace(project)
+            return
+        }
         try store.save(project)
+        replace(project)
     }
 
     /// Marks `project` deleted — kept on disk for a 30-day grace period

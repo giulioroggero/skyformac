@@ -40,6 +40,25 @@ struct CameraManagerAssistantTests {
         #expect(saved?.goal == "See many objects")
     }
 
+    @Test func confirmingCreateProjectReportsAFailureInsteadOfClaimingSuccess() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: root.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let manager = CameraManager(projectStore: ProjectStore(rootDirectory: root))
+        manager.assistantPendingAction = AssistantPendingAction(
+            action: .createProject(name: "Locked Out", goal: "See many objects"), message: "Create it?"
+        )
+
+        manager.confirmAssistantAction()
+
+        #expect(manager.projectsLibrary.projects.isEmpty)
+        #expect(manager.assistantMessages.last?.text.contains("Couldn't create") == true)
+    }
+
     @Test func confirmingCreateSessionAddsToAnExistingProjectByNameCaseInsensitively() {
         let (manager, root) = makeManager()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -462,16 +462,26 @@ final class CameraManager {
         assistantPendingAction = nil
         switch pending.action {
         case .createProject(let name, let goal):
-            try? projectsLibrary.save(Project.newProject(name: name, goal: goal))
-            assistantMessages.append(AssistantMessage(role: .assistant, text: "Created project \"\(name)\"."))
+            do {
+                try projectsLibrary.save(Project.newProject(name: name, goal: goal))
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "Created project \"\(name)\"."))
+            } catch {
+                AppLog.shared.log("AI panel: couldn't create project \"\(name)\" — \(error.localizedDescription)")
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "Couldn't create \"\(name)\" — \(error.localizedDescription)"))
+            }
 
         case .createSession(let projectName, let sessionName, let goal, let plannedObjects):
             let matchedProject = projectsLibrary.projects.first { $0.name.caseInsensitiveCompare(projectName) == .orderedSame }
             let targetProject = matchedProject ?? Project.newProject(name: projectName, goal: "")
-            if matchedProject == nil { try? projectsLibrary.save(targetProject) }
-            let session = Session.newSession(name: sessionName, goal: goal, plannedObjects: plannedObjects)
-            try? projectsLibrary.addSession(session, to: targetProject)
-            assistantMessages.append(AssistantMessage(role: .assistant, text: "Created session \"\(sessionName)\" in \"\(targetProject.name)\"."))
+            do {
+                if matchedProject == nil { try projectsLibrary.save(targetProject) }
+                let session = Session.newSession(name: sessionName, goal: goal, plannedObjects: plannedObjects)
+                try projectsLibrary.addSession(session, to: targetProject)
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "Created session \"\(sessionName)\" in \"\(targetProject.name)\"."))
+            } catch {
+                AppLog.shared.log("AI panel: couldn't create session \"\(sessionName)\" — \(error.localizedDescription)")
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "Couldn't create \"\(sessionName)\" — \(error.localizedDescription)"))
+            }
 
         case .applyCameraSettings(let gain, let exposureSeconds, let mode):
             guard connectedCamera != nil else {
@@ -660,9 +670,13 @@ final class CameraManager {
     func acceptSuggestedSession(_ plan: OllamaPlanner.SuggestedSessionPlan) {
         let matchedProject = projectsLibrary.projects.first { $0.name.caseInsensitiveCompare(plan.projectName) == .orderedSame }
         let targetProject = matchedProject ?? Project.newProject(name: plan.projectName, goal: "")
-        if matchedProject == nil { try? projectsLibrary.save(targetProject) }
-        let session = Session.newSession(name: plan.name, goal: plan.goal, plannedObjects: plan.plannedObjects)
-        try? projectsLibrary.addSession(session, to: targetProject)
+        do {
+            if matchedProject == nil { try projectsLibrary.save(targetProject) }
+            let session = Session.newSession(name: plan.name, goal: plan.goal, plannedObjects: plan.plannedObjects)
+            try projectsLibrary.addSession(session, to: targetProject)
+        } catch {
+            lastErrorMessage = "Couldn't create the suggested session — \(error.localizedDescription)"
+        }
     }
 
     /// "In camera mode the AI is only detached" — called by `activeSession`'s own `didSet`
@@ -1642,7 +1656,14 @@ final class CameraManager {
         var project = Project.newProject(name: target.name, goal: target.summary)
         let session = Session.newSession(name: target.name, goal: target.summary, plannedObjects: [target.name])
         project.sessions = [session]
-        try? projectsLibrary.save(project)
+        do {
+            try projectsLibrary.save(project)
+        } catch {
+            // Doesn't actually exist on disk — entering the camera view for it anyway (below)
+            // would look like a working session that quietly loses everything on relaunch.
+            lastErrorMessage = "Couldn't create the Quick Start project — \(error.localizedDescription)"
+            return session
+        }
 
         let preset = target.recommendedPreset(telescope: telescopeProfile)
         if connectedCamera != nil {
@@ -1670,7 +1691,12 @@ final class CameraManager {
         var project = Project.newProject(name: objectName, goal: "Observe \(objectName)")
         let session = Session.newSession(name: objectName, goal: "Observe \(objectName)", plannedObjects: [objectName])
         project.sessions = [session]
-        try? projectsLibrary.save(project)
+        do {
+            try projectsLibrary.save(project)
+        } catch {
+            lastErrorMessage = "Couldn't create the Quick Start project — \(error.localizedDescription)"
+            return session
+        }
         setActive(project: project, session: session)
         return session
     }
