@@ -49,6 +49,23 @@ struct ContentView: View {
         .foregroundStyle(.primary)
     }
 
+    /// "In the camera view the user needs to see what to point at — like M13, M53, Polaris,
+    /// the Moon — depending on the running session" — the session's own planned object list was
+    /// already right there in the model (`Session.plannedObjects`), just never actually surfaced
+    /// anywhere in the camera view itself, only back on the Project/Session pages you'd have
+    /// already left by the time you're looking through the eyepiece/at the live preview.
+    @ViewBuilder
+    private var plannedObjectsHint: some View {
+        if let objects = cameraManager.activeSession?.plannedObjects, !objects.isEmpty {
+            Divider().frame(height: 14)
+            Label(objects.joined(separator: ", "), systemImage: "scope")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .help("This session's planned objects: \(objects.joined(separator: ", "))")
+        }
+    }
+
     var body: some View {
         Group {
             if cameraManager.isPreviewFullScreenEnabled {
@@ -230,6 +247,7 @@ struct ContentView: View {
                     breadcrumb
                     Button("End Session", systemImage: "stop.circle") { cameraManager.endActiveSession() }
                         .help("Stop running this session and return to its Project page")
+                    plannedObjectsHint
                 }
             }
             ToolbarItem(placement: .principal) {
