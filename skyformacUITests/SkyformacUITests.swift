@@ -107,11 +107,27 @@ final class SkyformacUITests: XCTestCase {
         // scrolled out of view. macOS XCUITest does NOT auto-scroll an off-screen-but-existing
         // element into view before tapping (unlike iOS), so the tap was landing on whatever was
         // actually on screen underneath — the AI panel — instead of this tile, leaving the app
-        // stuck on the Dashboard for the rest of the wait below. Scroll it into view explicitly.
-        if !insightsTile.isHittable {
-            app.scrollViews["CommonTasksScrollView"].scroll(byDeltaX: 400, deltaY: 0)
+        // stuck on the Dashboard for the rest of the wait below. Scroll it into view explicitly —
+        // repeatedly, re-checking hittability each time, rather than a single fixed-distance
+        // attempt: exactly how far it's scrolled off-screen depends on the actual window width,
+        // which isn't something to hardcode a single guess for.
+        let commonTasksScroll = app.scrollViews["CommonTasksScrollView"]
+        // A single fixed-distance scroll attempt was tried first and confirmed (via CI) to not be
+        // enough on its own — rather than guess at the right magnitude, or risk having guessed the
+        // wrong sign for "reveal content further right" (undocumented/unverified on this XCTest
+        // version), this repeatedly scrolls in one direction (real cumulative progress, not
+        // canceling itself out) for up to 5s, then — if that direction was actually wrong — the
+        // other direction for another 5s, until the tile is hittable either way.
+        func scrollUntilHittable(direction: CGFloat, deadline: Date) {
+            while !insightsTile.isHittable && Date() < deadline {
+                commonTasksScroll.scroll(byDeltaX: direction, deltaY: 0)
+            }
         }
-        XCTAssertTrue(insightsTile.isHittable)
+        scrollUntilHittable(direction: 200, deadline: Date().addingTimeInterval(5))
+        if !insightsTile.isHittable {
+            scrollUntilHittable(direction: -200, deadline: Date().addingTimeInterval(5))
+        }
+        XCTAssertTrue(insightsTile.isHittable, "DashboardInsightsTile never became hittable after scrolling")
         insightsTile.tap()
 
         // macOS `NavigationStack` titles don't surface as an XCUITest `NavigationBar` element the
