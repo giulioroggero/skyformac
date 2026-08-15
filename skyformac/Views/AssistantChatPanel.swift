@@ -85,10 +85,6 @@ struct AssistantChatPanel: View {
             modelMenu
             Spacer()
             historyMenu
-            Button("New Chat", systemImage: "square.and.pencil") { cameraManager.startNewChatSession() }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help("Start a new AI conversation")
             if isDetachedWindow {
                 if canDock {
                     Button("Dock", systemImage: "pin.fill") { cameraManager.isAssistantDetached = false }
@@ -141,15 +137,16 @@ struct AssistantChatPanel: View {
     }
 
     /// "The user can create a new AI session and see the history, recalling and continuing a
-    /// conversation" — a compact history menu next to "New Chat," one entry per saved
-    /// conversation (most-recently-updated first, via `CameraManager.chatSessions`), each with its
-    /// own Open/Rename/Delete submenu so switching, renaming, and cleaning up old chats never
-    /// needs a separate page.
+    /// conversation" — one compact menu (not two separate header buttons, which pushed the
+    /// sidebar's minimum width past CI's 1024×768 virtual display) holding "New Chat" plus one
+    /// entry per saved conversation (most-recently-updated first, via `CameraManager.chatSessions`),
+    /// each with its own Open/Rename/Delete submenu so switching, renaming, and cleaning up old
+    /// chats never needs a separate page.
     private var historyMenu: some View {
         Menu {
-            if cameraManager.chatSessions.isEmpty {
-                Text("No saved chats yet")
-            } else {
+            Button("New Chat", systemImage: "square.and.pencil") { cameraManager.startNewChatSession() }
+            if !cameraManager.chatSessions.isEmpty {
+                Divider()
                 ForEach(cameraManager.chatSessions) { session in
                     Menu(session.title) {
                         Button("Open") { cameraManager.switchToChatSession(session.id) }
