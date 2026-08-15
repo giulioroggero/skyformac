@@ -5,7 +5,7 @@ DESTINATION  := platform=macOS
 DERIVED_DATA := build
 APP_PATH     := $(DERIVED_DATA)/Build/Products/$(CONFIGURATION)/skyformac.app
 
-.PHONY: all build test run clean open lipo-check help
+.PHONY: all build test run clean open lipo-check release help
 
 all: build
 
@@ -36,6 +36,12 @@ open:
 lipo-check:
 	lipo -info Vendor/ZWO/lib/libASICamera2.dylib
 
+## Build, Developer-ID-sign, and notarize a distributable .dmg — see docs/distribution.md
+## for the one-time setup (Developer ID certificate, notarytool credentials) this
+## requires; needs SKYFORMAC_TEAM_ID set.
+release:
+	./scripts/release.sh
+
 help:
 	@echo "Targets:"
 	@echo "  make build        - build the app into ./build"
@@ -44,3 +50,4 @@ help:
 	@echo "  make clean        - remove build artifacts"
 	@echo "  make open         - open the project in Xcode"
 	@echo "  make lipo-check   - verify the vendored dylib has both arm64 and x86_64 slices"
+	@echo "  make release      - build/sign/notarize a distributable .dmg (see docs/distribution.md)"

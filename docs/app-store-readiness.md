@@ -1,5 +1,10 @@
 # Mac App Store readiness
 
+> **Not being pursued.** Skyformac is instead distributed as a signed, notarized `.dmg` (Developer
+> ID, no App Sandbox) via GitHub Releases and a Homebrew Cask — see `docs/distribution.md` for the
+> actual process. Kept below for reference/history, in case a real Store submission is ever
+> reconsidered later.
+
 Tracks what's actually done, what's been verified, and what's still genuinely open toward
 submitting Skyformac to the Mac App Store. Not a checklist to rubber-stamp — several items below
 are real open risks, not just remaining paperwork.

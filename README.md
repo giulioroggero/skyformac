@@ -16,6 +16,7 @@
   <a href="docs/features.md">Features</a> ·
   <a href="docs/architecture.md">Architecture</a> ·
   <a href="docs/design-notes.md">Design Notes</a> ·
+  <a href="docs/distribution.md">Distribution</a> ·
   <a href="EXAMPLES.md">Examples</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="specs/README.md">Contributing</a> ·
