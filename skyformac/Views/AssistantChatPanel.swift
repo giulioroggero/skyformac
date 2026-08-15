@@ -86,6 +86,7 @@ struct AssistantChatPanel: View {
             Spacer()
             historyMenu
             Button("New Chat", systemImage: "square.and.pencil") { cameraManager.startNewChatSession() }
+                .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
                 .help("Start a new AI conversation")
             if isDetachedWindow {
