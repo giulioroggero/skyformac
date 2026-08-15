@@ -27,12 +27,7 @@ enum AstronomyKnowledgeBase {
     ]
 
     static func defaultRootDirectory() -> URL {
-        if let customPath = AppSettings.customKnowledgeBaseDirectoryPath, !customPath.isEmpty {
-            return URL(fileURLWithPath: customPath, isDirectory: true)
-        }
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-        return documents.appendingPathComponent("Skyformac Knowledge", isDirectory: true)
+        AppSettings.resolveRootDirectory(customPath: AppSettings.customKnowledgeBaseDirectoryPath, defaultFolderName: "Skyformac Knowledge")
     }
 
     /// Writes whichever of `defaultFiles` don't already exist in `directory` — called once at

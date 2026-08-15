@@ -28,12 +28,7 @@ final class EquipmentLibrary {
     /// "read once at launch" shape `ProjectStore.defaultRootDirectory()` already uses for the
     /// Projects folder.
     static func defaultRootDirectory() -> URL {
-        if let customPath = AppSettings.customEquipmentDirectoryPath, !customPath.isEmpty {
-            return URL(fileURLWithPath: customPath, isDirectory: true)
-        }
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-        return documents.appendingPathComponent("Skyformac Equipment", isDirectory: true)
+        AppSettings.resolveRootDirectory(customPath: AppSettings.customEquipmentDirectoryPath, defaultFolderName: "Skyformac Equipment")
     }
 
     @discardableResult

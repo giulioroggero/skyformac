@@ -24,12 +24,7 @@ final class ProjectStore {
     /// A user-chosen folder (`AppSettings.customProjectsRootDirectoryPath`, set via Settings)
     /// takes priority over `~/Documents/Skyformac Projects` when one's actually been set.
     static func defaultRootDirectory() -> URL {
-        if let customPath = AppSettings.customProjectsRootDirectoryPath, !customPath.isEmpty {
-            return URL(fileURLWithPath: customPath, isDirectory: true)
-        }
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-        return documents.appendingPathComponent("Skyformac Projects", isDirectory: true)
+        AppSettings.resolveRootDirectory(customPath: AppSettings.customProjectsRootDirectoryPath, defaultFolderName: "Skyformac Projects")
     }
 
     // MARK: - Paths

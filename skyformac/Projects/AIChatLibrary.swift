@@ -24,12 +24,7 @@ final class AIChatLibrary {
     /// "read once at launch" shape `ProjectStore`/`EquipmentLibrary` already use for their own
     /// folders.
     static func defaultRootDirectory() -> URL {
-        if let customPath = AppSettings.customAIChatsDirectoryPath, !customPath.isEmpty {
-            return URL(fileURLWithPath: customPath, isDirectory: true)
-        }
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser
-        return documents.appendingPathComponent("Skyformac AI Chats", isDirectory: true)
+        AppSettings.resolveRootDirectory(customPath: AppSettings.customAIChatsDirectoryPath, defaultFolderName: "Skyformac AI Chats")
     }
 
     @discardableResult

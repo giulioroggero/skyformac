@@ -214,6 +214,21 @@ enum AppSettings {
         }
     }
 
+    // MARK: - Custom folder resolution
+
+    /// Shared by every "user-chosen folder instead of a default" store
+    /// (`ProjectStore`/`EquipmentLibrary`/`AIChatLibrary`/`AstronomyKnowledgeBase`) — each of
+    /// their own `defaultRootDirectory()` used to copy-paste this exact same four-line "check the
+    /// custom path, else fall back to `~/Documents/<folderName>`" logic.
+    static func resolveRootDirectory(customPath: String?, defaultFolderName: String) -> URL {
+        if let customPath, !customPath.isEmpty {
+            return URL(fileURLWithPath: customPath, isDirectory: true)
+        }
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return documents.appendingPathComponent(defaultFolderName, isDirectory: true)
+    }
+
     // MARK: - Projects folder
 
     /// A user-chosen folder to keep project/session data in instead of the default
