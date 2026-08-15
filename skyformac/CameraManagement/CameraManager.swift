@@ -1894,7 +1894,11 @@ final class CameraManager {
                     }
                     self?.droppedFrameCount = dropped
                 }
-                try? await Task.sleep(for: .seconds(2))
+                // Was 2s — temperature/dropped-frame counts don't change fast enough to need
+                // that cadence, and this loop runs continuously the entire time a camera is
+                // connected (not just while actively streaming/previewing), so it's a genuine
+                // always-on background cost. 5s halves the wake-ups with no real loss of freshness.
+                try? await Task.sleep(for: .seconds(5))
             }
         }
     }
@@ -2505,7 +2509,12 @@ final class CameraManager {
                 return
             }
             let streaks = (try? StreakDetector.detectStreaks(in: image)) ?? []
-            try? await Task.sleep(for: .milliseconds(250)) // simple rate limit, mirrors focus assist
+            // Was 250ms — bumped alongside Focus Assist/Planetary Tracking's own floors (see
+            // their doc comments) as a modest, easily-reverted energy tweak: this Vision-based
+            // pass plus a GPU/CPU render every cycle is real continuous work for as long as the
+            // feature's enabled, and streak masking specifically doesn't need to react faster
+            // than ~2.5x/sec to still feel live.
+            try? await Task.sleep(for: .milliseconds(400))
             await self?.applyStreakDetection(width: width, height: height, streaks: streaks)
         }
     }
@@ -3051,7 +3060,10 @@ final class CameraManager {
                 return
             }
             let detection = try? PlanetDetector.detectDisk(in: image)
-            try? await Task.sleep(for: .milliseconds(200))
+            // Was 200ms — see the matching bump in `scheduleStreakDetectionIfNeeded`'s doc
+            // comment; planetary tracking specifically only needs to keep up with a slowly
+            // drifting disk (mount tracking error, not fast motion), so ~3.3x/sec is still smooth.
+            try? await Task.sleep(for: .milliseconds(300))
             await self?.applyPlanetTracking(detection: detection ?? nil)
         }
     }
@@ -3134,7 +3146,10 @@ final class CameraManager {
             // stretched display image the star positions were detected on — a non-linear
             // stretch would distort the flux ratios HFD's centroid/radius math depends on.
             let hfd = result.flatMap { HFDCalculator.medianHFD(frame: frame, stars: $0.stars) }
-            try? await Task.sleep(for: .milliseconds(250)) // simple rate limit
+            // Was 250ms — see the matching bump in `scheduleStreakDetectionIfNeeded`'s doc
+            // comment; a focus/HFD readout updating ~2.5x/sec is still plenty responsive for
+            // manually adjusting focus by eye.
+            try? await Task.sleep(for: .milliseconds(400))
             await self?.applyFocusAssist(result: result, matches: matches, wcs: wcs, hfd: hfd)
         }
     }
