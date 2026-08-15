@@ -5,6 +5,29 @@ import Foundation
 /// requiring a real Ollama server running on the test machine.
 protocol OllamaTransport: Sendable {
     func send(_ request: URLRequest) async throws -> Data
+    /// Streams the response as it arrives — one `Data` chunk per NDJSON line for a real `stream:
+    /// true` Ollama request, so a caller (`generate(prompt:onPartialResponse:)`) can surface
+    /// partial text as it's generated instead of waiting for the whole reply. Defaults to
+    /// wrapping `send(_:)` and yielding its entire body as a single chunk, so a fake transport
+    /// that only implements `send(_:)` (every test fake in this app) keeps working completely
+    /// unchanged — it just never produces more than one "partial" update, exactly what a
+    /// synchronous stand-in should do.
+    func sendStreaming(_ request: URLRequest) -> AsyncThrowingStream<Data, Error>
+}
+
+extension OllamaTransport {
+    func sendStreaming(_ request: URLRequest) -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    continuation.yield(try await send(request))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
 }
 
 extension URLSession: OllamaTransport {
@@ -20,6 +43,36 @@ extension URLSession: OllamaTransport {
             throw OllamaError.badResponse(message: serverMessage ?? status.map { "HTTP \($0)" })
         }
         return data
+    }
+
+    /// Real NDJSON streaming via `bytes(for:)` — each line Ollama writes as it generates is its
+    /// own complete JSON object, so this yields one `Data` chunk per line rather than waiting for
+    /// the connection to close the way `send(_:)`/`data(for:)` does.
+    func sendStreaming(_ request: URLRequest) -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let (bytes, response) = try await self.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                        // Drain the (non-streamed, plain-JSON) error body so the same "surface
+                        // Ollama's own message" behavior `send(_:)` has applies here too.
+                        var collected = Data()
+                        for try await byte in bytes { collected.append(byte) }
+                        let serverMessage = (try? JSONSerialization.jsonObject(with: collected) as? [String: Any])?["error"] as? String
+                        let status = (response as? HTTPURLResponse)?.statusCode
+                        continuation.finish(throwing: OllamaError.badResponse(message: serverMessage ?? status.map { "HTTP \($0)" }))
+                        return
+                    }
+                    for try await line in bytes.lines {
+                        continuation.yield(Data(line.utf8))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 }
 
@@ -188,8 +241,15 @@ struct OllamaPlanner: Sendable {
     /// invented from the goal alone — "leveraging the information gathered during the sessions."
     /// Unlike `planSession`/`planProject`, this asks for plain text, not JSON, since there's no
     /// structured shape to fill in, just a paragraph.
-    func summarize(context: String) async throws -> String {
-        let text = try await generate(prompt: Self.summaryPrompt(context: context))
+    ///
+    /// `onPartialResponse`, if given, fires with the raw text accumulated so far each time a new
+    /// chunk streams in — including a reasoning model's own `<think>...</think>` preamble, since
+    /// there's no way to know where (or whether) that block ends until the whole reply is in. The
+    /// final return value has that preamble already stripped; a caller showing partial text live
+    /// (`AIDescribeSheet`) should simply replace it with the final value once this returns, the
+    /// same way a chat UI shows a model "thinking" before swapping in its polished answer.
+    func summarize(context: String, onPartialResponse: (@Sendable (String) -> Void)? = nil) async throws -> String {
+        let text = try await generate(prompt: Self.summaryPrompt(context: context), onPartialResponse: onPartialResponse)
         let stripped = Self.stripReasoningPreamble(from: text)
         guard !stripped.isEmpty else { throw OllamaError.emptySummary }
         return stripped
@@ -272,25 +332,42 @@ struct OllamaPlanner: Sendable {
         return first
     }
 
-    private func generate(prompt: String) async throws -> String {
+    /// `stream: true` — Ollama writes one complete JSON object per line as it generates, each
+    /// with the token(s) generated so far in `"response"` and `"done": false`, until a final line
+    /// with `"done": true`. Streaming (rather than the previous `stream: false`, wait-for-the-
+    /// whole-thing approach) means a caller gets the first tokens within a second or two instead
+    /// of after the entire reply — including a reasoning model's full hidden "thinking" pass —
+    /// finishes; `onPartialResponse`, if given, is called with the text accumulated so far after
+    /// every chunk, so a UI can show a response growing live instead of a bare spinner.
+    /// `options.num_predict` (`AppSettings.ollamaMaxResponseTokens`, user-configurable in Settings)
+    /// bounds how many tokens a single response — reasoning included — may generate at all.
+    private func generate(prompt: String, onPartialResponse: (@Sendable (String) -> Void)? = nil) async throws -> String {
         let resolvedModel = try await resolveModel()
         var request = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "model": resolvedModel, "prompt": prompt, "stream": false,
+            "model": resolvedModel, "prompt": prompt, "stream": true,
+            "options": ["num_predict": AppSettings.ollamaMaxResponseTokens],
         ])
         // A local model — especially a reasoning one that "thinks" before answering — can
         // legitimately take well past URLRequest's normal 60s default, which is what "Ollama goes
         // in timeout" actually was: the request timing out, not Ollama itself failing.
         request.timeoutInterval = 180
-        let data = try await transport.send(request)
-        guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let response = envelope["response"] as? String
-        else {
-            throw OllamaError.badResponse(message: nil)
+
+        var fullText = ""
+        var sawAResponseField = false
+        for try await chunk in transport.sendStreaming(request) {
+            guard let envelope = try? JSONSerialization.jsonObject(with: chunk) as? [String: Any] else { continue }
+            if let responseChunk = envelope["response"] as? String {
+                sawAResponseField = true
+                fullText += responseChunk
+                onPartialResponse?(fullText)
+            }
+            if envelope["done"] as? Bool == true { break }
         }
-        return response
+        guard sawAResponseField else { throw OllamaError.badResponse(message: nil) }
+        return fullText
     }
 
     /// Ollama's own reply is plain text, not guaranteed-valid JSON on its own even when the

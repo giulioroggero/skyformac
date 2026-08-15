@@ -26,7 +26,53 @@ private final class FakeTransport: OllamaTransport, @unchecked Sendable {
     }
 }
 
+/// Unlike `FakeTransport` (which only implements `send(_:)` and so exercises `OllamaTransport`'s
+/// default `sendStreaming(_:)` — wrapping the whole body as a single chunk), this implements
+/// `sendStreaming(_:)` directly with several separate NDJSON lines, the same shape a real Ollama
+/// `stream: true` response actually has — for testing that `generate(prompt:onPartialResponse:)`
+/// genuinely accumulates across multiple chunks and calls `onPartialResponse` incrementally.
+private final class StreamingFakeTransport: OllamaTransport, @unchecked Sendable {
+    /// Each string becomes one `"response"` chunk in its own NDJSON line; the final line always
+    /// carries `"done": true`.
+    var responseChunks: [String] = []
+    private(set) var lastRequest: URLRequest?
+
+    func send(_ request: URLRequest) async throws -> Data {
+        lastRequest = request
+        if request.url?.path == "/api/tags" {
+            return try JSONSerialization.data(withJSONObject: ["models": [["name": "llama3.2"]]])
+        }
+        return try JSONSerialization.data(withJSONObject: ["model": "llama3.2", "response": responseChunks.joined(), "done": true])
+    }
+
+    func sendStreaming(_ request: URLRequest) -> AsyncThrowingStream<Data, Error> {
+        lastRequest = request
+        return AsyncThrowingStream { continuation in
+            if request.url?.path == "/api/tags" {
+                continuation.yield(try! JSONSerialization.data(withJSONObject: ["models": [["name": "llama3.2"]]]))
+                continuation.finish()
+                return
+            }
+            for (index, chunk) in responseChunks.enumerated() {
+                let isLast = index == responseChunks.count - 1
+                let envelope: [String: Any] = ["model": "llama3.2", "response": chunk, "done": isLast]
+                continuation.yield(try! JSONSerialization.data(withJSONObject: envelope))
+            }
+            continuation.finish()
+        }
+    }
+}
+
 struct OllamaPlannerTests {
+    /// `AppSettings.ollamaMaxResponseTokens` is real `UserDefaults` — reset around any test that
+    /// touches it so it doesn't leak into (or pick up) whatever a real launch of the app on this
+    /// same machine has stored.
+    private func withCleanOllamaMaxResponseTokens(_ body: () async throws -> Void) async rethrows {
+        let original = AppSettings.ollamaMaxResponseTokens
+        defer { AppSettings.ollamaMaxResponseTokens = original }
+        try await body()
+    }
+
     @Test func isAvailableIsTrueWhenTheServerResponds() async {
         let transport = FakeTransport()
         let planner = OllamaPlanner(transport: transport)
@@ -409,4 +455,52 @@ struct OllamaPlannerTests {
             try await planner.suggestNextSession(context: "some context", skill: "")
         }
     }
+
+    // MARK: - Streaming / num_predict
+
+    @Test func generateRequestUsesStreamingAndTheConfiguredMaxResponseTokens() async throws {
+        try await withCleanOllamaMaxResponseTokens {
+            AppSettings.ollamaMaxResponseTokens = 321
+            let transport = FakeTransport()
+            transport.responseText = #"{"name": "n", "goal": "g", "plannedObjects": []}"#
+            let planner = OllamaPlanner(transport: transport)
+
+            _ = try await planner.planSession(goal: "see saturn")
+
+            let request = try #require(transport.lastRequest)
+            let body = try #require(request.httpBody)
+            let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(json["stream"] as? Bool == true)
+            let options = try #require(json["options"] as? [String: Any])
+            #expect(options["num_predict"] as? Int == 321)
+        }
+    }
+
+    @Test func summarizeAccumulatesTextAcrossMultipleStreamedChunks() async throws {
+        let transport = StreamingFakeTransport()
+        transport.responseChunks = ["The M13 ", "session captured ", "twelve frames."]
+        let planner = OllamaPlanner(transport: transport)
+
+        let result = try await planner.summarize(context: "some context")
+
+        #expect(result == "The M13 session captured twelve frames.")
+    }
+
+    @Test func summarizeCallsOnPartialResponseIncrementallyAsChunksArrive() async throws {
+        let transport = StreamingFakeTransport()
+        transport.responseChunks = ["First ", "second ", "third."]
+        let planner = OllamaPlanner(transport: transport)
+        // `onPartialResponse` is invoked serially, synchronously within `generate`'s own single
+        // task — never concurrently — so capturing a plain mutable array here is genuinely safe
+        // despite the closure's `@Sendable` signature (needed for the app's own real usage, where
+        // it crosses into a SwiftUI view's `@MainActor` context instead).
+        nonisolated(unsafe) var seenPartials: [String] = []
+
+        _ = try await planner.summarize(context: "some context") { partial in
+            seenPartials.append(partial)
+        }
+
+        #expect(seenPartials == ["First ", "First second ", "First second third."])
+    }
+
 }

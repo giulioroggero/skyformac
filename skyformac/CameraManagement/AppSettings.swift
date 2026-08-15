@@ -36,6 +36,7 @@ enum AppSettings {
         case customAIChatsDirectoryPath
         case ollamaServerURLString
         case ollamaModel
+        case ollamaMaxResponseTokens
         case sessionSuggestionSkill
     }
 
@@ -298,6 +299,24 @@ enum AppSettings {
         get { UserDefaults.standard.string(forKey: Key.ollamaModel.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.ollamaModel.rawValue) }
     }
+
+    /// Ollama's own `num_predict` option (max tokens a single response may generate), sent with
+    /// every request — without it the server has no cap at all and a local model can run for as
+    /// long as it wants. A *reasoning* model (`OllamaPlanner.preferredModel`, "qwen3:8b") still
+    /// counts its own hidden `<think>...</think>` chain-of-thought against this same budget before
+    /// it ever reaches the actual answer, so this needs enough headroom for that reasoning trace
+    /// too, not just the final visible text — set too low, a reasoning model can get cut off
+    /// mid-thought without ever producing a usable reply. 800 is a middle ground: generous enough
+    /// for typical reasoning + a short answer, while still bounding a truly runaway generation.
+    static var ollamaMaxResponseTokens: Int {
+        get {
+            let stored = UserDefaults.standard.integer(forKey: Key.ollamaMaxResponseTokens.rawValue)
+            return stored > 0 ? stored : defaultOllamaMaxResponseTokens
+        }
+        set { UserDefaults.standard.set(newValue, forKey: Key.ollamaMaxResponseTokens.rawValue) }
+    }
+
+    static let defaultOllamaMaxResponseTokens = 800
 
     /// The instructions folded into every "suggest my next session" request
     /// (`OllamaPlanner.suggestNextSession(context:skill:)`) — a user-editable "skill," not a fixed

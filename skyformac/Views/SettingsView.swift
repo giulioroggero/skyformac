@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var ollamaTestResult: OllamaTestResult?
     @State private var serverURLText = AppSettings.ollamaServerURL.absoluteString
     @State private var selectedModel: String? = AppSettings.ollamaModel
+    @State private var maxResponseTokens = AppSettings.ollamaMaxResponseTokens
     @State private var sessionSuggestionSkill = AppSettings.sessionSuggestionSkill
 
     private var currentProjectsFolder: URL {
@@ -195,6 +196,17 @@ struct SettingsView: View {
                                 .foregroundStyle(.red)
                         }
                     }
+                    LabeledContent("Max Response Length") {
+                        Stepper(value: $maxResponseTokens, in: 100...4000, step: 100) {
+                            Text("\(maxResponseTokens) tokens")
+                        }
+                    }
+                    .onChange(of: maxResponseTokens) { _, newValue in
+                        AppSettings.ollamaMaxResponseTokens = newValue
+                    }
+                    Text("Caps how long a single AI response may generate (Ollama's own `num_predict`). A reasoning model's hidden \"thinking\" pass counts against this same limit before it ever reaches the actual answer — set too low, it can get cut off before producing a usable reply. Responses stream in live as they generate, so you'll see a reply forming instead of just waiting.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Text("Used by \"Ask AI to Plan…\", \"Ask AI to Describe…\", and the AI panel — requires a local Ollama server; see [ollama.com](https://ollama.com).")
                         .font(.caption)
                         .foregroundStyle(.secondary)

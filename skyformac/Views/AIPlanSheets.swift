@@ -260,15 +260,23 @@ struct AIDescribeSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if isLoading {
+            if isLoading, generatedText.isEmpty {
+                // Nothing streamed in yet — still waiting on the first chunk (model load, or a
+                // reasoning model's own "thinking" pass hasn't produced visible text yet).
                 ProgressView("Asking Ollama…")
             } else if let errorMessage {
                 Text(errorMessage).foregroundStyle(.red).font(.caption)
-            } else if hasGenerated {
+            } else if isLoading || hasGenerated {
+                // While `isLoading`, this shows the raw response streaming in live — including a
+                // reasoning model's own `<think>...</think>` preamble, since there's no way to know
+                // where (or whether) that ends until the whole reply arrives. It's replaced by the
+                // final, cleaned-up text the moment generation finishes, the same "watch it think,
+                // then get the polished answer" behavior a lot of chat UIs already have.
                 TextEditor(text: $generatedText)
                     .font(.body)
                     .frame(minHeight: 140)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                    .disabled(isLoading)
             }
 
             Spacer()
@@ -298,9 +306,14 @@ struct AIDescribeSheet: View {
     private func generate() async {
         isLoading = true
         errorMessage = nil
+        generatedText = ""
+        hasGenerated = false
         defer { isLoading = false }
         do {
-            generatedText = try await cameraManager.ollamaPlanner.summarize(context: context)
+            let final = try await cameraManager.ollamaPlanner.summarize(context: context) { partial in
+                Task { @MainActor in generatedText = partial }
+            }
+            generatedText = final
             hasGenerated = true
         } catch let error as OllamaError {
             AppLog.shared.log("Ask AI to Describe: \(error.userFacingMessage)")
