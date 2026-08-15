@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature proposals are very welcome. For anything non-trivial, this
+        issue is the starting point for that discussion before any
+        spec/code work begins — see `specs/README.md` for how larger
+        features get designed and built.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that the app doesn't support today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like to see, if you have something specific in mind.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you're using today, or other approaches you considered.
+    validations:
+      required: false
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Related hardware (if any)
+      placeholder: e.g. a specific camera brand, mount, or guiding hardware
+    validations:
+      required: false

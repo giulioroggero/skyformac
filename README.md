@@ -517,8 +517,14 @@ non-obvious design decisions behind them — live in [`docs/`](docs/):
 
 ## Contributing
 
-New non-trivial features go through spec-driven development — see
-[`specs/README.md`](specs/README.md) for how that works and how to add one.
+See [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) for how to report
+bugs, propose features, and submit code — including how new non-trivial
+features go through spec-driven development (see
+[`specs/README.md`](specs/README.md) for how that works). This project
+follows the [Contributor Covenant](.github/CODE_OF_CONDUCT.md). See
+[`.github/SECURITY.md`](.github/SECURITY.md) to report a vulnerability
+privately, and [`.github/SUPPORT.md`](.github/SUPPORT.md) for where to ask
+questions.
 
 ## License
 
