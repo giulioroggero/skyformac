@@ -1899,7 +1899,7 @@ final class CameraManager {
             toneCurves = .identity
             pendingAutoStretch = true
             gpuControls.isEnabled = false
-            if let gainCap = caps.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+            if let gainCap = controlCap(ASI_GAIN, in: caps), gainCap.isWritable {
                 let gain = min(max(5, gainCap.minValue), gainCap.maxValue)
                 try? await engine.setControlValue(ASI_GAIN, value: gain)
                 values[gainCap.id] = ZWOControlValue(value: gain, isAuto: false)
@@ -2155,6 +2155,16 @@ final class CameraManager {
         didSet { AppSettings.telescopeProfile = telescopeProfile }
     }
 
+    /// Looks up a specific ASI control's capabilities by type — this exact `first(where:)` lookup
+    /// used to be duplicated across nine separate call sites (`applyPlanetaryPreset`,
+    /// `applyAcquisitionPreset`, `currentAcquisitionPreset`, `resetToDefaultConfiguration`, the
+    /// bias/dark calibration flow, and the initial-connect gain default). Takes `caps` explicitly
+    /// rather than defaulting to `self.controls` — one call site (right after a fresh ZWO connect)
+    /// needs to look up a just-read-from-the-SDK array before it's been assigned to `controls` yet.
+    private func controlCap(_ type: ASI_CONTROL_TYPE, in caps: [ZWOControlCaps]) -> ZWOControlCaps? {
+        caps.first { $0.controlType.rawValue == type.rawValue }
+    }
+
     /// Applies one bright solar-system target's starting ROI/exposure/gain in a single step, and
     /// switches to RAW8 if the camera supports it (the recommended format for this workflow —
     /// undebayered means more frames/second, and color reconstruction is AutoStakkert!3's job,
@@ -2176,11 +2186,11 @@ final class CameraManager {
         }
         changeCaptureROI(width: preset.roi?.width, height: preset.roi?.height)
 
-        if let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
+        if let exposureCap = controlCap(ASI_EXPOSURE, in: controls), exposureCap.isWritable {
             let microseconds = Int(preset.startingExposureSeconds(for: telescopeProfile) * 1_000_000)
             setControlValue(ASI_EXPOSURE, value: min(max(microseconds, exposureCap.minValue), exposureCap.maxValue))
         }
-        if let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+        if let gainCap = controlCap(ASI_GAIN, in: controls), gainCap.isWritable {
             setControlValue(ASI_GAIN, value: min(max(preset.startingGain, gainCap.minValue), gainCap.maxValue))
         }
     }
@@ -2216,12 +2226,12 @@ final class CameraManager {
             changeCaptureROI(width: preset.roiWidth, height: preset.roiHeight)
 
             if let exposureSeconds = preset.exposureSeconds,
-               let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
+               let exposureCap = controlCap(ASI_EXPOSURE, in: controls), exposureCap.isWritable {
                 let microseconds = Int(exposureSeconds * 1_000_000)
                 setControlValue(ASI_EXPOSURE, value: min(max(microseconds, exposureCap.minValue), exposureCap.maxValue))
             }
             if let gain = preset.gain,
-               let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+               let gainCap = controlCap(ASI_GAIN, in: controls), gainCap.isWritable {
                 setControlValue(ASI_GAIN, value: min(max(gain, gainCap.minValue), gainCap.maxValue))
             }
         }
@@ -2283,10 +2293,8 @@ final class CameraManager {
     /// `ControlsPanelView`, not here, so a preset saved this way doesn't carry a recommendation
     /// for either — loading it back still restores everything this class itself tracks.
     func currentAcquisitionPreset(name: String) -> AcquisitionPreset {
-        let gain = controls.first { $0.controlType.rawValue == ASI_GAIN.rawValue }
-            .flatMap { controlValues[$0.id]?.value }
-        let exposureMicroseconds = controls.first { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }
-            .flatMap { controlValues[$0.id]?.value }
+        let gain = controlCap(ASI_GAIN, in: controls).flatMap { controlValues[$0.id]?.value }
+        let exposureMicroseconds = controlCap(ASI_EXPOSURE, in: controls).flatMap { controlValues[$0.id]?.value }
         let mode = AcquisitionMode.current(
             isLiveStackingEnabled: isLiveStackingEnabled, hasLuckyImagingSession: luckyImagingSession != nil
         )
@@ -2381,10 +2389,10 @@ final class CameraManager {
     func resetToDefaultConfiguration() {
         guard connectedCamera != nil else { return }
         changeCaptureROI(width: nil, height: nil)
-        if let gainCap = controls.first(where: { $0.controlType.rawValue == ASI_GAIN.rawValue }), gainCap.isWritable {
+        if let gainCap = controlCap(ASI_GAIN, in: controls), gainCap.isWritable {
             setControlValue(ASI_GAIN, value: min(max(5, gainCap.minValue), gainCap.maxValue))
         }
-        if let exposureCap = controls.first(where: { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }), exposureCap.isWritable {
+        if let exposureCap = controlCap(ASI_EXPOSURE, in: controls), exposureCap.isWritable {
             setControlValue(ASI_EXPOSURE, value: exposureCap.defaultValue)
         }
 
@@ -2685,8 +2693,12 @@ final class CameraManager {
     /// Captures a dark frame (lens capped / scope covered) the same way `captureSingleExposure`
     /// captures a light frame, and adds it to `calibrationLibrary` (becoming the active dark if
     /// it's the first one). Toggle `isDarkSubtractionEnabled` to start subtracting it.
-    func captureDarkFrame(seconds: Double) async {
-        guard let camera = connectedCamera else { return }
+    /// Shared "begin a blocking single-exposure capture" preamble — `captureSingleExposure`/
+    /// `captureDarkFrame`/`captureFlatFrame` each duplicated this exact ~7-line sequence
+    /// (stop live view's frame consumer, mark the exposure as in-progress with its start time/
+    /// duration for the UI's countdown, clear any stale error) plus a matching `defer` resetting
+    /// those same three properties back.
+    private func beginBlockingCapture(seconds: Double) {
         frameConsumerTask?.cancel()
         frameConsumerTask = nil
         isLiveViewActive = false
@@ -2694,11 +2706,18 @@ final class CameraManager {
         capturingExposureStartDate = Date()
         capturingExposureDurationSeconds = seconds
         lastErrorMessage = nil
-        defer {
-            isCapturingExposure = false
-            capturingExposureStartDate = nil
-            capturingExposureDurationSeconds = nil
-        }
+    }
+
+    private func endBlockingCapture() {
+        isCapturingExposure = false
+        capturingExposureStartDate = nil
+        capturingExposureDurationSeconds = nil
+    }
+
+    func captureDarkFrame(seconds: Double) async {
+        guard let camera = connectedCamera else { return }
+        beginBlockingCapture(seconds: seconds)
+        defer { endBlockingCapture() }
 
         let exposureMicroseconds = Int(seconds * 1_000_000)
 
@@ -2724,18 +2743,8 @@ final class CameraManager {
     /// it to `calibrationLibrary`. Toggle `isFlatCorrectionEnabled` to start correcting with it.
     func captureFlatFrame(seconds: Double) async {
         guard let camera = connectedCamera else { return }
-        frameConsumerTask?.cancel()
-        frameConsumerTask = nil
-        isLiveViewActive = false
-        isCapturingExposure = true
-        capturingExposureStartDate = Date()
-        capturingExposureDurationSeconds = seconds
-        lastErrorMessage = nil
-        defer {
-            isCapturingExposure = false
-            capturingExposureStartDate = nil
-            capturingExposureDurationSeconds = nil
-        }
+        beginBlockingCapture(seconds: seconds)
+        defer { endBlockingCapture() }
 
         let exposureMicroseconds = Int(seconds * 1_000_000)
 
@@ -2799,9 +2808,7 @@ final class CameraManager {
 
         guard let engine = captureEngine else { return }
         do {
-            let minimumMicroseconds = controls
-                .first { $0.controlType.rawValue == ASI_EXPOSURE.rawValue }
-                .map { max($0.minValue, 32) } ?? 32
+            let minimumMicroseconds = controlCap(ASI_EXPOSURE, in: controls).map { max($0.minValue, 32) } ?? 32
             biasFrame = try await engine.captureSingleExposure(
                 imageType: selectedImageType, exposureMicroseconds: minimumMicroseconds
             )
@@ -3294,19 +3301,8 @@ final class CameraManager {
     /// lengths. Stops live streaming for the duration; call `resumeLiveView()` to go back.
     func captureSingleExposure(seconds: Double) async {
         guard let camera = connectedCamera else { return }
-        frameConsumerTask?.cancel()
-        frameConsumerTask = nil
-        isLiveViewActive = false
-        isCapturingExposure = true
-        capturingExposureStartDate = Date()
-        capturingExposureDurationSeconds = seconds
-        lastErrorMessage = nil
-
-        defer {
-            isCapturingExposure = false
-            capturingExposureStartDate = nil
-            capturingExposureDurationSeconds = nil
-        }
+        beginBlockingCapture(seconds: seconds)
+        defer { endBlockingCapture() }
 
         if camera.cameraID == -2 {
             // Webcam: no controllable hardware exposure — `frameConsumerTask?.cancel()` above
