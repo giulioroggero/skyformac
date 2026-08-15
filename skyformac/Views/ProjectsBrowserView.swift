@@ -58,6 +58,57 @@ struct ProjectsBrowserView: View {
         return filtered.sorted { $0.isFavorite && !$1.isFavorite }
     }
 
+    /// Same favorites-first stable sort `visibleProjects`/`ProjectDetailPane`'s own session cards
+    /// already use — shared here (generic over `Project`/`Session`, via an explicit `isFavorite`
+    /// key path since the two don't share a protocol) so "Next/Previous Project"/"Next/Previous
+    /// Session" step through siblings in the exact same order those lists actually show them in,
+    /// not raw array order.
+    private static func favoritesFirst<T>(_ items: [T], isFavorite: (T) -> Bool) -> [T] {
+        items.sorted { isFavorite($0) && !isFavorite($1) }
+    }
+
+    /// Computed in a plain (non-`@ViewBuilder`) method rather than inline in `destination(for:)`
+    /// — that function's own `@ViewBuilder` attribute applies its result-building transform to
+    /// *every* `if`/`var` statement in its body, not just the final view expression, so ordinary
+    /// "compute these two optional closures first" imperative code doesn't type-check there at
+    /// all. A plain function call is just a normal expression, so it's unaffected.
+    private func projectSiblingNavigation(around projectID: Project.ID) -> (previous: (() -> Void)?, next: (() -> Void)?) {
+        let siblings = Self.favoritesFirst(library.activeProjects.filter { !$0.isArchived }, isFavorite: \.isFavorite)
+        guard let index = siblings.firstIndex(where: { $0.id == projectID }) else { return (nil, nil) }
+        let previousID = index > 0 ? siblings[index - 1].id : nil
+        let nextID = index + 1 < siblings.count ? siblings[index + 1].id : nil
+        return (
+            previousID.map { id in { path[path.count - 1] = .project(id) } },
+            nextID.map { id in { path[path.count - 1] = .project(id) } }
+        )
+    }
+
+    private func sessionSiblingNavigation(in project: Project, around sessionID: Session.ID) -> (previous: (() -> Void)?, next: (() -> Void)?) {
+        let siblings = Self.favoritesFirst(project.sessions, isFavorite: \.isFavorite)
+        guard let index = siblings.firstIndex(where: { $0.id == sessionID }) else { return (nil, nil) }
+        let previousID = index > 0 ? siblings[index - 1].id : nil
+        let nextID = index + 1 < siblings.count ? siblings[index + 1].id : nil
+        let projectID = project.id
+        return (
+            previousID.map { id in { path[path.count - 1] = .sessionHistory(projectID, id) } },
+            nextID.map { id in { path[path.count - 1] = .sessionHistory(projectID, id) } }
+        )
+    }
+
+    /// Newest first — matches `TimelineStripView`'s own display order.
+    private func captureSiblingNavigation(
+        projectID: Project.ID, sessionID: Session.ID, session: Session, around captureID: CaptureRecord.ID
+    ) -> (previous: (() -> Void)?, next: (() -> Void)?) {
+        let siblings = session.captures.sorted { $0.date > $1.date }
+        guard let index = siblings.firstIndex(where: { $0.id == captureID }) else { return (nil, nil) }
+        let previousID = index > 0 ? siblings[index - 1].id : nil
+        let nextID = index + 1 < siblings.count ? siblings[index + 1].id : nil
+        return (
+            previousID.map { id in { path[path.count - 1] = .capture(projectID, sessionID, id) } },
+            nextID.map { id in { path[path.count - 1] = .capture(projectID, sessionID, id) } }
+        )
+    }
+
     private var insightsData: InsightsData {
         InsightsData.build(
             projects: library.activeProjects, equipmentSystems: cameraManager.equipmentLibrary.systems,
@@ -188,11 +239,14 @@ struct ProjectsBrowserView: View {
             )
         case .project(let projectID):
             if let project = library.projects.first(where: { $0.id == projectID }) {
+                let nav = projectSiblingNavigation(around: projectID)
                 ProjectDetailPane(
                     project: project, cameraManager: cameraManager,
                     onShowSessionHistory: { session in path.append(.sessionHistory(projectID, session.id)) },
                     onBack: { path.removeLast() },
-                    onProjectDeleted: { path.removeAll() }
+                    onProjectDeleted: { path.removeAll() },
+                    onPreviousProject: nav.previous,
+                    onNextProject: nav.next
                 )
             } else {
                 ContentUnavailableView("Project No Longer Exists", systemImage: "folder")
@@ -200,11 +254,14 @@ struct ProjectsBrowserView: View {
         case .sessionHistory(let projectID, let sessionID):
             if let project = library.projects.first(where: { $0.id == projectID }),
                let session = project.sessions.first(where: { $0.id == sessionID }) {
+                let nav = sessionSiblingNavigation(in: project, around: sessionID)
                 SessionDetailPane(
                     project: project, session: session, cameraManager: cameraManager,
                     onBack: { path.removeLast() },
                     onSelectCapture: { capture in path.append(.capture(projectID, sessionID, capture.id)) },
-                    onSessionCreated: { newSession in path.append(.sessionHistory(projectID, newSession.id)) }
+                    onSessionCreated: { newSession in path.append(.sessionHistory(projectID, newSession.id)) },
+                    onPreviousSession: nav.previous,
+                    onNextSession: nav.next
                 )
             } else {
                 ContentUnavailableView("Session No Longer Exists", systemImage: "calendar")
@@ -213,9 +270,12 @@ struct ProjectsBrowserView: View {
             if let project = library.projects.first(where: { $0.id == projectID }),
                let session = project.sessions.first(where: { $0.id == sessionID }),
                let capture = session.captures.first(where: { $0.id == captureID }) {
+                let nav = captureSiblingNavigation(projectID: projectID, sessionID: sessionID, session: session, around: captureID)
                 CaptureDetailPage(
                     project: project, session: session, capture: capture, cameraManager: cameraManager,
-                    onBack: { path.removeLast() }
+                    onBack: { path.removeLast() },
+                    onPreviousCapture: nav.previous,
+                    onNextCapture: nav.next
                 )
             } else {
                 ContentUnavailableView("Capture No Longer Exists", systemImage: "photo")

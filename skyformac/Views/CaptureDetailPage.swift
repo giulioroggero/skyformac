@@ -11,6 +11,11 @@ struct CaptureDetailPage: View {
     var cameraManager: CameraManager
     /// Pops back to this capture's own Session page.
     var onBack: () -> Void
+    /// Steps to the previous/next capture within this same session's timeline (newest first,
+    /// matching `TimelineStripView`'s own display order). `nil` — not a no-op closure — when this
+    /// is the first/last capture, so the toolbar button is hidden entirely.
+    var onPreviousCapture: (() -> Void)?
+    var onNextCapture: (() -> Void)?
 
     private var store: ProjectStore { cameraManager.projectStore }
 
@@ -95,6 +100,14 @@ struct CaptureDetailPage: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button("Back to Session", systemImage: "chevron.left", action: onBack)
+            }
+            ToolbarItemGroup {
+                if let onPreviousCapture {
+                    Button("Previous Capture", systemImage: "chevron.up", action: onPreviousCapture)
+                }
+                if let onNextCapture {
+                    Button("Next Capture", systemImage: "chevron.down", action: onNextCapture)
+                }
             }
         }
     }

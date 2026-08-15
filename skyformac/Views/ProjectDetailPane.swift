@@ -19,6 +19,11 @@ struct ProjectDetailPane: View {
     /// (`ProjectsBrowserView`) pops all the way back to Home rather than leaving this page
     /// displayed for a project that no longer shows up anywhere except Recently Deleted.
     var onProjectDeleted: () -> Void
+    /// Steps to the previous/next project in `ProjectsBrowserView`'s own favorites-first
+    /// ordering — `nil` (not just a no-op closure) when this is the first/last project, so the
+    /// toolbar button can be hidden entirely instead of shown disabled.
+    var onPreviousProject: (() -> Void)?
+    var onNextProject: (() -> Void)?
 
     @State private var name: String
     @State private var goal: String
@@ -31,13 +36,16 @@ struct ProjectDetailPane: View {
 
     init(
         project: Project, cameraManager: CameraManager, onShowSessionHistory: @escaping (Session) -> Void,
-        onBack: @escaping () -> Void, onProjectDeleted: @escaping () -> Void
+        onBack: @escaping () -> Void, onProjectDeleted: @escaping () -> Void,
+        onPreviousProject: (() -> Void)? = nil, onNextProject: (() -> Void)? = nil
     ) {
         self.project = project
         self.cameraManager = cameraManager
         self.onShowSessionHistory = onShowSessionHistory
         self.onBack = onBack
         self.onProjectDeleted = onProjectDeleted
+        self.onPreviousProject = onPreviousProject
+        self.onNextProject = onNextProject
         self._name = State(initialValue: project.name)
         self._goal = State(initialValue: project.goal)
     }
@@ -166,6 +174,14 @@ struct ProjectDetailPane: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button("Back", systemImage: "chevron.left", action: onBack)
+            }
+            ToolbarItemGroup {
+                if let onPreviousProject {
+                    Button("Previous Project", systemImage: "chevron.up", action: onPreviousProject)
+                }
+                if let onNextProject {
+                    Button("Next Project", systemImage: "chevron.down", action: onNextProject)
+                }
             }
         }
         // `name`/`goal` are local `@State` (so typing doesn't fight `save()` on every keystroke),

@@ -16,6 +16,11 @@ struct SessionDetailPane: View {
     var onSelectCapture: (CaptureRecord) -> Void
     /// Pushes the newly-created session's own page — see "New Session Like This…" below.
     var onSessionCreated: (Session) -> Void
+    /// Steps to the previous/next session within this same project, in the order
+    /// `ProjectDetailPane`'s own session cards show them (favorites first). `nil` — not a no-op
+    /// closure — when this is the first/last session, so the toolbar button is hidden entirely.
+    var onPreviousSession: (() -> Void)?
+    var onNextSession: (() -> Void)?
 
     @State private var name: String
     @State private var goal: String
@@ -41,7 +46,8 @@ struct SessionDetailPane: View {
     init(
         project: Project, session: Session, cameraManager: CameraManager,
         onBack: @escaping () -> Void, onSelectCapture: @escaping (CaptureRecord) -> Void,
-        onSessionCreated: @escaping (Session) -> Void
+        onSessionCreated: @escaping (Session) -> Void,
+        onPreviousSession: (() -> Void)? = nil, onNextSession: (() -> Void)? = nil
     ) {
         self.project = project
         self.session = session
@@ -49,6 +55,8 @@ struct SessionDetailPane: View {
         self.onBack = onBack
         self.onSelectCapture = onSelectCapture
         self.onSessionCreated = onSessionCreated
+        self.onPreviousSession = onPreviousSession
+        self.onNextSession = onNextSession
         self._name = State(initialValue: session.name)
         self._goal = State(initialValue: session.goal)
         self._plannedObjectsText = State(initialValue: session.plannedObjects.joined(separator: ", "))
@@ -176,6 +184,14 @@ struct SessionDetailPane: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button("Back to Project", systemImage: "chevron.left", action: onBack)
+            }
+            ToolbarItemGroup {
+                if let onPreviousSession {
+                    Button("Previous Session", systemImage: "chevron.up", action: onPreviousSession)
+                }
+                if let onNextSession {
+                    Button("Next Session", systemImage: "chevron.down", action: onNextSession)
+                }
             }
         }
         // Same reasoning as `ProjectDetailPane`'s own `.onChange(of: project)` — local `@State`
