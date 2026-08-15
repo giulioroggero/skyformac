@@ -51,12 +51,15 @@ struct DashboardHomeView: View {
 
     /// The next handful of most-recently-touched sessions across every project — "highlighted
     /// sessions" — excluding whichever one is already shown as "Resume Last Session" above, so
-    /// the same session doesn't appear twice on one page.
-    private var highlightedSessions: [(project: Project, session: Session)] {
+    /// the same session doesn't appear twice on one page. Takes that exclusion explicitly rather
+    /// than reading `lastActive` itself: `lastActive` re-scans every project's every session, so
+    /// calling it once per session considered here (as this used to) turned an O(P·S) scan into an
+    /// effectively O((P·S)²) one — `body` now computes `lastActive` exactly once and passes it in.
+    private func highlightedSessions(excludingSessionID: Session.ID?) -> [(project: Project, session: Session)] {
         var entries: [(project: Project, session: Session, date: Date)] = []
         for project in projects {
             for session in project.sessions where !session.isArchived {
-                guard let date = session.lastCaptureDate, session.id != lastActive?.session.id else { continue }
+                guard let date = session.lastCaptureDate, session.id != excludingSessionID else { continue }
                 entries.append((project, session, date))
             }
         }
@@ -64,6 +67,10 @@ struct DashboardHomeView: View {
     }
 
     var body: some View {
+        // Computed once per render rather than read as computed properties from several places
+        // below (each of which used to redo its own full project/session scan).
+        let lastActive = self.lastActive
+        let highlightedSessions = highlightedSessions(excludingSessionID: lastActive?.session.id)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let lastActive {

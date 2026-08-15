@@ -643,11 +643,15 @@ private struct ActivityTimelineChart: View {
     @State private var zoom: Double = 1
     @State private var zoomCenter: Date?
 
+    /// Every session's every capture, flattened once per render (see `body`) rather than read as
+    /// a computed property from several places — that used to re-flatten the whole project on
+    /// every access (the empty check, the session count, the chart data, and transitively again
+    /// via `fullRange`/`visibleRange`), including on every frame of dragging the zoom slider.
     private var entries: [(session: String, date: Date)] {
         project.sessions.flatMap { session in session.captures.map { (session.name, $0.date) } }
     }
 
-    private var fullRange: ClosedRange<Date> {
+    private static func fullRange(for entries: [(session: String, date: Date)]) -> ClosedRange<Date> {
         let dates = entries.map(\.date)
         guard let earliest = dates.min(), let latest = dates.max() else {
             let now = Date()
@@ -658,9 +662,9 @@ private struct ActivityTimelineChart: View {
         return earliest < latest ? earliest...latest : earliest...earliest.addingTimeInterval(1800)
     }
 
-    private var visibleRange: ClosedRange<Date> {
+    private func visibleRange(fullRange: ClosedRange<Date>) -> ClosedRange<Date> {
         guard zoom > 1 else { return fullRange }
-        let center = zoomCenter ?? fullRangeMidpoint
+        let center = zoomCenter ?? Self.midpoint(of: fullRange)
         let fullWidth = fullRange.upperBound.timeIntervalSince(fullRange.lowerBound)
         let halfWidth = fullWidth / zoom / 2
         let lower = max(fullRange.lowerBound, center.addingTimeInterval(-halfWidth))
@@ -668,20 +672,22 @@ private struct ActivityTimelineChart: View {
         return lower < upper ? lower...upper : fullRange
     }
 
-    private var fullRangeMidpoint: Date {
-        fullRange.lowerBound.addingTimeInterval(fullRange.upperBound.timeIntervalSince(fullRange.lowerBound) / 2)
+    private static func midpoint(of range: ClosedRange<Date>) -> Date {
+        range.lowerBound.addingTimeInterval(range.upperBound.timeIntervalSince(range.lowerBound) / 2)
     }
 
     var body: some View {
+        let entries = self.entries
         if entries.isEmpty {
             Text("Nothing captured yet.").font(.caption).foregroundStyle(.secondary)
         } else {
             let sessionCount = Set(entries.map(\.session)).count
+            let fullRange = Self.fullRange(for: entries)
             VStack(alignment: .leading, spacing: 6) {
                 Chart(entries, id: \.date) { entry in
                     PointMark(x: .value("Time", entry.date), y: .value("Session", entry.session))
                 }
-                .chartXScale(domain: visibleRange)
+                .chartXScale(domain: visibleRange(fullRange: fullRange))
                 .frame(height: CGFloat(min(max(sessionCount, 1), 8)) * 24 + 40)
                 HStack(spacing: 6) {
                     Image(systemName: "plus.magnifyingglass").font(.caption2).foregroundStyle(.secondary)
@@ -693,7 +699,7 @@ private struct ActivityTimelineChart: View {
                     }
                 }
                 .onChange(of: zoom) { _, _ in
-                    if zoomCenter == nil { zoomCenter = fullRangeMidpoint }
+                    if zoomCenter == nil { zoomCenter = Self.midpoint(of: fullRange) }
                 }
             }
         }
