@@ -434,22 +434,23 @@ struct PageSection<Content: View>: View {
 struct StatsGridView: View {
     let stats: [StatItem]
 
-    /// A real `Table`, not a fixed-width grid — its columns fill the section's full width by
-    /// default and the user can still drag either one wider (macOS `Table` columns are
-    /// user-resizable out of the box), so a long value never gets clipped the way a capped-width
-    /// grid cell would.
+    /// A plain `Grid`, not a `Table` — a `Table` always creates its own internal `NSScrollView`
+    /// regardless of what's given as its `.frame(height:)`, and that height had to be guessed
+    /// (`rowCount * 28 + 32`, a stand-in for the real per-row height `Table` never exposes). Once
+    /// a section had enough rows (Camera Settings can show up to 9), that guess fell short of the
+    /// real content height and the table silently clipped/scrolled internally instead of the
+    /// section just growing — "the table isn't fully visible." `Grid` sizes itself to its actual
+    /// content with no height to guess at all, so this can't recur regardless of row count.
     var body: some View {
-        Table(stats) {
-            TableColumn("Label") { stat in
-                Text(stat.label).foregroundStyle(.secondary)
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+            ForEach(stats) { stat in
+                GridRow(alignment: .firstTextBaseline) {
+                    Text(stat.label).foregroundStyle(.secondary)
+                    Text(stat.value)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .width(min: 100, ideal: 140, max: 220)
-            TableColumn("Value") { stat in
-                Text(stat.value)
-            }
-            .width(min: 160, ideal: 320)
         }
-        .frame(height: CGFloat(max(stats.count, 1)) * 28 + 32)
     }
 }
 
