@@ -7,11 +7,14 @@ single-developer app, not a library with a public API.
 
 **[Unreleased]** is the `master`/dev branch — updated continuously as work lands,
 with everything folded under a proper version heading (and dated) only once it's
-actually tagged. Tags on GitHub: [v0.3.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.3.0),
+actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.4.0),
+[v0.3.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.3.0),
 [v0.2.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.2.0),
 [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12).
 
 ## [Unreleased]
+
+## [0.4.0] - 2026-08-15
 
 ### Added
 - **Astronomy Knowledge** (Settings) — a user-editable folder of plain `.md`
@@ -30,6 +33,47 @@ actually tagged. Tags on GitHub: [v0.3.0](https://github.com/giulioroggero/skyfo
   in-flight request; replies now render as Markdown instead of literal
   `**asterisks**`; AI planning/chat failures are logged to the Application
   Log, not just shown inline.
+- **Multi-session AI chat history** — create a new conversation, browse/
+  rename/delete past ones, and resume exactly where one left off; each is
+  persisted as its own file (same "one file per item" shape as Equipment).
+- **Streaming AI responses** — replies (including "Ask AI to Describe…")
+  now stream in live instead of a bare "Asking Ollama…" spinner for the
+  whole wait, and a configurable **Max Response Length** (Settings) bounds
+  how long a single reply may generate.
+- **Camera Settings** on the Capture detail page — every field of that
+  specific capture's own settings snapshot (mode, gain, exposure, ROI,
+  drift reduction, Smart Live Stack, Lucky Imaging burst count, SER
+  duration), previously recorded but never shown anywhere.
+- **Previous/Next Capture** buttons directly overlaid on the capture image
+  itself, and **Open Previous Session** (only "Open Next Session" existed
+  before) in the Project menu.
+- **Open**/**Open in Viewer** buttons on the Capture detail page for SER/
+  recording/other non-image captures — FITS reuses the app's own real
+  viewer, everything else opens in whatever the system already handles it
+  with.
+- **Zoom (like the Histogram) and manual entry** on the Gain and Exposure
+  sliders, for dialing in an exact value directly instead of only dragging.
+- **Move a session to a different project**, and **Next/Previous**
+  navigation on the Project, Session, and Capture pages.
+- A **zoomable, project-wide Activity Timeline** chart, and real session
+  times (not just a bare date) on session cards.
+- The camera view's toolbar now shows the running session's planned
+  objects, so "what am I supposed to be pointing at" doesn't require a
+  trip back to the session page.
+- Captures now **auto-save directly into the active session's own folder**
+  — no folder-choice dialog — named `<object>-<date>-<time>` (e.g.
+  `M13-2026-08-15-213045.fits`); the app already organizes captures by
+  project/session, so asking again was a redundant step. Falls back to the
+  old save panel only when no session is active to organize into.
+- **Developer ID + notarization distribution** set up (`make release`,
+  `docs/distribution.md`, a Homebrew Cask template) — Skyformac ships as a
+  signed `.dmg` via GitHub Releases, not through the Mac App Store; see
+  `docs/app-store-readiness.md` for why that path isn't being pursued.
+- README: a development-status notice, a **Screenshots** gallery of the
+  app itself, and links to the project's [website](https://giulioroggero.github.io/skyformac-website/)
+  and `docs/distribution.md`.
+- Credited [Stellarium](https://stellarium.org) for the bundled Messier/
+  Caldwell/bright-star catalog data (GPLv2) in `THIRD_PARTY_NOTICES.md`.
 
 ### Changed
 - Removed "Ideas for Next Time" (the bare-object-name suggestion list) from
@@ -43,6 +87,48 @@ actually tagged. Tags on GitHub: [v0.3.0](https://github.com/giulioroggero/skyfo
   reach entirely, not just visually cramped (caught via two CI-only UI
   test failures that never reproduced locally, tracked down by downloading
   and inspecting the actual `.xcresult` from a failed run).
+- The AI panel's Minimize/Detach/Close/Dock header buttons are icon-only now
+  (a tooltip on hover), instead of showing text labels alongside the icons.
+- Reduced Focus Assist/Planetary Tracking/Streak Detection's per-frame
+  analysis cadence and the diagnostics poll interval as a modest, easily
+  reverted energy tweak.
+- Internal refactoring, from a full-codebase audit for dead code,
+  duplication, and performance: the Gain/Exposure zoom+manual-entry
+  scaffolding collapsed into one shared generic component; a cached
+  thumbnail loader replacing four separate uncached `NSImage(contentsOf:)`
+  call sites; a shared root-directory-resolution helper across the
+  Projects/Equipment/AI-Chat/Knowledge-Base file stores; several
+  `CameraManager` helpers deduped (blocking-capture preamble, control-cap
+  lookup); `StatsGridView` switched from a `Table` (whose manually-guessed
+  height could clip a section with enough rows) to a self-sizing `Grid`.
+
+### Fixed
+- The AI panel failing to reopen as a detached window if closed while still
+  in camera mode.
+- Live GPU/CPU image enhancement (denoise, wavelet sharpening, Live GPU
+  Controls) applying to the *next* captured frame instead of the one
+  currently on screen when a setting changed.
+- Live Stack's display stretch never re-adapting as the accumulated stack's
+  own signal-to-noise improved, so it didn't visibly brighten.
+- `AcquisitionMode` mislabeling a plain single exposure (neither Live Stack
+  nor a Lucky Imaging burst) as "Lucky Imaging" in history/Insights.
+- A GPU scratch-texture allocation failure could silently skip the final
+  render stage, freezing the live preview with no error shown.
+- The Camera Error alert's dismiss button was a no-op — a dismissed error
+  could silently reappear on the next unrelated re-render.
+- "Move to Project…" swallowing a failed move and navigating away as if it
+  had succeeded; `ProjectStore`'s delete/move helpers could otherwise leave
+  a session's on-disk files orphaned or a `CaptureRecord` pointing at a
+  file that no longer existed.
+- Unplugging a camera or losing a webcam mid-recording didn't stop/finalize
+  an in-progress SER/FITS recording, risking a corrupted file on reconnect.
+- Any camera streaming error other than "removed" silently froze live view
+  with no error shown and no way to resume without a full reconnect.
+- AI-created projects/sessions (and Quick Start) reported success even when
+  the underlying disk write actually failed.
+- A previously-latent bug in the shared Xcode scheme (`buildForArchiving`
+  left on for the test targets) that made every `xcodebuild archive`
+  attempt fail outright — found while setting up the release process.
 
 ## [0.3.0] - 2026-08-14
 
