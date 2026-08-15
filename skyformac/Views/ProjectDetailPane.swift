@@ -130,7 +130,7 @@ struct ProjectDetailPane: View {
                     // Favorites first — "keep them on top" — ties broken by each session's own
                     // existing order otherwise (a stable sort, so non-favorites don't get
                     // needlessly reshuffled amongst themselves).
-                    ForEach(favoritesFirst(project.sessions)) { session in
+                    ForEach(favoritesFirst(project.sessions, isFavorite: \.isFavorite)) { session in
                         SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
                             .contentShape(Rectangle())
                             // Tapping a session always opens its own Session page (detail/history)
@@ -233,13 +233,6 @@ struct ProjectDetailPane: View {
         guard let index = updatedProject.sessions.firstIndex(where: { $0.id == updatedSession.id }) else { return }
         updatedProject.sessions[index] = updatedSession
         try? library.save(updatedProject)
-    }
-
-    /// Stable sort — `sorted(by:)` preserves the relative order of elements that compare equal,
-    /// so sessions that are both favorites (or both not) keep whatever order they were already in
-    /// instead of getting shuffled just because a sort ran.
-    private func favoritesFirst(_ sessions: [Session]) -> [Session] {
-        sessions.sorted { $0.isFavorite && !$1.isFavorite }
     }
 
     /// Sessions count (split active/archived) plus a per-kind capture breakdown — "how much has

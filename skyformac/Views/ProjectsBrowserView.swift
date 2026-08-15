@@ -52,19 +52,9 @@ struct ProjectsBrowserView: View {
         } else {
             filtered = base
         }
-        // Favorites first — "keep them on top" — a stable sort, so everything else keeps
-        // whatever order it was already going to show in (name, last activity, whatever the
-        // current view mode/sort otherwise applies).
-        return filtered.sorted { $0.isFavorite && !$1.isFavorite }
-    }
-
-    /// Same favorites-first stable sort `visibleProjects`/`ProjectDetailPane`'s own session cards
-    /// already use — shared here (generic over `Project`/`Session`, via an explicit `isFavorite`
-    /// key path since the two don't share a protocol) so "Next/Previous Project"/"Next/Previous
-    /// Session" step through siblings in the exact same order those lists actually show them in,
-    /// not raw array order.
-    private static func favoritesFirst<T>(_ items: [T], isFavorite: (T) -> Bool) -> [T] {
-        items.sorted { isFavorite($0) && !isFavorite($1) }
+        // Favorites first — "keep them on top" — see `favoritesFirst(_:isFavorite:)`'s own doc
+        // comment for why this is a shared top-level helper, not a private one-off here.
+        return favoritesFirst(filtered, isFavorite: \.isFavorite)
     }
 
     /// Computed in a plain (non-`@ViewBuilder`) method rather than inline in `destination(for:)`
@@ -73,7 +63,7 @@ struct ProjectsBrowserView: View {
     /// "compute these two optional closures first" imperative code doesn't type-check there at
     /// all. A plain function call is just a normal expression, so it's unaffected.
     private func projectSiblingNavigation(around projectID: Project.ID) -> (previous: (() -> Void)?, next: (() -> Void)?) {
-        let siblings = Self.favoritesFirst(library.activeProjects.filter { !$0.isArchived }, isFavorite: \.isFavorite)
+        let siblings = favoritesFirst(library.activeProjects.filter { !$0.isArchived }, isFavorite: \.isFavorite)
         guard let index = siblings.firstIndex(where: { $0.id == projectID }) else { return (nil, nil) }
         let previousID = index > 0 ? siblings[index - 1].id : nil
         let nextID = index + 1 < siblings.count ? siblings[index + 1].id : nil
@@ -84,7 +74,7 @@ struct ProjectsBrowserView: View {
     }
 
     private func sessionSiblingNavigation(in project: Project, around sessionID: Session.ID) -> (previous: (() -> Void)?, next: (() -> Void)?) {
-        let siblings = Self.favoritesFirst(project.sessions, isFavorite: \.isFavorite)
+        let siblings = favoritesFirst(project.sessions, isFavorite: \.isFavorite)
         guard let index = siblings.firstIndex(where: { $0.id == sessionID }) else { return (nil, nil) }
         let previousID = index > 0 ? siblings[index - 1].id : nil
         let nextID = index + 1 < siblings.count ? siblings[index + 1].id : nil

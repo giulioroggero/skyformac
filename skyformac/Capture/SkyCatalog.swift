@@ -29,12 +29,35 @@ enum SkyCatalog {
     /// (well-known) source when more than one name is listed for the same object.
     static let caldwellObjects: [SkyCatalogObject] = load("caldwell")
 
+    /// Logs (rather than just silently returning `[]`) on any failure — a missing bundle
+    /// resource, an unreadable file, or a JSON schema mismatch would otherwise leave the entire
+    /// Messier/Caldwell/bright-star catalog empty with zero indication of *why*, since every
+    /// consumer (`SkyAtlasLookup`, `StarPatternRecognizer`, `ProjectSearch`) just treats an empty
+    /// catalog as "nothing matched" rather than "something's actually broken." `logFailure` hops
+    /// to `@MainActor` in a detached `Task` rather than calling `AppLog` directly — `load` runs
+    /// from `static let` initializers that may first execute off the main actor (e.g. from
+    /// `StarPatternRecognizer`'s background Focus Assist path), and `AppLog.shared` itself is
+    /// `@MainActor`-isolated.
     private static func load(_ resource: String) -> [SkyCatalogObject] {
         guard let url = Bundle.main.url(forResource: resource, withExtension: "json", subdirectory: "SkyCatalog")
-            ?? Bundle.main.url(forResource: resource, withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let objects = try? JSONDecoder().decode([SkyCatalogObject].self, from: data)
-        else { return [] }
-        return objects
+            ?? Bundle.main.url(forResource: resource, withExtension: "json")
+        else {
+            logFailure("SkyCatalog: couldn't find bundled resource \"\(resource).json\".")
+            return []
+        }
+        guard let data = try? Data(contentsOf: url) else {
+            logFailure("SkyCatalog: couldn't read \"\(resource).json\" at \(url.path).")
+            return []
+        }
+        do {
+            return try JSONDecoder().decode([SkyCatalogObject].self, from: data)
+        } catch {
+            logFailure("SkyCatalog: couldn't decode \"\(resource).json\" — \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private static func logFailure(_ message: String) {
+        Task { @MainActor in AppLog.shared.log(message) }
     }
 }

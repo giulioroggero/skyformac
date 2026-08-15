@@ -210,21 +210,19 @@ struct PreviewView: View {
 
     @ViewBuilder
     private var frameContent: some View {
-        if useMetalRenderer {
-            MetalPreviewView(cameraManager: cameraManager)
-                .overlay { focusAssistOverlay }
-                .overlay { planetROIOverlay }
-                .overlay { polarAlignmentOverlay }
-                .overlay { skyHUDOverlay }
-        } else if let cgImage = cameraManager.currentImage {
-            Image(decorative: cgImage, scale: 1.0)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .overlay { focusAssistOverlay }
-                .overlay { planetROIOverlay }
-                .overlay { polarAlignmentOverlay }
-                .overlay { skyHUDOverlay }
+        Group {
+            if useMetalRenderer {
+                MetalPreviewView(cameraManager: cameraManager)
+            } else if let cgImage = cameraManager.currentImage {
+                Image(decorative: cgImage, scale: 1.0)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            }
         }
+        .overlay { focusAssistOverlay }
+        .overlay { planetROIOverlay }
+        .overlay { polarAlignmentOverlay }
+        .overlay { skyHUDOverlay }
     }
 
     private var magnifyGesture: some Gesture {

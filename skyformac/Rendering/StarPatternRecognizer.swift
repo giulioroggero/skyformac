@@ -39,7 +39,7 @@ enum StarPatternRecognizer {
 
         // Cap star count to keep the O(n^3) triangle enumeration bounded on a busy frame.
         let cappedPoints = Array(points.prefix(12))
-        let catalogTriangles = makeCatalogTriangles(catalog)
+        let catalogTriangles = catalogTriangles(for: catalog)
         let detectedRatios = makePixelTriangleRatios(cappedPoints)
 
         var votes: [String: Int] = [:]
@@ -168,6 +168,20 @@ enum StarPatternRecognizer {
 
     private static func ratiosMatch(_ a: (Double, Double), _ b: (Double, Double), tolerance: Double) -> Bool {
         abs(a.0 - b.0) < tolerance && abs(a.1 - b.1) < tolerance
+    }
+
+    /// `makeCatalogTriangles(_:)`'s own result for the default catalog, built once — `recognize`
+    /// runs on a timer (`CameraManager.scheduleFocusAssistIfNeeded`, every ~400ms while Focus
+    /// Assist/star recognition is on) and `SkyCatalog.brightStars` never changes at runtime, so
+    /// rebuilding its fixed ~14-star triangle-ratio table from scratch on every tick was pure
+    /// repeated work over a value that was always going to come out the same.
+    private static let defaultCatalogTriangles: [CatalogTriangle] = makeCatalogTriangles(SkyCatalog.brightStars)
+
+    /// Only the default catalog is served from `defaultCatalogTriangles` — a caller passing a
+    /// different one (tests, mainly) always recomputes fresh, since there's no way to know in
+    /// advance a non-default catalog will be reused across calls.
+    private static func catalogTriangles(for catalog: [SkyCatalogObject]) -> [CatalogTriangle] {
+        catalog == SkyCatalog.brightStars ? defaultCatalogTriangles : makeCatalogTriangles(catalog)
     }
 
     private static func makeCatalogTriangles(_ stars: [SkyCatalogObject]) -> [CatalogTriangle] {
