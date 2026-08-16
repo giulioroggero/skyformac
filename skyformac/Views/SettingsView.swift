@@ -81,6 +81,8 @@ struct SettingsView: View {
                     .tabItem { Label("AI", systemImage: "sparkles") }
                 StorageSettingsView(cameraManager: cameraManager)
                     .tabItem { Label("Storage", systemImage: "internaldrive") }
+                CommunitySettingsView()
+                    .tabItem { Label("Community", systemImage: "person.2") }
             }
         }
         .frame(width: 640, height: 640)

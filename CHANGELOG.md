@@ -14,6 +14,33 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- A bundled `Fix Gatekeeper Warning.command` script alongside `skyformac.app` in both the
+  `.zip` and a new `.dmg` release — moves the app into `/Applications` (avoiding macOS App
+  Translocation, which otherwise silently breaks Camera permission prompts for the iPhone/
+  webcam source), clears the quarantine flag, and resets the Camera TCC permission in one step.
+- A signed-adjacent, drag-to-Applications `.dmg` installer alongside the existing `.zip`.
+- GitHub community health files (Code of Conduct, Contributing, Security policy, Support doc,
+  issue templates, PR template) and Discussions enabled.
+- A brief flash + shutter sound on every successful capture — pressing the capture button
+  previously gave no feedback at all that anything happened.
+- Captures now crop to match the live preview's on-screen zoom for PNG/TIFF exports (raw FITS
+  stays full-frame, to keep the Bayer pattern's alignment intact for calibration/stacking).
+- Disk usage shown per project, session, and capture throughout the Projects browser and
+  Settings; a new **Delete…** action on individual captures (file + thumbnail + record) to
+  reclaim space without deleting a whole session.
+- Settings reorganized into tabs (**Folders / Rendering / AI / Storage / Community**) and
+  enlarged to make room — **Storage** manages disk usage across every project; **Community**
+  shows this repo's open/resolved GitHub issues live, with a one-click "Report an Issue…".
+
+### Fixed
+- FITS "Record to Disk" had no guard against a genuinely blank/flat frame reaching the file,
+  unlike the `.ser` recorder — one such frame in a sequence was enough to trip Siril's "MAD is
+  null. Statistics cannot be computed." during stacking. Now shares the same guard `.ser`
+  recording already had.
+- The AI chat panel's visible/minimized/detached state was in-memory only, so closing it (e.g.
+  on the camera page) didn't survive a relaunch — now persisted like every other preference.
+
 ## [0.4.0] - 2026-08-15
 
 ### Added

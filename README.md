@@ -3,14 +3,17 @@
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
 [![Release](https://img.shields.io/github/v/release/giulioroggero/skyformac?include_prereleases)](https://github.com/giulioroggero/skyformac/releases)
+[![Open Issues](https://img.shields.io/github/issues/giulioroggero/skyformac)](https://github.com/giulioroggero/skyformac/issues)
+[![Closed Issues](https://img.shields.io/github/issues-closed/giulioroggero/skyformac)](https://github.com/giulioroggero/skyformac/issues?q=is%3Aissue+is%3Aclosed)
 
 <h1 align="center">Sky For Mac</h1>
 
-> **Status: still in active development.** No official release has been published yet.
-> Contributions are very welcome — testing against real cameras/mounts, feature proposals, code,
-> bug reports, anything. If you have ZWO (or other) camera or astro gear you'd be willing to lend
-> or send to the author for compatibility testing, that's especially appreciated — please reach
-> out via [Issues](https://github.com/giulioroggero/skyformac/issues).
+> **Status: still in active development.** Contributions are very welcome — testing against
+> real cameras/mounts, feature proposals, code, bug reports, anything. If you have ZWO (or
+> other) camera or astro gear you'd be willing to lend or send to the author for compatibility
+> testing, that's especially appreciated — please reach out via
+> [Issues](https://github.com/giulioroggero/skyformac/issues). Open and resolved issues are also
+> browsable right inside the app — Settings > Community.
 
 <p align="center">
   <a href="https://giulioroggero.github.io/skyformac-website/">Website</a> ·
