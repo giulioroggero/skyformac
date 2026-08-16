@@ -19,6 +19,7 @@ struct CaptureDetailPage: View {
 
     @State private var isElaborating = false
     @State private var isPromptingSirilSettings = false
+    @State private var isConfirmingDelete = false
 
     private var store: ProjectStore { cameraManager.projectStore }
 
@@ -119,6 +120,9 @@ struct CaptureDetailPage: View {
                         if elaborationSource != nil {
                             Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
                         }
+                        Button("Delete…", systemImage: "trash", role: .destructive) {
+                            isConfirmingDelete = true
+                        }
                     }
                 }
 
@@ -182,6 +186,22 @@ struct CaptureDetailPage: View {
                 }
             }
         }
+        .confirmationDialog(
+            "Delete this capture?", isPresented: $isConfirmingDelete, titleVisibility: .visible
+        ) {
+            Button("Delete \(capture.fileName)", role: .destructive) {
+                try? cameraManager.projectsLibrary.deleteCapture(capture.id, fromSessionID: session.id, in: project)
+                // The capture this page is showing no longer exists — its own route is now
+                // stale, same reasoning as `MoveSessionToProjectSheet`'s success handler in
+                // `SessionDetailPane`, so pop back to the (still-valid) Session page.
+                onBack()
+            }
+        } message: {
+            let diskUsage = ByteCountFormatter.string(
+                fromByteCount: store.diskUsage(for: capture, in: session, project: project), countStyle: .file
+            )
+            Text("This removes the file (\(diskUsage)) and its thumbnail from disk — this can't be undone.")
+        }
     }
 
     /// `nil` when this capture's `kind` isn't something Siril can process further — see
@@ -206,6 +226,10 @@ struct CaptureDetailPage: View {
             .controlSize(.large)
             .padding(10)
             .background(.thinMaterial, in: Circle())
+            // Without this, a borderless button's click target on macOS shrinks to the rendered
+            // icon glyph itself, not the visible circle behind it — the padding/background above
+            // are purely cosmetic to hit-testing unless the tappable shape is stated explicitly.
+            .contentShape(Circle())
             .padding(12)
             .help(label)
     }

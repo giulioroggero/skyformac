@@ -21,7 +21,15 @@ final class SkyformacUITests: XCTestCase {
     /// Removed permanently in `tearDown` — nothing from a test run should survive it.
     private var testRootURL: URL!
 
-    override func setUpWithError() throws {
+    // `async` overrides, not `setUpWithError()`/`tearDownWithError()` — XCTestCase declares its
+    // synchronous throwing setUp/tearDown as `nonisolated` in the SDK even on a `@MainActor`
+    // subclass, so they can't touch a main-actor-isolated stored property like `testRootURL`
+    // directly. Confirmed on CI (Xcode 16.4): "main actor-isolated property 'testRootURL' can not
+    // be mutated from a nonisolated context" — not reproduced on a newer local Xcode, which
+    // apparently inferred isolation differently for the synchronous overrides (see this file's
+    // own `@MainActor` doc comment above for the identical class of issue). The `async` lifecycle
+    // hooks are properly isolated to the class's own actor on every Xcode version.
+    override func setUp() async throws {
         continueAfterFailure = false
         testRootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("skyformac-uitest-\(UUID().uuidString)", isDirectory: true)
@@ -41,7 +49,7 @@ final class SkyformacUITests: XCTestCase {
         appDefaults?.removeObject(forKey: "isAssistantDetached")
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: testRootURL)
     }
 
