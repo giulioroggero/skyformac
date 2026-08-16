@@ -34,19 +34,15 @@ final class SkyformacUITests: XCTestCase {
         testRootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("skyformac-uitest-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: testRootURL, withIntermediateDirectories: true)
-
-        // The AI panel's visible/minimized/detached state persists across launches
-        // (`AppSettings.isAssistantPanelVisible` et al. — see `CameraManager`), which is the
-        // whole point for real usage but breaks these tests' assumption that every `app.launch()`
-        // starts from the same hardcoded defaults: without this, whichever of these three keys a
-        // previous test (or a previous real run of the app on this machine) last wrote lingers in
-        // the on-disk defaults domain and leaks into the next test. `UserDefaults.standard` here
-        // is scoped to the test runner's own process, not the launched app's — reach the app's
-        // domain by bundle ID instead.
-        let appDefaults = UserDefaults(suiteName: "com.giulioroggero.skyformac")
-        appDefaults?.removeObject(forKey: "isAssistantPanelVisible")
-        appDefaults?.removeObject(forKey: "isAssistantMinimized")
-        appDefaults?.removeObject(forKey: "isAssistantDetached")
+        // The AI panel's visible/minimized/detached state (`AppSettings.isAssistantPanelVisible`
+        // et al.) persists across *real* launches, which is the whole point for real usage but
+        // breaks these tests' assumption that every `app.launch()` starts from the same hardcoded
+        // defaults. `AppSettings` itself already routes those three through an in-memory,
+        // per-process store instead of real `UserDefaults` whenever `SKYFORMAC_UITEST_ROOT` is
+        // set (see its own doc comment) — no separate reset needed here. An earlier version of
+        // this fix reset the on-disk defaults from here instead, which raced the *previous* test's
+        // just-terminated app process still flushing its own write to that same shared file —
+        // passed most of the time locally, failed on every single CI run.
     }
 
     override func tearDown() async throws {

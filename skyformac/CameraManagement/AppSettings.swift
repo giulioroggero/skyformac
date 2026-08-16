@@ -333,26 +333,72 @@ enum AppSettings {
 
     static let defaultOllamaMaxResponseTokens = 800
 
+    /// `true` when launched by `SkyformacUITests` (which sets `SKYFORMAC_UITEST_ROOT` —
+    /// `ProjectStore.resolveRootDirectory`'s own isolation marker). The assistant panel's
+    /// visible/minimized/detached state below piggybacks on the same flag to isolate itself too,
+    /// for a genuinely real reason found the hard way: every `XCUIApplication().launch()` in one
+    /// test run is a fresh *process*, but they all still share the *same* on-disk
+    /// `~/Library/Preferences/.../com.giulioroggero.skyformac.plist` within that one CI job. A
+    /// `setUpWithError()` reset of these keys between tests raced the previous test's just-
+    /// terminated app process still flushing its own write to that same file — passed most of the
+    /// time locally, failed on *every single* CI run, since GitHub's runner has different I/O
+    /// timing than a local Mac. Routing these three through `uiTestScopedStorage` instead of real
+    /// `UserDefaults` during a UI test removes the shared file — and the race — entirely.
+    static var isRunningUITests: Bool {
+        ProcessInfo.processInfo.environment["SKYFORMAC_UITEST_ROOT"] != nil
+    }
+
+    /// Backing store for `isAssistantPanelVisible`/`isAssistantMinimized`/`isAssistantDetached`
+    /// while `isRunningUITests` — plain in-memory, scoped to this one process, exactly as
+    /// isolated as `SKYFORMAC_UITEST_ROOT` already makes the Projects/Equipment/Knowledge Base
+    /// folders for the same reason.
+    nonisolated(unsafe) private static var uiTestScopedStorage: [String: Bool] = [:]
+
     /// Whether the AI sidebar/panel should be shown at all — "closed" is a deliberate user choice
     /// that used to reset to visible (the default) on every relaunch, since `CameraManager` held
     /// this as plain in-memory state. Defaults to `true` (shown) when never explicitly set.
     static var isAssistantPanelVisible: Bool {
         get {
-            UserDefaults.standard.object(forKey: Key.isAssistantPanelVisible.rawValue) != nil
+            if isRunningUITests { return uiTestScopedStorage[Key.isAssistantPanelVisible.rawValue] ?? true }
+            return UserDefaults.standard.object(forKey: Key.isAssistantPanelVisible.rawValue) != nil
                 ? UserDefaults.standard.bool(forKey: Key.isAssistantPanelVisible.rawValue)
                 : true
         }
-        set { UserDefaults.standard.set(newValue, forKey: Key.isAssistantPanelVisible.rawValue) }
+        set {
+            if isRunningUITests {
+                uiTestScopedStorage[Key.isAssistantPanelVisible.rawValue] = newValue
+            } else {
+                UserDefaults.standard.set(newValue, forKey: Key.isAssistantPanelVisible.rawValue)
+            }
+        }
     }
 
     static var isAssistantMinimized: Bool {
-        get { UserDefaults.standard.bool(forKey: Key.isAssistantMinimized.rawValue) }
-        set { UserDefaults.standard.set(newValue, forKey: Key.isAssistantMinimized.rawValue) }
+        get {
+            if isRunningUITests { return uiTestScopedStorage[Key.isAssistantMinimized.rawValue] ?? false }
+            return UserDefaults.standard.bool(forKey: Key.isAssistantMinimized.rawValue)
+        }
+        set {
+            if isRunningUITests {
+                uiTestScopedStorage[Key.isAssistantMinimized.rawValue] = newValue
+            } else {
+                UserDefaults.standard.set(newValue, forKey: Key.isAssistantMinimized.rawValue)
+            }
+        }
     }
 
     static var isAssistantDetached: Bool {
-        get { UserDefaults.standard.bool(forKey: Key.isAssistantDetached.rawValue) }
-        set { UserDefaults.standard.set(newValue, forKey: Key.isAssistantDetached.rawValue) }
+        get {
+            if isRunningUITests { return uiTestScopedStorage[Key.isAssistantDetached.rawValue] ?? false }
+            return UserDefaults.standard.bool(forKey: Key.isAssistantDetached.rawValue)
+        }
+        set {
+            if isRunningUITests {
+                uiTestScopedStorage[Key.isAssistantDetached.rawValue] = newValue
+            } else {
+                UserDefaults.standard.set(newValue, forKey: Key.isAssistantDetached.rawValue)
+            }
+        }
     }
 
     /// The instructions folded into every "suggest my next session" request
