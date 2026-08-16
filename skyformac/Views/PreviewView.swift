@@ -205,10 +205,7 @@ struct PreviewView: View {
                 Slider(
                     value: Binding(
                         get: { zoom },
-                        set: {
-                            zoom = clampedZoom($0)
-                            panOffset = clampedOffset(panOffset)
-                        }
+                        set: { applyZoom(clampedZoom($0)) }
                     ),
                     in: minZoom...maxZoom
                 )
@@ -242,8 +239,17 @@ struct PreviewView: View {
                         .onChange(of: proxy.size) { _, newValue in containerSize = newValue }
                 }
             )
-            .scaleEffect(zoom * magnifyDelta)
-            .offset(x: panOffset.width + dragDelta.width, y: panOffset.height + dragDelta.height)
+            .scaleEffect(zoom * magnifyDelta, anchor: .center)
+            // `panOffset` is scaled by `magnifyDelta` here too — `.offset` is applied in absolute
+            // points *after* `.scaleEffect` above, so without this an in-progress pinch would
+            // leave whatever's currently centered visibly drifting toward whichever direction the
+            // last pan happened to lean, growing worse the further zoom goes. See `magnifyGesture`
+            // and the fullscreen zoom slider's `set:` for the equivalent fix to the *committed*
+            // `zoom`/`panOffset` pair once a zoom change actually lands.
+            .offset(
+                x: panOffset.width * magnifyDelta + dragDelta.width,
+                y: panOffset.height * magnifyDelta + dragDelta.height
+            )
             .gesture(magnifyGesture)
             .simultaneousGesture(dragGesture)
             .onTapGesture(count: 2) { resetZoom() }
@@ -270,9 +276,21 @@ struct PreviewView: View {
         MagnifyGesture()
             .updating($magnifyDelta) { value, state, _ in state = value.magnification }
             .onEnded { value in
-                zoom = clampedZoom(zoom * value.magnification)
-                panOffset = clampedOffset(panOffset)
+                applyZoom(clampedZoom(zoom * value.magnification))
             }
+    }
+
+    /// Changes `zoom` to `newZoom` and rescales `panOffset` by the same ratio, so whatever's
+    /// currently centered on screen *stays* centered — without this, `panOffset` stayed a fixed
+    /// number of points while `zoom` changed underneath it (via a pinch, or the fullscreen zoom
+    /// slider), and since `.offset` in `zoomablePreview` applies in absolute points *after*
+    /// `.scaleEffect`, the same offset represented a shrinking or growing fraction of the zoomed
+    /// content as zoom changed — visibly dragging whatever was centered off toward one side, worse
+    /// the more zoom changed afterward. `oldZoom` is guaranteed `> 0` (`minZoom` is `1`).
+    private func applyZoom(_ newZoom: CGFloat) {
+        let ratio = newZoom / zoom
+        panOffset = clampedOffset(CGSize(width: panOffset.width * ratio, height: panOffset.height * ratio))
+        zoom = newZoom
     }
 
     private var dragGesture: some Gesture {
