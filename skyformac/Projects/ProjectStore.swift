@@ -270,6 +270,79 @@ final class ProjectStore {
         return record
     }
 
+    /// Removes one capture's file (and its thumbnail, if any) from `session`'s folder, then
+    /// re-saves the project's own metadata without that `CaptureRecord` listed. Same real-data-
+    /// loss caveat as `deleteSession(_:in:)` — callers confirm with the user first. A no-op if
+    /// `captureID` isn't actually in `session`'s captures (already deleted, wrong ID).
+    func deleteCapture(_ captureID: UUID, fromSessionID sessionID: UUID, in project: inout Project) throws {
+        guard let sessionIndex = project.sessions.firstIndex(where: { $0.id == sessionID }),
+              let capture = project.sessions[sessionIndex].captures.first(where: { $0.id == captureID })
+        else { return }
+        let session = project.sessions[sessionIndex]
+        let fileURL = sessionFolderURL(for: session, in: project).appendingPathComponent(capture.fileName)
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+        }
+        if let thumbnailName = capture.thumbnailFileName {
+            let thumbnailURL = thumbnailsFolderURL(for: session, in: project).appendingPathComponent(thumbnailName)
+            try? fileManager.removeItem(at: thumbnailURL)
+        }
+        project.sessions[sessionIndex].captures.removeAll { $0.id == captureID }
+        try save(project)
+    }
+
+    // MARK: - Disk usage
+
+    /// The actual bytes one capture occupies on disk — its main file plus its thumbnail, if any.
+    /// Reads real file sizes rather than trusting any cached figure, so this stays correct even
+    /// for a capture recorded by an older version of the app that never tracked a size at all.
+    func diskUsage(for capture: CaptureRecord, in session: Session, project: Project) -> Int64 {
+        var total = fileSize(at: sessionFolderURL(for: session, in: project).appendingPathComponent(capture.fileName))
+        if let thumbnailName = capture.thumbnailFileName {
+            total += fileSize(at: thumbnailsFolderURL(for: session, in: project).appendingPathComponent(thumbnailName))
+        }
+        return total
+    }
+
+    /// A session's total footprint — the recursive size of its entire on-disk folder (every
+    /// capture, every thumbnail, `session.json` itself), not just the sum of its `captures` array,
+    /// so a stray/orphaned file left behind by some other bug still counts toward what's actually
+    /// using disk space.
+    func diskUsage(for session: Session, in project: Project) -> Int64 {
+        folderSize(at: sessionFolderURL(for: session, in: project))
+    }
+
+    /// A project's total footprint — the recursive size of its entire on-disk folder, all
+    /// sessions included. Same "trust the real folder, not the in-memory model" reasoning as
+    /// `diskUsage(for:in:)` above.
+    func diskUsage(for project: Project) -> Int64 {
+        folderSize(at: projectFolderURL(for: project))
+    }
+
+    /// Every project's total footprint combined — what the Settings storage tab shows as the
+    /// grand total across `rootDirectory`.
+    func totalDiskUsage(for projects: [Project]) -> Int64 {
+        projects.reduce(0) { $0 + diskUsage(for: $1) }
+    }
+
+    private func fileSize(at url: URL) -> Int64 {
+        (try? fileManager.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+    }
+
+    private func folderSize(at url: URL) -> Int64 {
+        guard let enumerator = fileManager.enumerator(
+            at: url, includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey], options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        var total: Int64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey]),
+                  values.isDirectory != true
+            else { continue }
+            total += Int64(values.fileSize ?? 0)
+        }
+        return total
+    }
+
     // MARK: - Filename sanitizing
 
     /// Strips everything that isn't safe (or at least pleasant) in a filesystem path component —

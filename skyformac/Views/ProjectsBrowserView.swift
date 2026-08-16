@@ -466,7 +466,7 @@ private struct ProjectsHomeView: View {
                     )
                 case .table:
                     ProjectsTableView(
-                        projects: projects, activeProjectID: activeProjectID, selectedIDs: $selectedIDs,
+                        projects: projects, activeProjectID: activeProjectID, store: store, selectedIDs: $selectedIDs,
                         onSelect: onSelectProject
                     )
                 case .atlas:
@@ -772,6 +772,8 @@ struct ProjectCard: View {
             HStack(spacing: 10) {
                 Label("\(project.sessions.count)", systemImage: "calendar").help("Sessions")
                 Label("\(project.totalCaptureCount)", systemImage: "camera").help("Captures")
+                Label(ByteCountFormatter.string(fromByteCount: store.diskUsage(for: project), countStyle: .file), systemImage: "internaldrive")
+                    .help("Disk usage")
                 if let location = project.location {
                     Label(location.displayName, systemImage: "location").lineLimit(1)
                 }
@@ -803,6 +805,7 @@ struct ProjectCard: View {
 private struct ProjectsTableView: View {
     let projects: [Project]
     let activeProjectID: Project.ID?
+    let store: ProjectStore
     /// A `Table`'s own selection is multi-select out of the box with a `Set` binding (click,
     /// ⌘-click, shift-click) — no separate "select mode" needed the way the thumbnail grid's
     /// plain taps do, since a single click here already just selects rather than opening.
@@ -831,6 +834,10 @@ private struct ProjectsTableView: View {
                 .width(70)
             TableColumn("Captures") { Text("\($0.totalCaptureCount)") }
                 .width(70)
+            TableColumn("Disk Usage") { project in
+                Text(ByteCountFormatter.string(fromByteCount: store.diskUsage(for: project), countStyle: .file))
+            }
+            .width(90)
             TableColumn("Location") { Text($0.location?.displayName ?? "—") }
             TableColumn("Tags") { Text($0.tags.joined(separator: ", ")) }
             TableColumn("Last Activity", value: \.lastActivityDate) { project in

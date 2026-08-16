@@ -72,7 +72,22 @@ struct SettingsView: View {
             }
             .padding()
 
-            Form {
+            TabView {
+                foldersForm
+                    .tabItem { Label("Folders", systemImage: "folder") }
+                renderingForm
+                    .tabItem { Label("Rendering", systemImage: "camera.aperture") }
+                aiForm
+                    .tabItem { Label("AI", systemImage: "sparkles") }
+                StorageSettingsView(cameraManager: cameraManager)
+                    .tabItem { Label("Storage", systemImage: "internaldrive") }
+            }
+        }
+        .frame(width: 640, height: 640)
+    }
+
+    private var foldersForm: some View {
+        Form {
                 Section("Projects Folder") {
                     Text(currentProjectsFolder.path)
                         .font(.callout)
@@ -139,7 +154,12 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+        }
+        .formStyle(.grouped)
+    }
 
+    private var renderingForm: some View {
+        Form {
                 Section("Rendering") {
                     Toggle("Use Metal (GPU) Renderer", isOn: Binding(
                         get: { cameraManager.useMetalRenderer },
@@ -150,7 +170,12 @@ struct SettingsView: View {
                         set: { cameraManager.isNightModeEnabled = $0 }
                     ))
                 }
+        }
+        .formStyle(.grouped)
+    }
 
+    private var aiForm: some View {
+        Form {
                 Section("AI (Ollama)") {
                     LabeledContent("Server") {
                         TextField("Server URL", text: $serverURLText, prompt: Text("http://localhost:11434"))
@@ -231,10 +256,8 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
-            .formStyle(.grouped)
         }
-        .frame(width: 480, height: 580)
+        .formStyle(.grouped)
     }
 
     /// Applies whatever's currently typed into the server URL field — invalid/empty text is

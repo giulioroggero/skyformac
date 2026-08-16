@@ -247,6 +247,8 @@ struct ProjectDetailPane: View {
             stats.append(StatItem(label: "First Activity", value: first.formatted(date: .abbreviated, time: .omitted)))
         }
         stats.append(StatItem(label: "Last Activity", value: project.lastActivityDate.formatted(date: .abbreviated, time: .omitted)))
+        let diskUsage = cameraManager.projectStore.diskUsage(for: project)
+        stats.append(StatItem(label: "Disk Usage", value: ByteCountFormatter.string(fromByteCount: diskUsage, countStyle: .file)))
         for kind in CaptureRecord.Kind.allCases {
             if let count = project.captureCountByKind[kind] {
                 stats.append(StatItem(label: kind.displayName, value: "\(count)"))
@@ -312,6 +314,9 @@ private struct SessionCard: View {
                         Label(planned.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
                     }
                     Label("\(session.captures.count)", systemImage: "camera")
+                    if hasRun {
+                        Label(ByteCountFormatter.string(fromByteCount: store.diskUsage(for: session, in: project), countStyle: .file), systemImage: "internaldrive")
+                    }
                     if let location = session.effectiveLocation(inProject: project) {
                         Label(location.displayName, systemImage: "location").lineLimit(1)
                     }

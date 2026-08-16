@@ -159,7 +159,10 @@ struct SessionDetailPane: View {
                 PageSection(title: "Timeline") {
                     TimelineStripView(
                         project: project, session: session, store: cameraManager.projectStore,
-                        onSelect: onSelectCapture
+                        onSelect: onSelectCapture,
+                        onDelete: { capture in
+                            try? library.deleteCapture(capture.id, fromSessionID: session.id, in: project)
+                        }
                     )
                 }
 
@@ -326,6 +329,8 @@ struct SessionDetailPane: View {
                 stats.append(StatItem(label: kind.displayName, value: "\(count)"))
             }
         }
+        let diskUsage = cameraManager.projectStore.diskUsage(for: session, in: project)
+        stats.append(StatItem(label: "Disk Usage", value: ByteCountFormatter.string(fromByteCount: diskUsage, countStyle: .file)))
         return stats
     }
 

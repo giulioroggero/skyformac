@@ -1,14 +1,16 @@
 import SwiftUI
 
 /// A horizontal filmstrip of a session's captures — the iMovie-style "timeline with thumbnails"
-/// the Projects feature is built around. Purely a viewer: reordering/deleting individual captures
-/// isn't a thing this app needs (captures arrive in capture order and stay that way). Tapping a
-/// thumbnail pushes that capture's own full-width Capture page (`onSelect`).
+/// the Projects feature is built around. Tapping a thumbnail pushes that capture's own full-width
+/// Capture page (`onSelect`); each one's context menu also offers "Delete" (`onDelete`), for
+/// reclaiming disk space one capture at a time without deleting the whole session — captures
+/// otherwise still arrive in, and stay in, capture order.
 struct TimelineStripView: View {
     let project: Project
     let session: Session
     let store: ProjectStore
     var onSelect: (CaptureRecord) -> Void
+    var onDelete: (CaptureRecord) -> Void
 
     var body: some View {
         if session.captures.isEmpty {
@@ -24,7 +26,7 @@ struct TimelineStripView: View {
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(session.captures.sorted(by: { $0.date > $1.date })) { capture in
-                        TimelineThumbnailView(project: project, session: session, capture: capture, store: store)
+                        TimelineThumbnailView(project: project, session: session, capture: capture, store: store, onDelete: onDelete)
                             .contentShape(Rectangle())
                             .onTapGesture { onSelect(capture) }
                     }
@@ -41,10 +43,17 @@ private struct TimelineThumbnailView: View {
     let session: Session
     let capture: CaptureRecord
     let store: ProjectStore
+    var onDelete: (CaptureRecord) -> Void
+
+    @State private var isConfirmingDelete = false
 
     private var thumbnailURL: URL? {
         guard let name = capture.thumbnailFileName else { return nil }
         return store.thumbnailsFolderURL(for: session, in: project).appendingPathComponent(name)
+    }
+
+    private var diskUsageText: String {
+        ByteCountFormatter.string(fromByteCount: store.diskUsage(for: capture, in: session, project: project), countStyle: .file)
     }
 
     var body: some View {
@@ -67,9 +76,13 @@ private struct TimelineThumbnailView: View {
             Text(capture.date, format: .dateTime.hour().minute())
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text(capture.kind.displayName)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            HStack(spacing: 4) {
+                Text(capture.kind.displayName)
+                Text("·")
+                Text(diskUsageText)
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
             // The plain-English "what actually happened" note `CameraManager` records alongside
             // the file itself (see `CameraManager.captureActionNote`) — shown right on the
             // timeline, not just on the capture's own full-width page, since it's the whole point
@@ -88,6 +101,16 @@ private struct TimelineThumbnailView: View {
                 let url = store.sessionFolderURL(for: session, in: project).appendingPathComponent(capture.fileName)
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             }
+            Button("Delete…", systemImage: "trash", role: .destructive) {
+                isConfirmingDelete = true
+            }
+        }
+        .confirmationDialog(
+            "Delete this capture?", isPresented: $isConfirmingDelete, titleVisibility: .visible
+        ) {
+            Button("Delete \(capture.fileName)", role: .destructive) { onDelete(capture) }
+        } message: {
+            Text("This removes the file (\(diskUsageText)) and its thumbnail from disk — this can't be undone.")
         }
     }
 }

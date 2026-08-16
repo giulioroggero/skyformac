@@ -132,6 +132,15 @@ final class ProjectsLibrary {
         replace(updated)
     }
 
+    /// Removes one capture (its file, thumbnail, and `CaptureRecord`) from a session within
+    /// `project` — the Timeline's own "Delete" action, for reclaiming disk space one capture at a
+    /// time without deleting the whole session.
+    func deleteCapture(_ captureID: UUID, fromSessionID sessionID: UUID, in project: Project) throws {
+        var updated = project
+        try store.deleteCapture(captureID, fromSessionID: sessionID, in: &updated)
+        replace(updated)
+    }
+
     /// Moves a session from one project to another — its on-disk folder (`session.json`, every
     /// capture file, `Thumbnails/`) physically relocates to sit under the destination project's
     /// own folder instead, via `ProjectStore.moveSession`, so nothing about the move is just an
