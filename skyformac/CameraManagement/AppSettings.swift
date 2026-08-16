@@ -41,6 +41,8 @@ enum AppSettings {
         case isAssistantPanelVisible
         case isAssistantMinimized
         case isAssistantDetached
+        case isSirilIntegrationEnabled
+        case sirilCLIPath
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -369,4 +371,21 @@ enum AppSettings {
     under better conditions is clearly worthwhile. Attach the session to an existing project when \
     one genuinely fits its goal; otherwise propose a new project.
     """
+
+    // MARK: - Siril integration
+
+    /// Off by default — Siril is a real external process dependency this app doesn't bundle;
+    /// "Elaborate…" prompts the user to turn this on here rather than silently doing nothing (or
+    /// silently shelling out) when it's off. See `SirilElaborationService`.
+    static var isSirilIntegrationEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isSirilIntegrationEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isSirilIntegrationEnabled.rawValue) }
+    }
+
+    /// `nil` means "use `SirilElaborationService.defaultCLIPath()`" (the standard
+    /// `/Applications/Siril.app` location) — set only when the user's picked a different one.
+    static var sirilCLIPath: String? {
+        get { UserDefaults.standard.string(forKey: Key.sirilCLIPath.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.sirilCLIPath.rawValue) }
+    }
 }

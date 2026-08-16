@@ -9,6 +9,7 @@ struct TimelineStripView: View {
     let project: Project
     let session: Session
     let store: ProjectStore
+    var cameraManager: CameraManager
     var onSelect: (CaptureRecord) -> Void
     var onDelete: (CaptureRecord) -> Void
 
@@ -26,9 +27,12 @@ struct TimelineStripView: View {
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(session.captures.sorted(by: { $0.date > $1.date })) { capture in
-                        TimelineThumbnailView(project: project, session: session, capture: capture, store: store, onDelete: onDelete)
-                            .contentShape(Rectangle())
-                            .onTapGesture { onSelect(capture) }
+                        TimelineThumbnailView(
+                            project: project, session: session, capture: capture, store: store,
+                            cameraManager: cameraManager, onDelete: onDelete
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { onSelect(capture) }
                     }
                 }
                 .padding(.horizontal, 2)
@@ -43,9 +47,12 @@ private struct TimelineThumbnailView: View {
     let session: Session
     let capture: CaptureRecord
     let store: ProjectStore
+    var cameraManager: CameraManager
     var onDelete: (CaptureRecord) -> Void
 
     @State private var isConfirmingDelete = false
+    @State private var isElaborating = false
+    @State private var isPromptingSirilSettings = false
 
     private var thumbnailURL: URL? {
         guard let name = capture.thumbnailFileName else { return nil }
@@ -101,6 +108,9 @@ private struct TimelineThumbnailView: View {
                 let url = store.sessionFolderURL(for: session, in: project).appendingPathComponent(capture.fileName)
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             }
+            if elaborationSource != nil {
+                Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
+            }
             Button("Delete…", systemImage: "trash", role: .destructive) {
                 isConfirmingDelete = true
             }
@@ -111,6 +121,38 @@ private struct TimelineThumbnailView: View {
             Button("Delete \(capture.fileName)", role: .destructive) { onDelete(capture) }
         } message: {
             Text("This removes the file (\(diskUsageText)) and its thumbnail from disk — this can't be undone.")
+        }
+        .sheet(isPresented: $isPromptingSirilSettings) {
+            SirilDisabledPrompt(onOpenSettings: { cameraManager.isSettingsPresented = true })
+        }
+        .sheet(isPresented: $isElaborating) {
+            if let (source, target) = elaborationSource {
+                ElaborateSheet(
+                    source: source,
+                    suggestedRecipe: SirilElaborationService.resolveRecipe(for: source, target: target),
+                    sourceDescription: "Elaborating \(capture.fileName)."
+                ) { recipe in
+                    try await cameraManager.elaborate(
+                        source: source, recipe: recipe, sourceSessionIDs: [session.id],
+                        sourceCaptureID: capture.id, project: project
+                    )
+                }
+            }
+        }
+    }
+
+    /// `nil` when this capture's `kind` isn't something Siril can process further (a `.png`/
+    /// `.tiff` export is already debayered/stretched) — see
+    /// `CameraManager.elaborationSource(forCaptureID:in:project:)`.
+    private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
+        cameraManager.elaborationSource(forCaptureID: capture.id, in: session, project: project)
+    }
+
+    private func startElaborating() {
+        if AppSettings.isSirilIntegrationEnabled {
+            isElaborating = true
+        } else {
+            isPromptingSirilSettings = true
         }
     }
 }

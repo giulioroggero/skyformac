@@ -1477,6 +1477,64 @@ final class CameraManager {
         }
     }
 
+    // MARK: - Siril elaboration (`SirilElaborationService`)
+
+    /// What "Elaborate…" would actually send Siril for one specific capture — `nil` when this
+    /// capture's `kind` isn't something Siril can meaningfully process further (a `.png`/`.tiff`
+    /// export is already debayered/stretched for display; there's no raw data left to hand off).
+    func elaborationSource(forCaptureID captureID: UUID, in session: Session, project: Project) -> (SirilElaborationService.Source, AcquisitionTarget?)? {
+        guard let capture = session.captures.first(where: { $0.id == captureID }) else { return nil }
+        let folder = projectStore.sessionFolderURL(for: session, in: project)
+        let url = folder.appendingPathComponent(capture.fileName)
+        let target = capture.preset.flatMap { AcquisitionTarget.resolve(id: $0.targetID) }
+        switch capture.kind {
+        case .fits: return (.singleFITS(url), target)
+        case .serVideo: return (.serVideo(url), target)
+        case .png, .tiff, .recording: return nil
+        }
+    }
+
+    /// What "Elaborate…" would send Siril for a whole session — a `.ser` video wins if one
+    /// exists (the unambiguous lucky-imaging case); otherwise every `.fits` capture in the
+    /// session becomes one deep-sky (or planetary, if the resolved target says so) sequence.
+    /// `nil` when the session has nothing Siril can process (only `.png`/`.tiff` captures, or
+    /// none at all).
+    func elaborationSource(for session: Session, project: Project) -> (SirilElaborationService.Source, AcquisitionTarget?)? {
+        let folder = projectStore.sessionFolderURL(for: session, in: project)
+        if let ser = session.captures.first(where: { $0.kind == .serVideo }) {
+            let target = ser.preset.flatMap { AcquisitionTarget.resolve(id: $0.targetID) }
+            return (.serVideo(folder.appendingPathComponent(ser.fileName)), target)
+        }
+        let fitsCaptures = session.captures.filter { $0.kind == .fits }
+        if fitsCaptures.count == 1, let only = fitsCaptures.first {
+            let target = only.preset.flatMap { AcquisitionTarget.resolve(id: $0.targetID) }
+            return (.singleFITS(folder.appendingPathComponent(only.fileName)), target)
+        }
+        if !fitsCaptures.isEmpty {
+            let target = fitsCaptures.first?.preset.flatMap { AcquisitionTarget.resolve(id: $0.targetID) }
+            return (.fitsFrames(fitsCaptures.map { folder.appendingPathComponent($0.fileName) }), target)
+        }
+        return nil
+    }
+
+    /// Runs `source` through Siril and records the result against `project` — the one entry
+    /// point both "Elaborate Session…" and "Elaborate…" on a single capture go through, after the
+    /// user's confirmed the (auto-suggested, overridable) `recipe` in `ElaborateSheet`.
+    func elaborate(
+        source: SirilElaborationService.Source, recipe: ElaborationRecipe,
+        sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project
+    ) async throws -> ElaboratedImage {
+        let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
+        let baseName = "Elaborated-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970))"
+        let resultURL = try await SirilElaborationService.elaborate(
+            source: source, recipe: recipe, outputDirectory: outputDirectory, outputBaseName: baseName
+        )
+        return try projectsLibrary.addElaboratedImage(
+            fileName: resultURL.lastPathComponent, sourceSessionIDs: sourceSessionIDs,
+            sourceCaptureID: sourceCaptureID, recipe: recipe, to: project
+        )
+    }
+
     // MARK: - Lucky imaging (burst capture + sharpness-ranked stacking — see `LuckyImagingSession`)
 
     private(set) var luckyImagingSession: LuckyImagingSession?

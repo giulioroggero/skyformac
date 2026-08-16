@@ -41,6 +41,13 @@ final class ProjectStore {
         sessionFolderURL(for: session, in: project).appendingPathComponent("Thumbnails", isDirectory: true)
     }
 
+    /// Where `SirilElaborationService` results land — a project-level folder (not nested under
+    /// any one session's), since an elaboration is shown project-wide regardless of which
+    /// session/capture triggered it. See `ElaboratedImage`'s doc comment.
+    func elaboratedImagesFolderURL(for project: Project) -> URL {
+        projectFolderURL(for: project).appendingPathComponent("Elaborated", isDirectory: true)
+    }
+
     /// The thumbnail belonging to `project`'s single most recent capture (across every session)
     /// that actually has one — `nil` for a project with no captures yet, or where every capture so
     /// far failed to generate a thumbnail. What the Home page's grid card shows as the project's
@@ -288,6 +295,36 @@ final class ProjectStore {
             try? fileManager.removeItem(at: thumbnailURL)
         }
         project.sessions[sessionIndex].captures.removeAll { $0.id == captureID }
+        try save(project)
+    }
+
+    // MARK: - Elaborated images (Siril)
+
+    /// Records a `SirilElaborationService` result that's already been written to
+    /// `elaboratedImagesFolderURL(for:)` — this just appends the catalog entry and re-saves.
+    @discardableResult
+    func addElaboratedImage(
+        fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe,
+        to project: inout Project
+    ) throws -> ElaboratedImage {
+        let image = ElaboratedImage(
+            date: Date(), fileName: fileName, sourceSessionIDs: sourceSessionIDs,
+            sourceCaptureID: sourceCaptureID, recipe: recipe
+        )
+        project.elaboratedImages.append(image)
+        try save(project)
+        return image
+    }
+
+    /// Deletes one elaborated image's file and its catalog entry — same real-data-loss caveat as
+    /// `deleteCapture(_:fromSessionID:in:)` above.
+    func deleteElaboratedImage(_ imageID: UUID, in project: inout Project) throws {
+        guard let image = project.elaboratedImages.first(where: { $0.id == imageID }) else { return }
+        let fileURL = elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+        }
+        project.elaboratedImages.removeAll { $0.id == imageID }
         try save(project)
     }
 

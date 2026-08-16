@@ -157,6 +157,19 @@ struct ProjectDetailPane: View {
                     }
                 }
 
+                if !project.elaboratedImages.isEmpty {
+                    PageSection(title: "Elaborated") {
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 10) {
+                                ForEach(project.elaboratedImages.sorted(by: { $0.date > $1.date })) { image in
+                                    ElaboratedImageCard(project: project, image: image, cameraManager: cameraManager)
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                        }
+                    }
+                }
+
                 PageSection {
                     HStack {
                         Button(project.isArchived ? "Unarchive Project" : "Archive Project", systemImage: "archivebox") {
@@ -214,6 +227,15 @@ struct ProjectDetailPane: View {
                     try? library.save(updated)
                 }
             )
+        }
+        // This page lives on the Projects-browsing side of the app (`ContentView`'s own
+        // equivalent `.sheet` only exists while a camera session is active) — same reasoning as
+        // `CaptureDetailPage`'s identical sheet, for the "Elaborated" section's own cards.
+        .sheet(isPresented: Binding(
+            get: { cameraManager.viewingExportedFile != nil },
+            set: { if !$0 { cameraManager.viewingExportedFile = nil } }
+        )) {
+            ExportedFileViewerView(cameraManager: cameraManager)
         }
     }
 
@@ -701,6 +723,59 @@ private struct ActivityTimelineChart: View {
                     if zoomCenter == nil { zoomCenter = Self.midpoint(of: fullRange) }
                 }
             }
+        }
+    }
+}
+
+/// One `SirilElaborationService` result on the Project page's "Elaborated" section — tapping it
+/// opens `ExportedFileViewerView` (the same viewer FITS/PNG/TIFF exports already use), since the
+/// result is itself just a `.tif` file.
+private struct ElaboratedImageCard: View {
+    let project: Project
+    let image: ElaboratedImage
+    var cameraManager: CameraManager
+
+    @State private var isConfirmingDelete = false
+
+    private var fileURL: URL {
+        cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(.quaternary)
+                if let nsImage = NSImage(contentsOf: fileURL) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                } else {
+                    Image(systemName: "wand.and.stars").font(.title2).foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 150, height: 100)
+            .clipped()
+
+            Text(image.recipe.label).font(.caption2).foregroundStyle(.secondary)
+            Text(image.date, format: .dateTime.month().day().hour().minute()).font(.caption2).foregroundStyle(.tertiary)
+        }
+        .frame(width: 150, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { cameraManager.openExportedFile(fileURL) }
+        .contextMenu {
+            Button("Open") { cameraManager.openExportedFile(fileURL) }
+            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+            Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
+        }
+        .confirmationDialog(
+            "Delete this elaborated image?", isPresented: $isConfirmingDelete, titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                try? cameraManager.projectsLibrary.deleteElaboratedImage(image.id, in: project)
+            }
+        } message: {
+            Text("This removes the file from disk — this can't be undone.")
         }
     }
 }

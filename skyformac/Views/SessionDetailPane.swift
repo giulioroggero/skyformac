@@ -32,6 +32,8 @@ struct SessionDetailPane: View {
     @State private var isDescribingSession = false
     @State private var isMovingToProject = false
     @State private var moveErrorMessage: String?
+    @State private var isElaborating = false
+    @State private var isPromptingSirilSettings = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// "Move to Project…"'s own candidate list — every other active project, alphabetically;
@@ -159,6 +161,7 @@ struct SessionDetailPane: View {
                 PageSection(title: "Timeline") {
                     TimelineStripView(
                         project: project, session: session, store: cameraManager.projectStore,
+                        cameraManager: cameraManager,
                         onSelect: onSelectCapture,
                         onDelete: { capture in
                             try? library.deleteCapture(capture.id, fromSessionID: session.id, in: project)
@@ -168,6 +171,11 @@ struct SessionDetailPane: View {
 
                 PageSection {
                     HStack {
+                        Button("Elaborate Session…", systemImage: "wand.and.stars") { startElaborating() }
+                            .disabled(elaborationSource == nil)
+                            .help(elaborationSource == nil
+                                ? "Nothing to elaborate — needs at least one FITS or SER capture in this session."
+                                : "Send this session's captures to Siril for stacking/registration/stretching.")
                         Button("Archive Session", systemImage: "archivebox") {
                             try? library.setArchived(true, forSessionID: session.id, in: project)
                         }
@@ -253,6 +261,37 @@ struct SessionDetailPane: View {
                     applyAndSave(updated)
                 }
             )
+        }
+        .sheet(isPresented: $isPromptingSirilSettings) {
+            SirilDisabledPrompt(onOpenSettings: { cameraManager.isSettingsPresented = true })
+        }
+        .sheet(isPresented: $isElaborating) {
+            if let (source, target) = elaborationSource {
+                ElaborateSheet(
+                    source: source,
+                    suggestedRecipe: SirilElaborationService.resolveRecipe(for: source, target: target),
+                    sourceDescription: "Elaborating this session's captures (\(session.name))."
+                ) { recipe in
+                    try await cameraManager.elaborate(
+                        source: source, recipe: recipe, sourceSessionIDs: [session.id],
+                        sourceCaptureID: nil, project: project
+                    )
+                }
+            }
+        }
+    }
+
+    /// `nil` when this session has nothing Siril can process — see
+    /// `CameraManager.elaborationSource(for:project:)`.
+    private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
+        cameraManager.elaborationSource(for: session, project: project)
+    }
+
+    private func startElaborating() {
+        if AppSettings.isSirilIntegrationEnabled {
+            isElaborating = true
+        } else {
+            isPromptingSirilSettings = true
         }
     }
 

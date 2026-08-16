@@ -141,6 +141,26 @@ final class ProjectsLibrary {
         replace(updated)
     }
 
+    @discardableResult
+    func addElaboratedImage(
+        fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe,
+        to project: Project
+    ) throws -> ElaboratedImage {
+        var updated = project
+        let image = try store.addElaboratedImage(
+            fileName: fileName, sourceSessionIDs: sourceSessionIDs, sourceCaptureID: sourceCaptureID,
+            recipe: recipe, to: &updated
+        )
+        replace(updated)
+        return image
+    }
+
+    func deleteElaboratedImage(_ imageID: UUID, in project: Project) throws {
+        var updated = project
+        try store.deleteElaboratedImage(imageID, in: &updated)
+        replace(updated)
+    }
+
     /// Moves a session from one project to another — its on-disk folder (`session.json`, every
     /// capture file, `Thumbnails/`) physically relocates to sit under the destination project's
     /// own folder instead, via `ProjectStore.moveSession`, so nothing about the move is just an

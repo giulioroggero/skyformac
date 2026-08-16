@@ -306,6 +306,43 @@ extension Session {
     }
 }
 
+/// Which Siril script template `SirilElaborationService` used for one `ElaboratedImage` — kept
+/// alongside the result so the Project page can label it, and so a re-elaborate action can reuse
+/// the same choice. See `SirilElaborationService`'s doc comment for what each recipe actually runs.
+enum ElaborationRecipe: String, Codable, Sendable, Hashable, CaseIterable {
+    case planetary
+    case deepSky
+    case singleImage
+
+    var label: String {
+        switch self {
+        case .planetary: return "Planetary"
+        case .deepSky: return "Deep Sky"
+        case .singleImage: return "Single Image"
+        }
+    }
+}
+
+/// One result of sending a capture (or a whole session's stackable frames) to Siril for further
+/// processing (`SirilElaborationService`) — the output file itself lives in
+/// `ProjectStore.elaboratedImagesFolderURL(for:)`, this is just the catalog entry pointing at it.
+/// Project-level, not session-level: "visible in a section of the project," not buried inside
+/// whichever session happened to trigger it, since `sourceSessionIDs` already records that.
+struct ElaboratedImage: Codable, Identifiable, Equatable, Sendable {
+    var id = UUID()
+    var date: Date
+    var fileName: String
+    /// Almost always exactly one session — a `[UUID]`, not a single `UUID`, so a future "combine
+    /// multiple sessions of the same target" elaboration has somewhere to record that without a
+    /// model change; today's elaborate actions (from one session or one capture) each populate it
+    /// with just their own owning session.
+    var sourceSessionIDs: [UUID]
+    /// Set when this came from "Elaborate…" on one specific capture rather than a whole session's
+    /// stackable frames — `nil` for a session-level elaboration.
+    var sourceCaptureID: UUID?
+    var recipe: ElaborationRecipe
+}
+
 /// A set of observation sessions grouped by a goal — a week of "Messier marathon" nights, a trip
 /// to a dark-sky site, or just "everything under this backyard setup this season." Owns its own
 /// folder (`ProjectStore.projectFolderURL`) containing one subfolder per `Session`.
@@ -342,6 +379,10 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
     var rating: Rating = .unrated
     /// Pins this project to the top of the Home page's project list — "keep them on top."
     var isFavorite = false
+    /// Results of sending a capture or session to Siril for further processing — see
+    /// `ElaboratedImage`'s doc comment. Shown in their own "Elaborated" section on the Project
+    /// page, across every session, not nested under whichever one triggered each one.
+    var elaboratedImages: [ElaboratedImage] = []
 
     var isDeleted: Bool { deletedAt != nil }
 
@@ -408,7 +449,7 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
 extension Project {
     private enum CodingKeys: String, CodingKey {
         case id, name, goal, plannedStartDate, plannedEndDate, createdDate, location, tags, notes, sessions,
-             isArchived, deletedAt, equipmentSystemID, folderName, rating, isFavorite
+             isArchived, deletedAt, equipmentSystemID, folderName, rating, isFavorite, elaboratedImages
     }
 
     /// Same reasoning as `Session`/`CaptureRecord`'s own custom decoders — `rating`/`isFavorite`
@@ -435,5 +476,6 @@ extension Project {
         folderName = try container.decode(String.self, forKey: .folderName)
         rating = try container.decodeIfPresent(Rating.self, forKey: .rating) ?? .unrated
         isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+        elaboratedImages = try container.decodeIfPresent([ElaboratedImage].self, forKey: .elaboratedImages) ?? []
     }
 }

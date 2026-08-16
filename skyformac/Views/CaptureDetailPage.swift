@@ -17,6 +17,9 @@ struct CaptureDetailPage: View {
     var onPreviousCapture: (() -> Void)?
     var onNextCapture: (() -> Void)?
 
+    @State private var isElaborating = false
+    @State private var isPromptingSirilSettings = false
+
     private var store: ProjectStore { cameraManager.projectStore }
 
     private var fileURL: URL {
@@ -113,6 +116,9 @@ struct CaptureDetailPage: View {
                         Button("Show in Finder", systemImage: "folder") {
                             NSWorkspace.shared.activateFileViewerSelecting([fileURL])
                         }
+                        if elaborationSource != nil {
+                            Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
+                        }
                     }
                 }
 
@@ -158,6 +164,37 @@ struct CaptureDetailPage: View {
             set: { if !$0 { cameraManager.viewingExportedFile = nil } }
         )) {
             ExportedFileViewerView(cameraManager: cameraManager)
+        }
+        .sheet(isPresented: $isPromptingSirilSettings) {
+            SirilDisabledPrompt(onOpenSettings: { cameraManager.isSettingsPresented = true })
+        }
+        .sheet(isPresented: $isElaborating) {
+            if let (source, target) = elaborationSource {
+                ElaborateSheet(
+                    source: source,
+                    suggestedRecipe: SirilElaborationService.resolveRecipe(for: source, target: target),
+                    sourceDescription: "Elaborating \(capture.fileName)."
+                ) { recipe in
+                    try await cameraManager.elaborate(
+                        source: source, recipe: recipe, sourceSessionIDs: [session.id],
+                        sourceCaptureID: capture.id, project: project
+                    )
+                }
+            }
+        }
+    }
+
+    /// `nil` when this capture's `kind` isn't something Siril can process further — see
+    /// `CameraManager.elaborationSource(forCaptureID:in:project:)`.
+    private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
+        cameraManager.elaborationSource(forCaptureID: capture.id, in: session, project: project)
+    }
+
+    private func startElaborating() {
+        if AppSettings.isSirilIntegrationEnabled {
+            isElaborating = true
+        } else {
+            isPromptingSirilSettings = true
         }
     }
 
