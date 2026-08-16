@@ -29,9 +29,15 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
 - Disk usage shown per project, session, and capture throughout the Projects browser and
   Settings; a new **Delete…** action on individual captures (file + thumbnail + record) to
   reclaim space without deleting a whole session.
-- Settings reorganized into tabs (**Folders / Rendering / AI / Storage / Community**) and
+- Settings reorganized into tabs (**Folders / Rendering / AI / Storage / Siril / Community**) and
   enlarged to make room — **Storage** manages disk usage across every project; **Community**
   shows this repo's open/resolved GitHub issues live, with a one-click "Report an Issue…".
+- Optional **Siril integration** (Settings > Siril, off by default — Siril is a separate app,
+  not bundled): **Elaborate…** next to a session or capture sends its raw FITS/SER data to
+  Siril's command-line tool for stacking/registration/stretching, then brings the result back
+  into the project's own new **Elaborated** section. The recipe (single-frame debayer+stretch,
+  planetary stack-without-registration, or deep-sky register+stack) is auto-suggested from the
+  session/capture's own target but always user-overridable before running.
 
 ### Fixed
 - FITS "Record to Disk" had no guard against a genuinely blank/flat frame reaching the file,
@@ -40,6 +46,8 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
   recording already had.
 - The AI chat panel's visible/minimized/detached state was in-memory only, so closing it (e.g.
   on the camera page) didn't survive a relaunch — now persisted like every other preference.
+- Zooming the live preview (pinch, or the fullscreen zoom slider) drifted whatever was centered
+  off toward one side the further you zoomed afterward, instead of keeping it centered.
 
 ## [0.4.0] - 2026-08-15
 
