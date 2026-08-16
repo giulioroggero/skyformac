@@ -93,15 +93,28 @@ can't do as directly:
 
 The [GitHub releases](https://github.com/giulioroggero/skyformac/releases) and
 the [website](https://giulioroggero.github.io/skyformac-website/) both ship a
-`skyformac-vX.Y.Z-macOS.zip`. Skyformac isn't notarized by Apple yet (that
+`skyformac-vX.Y.Z-macOS.dmg` (recommended — a standard drag-to-Applications
+installer) and a `skyformac-vX.Y.Z-macOS.zip` with the same contents, for
+anyone who prefers a plain zip. Skyformac isn't notarized by Apple yet (that
 needs a paid Apple Developer Program membership — see
 [docs/distribution.md](docs/distribution.md)), so the first time you open it
 macOS Gatekeeper will refuse to launch it and say it "cannot be opened because
 the developer cannot be verified" (or, once a browser has quarantined the
 download, "is damaged and can't be opened").
 
-The zip includes a `Fix Gatekeeper Warning.command` file alongside
-`skyformac.app` to clear this automatically:
+Both the `.dmg` and the `.zip` include a `Fix Gatekeeper Warning.command`
+file alongside `skyformac.app` to clear this automatically:
+
+### From the `.dmg`
+
+1. Open the `.dmg` and drag `skyformac.app` onto the `Applications` shortcut
+   inside it, like any normal Mac app install.
+2. Double-click `Fix Gatekeeper Warning.command` (still inside the mounted
+   `.dmg` window) — it opens a Terminal window and closes on its own once
+   done.
+3. Open `skyformac.app` from `/Applications` — it now opens normally.
+
+### From the `.zip`
 
 1. Unzip the download.
 2. Double-click `Fix Gatekeeper Warning.command` (it opens a Terminal window
