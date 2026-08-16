@@ -12,9 +12,22 @@ import XCTest
 /// this differently).
 @MainActor
 final class SkyformacUITests: XCTestCase {
+    /// A fresh directory per test — passed to the launched app as `SKYFORMAC_UITEST_ROOT`
+    /// (`AppSettings.resolveRootDirectory`), which redirects Projects/Equipment/Knowledge Base
+    /// storage here instead of the developer's real `~/Documents/Skyformac Projects` (or wherever
+    /// Settings actually points). Quick Start creates a genuine on-disk project — without this
+    /// isolation, every UI test run left real, permanent test projects behind in real user data
+    /// (confirmed: stray "Moon (Detail)" test projects were found in a real Projects folder).
+    /// Removed permanently in `tearDown` — nothing from a test run should survive it.
+    private var testRootURL: URL!
+
     override func setUpWithError() throws {
         continueAfterFailure = false
-        // The AI panel's visible/minimized/detached state now persists across launches
+        testRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skyformac-uitest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: testRootURL, withIntermediateDirectories: true)
+
+        // The AI panel's visible/minimized/detached state persists across launches
         // (`AppSettings.isAssistantPanelVisible` et al. — see `CameraManager`), which is the
         // whole point for real usage but breaks these tests' assumption that every `app.launch()`
         // starts from the same hardcoded defaults: without this, whichever of these three keys a
@@ -26,6 +39,19 @@ final class SkyformacUITests: XCTestCase {
         appDefaults?.removeObject(forKey: "isAssistantPanelVisible")
         appDefaults?.removeObject(forKey: "isAssistantMinimized")
         appDefaults?.removeObject(forKey: "isAssistantDetached")
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: testRootURL)
+    }
+
+    /// Every test creates its `XCUIApplication` through here rather than calling the initializer
+    /// directly — this is what actually wires `testRootURL` in, so every launch this test makes
+    /// stays isolated from real user data.
+    private func makeApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["SKYFORMAC_UITEST_ROOT"] = testRootURL.path
+        return app
     }
 
     /// This app's main window is the orientation Dashboard (`DashboardHomeView`) whenever no
@@ -52,7 +78,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testAppLaunchesIntoTheDashboard() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // "Common Tasks" is the Dashboard's own section header — present only when showing the
@@ -61,7 +87,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testQuickStartOpensTheCameraSidebar() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         launchIntoCameraView(app)
 
         // "Cameras" is the sidebar section header from CameraListView.
@@ -69,7 +95,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testToolbarRendererToggleExists() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         launchIntoCameraView(app)
 
         // Label reads "GPU"/"CPU" depending on the current render path, so the test targets the
@@ -79,7 +105,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testSettingsToolbarButtonOpensTheSettingsSheet() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // The Home page's own "Settings" tile was removed from "Common Tasks" — Settings is still
@@ -108,7 +134,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testInsightsTileOpensTheInsightsPage() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         let insightsTile = app.buttons["DashboardInsightsTile"]
@@ -149,7 +175,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testAllProjectsTileOpensTheProjectsList() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // Same "wait before tapping" fix as `testInsightsTileOpensTheInsightsPage` above — this
@@ -163,7 +189,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testAssistantPanelIsVisibleByDefaultOnTheDashboard() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // "AI" is `AssistantChatPanel`'s own header label — present by default (a chat "on
@@ -173,7 +199,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testMinimizingTheAssistantShowsTheExpandRail() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         XCTAssertTrue(app.buttons["Minimize"].waitForExistence(timeout: 10))
@@ -183,7 +209,7 @@ final class SkyformacUITests: XCTestCase {
     }
 
     func testAIPanelIsDetachedNotEmbeddedWhileTheCameraViewIsRunning() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         launchIntoCameraView(app)
 
         // "AI" still exists (in its own floating window) with a "Close" button (the detached

@@ -224,7 +224,17 @@ enum AppSettings {
     /// (`ProjectStore`/`EquipmentLibrary`/`AIChatLibrary`/`AstronomyKnowledgeBase`) — each of
     /// their own `defaultRootDirectory()` used to copy-paste this exact same four-line "check the
     /// custom path, else fall back to `~/Documents/<folderName>`" logic.
+    /// `SKYFORMAC_UITEST_ROOT` (set via `XCUIApplication.launchEnvironment` — see
+    /// `SkyformacUITests`) redirects every root directory this resolves — Projects, Equipment,
+    /// Knowledge Base — into an isolated per-run temp folder, overriding even a real, persisted
+    /// `customPath` from a previous non-test launch. Without this, a UI test's real actions
+    /// (Quick Start creates a genuine on-disk project, say) land in the developer's actual
+    /// `~/Documents/Skyformac Projects` (or wherever Settings points), same as any other launch —
+    /// exactly what left stray test projects behind before this existed.
     static func resolveRootDirectory(customPath: String?, defaultFolderName: String) -> URL {
+        if let testRoot = ProcessInfo.processInfo.environment["SKYFORMAC_UITEST_ROOT"], !testRoot.isEmpty {
+            return URL(fileURLWithPath: testRoot, isDirectory: true).appendingPathComponent(defaultFolderName, isDirectory: true)
+        }
         if let customPath, !customPath.isEmpty {
             return URL(fileURLWithPath: customPath, isDirectory: true)
         }
