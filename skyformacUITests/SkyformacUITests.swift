@@ -14,6 +14,18 @@ import XCTest
 final class SkyformacUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // The AI panel's visible/minimized/detached state now persists across launches
+        // (`AppSettings.isAssistantPanelVisible` et al. — see `CameraManager`), which is the
+        // whole point for real usage but breaks these tests' assumption that every `app.launch()`
+        // starts from the same hardcoded defaults: without this, whichever of these three keys a
+        // previous test (or a previous real run of the app on this machine) last wrote lingers in
+        // the on-disk defaults domain and leaks into the next test. `UserDefaults.standard` here
+        // is scoped to the test runner's own process, not the launched app's — reach the app's
+        // domain by bundle ID instead.
+        let appDefaults = UserDefaults(suiteName: "com.giulioroggero.skyformac")
+        appDefaults?.removeObject(forKey: "isAssistantPanelVisible")
+        appDefaults?.removeObject(forKey: "isAssistantMinimized")
+        appDefaults?.removeObject(forKey: "isAssistantDetached")
     }
 
     /// This app's main window is the orientation Dashboard (`DashboardHomeView`) whenever no

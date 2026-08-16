@@ -38,6 +38,9 @@ enum AppSettings {
         case ollamaModel
         case ollamaMaxResponseTokens
         case sessionSuggestionSkill
+        case isAssistantPanelVisible
+        case isAssistantMinimized
+        case isAssistantDetached
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -317,6 +320,28 @@ enum AppSettings {
     }
 
     static let defaultOllamaMaxResponseTokens = 800
+
+    /// Whether the AI sidebar/panel should be shown at all — "closed" is a deliberate user choice
+    /// that used to reset to visible (the default) on every relaunch, since `CameraManager` held
+    /// this as plain in-memory state. Defaults to `true` (shown) when never explicitly set.
+    static var isAssistantPanelVisible: Bool {
+        get {
+            UserDefaults.standard.object(forKey: Key.isAssistantPanelVisible.rawValue) != nil
+                ? UserDefaults.standard.bool(forKey: Key.isAssistantPanelVisible.rawValue)
+                : true
+        }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isAssistantPanelVisible.rawValue) }
+    }
+
+    static var isAssistantMinimized: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isAssistantMinimized.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isAssistantMinimized.rawValue) }
+    }
+
+    static var isAssistantDetached: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isAssistantDetached.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isAssistantDetached.rawValue) }
+    }
 
     /// The instructions folded into every "suggest my next session" request
     /// (`OllamaPlanner.suggestNextSession(context:skill:)`) — a user-editable "skill," not a fixed

@@ -358,17 +358,22 @@ final class CameraManager {
     /// `windowWillClose` callback — see `RootView`) and then reopening it from the menu bar's own
     /// "AI" toggle, still in camera mode, left neither the embedded-sidebar condition nor the
     /// detached-panel condition true — the panel silently failed to reappear at all.
-    var isAssistantPanelVisible = true {
+    var isAssistantPanelVisible = AppSettings.isAssistantPanelVisible {
         didSet {
+            AppSettings.isAssistantPanelVisible = isAssistantPanelVisible
             guard isAssistantPanelVisible, !oldValue, activeSession != nil else { return }
             isAssistantDetached = true
         }
     }
-    var isAssistantMinimized = false
+    var isAssistantMinimized = AppSettings.isAssistantMinimized {
+        didSet { AppSettings.isAssistantMinimized = isAssistantMinimized }
+    }
     /// When `true`, `RootView` hosts the panel in a floating `AssistantChatPanelController`
     /// (an `NSPanel`, the same "detach" mechanism `HistogramCurvesPanelController` already uses)
     /// instead of embedding it in the main window.
-    var isAssistantDetached = false
+    var isAssistantDetached = AppSettings.isAssistantDetached {
+        didSet { AppSettings.isAssistantDetached = isAssistantDetached }
+    }
     var isAssistantThinking = false
     let aiChatLibrary: AIChatLibrary
     /// The chat currently shown in `assistantMessages` — `nil` means "not saved yet," which is
@@ -1345,6 +1350,17 @@ final class CameraManager {
             isRecordingToDisk = false
             recordingLowDiskSpaceStopped = true
             lastErrorMessage = "Recording stopped: only \(formattedBytes(free)) free on the recording volume."
+            return
+        }
+
+        // Same degenerate-frame guard as `SERWriter.write` — a genuinely blank frame (an
+        // auto-crop ROI momentarily tracking empty sky, a transient sensor read glitch) writes
+        // fine as a FITS file on its own, but trips Siril's stacking normalization the moment it
+        // computes that frame's MAD (median absolute deviation) and gets zero: "MAD is null.
+        // Statistics cannot be computed." Skipping it here, like the SER path already does, means
+        // every frame that makes it into the sequence is guaranteed usable downstream.
+        guard SERWriter.hasVariance(frame.data) else {
+            discardedFrameCount += 1
             return
         }
 
@@ -2966,6 +2982,12 @@ final class CameraManager {
         return formatter
     }()
 
+    /// Bumped once per successful `exportCurrentFrame` — the only signal today that a capture
+    /// actually happened, since pressing the capture button otherwise produces no visible/audible
+    /// feedback at all. `PreviewView` observes this via `.onChange` to flash the preview and
+    /// `NSSound.beep()` plays alongside it, matching what a physical shutter would communicate.
+    private(set) var captureFeedbackTrigger = 0
+
     private func finishExport(kind: ExportKind, to url: URL) {
         do {
             switch kind {
@@ -2989,6 +3011,8 @@ final class CameraManager {
                 recordExport(url: url, kind: .tiff)
                 recordActiveSessionCapture(url: url, kind: .tiff, image: image)
             }
+            captureFeedbackTrigger &+= 1
+            NSSound.beep()
         } catch {
             lastErrorMessage = String(describing: error)
         }
@@ -3015,7 +3039,33 @@ final class CameraManager {
     /// necessarily the GPU stack `frameForExport()` may now be substituting in instead).
     private func imageForExport() -> CGImage? {
         guard let frame = frameForExport(), let camera = connectedCamera else { return currentDisplayImage() }
-        return renderedCurrentImage(frame: frame, camera: camera)
+        let rendered = renderedCurrentImage(frame: frame, camera: camera)
+        return rendered.map(croppedToPreviewZoom)
+    }
+
+    /// `PreviewView` keeps this in sync with its own on-screen pinch-zoom/pan (normalized,
+    /// top-left origin, matching `CGImage.cropping(to:)`'s coordinate space directly) — full
+    /// frame (`(0, 0, 1, 1)`) when not zoomed in. Without this, a capture taken while zoomed in
+    /// to frame a small target (Saturn, say) on screen still exported the *entire* sensor frame,
+    /// making the target look tiny in the saved file even though it looked large while framing
+    /// the shot — the export pipeline never knew the preview was zoomed at all. Deliberately only
+    /// applied to the debayered/stretched PNG/TIFF export path here, not the raw FITS frame
+    /// (`frameForExport()`, written directly in `finishExport`): cropping raw Bayer data would
+    /// need to preserve the CFA pattern's 2×2 alignment, and FITS is meant to keep the full raw
+    /// sensor capture for calibration/stacking regardless of how the shot was framed on screen.
+    var previewCropRectNormalized = CGRect(x: 0, y: 0, width: 1, height: 1)
+
+    private func croppedToPreviewZoom(_ image: CGImage) -> CGImage {
+        guard previewCropRectNormalized.width < 0.999 || previewCropRectNormalized.height < 0.999 else { return image }
+        let w = CGFloat(image.width)
+        let h = CGFloat(image.height)
+        let pixelRect = CGRect(
+            x: (previewCropRectNormalized.minX * w).rounded(),
+            y: (previewCropRectNormalized.minY * h).rounded(),
+            width: (previewCropRectNormalized.width * w).rounded(),
+            height: (previewCropRectNormalized.height * h).rounded()
+        )
+        return image.cropping(to: pixelRect) ?? image
     }
 
     // MARK: - Active session capture recording

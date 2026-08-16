@@ -125,8 +125,11 @@ final class SERWriter {
     }
 
     /// `false` only when every single byte is identical — early-exits on the first difference, so
-    /// a real (non-degenerate) frame costs only a few comparisons regardless of resolution.
-    private static func hasVariance(_ data: Data.SubSequence) -> Bool {
+    /// a real (non-degenerate) frame costs only a few comparisons regardless of resolution. Also
+    /// used by `CameraManager.recordIfNeeded` (the FITS "Record to Disk" path), which had no
+    /// equivalent guard — a blank frame written into a FITS sequence trips the exact same Siril
+    /// "MAD is null" failure this guards against for `.ser`.
+    static func hasVariance(_ data: Data.SubSequence) -> Bool {
         guard let first = data.first else { return false }
         return data.contains { $0 != first }
     }

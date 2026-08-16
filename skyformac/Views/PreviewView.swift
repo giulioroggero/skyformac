@@ -35,10 +35,15 @@ struct PreviewView: View {
         self.onExitFullScreen = onExitFullScreen
     }
 
+    @State private var captureFlashOpacity: Double = 0
     @State private var zoom: CGFloat = 1
     @State private var panOffset: CGSize = .zero
     @GestureState private var magnifyDelta: CGFloat = 1
     @GestureState private var dragDelta: CGSize = .zero
+    /// The on-screen size `zoomablePreview`'s content actually renders at before `scaleEffect` —
+    /// needed to convert `panOffset` (in points) into the normalized crop rect `CameraManager`
+    /// uses at export time. Captured via a `GeometryReader` in `zoomablePreview`'s background.
+    @State private var containerSize: CGSize = .zero
 
     private let minZoom: CGFloat = 1
     private let maxZoom: CGFloat = 8
@@ -73,10 +78,39 @@ struct PreviewView: View {
     var body: some View {
         preview
             .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
+            .overlay { Color.white.opacity(captureFlashOpacity).allowsHitTesting(false) }
             .overlay(alignment: .bottomLeading) { zoomBadge.colorMultiply(nightTint) }
             .overlay(alignment: .topTrailing) { cornerControls.colorMultiply(nightTint) }
             .overlay(alignment: .bottom) { zoomControlBar.colorMultiply(nightTint) }
             .onExitCommand { onExitFullScreen?() }
+            .onChange(of: cameraManager.captureFeedbackTrigger) {
+                captureFlashOpacity = 0.6
+                withAnimation(.easeOut(duration: 0.25)) { captureFlashOpacity = 0 }
+            }
+            .onChange(of: zoom) { updateCaptureCropRect() }
+            .onChange(of: panOffset) { updateCaptureCropRect() }
+            .onChange(of: containerSize) { updateCaptureCropRect() }
+    }
+
+    /// Keeps `CameraManager.previewCropRectNormalized` matching what's actually visible on
+    /// screen, so a capture taken while zoomed in exports that same framing instead of the full
+    /// sensor frame — see that property's doc comment for why. Normalized, top-left origin.
+    private func updateCaptureCropRect() {
+        guard zoom > 1.001, containerSize.width > 0, containerSize.height > 0 else {
+            cameraManager.previewCropRectNormalized = CGRect(x: 0, y: 0, width: 1, height: 1)
+            return
+        }
+        let offsetUnitX = panOffset.width / containerSize.width
+        let offsetUnitY = panOffset.height / containerSize.height
+        let side = 1 / zoom
+        let minX = 0.5 - (0.5 + offsetUnitX) / zoom
+        let minY = 0.5 - (0.5 + offsetUnitY) / zoom
+        cameraManager.previewCropRectNormalized = CGRect(
+            x: min(max(minX, 0), 1 - side),
+            y: min(max(minY, 0), 1 - side),
+            width: side,
+            height: side
+        )
     }
 
     /// Split out of `body` because `.aspectRatio(nil, contentMode: .fit)` is *not* the "no
@@ -201,6 +235,13 @@ struct PreviewView: View {
     @ViewBuilder
     private var zoomablePreview: some View {
         frameContent
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { containerSize = proxy.size }
+                        .onChange(of: proxy.size) { _, newValue in containerSize = newValue }
+                }
+            )
             .scaleEffect(zoom * magnifyDelta)
             .offset(x: panOffset.width + dragDelta.width, y: panOffset.height + dragDelta.height)
             .gesture(magnifyGesture)
