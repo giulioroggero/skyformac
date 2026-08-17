@@ -143,13 +143,13 @@ final class ProjectsLibrary {
 
     @discardableResult
     func addElaboratedImage(
-        fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe,
-        to project: Project
+        fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe? = nil,
+        toolLabel: String? = nil, to project: Project
     ) throws -> ElaboratedImage {
         var updated = project
         let image = try store.addElaboratedImage(
             fileName: fileName, sourceSessionIDs: sourceSessionIDs, sourceCaptureID: sourceCaptureID,
-            recipe: recipe, to: &updated
+            recipe: recipe, toolLabel: toolLabel, to: &updated
         )
         replace(updated)
         return image

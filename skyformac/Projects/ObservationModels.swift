@@ -345,7 +345,15 @@ struct ElaboratedImage: Codable, Identifiable, Equatable, Sendable {
     /// Set when this came from "Elaborate…" on one specific capture rather than a whole session's
     /// stackable frames — `nil` for a session-level elaboration.
     var sourceCaptureID: UUID?
-    var recipe: ElaborationRecipe
+    /// `nil` for a GraXpert result (see `toolLabel`) — Optional, not removed, so old JSON that
+    /// always had a concrete recipe here still decodes fine.
+    var recipe: ElaborationRecipe?
+    /// Set only for a non-Siril tool's result (e.g. "GraXpert · Background Extraction") — `nil`
+    /// alongside a non-nil `recipe` means Siril produced this, the only tool this catalog tracked
+    /// before GraXpert was added. `displayLabel` picks whichever one is actually set.
+    var toolLabel: String?
+
+    var displayLabel: String { toolLabel ?? recipe?.label ?? "Elaborated" }
 }
 
 /// A set of observation sessions grouped by a goal — a week of "Messier marathon" nights, a trip

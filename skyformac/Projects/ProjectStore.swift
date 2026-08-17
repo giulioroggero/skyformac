@@ -360,12 +360,12 @@ final class ProjectStore {
     /// `elaboratedImagesFolderURL(for:)` — this just appends the catalog entry and re-saves.
     @discardableResult
     func addElaboratedImage(
-        fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe,
-        to project: inout Project
+        fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe? = nil,
+        toolLabel: String? = nil, to project: inout Project
     ) throws -> ElaboratedImage {
         let image = ElaboratedImage(
             date: Date(), fileName: fileName, sourceSessionIDs: sourceSessionIDs,
-            sourceCaptureID: sourceCaptureID, recipe: recipe
+            sourceCaptureID: sourceCaptureID, recipe: recipe, toolLabel: toolLabel
         )
         project.elaboratedImages.append(image)
         try save(project)

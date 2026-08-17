@@ -831,6 +831,10 @@ private struct ElaboratedImageCard: View {
     @State private var isConfirmingDelete = false
     @State private var isShowingDetail = false
     @State private var isReElaborating = false
+    @State private var isSendingToGraXpert = false
+    @State private var isPromptingGraXpertSettings = false
+    @State private var isSendingToStarNet = false
+    @State private var isPromptingStarNetSettings = false
 
     private var fileURL: URL {
         cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
@@ -888,7 +892,7 @@ private struct ElaboratedImageCard: View {
             .frame(width: 150, height: 100)
             .clipped()
 
-            Text(image.recipe.label).font(.caption2).foregroundStyle(.secondary)
+            Text(image.displayLabel).font(.caption2).foregroundStyle(.secondary)
             Text(image.date, format: .dateTime.month().day().hour().minute()).font(.caption2).foregroundStyle(.tertiary)
         }
         .frame(width: 150, alignment: .leading)
@@ -902,27 +906,35 @@ private struct ElaboratedImageCard: View {
         .contextMenu {
             Button("Info…", systemImage: "info.circle") { isShowingDetail = true }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
-            if reElaborationSource != nil {
+            if image.recipe != nil, reElaborationSource != nil {
                 Button("Re-elaborate…", systemImage: "arrow.clockwise") { isReElaborating = true }
+            }
+            Menu("Further Processing") {
+                Button("Send to GraXpert…", systemImage: "sparkles") { startSendingToGraXpert() }
+                Button("Remove Stars (StarNet)…", systemImage: "star.slash") { startSendingToStarNet() }
+                Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
             }
             Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
         }
         .sheet(isPresented: $isShowingDetail) {
             ElaboratedImageDetailSheet(
                 image: image, fileURL: fileURL, sourceDescription: sourceDescription, diskSizeText: diskSizeText,
-                canReElaborate: reElaborationSource != nil,
+                canReElaborate: image.recipe != nil && reElaborationSource != nil,
                 // Closes this sheet first, not just alongside — `isConfirmingDelete`'s
                 // `.confirmationDialog` and `isReElaborating`'s `.sheet` are both attached to the
                 // card underneath, which a still-open sheet would otherwise block from showing.
                 onReElaborate: { isShowingDetail = false; isReElaborating = true },
+                onSendToGraXpert: { isShowingDetail = false; startSendingToGraXpert() },
+                onSendToStarNet: { isShowingDetail = false; startSendingToStarNet() },
+                onOpenInPixInsight: { try? PixInsightAppLauncher.open(fileURL) },
                 onDelete: { isShowingDetail = false; isConfirmingDelete = true }
             )
         }
         .sheet(isPresented: $isReElaborating) {
-            if let (source, _) = reElaborationSource {
+            if let (source, _) = reElaborationSource, let recipe = image.recipe {
                 ElaborateSheet(
                     source: source,
-                    suggestedRecipe: image.recipe,
+                    suggestedRecipe: recipe,
                     sourceDescription: "Re-elaborating \(sourceDescription)."
                 ) { recipe, parameters, onLog in
                     try await cameraManager.elaborate(
@@ -930,6 +942,34 @@ private struct ElaboratedImageCard: View {
                         sourceCaptureID: image.sourceCaptureID, project: project, parameters: parameters, onLog: onLog
                     )
                 }
+            }
+        }
+        .sheet(isPresented: $isPromptingGraXpertSettings) {
+            GraXpertDisabledPrompt(onOpenSettings: { cameraManager.isSettingsPresented = true })
+        }
+        .sheet(isPresented: $isSendingToGraXpert) {
+            GraXpertSheet(
+                inputURL: fileURL,
+                sourceDescription: "Sending \(image.fileName) to GraXpert."
+            ) { operation, parameters, onLog in
+                try await cameraManager.sendToGraXpert(
+                    inputURL: fileURL, operation: operation, sourceSessionIDs: image.sourceSessionIDs,
+                    sourceCaptureID: image.sourceCaptureID, project: project, parameters: parameters, onLog: onLog
+                )
+            }
+        }
+        .sheet(isPresented: $isPromptingStarNetSettings) {
+            StarNetDisabledPrompt(onOpenSettings: { cameraManager.isSettingsPresented = true })
+        }
+        .sheet(isPresented: $isSendingToStarNet) {
+            StarNetSheet(
+                inputURL: fileURL,
+                sourceDescription: "Sending \(image.fileName) to StarNet."
+            ) { parameters, onLog in
+                try await cameraManager.sendToStarNet(
+                    inputURL: fileURL, sourceSessionIDs: image.sourceSessionIDs,
+                    sourceCaptureID: image.sourceCaptureID, project: project, parameters: parameters, onLog: onLog
+                )
             }
         }
         .confirmationDialog(
@@ -940,6 +980,22 @@ private struct ElaboratedImageCard: View {
             }
         } message: {
             Text("This removes the file from disk — this can't be undone.")
+        }
+    }
+
+    private func startSendingToGraXpert() {
+        if AppSettings.isGraXpertIntegrationEnabled {
+            isSendingToGraXpert = true
+        } else {
+            isPromptingGraXpertSettings = true
+        }
+    }
+
+    private func startSendingToStarNet() {
+        if AppSettings.isStarNetIntegrationEnabled {
+            isSendingToStarNet = true
+        } else {
+            isPromptingStarNetSettings = true
         }
     }
 }
@@ -957,6 +1013,9 @@ private struct ElaboratedImageDetailSheet: View {
     let diskSizeText: String
     let canReElaborate: Bool
     var onReElaborate: () -> Void
+    var onSendToGraXpert: () -> Void
+    var onSendToStarNet: () -> Void
+    var onOpenInPixInsight: () -> Void
     var onDelete: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -977,7 +1036,7 @@ private struct ElaboratedImageDetailSheet: View {
             StatsGridView(stats: [
                 StatItem(label: "Elaborated", value: image.date.formatted(date: .abbreviated, time: .shortened)),
                 StatItem(label: "Source", value: sourceDescription),
-                StatItem(label: "Recipe", value: image.recipe.label),
+                StatItem(label: "Recipe", value: image.displayLabel),
                 StatItem(label: "Size on Disk", value: diskSizeText),
             ])
 
@@ -988,6 +1047,12 @@ private struct ElaboratedImageDetailSheet: View {
                 if canReElaborate {
                     Button("Re-elaborate…", systemImage: "arrow.clockwise", action: onReElaborate)
                 }
+                Menu("Further Processing") {
+                    Button("Send to GraXpert…", systemImage: "sparkles", action: onSendToGraXpert)
+                    Button("Remove Stars (StarNet)…", systemImage: "star.slash", action: onSendToStarNet)
+                    Button("Open in PixInsight…", systemImage: "arrow.up.forward.app", action: onOpenInPixInsight)
+                }
+                .fixedSize()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }

@@ -1705,6 +1705,46 @@ final class CameraManager {
         )
     }
 
+    /// Runs an existing image (typically a Siril elaboration's `.tif`) through GraXpert and
+    /// records the result against `project` as its own new `ElaboratedImage` entry — a new entry
+    /// alongside the input, not a replacement, same "both remain comparable" reasoning
+    /// `ElaboratedImageCard`'s own doc comment already gives for Siril's "Re-elaborate…".
+    func sendToGraXpert(
+        inputURL: URL, operation: GraXpertElaborationService.Operation,
+        sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project,
+        parameters: GraXpertElaborationService.Parameters = .default,
+        onLog: (@Sendable (String) -> Void)? = nil
+    ) async throws -> ElaboratedImage {
+        let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
+        let baseName = "GraXpert-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970))"
+        let resultURL = try await GraXpertElaborationService.run(
+            inputURL: inputURL, operation: operation, parameters: parameters,
+            outputDirectory: outputDirectory, outputBaseName: baseName, onLog: onLog
+        )
+        return try projectsLibrary.addElaboratedImage(
+            fileName: resultURL.lastPathComponent, sourceSessionIDs: sourceSessionIDs,
+            sourceCaptureID: sourceCaptureID, toolLabel: "GraXpert · \(operation.label)", to: project
+        )
+    }
+
+    /// Runs an existing image through StarNet for star removal — same "new entry alongside the
+    /// input" reasoning as `sendToGraXpert`.
+    func sendToStarNet(
+        inputURL: URL, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project,
+        parameters: StarNetElaborationService.Parameters = .default,
+        onLog: (@Sendable (String) -> Void)? = nil
+    ) async throws -> ElaboratedImage {
+        let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
+        let baseName = "StarNet-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970))"
+        let resultURL = try await StarNetElaborationService.run(
+            inputURL: inputURL, parameters: parameters, outputDirectory: outputDirectory, outputBaseName: baseName, onLog: onLog
+        )
+        return try projectsLibrary.addElaboratedImage(
+            fileName: resultURL.lastPathComponent, sourceSessionIDs: sourceSessionIDs,
+            sourceCaptureID: sourceCaptureID, toolLabel: "StarNet · Star Removal", to: project
+        )
+    }
+
     // MARK: - Lucky imaging (burst capture + sharpness-ranked stacking — see `LuckyImagingSession`)
 
     private(set) var luckyImagingSession: LuckyImagingSession?

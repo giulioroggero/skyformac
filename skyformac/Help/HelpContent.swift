@@ -280,7 +280,7 @@ enum HelpContent {
                     "Opening a FITS file re-renders it through this app's own debayer/stretch pipeline, with its own Black Point/White Point sliders and a \"Debayer as color\" override (with a Bayer pattern picker) for a file whose color metadata doesn't match what you actually want — useful for a file from another tool, or one written before this app started saving that metadata.",
                     "PNG/TIFF/JPEG files just display directly — they're already a finished picture, no debayering needed.",
                     "`.ser` recordings and recording folders aren't viewable in this window — \"Reveal in Finder\" is the path to AutoStakkert!3/PIPP/whatever actually processes them, the same scope line **Record SER Video** (Planetary tab) already draws.",
-                    "This is a viewer, not an editor — no re-stacking, no plate solving, no saving changes back. For real processing, hand the file to a dedicated tool (PixInsight, Siril, AutoStakkert!3).",
+                    "This is a viewer, not an editor — no re-stacking, no plate solving, no saving changes back. For real processing, hand the file to a dedicated tool (PixInsight, Siril, GraXpert, AutoStakkert!3).",
                 ]
             ),
             HelpSection(heading: "Improve tab — display-only effects",

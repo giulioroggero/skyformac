@@ -83,6 +83,10 @@ struct SettingsView: View {
                     .tabItem { Label("Storage", systemImage: "internaldrive") }
                 SirilSettingsView()
                     .tabItem { Label("Siril", systemImage: "wand.and.stars") }
+                GraXpertSettingsView()
+                    .tabItem { Label("GraXpert", systemImage: "sparkles.square.filled.on.square") }
+                StarNetSettingsView()
+                    .tabItem { Label("StarNet", systemImage: "star.slash") }
                 CommunitySettingsView()
                     .tabItem { Label("Community", systemImage: "person.2") }
             }

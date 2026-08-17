@@ -51,8 +51,14 @@ struct ElaborateSheet: View {
                 .foregroundStyle(.secondary)
 
             if let completedImage {
-                Label("Done — saved as \(completedImage.fileName)", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Saved to Your Project", systemImage: "checkmark.seal.fill")
+                        .font(.title3.bold())
+                        .foregroundStyle(.green)
+                    Text("\(completedImage.fileName) is now in this project's Elaborated section — open the project page anytime to view, re-elaborate, or delete it.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Picker("Recipe", selection: $recipe) {
                     ForEach(availableRecipes, id: \.self) { option in

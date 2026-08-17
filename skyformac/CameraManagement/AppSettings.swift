@@ -43,6 +43,10 @@ enum AppSettings {
         case isAssistantDetached
         case isSirilIntegrationEnabled
         case sirilCLIPath
+        case isGraXpertIntegrationEnabled
+        case graXpertCLIPath
+        case isStarNetIntegrationEnabled
+        case starNetCLIPath
         case liveStackMethod
         case liveStackSigmaClippingKappa
         case isLiveStackAutoStretchContinuous
@@ -478,5 +482,39 @@ enum AppSettings {
     static var sirilCLIPath: String? {
         get { UserDefaults.standard.string(forKey: Key.sirilCLIPath.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.sirilCLIPath.rawValue) }
+    }
+
+    // MARK: - GraXpert integration
+
+    /// Off by default, same reasoning as `isSirilIntegrationEnabled` — GraXpert is a separate app
+    /// this doesn't bundle. See `GraXpertElaborationService`.
+    static var isGraXpertIntegrationEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isGraXpertIntegrationEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isGraXpertIntegrationEnabled.rawValue) }
+    }
+
+    /// `nil` means "use `GraXpertElaborationService.defaultCLIPath()`" (the standard
+    /// `/Applications/GraXpert.app` location) — set only when the user's picked a different one.
+    static var graXpertCLIPath: String? {
+        get { UserDefaults.standard.string(forKey: Key.graXpertCLIPath.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.graXpertCLIPath.rawValue) }
+    }
+
+    // MARK: - StarNet integration
+
+    /// Off by default, same reasoning as `isSirilIntegrationEnabled` — StarNet is a separate CLI
+    /// tool this doesn't bundle. See `StarNetElaborationService`.
+    static var isStarNetIntegrationEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isStarNetIntegrationEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isStarNetIntegrationEnabled.rawValue) }
+    }
+
+    /// Unlike Siril/GraXpert, StarNet has no standard `.app`-bundle install location at all — it's
+    /// a bare CLI binary an installer script places wherever it likes. `nil` falls back to
+    /// `/usr/local/bin/starnet2`, a reasonable guess (not a guarantee) rather than nothing; most
+    /// users will need to set this explicitly in Settings > StarNet.
+    static var starNetCLIPath: String? {
+        get { UserDefaults.standard.string(forKey: Key.starNetCLIPath.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.starNetCLIPath.rawValue) }
     }
 }
