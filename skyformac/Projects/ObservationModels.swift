@@ -207,6 +207,10 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
     /// independent of `rating` (a session can be rated highly without being a "favorite" to
     /// revisit, and vice versa).
     var isFavorite = false
+    /// Same idea as `Project.customThumbnailFileName` — a user-chosen cover image filename living
+    /// in this session's own folder, taking priority over `ProjectStore
+    /// .mostRecentThumbnailURL(for:in:)`'s automatic most-recent-capture fallback when set.
+    var customThumbnailFileName: String?
 
     static func makeFolderName(name: String, id: UUID) -> String {
         let sanitized = ProjectStore.sanitizeForFilename(name)
@@ -277,7 +281,7 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
 extension Session {
     private enum CodingKeys: String, CodingKey {
         case id, name, goal, plannedObjects, plannedDate, createdDate, location, tags, notes, captures,
-             isArchived, equipmentSystemID, folderName, rating, isFavorite
+             isArchived, equipmentSystemID, folderName, rating, isFavorite, customThumbnailFileName
     }
 
     /// Same reasoning as `CaptureRecord`'s own custom decoder — `rating`/`isFavorite` are
@@ -303,6 +307,7 @@ extension Session {
         folderName = try container.decode(String.self, forKey: .folderName)
         rating = try container.decodeIfPresent(Rating.self, forKey: .rating) ?? .unrated
         isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+        customThumbnailFileName = try container.decodeIfPresent(String.self, forKey: .customThumbnailFileName)
     }
 }
 
@@ -383,6 +388,12 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
     /// `ElaboratedImage`'s doc comment. Shown in their own "Elaborated" section on the Project
     /// page, across every session, not nested under whichever one triggered each one.
     var elaboratedImages: [ElaboratedImage] = []
+    /// A user-chosen cover image filename (living directly in this project's own folder, next to
+    /// `project.json`) — `nil` means "use the automatic one" (`ProjectStore
+    /// .mostRecentThumbnailURL(for:)`'s own most-recent-capture fallback). Removing a custom
+    /// thumbnail just clears this back to `nil` rather than needing to somehow "restore" the
+    /// automatic one — it was never gone, just shadowed.
+    var customThumbnailFileName: String?
 
     var isDeleted: Bool { deletedAt != nil }
 
@@ -449,7 +460,8 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
 extension Project {
     private enum CodingKeys: String, CodingKey {
         case id, name, goal, plannedStartDate, plannedEndDate, createdDate, location, tags, notes, sessions,
-             isArchived, deletedAt, equipmentSystemID, folderName, rating, isFavorite, elaboratedImages
+             isArchived, deletedAt, equipmentSystemID, folderName, rating, isFavorite, elaboratedImages,
+             customThumbnailFileName
     }
 
     /// Same reasoning as `Session`/`CaptureRecord`'s own custom decoders — `rating`/`isFavorite`
@@ -477,5 +489,6 @@ extension Project {
         rating = try container.decodeIfPresent(Rating.self, forKey: .rating) ?? .unrated
         isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
         elaboratedImages = try container.decodeIfPresent([ElaboratedImage].self, forKey: .elaboratedImages) ?? []
+        customThumbnailFileName = try container.decodeIfPresent(String.self, forKey: .customThumbnailFileName)
     }
 }

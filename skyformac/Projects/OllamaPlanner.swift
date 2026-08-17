@@ -255,6 +255,24 @@ struct OllamaPlanner: Sendable {
         return stripped
     }
 
+    /// "Add tags can be helped by AI" — a handful of short, lowercase, single/double-word tags
+    /// grounded in the same project/session context `summarize(context:)` uses, filtered against
+    /// `existingTags` so the caller only ever sees genuinely new suggestions to add.
+    func suggestTags(context: String, existingTags: [String]) async throws -> [String] {
+        let text = try await generate(prompt: Self.suggestTagsPrompt(context: context, existingTags: existingTags))
+        guard let json = Self.extractJSONArray(from: text) else { throw OllamaError.invalidPlanJSON }
+        guard let decoded = try? JSONDecoder().decode([String].self, from: json) else { throw OllamaError.invalidPlanJSON }
+        let existingLowercased = Set(existingTags.map { $0.lowercased() })
+        var seen = existingLowercased
+        var result: [String] = []
+        for tag in decoded {
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed.lowercased()).inserted else { continue }
+            result.append(trimmed)
+        }
+        return result
+    }
+
     /// A full next-session suggestion — name, goal, target objects, *and* which project it belongs
     /// to (an existing one by exact name, or a new one), not just a bare object name. Driven by a
     /// user-editable "skill" (`AppSettings
@@ -380,6 +398,13 @@ struct OllamaPlanner: Sendable {
         return String(text[start...end]).data(using: .utf8)
     }
 
+    /// Same reasoning as `extractJSONObject(from:)`, for the one reply shape (`suggestTags`) that's
+    /// a bare JSON array rather than an object.
+    private static func extractJSONArray(from text: String) -> Data? {
+        guard let start = text.firstIndex(of: "["), let end = text.lastIndex(of: "]"), start <= end else { return nil }
+        return String(text[start...end]).data(using: .utf8)
+    }
+
     /// For plain-text (non-JSON) replies, like `summarize(context:)`'s — reasoning models still
     /// sometimes prepend a `<think>...</think>` block even for a simple prose request, and unlike
     /// a JSON reply there's no `{`/`}` pair to extract the real answer from instead, so this just
@@ -456,6 +481,19 @@ struct OllamaPlanner: Sendable {
         \(context)
         Respond with a plain-text paragraph only — no JSON, no markdown formatting, no preamble like \
         "Here's a description:".
+        """
+    }
+
+    private static func suggestTagsPrompt(context: String, existingTags: [String]) -> String {
+        """
+        You are an assistant suggesting short organizational tags for an amateur astronomer's \
+        observing project or session, grounded only in the facts given below — don't invent \
+        details (equipment, dates, objects) that aren't in this data.
+        \(context)
+        \(existingTags.isEmpty ? "" : "Tags already applied (don't repeat these): \(existingTags.joined(separator: ", "))\n")\
+        Suggest up to 5 new tags — short, lowercase, one or two words each (e.g. "deep-sky", \
+        "planetary", "widefield", "moonless-night").
+        Respond with ONLY a JSON array of strings, no other text, e.g. ["deep-sky", "widefield"]
         """
     }
 

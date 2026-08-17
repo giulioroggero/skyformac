@@ -80,9 +80,10 @@ private struct TimelineThumbnailView: View {
             }
             .frame(width: 130, height: 90)
 
-            Text(capture.date, format: .dateTime.hour().minute())
+            Text(capture.date, format: .dateTime.month(.abbreviated).day().hour().minute())
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
             HStack(spacing: 4) {
                 Text(capture.kind.displayName)
                 Text("·")
@@ -131,10 +132,10 @@ private struct TimelineThumbnailView: View {
                     source: source,
                     suggestedRecipe: SirilElaborationService.resolveRecipe(for: source, target: target),
                     sourceDescription: "Elaborating \(capture.fileName)."
-                ) { recipe in
+                ) { recipe, parameters, onLog in
                     try await cameraManager.elaborate(
                         source: source, recipe: recipe, sourceSessionIDs: [session.id],
-                        sourceCaptureID: capture.id, project: project
+                        sourceCaptureID: capture.id, project: project, parameters: parameters, onLog: onLog
                     )
                 }
             }

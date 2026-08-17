@@ -1596,6 +1596,10 @@ struct ControlsPanelView: View {
                 set: { cameraManager.isLiveStackingEnabled = $0 }
             ))
 
+            if cameraManager.isLiveStackingEnabled {
+                stackingMethodSection
+            }
+
             HStack {
                 Toggle("Reduce Drift (align to a locked star)", isOn: Binding(
                     get: { cameraManager.isLiveStackDriftReductionEnabled },
@@ -1615,6 +1619,9 @@ struct ControlsPanelView: View {
 
             Divider()
             smartLiveStackSection
+
+            Divider()
+            dynamicAutoStretchSection
 
             HStack {
                 Label("\(cameraManager.liveStackedFrameCount) frames stacked", systemImage: "square.stack.3d.up")
@@ -1724,6 +1731,91 @@ struct ControlsPanelView: View {
             ))
             .font(.caption)
             .help("Overlays the tracked grid on the live preview — each cell's search window (showing the overlap set above) and an arrow for its current measured displacement, so you can actually see what this is doing before trusting it on a real session.")
+        }
+    }
+
+    /// "Stacking Method: [Average, Sigma Clipping]" (specs/live-stackig-fix-spec.md, section 3) —
+    /// GPU-only, disclosed the same way "Reduce Drift"/mesh correction already disable themselves
+    /// for the CPU render path.
+    @ViewBuilder
+    private var stackingMethodSection: some View {
+        Picker("Stacking Method", selection: Binding(
+            get: { cameraManager.liveStackMethod },
+            set: { cameraManager.liveStackMethod = $0 }
+        )) {
+            ForEach(LiveStackMethod.allCases) { method in
+                Text(method.label).tag(method)
+            }
+        }
+        .pickerStyle(.segmented)
+        .disabled(!cameraManager.useMetalRenderer)
+        .help("Average: a plain running mean. Sigma Clipping: also rejects a pixel outright on any one frame if it deviates too far from its own running average — guards against satellite trails, cosmic ray hits, and hot pixels a plain average would otherwise bake in.")
+
+        if cameraManager.liveStackMethod == .sigmaClipping {
+            LabeledContent("Sigma Clipping Factor (κ)") {
+                HStack {
+                    Slider(value: Binding(
+                        get: { Double(cameraManager.liveStackSigmaClippingKappa) },
+                        set: { cameraManager.liveStackSigmaClippingKappa = Float($0) }
+                    ), in: 1.0...5.0)
+                    Text(String(format: "%.1f", cameraManager.liveStackSigmaClippingKappa))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 32, alignment: .trailing)
+                }
+            }
+            .help("How many standard deviations a pixel must deviate from its own running average before this frame's value is rejected. Lower is stricter (rejects more, including some real noise); higher is more forgiving.")
+        }
+    }
+
+    /// "Dynamic Auto-Stretching" (spec step 5) — the actual fix behind the spec: re-derives a
+    /// non-linear stretch from the *stack's own* current histogram as it grows, instead of a
+    /// fixed black/white point that can't reveal the SNR improvement stacking actually produces.
+    /// Requires Live GPU Controls' arcsinh stage (`cameraManager.gpuControls`) to be on — this
+    /// only ever adjusts its parameters automatically, matching `updateContinuousLiveStackAutoStretch`'s
+    /// own "never flips the switch on by itself" reasoning.
+    @ViewBuilder
+    private var dynamicAutoStretchSection: some View {
+        Toggle("Dynamic Auto-Stretch", isOn: Binding(
+            get: { cameraManager.isLiveStackAutoStretchContinuous },
+            set: { cameraManager.isLiveStackAutoStretchContinuous = $0 }
+        ))
+        .help("Keeps re-adjusting the display stretch as the stack grows, so it visibly reveals more as noise averages down — the fixed Black Point/White Point sliders elsewhere don't do this on their own. Needs \"Live GPU Enhancement Controls\" turned on below to actually show (that's what applies the non-linear stretch itself).")
+
+        if cameraManager.isLiveStackAutoStretchContinuous {
+            if !cameraManager.gpuControls.isEnabled {
+                Label("Turn on \"Live GPU Enhancement Controls\" (Improve tab) to see this.", systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+
+            Picker("Stretch Aggressiveness", selection: Binding(
+                get: { cameraManager.liveStackStretchAggressiveness },
+                set: { cameraManager.liveStackStretchAggressiveness = $0 }
+            )) {
+                ForEach(StretchAggressiveness.allCases) { level in
+                    Text(level.label).tag(level)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            LabeledContent("Black Point Offset") {
+                HStack {
+                    Slider(value: Binding(
+                        get: { Double(cameraManager.liveStackAutoBlackPointOffset) },
+                        set: { cameraManager.liveStackAutoBlackPointOffset = Float($0) }
+                    ), in: -0.1...0.1)
+                    Text(String(format: "%+.0f%%", cameraManager.liveStackAutoBlackPointOffset * 100))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
+            .help("Nudges how dark the background sky is set to. Positive digs further into the background (hides more faint glow/noise, but also more faint real signal near it).")
+
+            Toggle("Auto Color Balance", isOn: Binding(
+                get: { cameraManager.isLiveStackAutoColorBalanceEnabled },
+                set: { cameraManager.isLiveStackAutoColorBalanceEnabled = $0 }
+            ))
+            .help("Aligns the red/green/blue histogram peaks so the stacked background reads neutral instead of tinted (e.g. light pollution's characteristic orange cast). Color cameras only; turns on \"Independent Channels\" to apply.")
         }
     }
 

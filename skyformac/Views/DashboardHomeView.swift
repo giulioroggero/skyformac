@@ -106,7 +106,18 @@ struct DashboardHomeView: View {
                             ActionCard(title: "Insights", icon: "chart.bar", tint: .purple, subtitle: "What you actually do most", action: onShowInsights)
                                 .accessibilityIdentifier("DashboardInsightsTile")
                         }
+                        // Extra leading inset, deliberately more than `PageSection`'s own 16pt —
+                        // this (and "Recent Projects" below) were observed to clip a real ~15-20pt
+                        // sliver off the first card's own left edge regardless of scroll position
+                        // (confirmed by screenshot: `.defaultScrollAnchor(.leading)` and an explicit
+                        // `ScrollViewReader.scrollTo(anchor: .leading)` both left it unchanged, so
+                        // this isn't a scroll-offset bug — it reads as an `NSScrollView` content-
+                        // inset quirk on macOS). Rather than keep fighting where exactly that clip
+                        // boundary sits, padding real content well clear of it tolerates the clip
+                        // instead: only blank space ever sits in the clipped zone now.
+                        .padding(.leading, 20)
                     }
+                    .defaultScrollAnchor(.leading)
                     .accessibilityIdentifier("CommonTasksScrollView")
                 }
 
@@ -121,7 +132,11 @@ struct DashboardHomeView: View {
                                         .onTapGesture { onSelectProject(project) }
                                 }
                             }
+                            // See "Common Tasks" above for why this is 20pt of real padding, not
+                            // just a scroll-anchor fix.
+                            .padding(.leading, 20)
                         }
+                        .defaultScrollAnchor(.leading)
                     }
                 }
 
@@ -200,6 +215,20 @@ struct DashboardHomeView: View {
             suggestedSession = await cameraManager.fetchSuggestedNextSession()
         }
         .toolbar {
+            // Only shown when the assistant isn't already sitting in the sidebar — the panel's
+            // own "Close"/"Detach"/"Minimize" controls are otherwise the only way back, and none
+            // of those are reachable once the panel itself is gone.
+            if !cameraManager.isAssistantPanelVisible || cameraManager.isAssistantDetached || cameraManager.isAssistantMinimized {
+                ToolbarItem {
+                    Button("Open Assistant", systemImage: "bubble.left.and.bubble.right") {
+                        cameraManager.isAssistantPanelVisible = true
+                        cameraManager.isAssistantDetached = false
+                        cameraManager.isAssistantMinimized = false
+                    }
+                    .accessibilityIdentifier("DashboardOpenAssistantToolbarButton")
+                    .help("Open the AI assistant in the sidebar")
+                }
+            }
             ToolbarItem {
                 Button("Settings…", systemImage: "gearshape", action: onShowSettings)
                     .accessibilityIdentifier("DashboardSettingsToolbarButton")

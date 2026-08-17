@@ -46,6 +46,15 @@ final class AIChatLibrary {
         try? fileManager.removeItem(at: fileURL(forID: id))
     }
 
+    /// "Delete all chats" — wipes every saved conversation's file, not just the in-memory list, so
+    /// nothing reappears on the next launch.
+    func deleteAll() {
+        for session in sessions {
+            try? fileManager.removeItem(at: fileURL(forID: session.id))
+        }
+        sessions.removeAll()
+    }
+
     func session(withID id: AIChatSession.ID?) -> AIChatSession? {
         guard let id else { return nil }
         return sessions.first { $0.id == id }

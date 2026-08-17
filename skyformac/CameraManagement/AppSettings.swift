@@ -43,6 +43,12 @@ enum AppSettings {
         case isAssistantDetached
         case isSirilIntegrationEnabled
         case sirilCLIPath
+        case liveStackMethod
+        case liveStackSigmaClippingKappa
+        case isLiveStackAutoStretchContinuous
+        case liveStackStretchAggressiveness
+        case liveStackAutoBlackPointOffset
+        case isLiveStackAutoColorBalanceEnabled
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -166,6 +172,45 @@ enum AppSettings {
     static var gpuWhitePoint: Float {
         get { storedFloat(.gpuWhitePoint, default: 0.98) }
         set { UserDefaults.standard.set(newValue, forKey: Key.gpuWhitePoint.rawValue) }
+    }
+
+    // MARK: - Live Stack (specs/live-stackig-fix-spec.md)
+
+    /// "Average" unless a valid `LiveStackMethod` raw value was stored — same "unrecognized/never
+    /// set falls back to the default" reasoning every enum-backed setting here uses.
+    static var liveStackMethod: LiveStackMethod {
+        get { UserDefaults.standard.string(forKey: Key.liveStackMethod.rawValue).flatMap(LiveStackMethod.init(rawValue:)) ?? .average }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.liveStackMethod.rawValue) }
+    }
+
+    static var liveStackSigmaClippingKappa: Float {
+        get { storedFloat(.liveStackSigmaClippingKappa, default: 3.0) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.liveStackSigmaClippingKappa.rawValue) }
+    }
+
+    /// Opt-in, like every other visually-altering toggle in this app — off by default so updating
+    /// doesn't silently change what an existing session's live view looks like.
+    static var isLiveStackAutoStretchContinuous: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isLiveStackAutoStretchContinuous.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isLiveStackAutoStretchContinuous.rawValue) }
+    }
+
+    static var liveStackStretchAggressiveness: StretchAggressiveness {
+        get {
+            UserDefaults.standard.string(forKey: Key.liveStackStretchAggressiveness.rawValue)
+                .flatMap(StretchAggressiveness.init(rawValue:)) ?? .medium
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.liveStackStretchAggressiveness.rawValue) }
+    }
+
+    static var liveStackAutoBlackPointOffset: Float {
+        get { storedFloat(.liveStackAutoBlackPointOffset, default: 0) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.liveStackAutoBlackPointOffset.rawValue) }
+    }
+
+    static var isLiveStackAutoColorBalanceEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isLiveStackAutoColorBalanceEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isLiveStackAutoColorBalanceEnabled.rawValue) }
     }
 
     // MARK: - AI Suite (specs/skyformac_AI_Features_Pipeline_Spec.md)

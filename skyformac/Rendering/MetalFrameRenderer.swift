@@ -52,6 +52,12 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// doc comment in `Shaders.metal`.
     private let accumulateMaskedPipeline: MTLComputePipelineState
     private let normalizeMaskedAccumulatorPipeline: MTLComputePipelineState
+    /// "Sigma Clipping (Advanced)" stacking method — see `accumulateMonoSigmaClipped`'s own doc
+    /// comment in `Shaders.metal`. Shares `maskedSumTexture`/`maskedCountTexture` and
+    /// `normalizeMaskedAccumulatorPipeline` with streak masking above (both are "per-pixel sum +
+    /// count, normalized afterward" accumulation shapes — see `wasAccumulatingMasked`'s doc
+    /// comment for why one shared flag safely covers both).
+    private let accumulateSigmaClippedPipeline: MTLComputePipelineState
     private let histogramBuffer: MTLBuffer
     /// Per-channel companions to `histogramPipeline`/`histogramReduceRGB24Pipeline` — see
     /// `Shaders.metal`'s `histogramReduceBayerChannels`/`histogramReduceRGB24Channels` doc
@@ -122,10 +128,13 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private var maskedCountTexture: MTLTexture?
     private var streakMaskBuffer: MTLBuffer?
     private var streakMaskBufferCapacity = 0
-    /// Whether the *previous* processed frame used the masked-accumulation path — compared
-    /// against this frame's own state so a mode switch (mask turning on/off, or a dimension
-    /// change) can force a `resetLiveStack()` instead of corrupting `accumulationTexture`'s
-    /// meaning (see the masked-accumulation block in `process` for why mixing modes is unsafe).
+    /// Whether the *previous* processed frame used a "per-pixel sum + count, normalized
+    /// afterward" accumulation shape — true for either streak masking OR sigma-clipping (both
+    /// share `maskedSumTexture`/`maskedCountTexture` and `normalizeMaskedAccumulatorPipeline`;
+    /// see `accumulateSigmaClippedPipeline`'s doc comment) — compared against this frame's own
+    /// state so a mode switch (mask/method turning on/off, or a dimension change) can force a
+    /// `resetLiveStack()` instead of corrupting `accumulationTexture`'s meaning (see the
+    /// accumulation block in `process` for why mixing modes is unsafe).
     private var wasAccumulatingMasked = false
 
     /// Live-stack drift reduction — see the "Drift reduction" section below `process` for the
@@ -160,6 +169,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     var pendingUpdate: (
         frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
         stretch: DisplayStretch, channelStretch: PerChannelStretch, isLiveStacking: Bool, isLiveStackPaused: Bool, isDriftReductionEnabled: Bool, meshDriftConfig: MeshDriftConfig?, streakMask: StreakMask?,
+        stackingMethod: LiveStackMethod, sigmaClippingKappaSigma: Float,
         isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
         liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?, filterGain: SIMD3<Float>
     )?
@@ -211,6 +221,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let waveletCombineRGBAFn = library.makeFunction(name: "waveletCombineRGBA"),
               let accumulateMaskedFn = library.makeFunction(name: "accumulateMonoMasked"),
               let normalizeMaskedAccumulatorFn = library.makeFunction(name: "normalizeMaskedAccumulator"),
+              let accumulateSigmaClippedFn = library.makeFunction(name: "accumulateMonoSigmaClipped"),
               let histogramBayerChannelsFn = library.makeFunction(name: "histogramReduceBayerChannels"),
               let histogramRGB24ChannelsFn = library.makeFunction(name: "histogramReduceRGB24Channels"),
               let toneCurveFn = library.makeFunction(name: "applyToneCurveRGBA"),
@@ -266,6 +277,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             self.waveletCombineRGBAPipeline = try device.makeComputePipelineState(function: waveletCombineRGBAFn)
             self.accumulateMaskedPipeline = try device.makeComputePipelineState(function: accumulateMaskedFn)
             self.normalizeMaskedAccumulatorPipeline = try device.makeComputePipelineState(function: normalizeMaskedAccumulatorFn)
+            self.accumulateSigmaClippedPipeline = try device.makeComputePipelineState(function: accumulateSigmaClippedFn)
             self.histogramReduceBayerChannelsPipeline = try device.makeComputePipelineState(function: histogramBayerChannelsFn)
             self.histogramReduceRGB24ChannelsPipeline = try device.makeComputePipelineState(function: histogramRGB24ChannelsFn)
             self.toneCurvePipeline = try device.makeComputePipelineState(function: toneCurveFn)
@@ -890,6 +902,21 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
     }
 
+    private func dispatchSigmaClippedAccumulate(
+        encoder: MTLComputeCommandEncoder, source: MTLTexture, sum: MTLTexture, counts: MTLTexture,
+        kappaSigma: Float, width: Int, height: Int
+    ) {
+        var kappaSigmaValue = kappaSigma
+        encoder.setComputePipelineState(accumulateSigmaClippedPipeline)
+        encoder.setTexture(source, index: 0)
+        encoder.setTexture(sum, index: 1)
+        encoder.setTexture(counts, index: 2)
+        encoder.setBytes(&kappaSigmaValue, length: MemoryLayout<Float>.size, index: 0)
+        let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroups = MTLSize(width: (width + 15) / 16, height: (height + 15) / 16, depth: 1)
+        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+    }
+
     private func ensureAccumulationTexture(width: Int, height: Int) {
         guard width != accumulatedWidth || height != accumulatedHeight || accumulationTexture == nil else { return }
         accumulatedWidth = width
@@ -1039,6 +1066,11 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         isDriftReductionEnabled: Bool,
         meshDriftConfig: MeshDriftConfig?,
         streakMask: StreakMask?,
+        stackingMethod: LiveStackMethod,
+        /// `kappa * sigma`, precomputed by `CameraManager` from the incoming frame's own
+        /// histogram — see `accumulateMonoSigmaClipped`'s doc comment for why this is one global
+        /// per-frame estimate rather than a true per-pixel running variance.
+        sigmaClippingKappaSigma: Float,
         isDenoisingEnabled: Bool,
         isWaveletSharpeningEnabled: Bool,
         sharpenAmount: Float,
@@ -1192,18 +1224,35 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 let usableMask = streakMask.flatMap { mask in
                     mask.width == frame.width && mask.height == frame.height ? mask : nil
                 }
-                // `accumulationTexture` means two different things depending on whether masking
-                // is active this frame — a running *sum* (unmasked `accumulatePipeline`/
-                // `accumulateAlignedPipeline`) vs. an already-`normalizeMaskedAccumulator`-ed true
-                // per-pixel *average*. Mixing the two within one session would silently corrupt
-                // it (a raw-sum add landing on top of a previous frame's already-divided
-                // average), so switching modes — the mask turning on/off, or a dimension change —
-                // forces a full reset instead, the same way enabling/disabling Live Stack itself
-                // already does via `CameraManager.isLiveStackingEnabled`'s `didSet`.
-                if (usableMask != nil) != wasAccumulatingMasked {
+                // `accumulationTexture` means two different things depending on whether masking or
+                // sigma-clipping is active this frame — a running *sum* (unmasked
+                // `accumulatePipeline`/`accumulateAlignedPipeline`) vs. an already-
+                // `normalizeMaskedAccumulator`-ed true per-pixel *average* (masking, and sigma-
+                // clipping — see `accumulateSigmaClippedPipeline`'s doc comment — share this same
+                // shape). Mixing the two within one session would silently corrupt it (a raw-sum
+                // add landing on top of a previous frame's already-divided average), so switching
+                // modes — the mask turning on/off, sigma-clipping being picked as the stacking
+                // method, or a dimension change — forces a full reset instead, the same way
+                // enabling/disabling Live Stack itself already does via
+                // `CameraManager.isLiveStackingEnabled`'s `didSet`. Sigma-clipping only applies in
+                // the plain (no mask, no mesh, no drift-shift) case below, but the mode flag itself
+                // is decided here, once per frame, from settings that don't change mid-frame.
+                // Mirrors the branch priority below exactly (mask > mesh > sigma-clipping >
+                // plain/aligned) — mesh correction always accumulates as a raw sum regardless of
+                // `stackingMethod`, so sigma-clipping only actually applies once mask and mesh are
+                // both ruled out, same as the dispatch logic itself.
+                let usesPerPixelCountAccumulation: Bool
+                if usableMask != nil {
+                    usesPerPixelCountAccumulation = true
+                } else if meshDriftConfig != nil {
+                    usesPerPixelCountAccumulation = false
+                } else {
+                    usesPerPixelCountAccumulation = stackingMethod == .sigmaClipping && !isDriftReductionEnabled
+                }
+                if usesPerPixelCountAccumulation != wasAccumulatingMasked {
                     resetLiveStack()
                 }
-                wasAccumulatingMasked = usableMask != nil
+                wasAccumulatingMasked = usesPerPixelCountAccumulation
 
                 // Rising edge (just turned on) discards whatever lock a *previous* enable might
                 // have left behind — `resetLiveStack` already clears it on a genuinely new
@@ -1256,6 +1305,26 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                             width: frame.width, height: frame.height
                         )
                         onMeshDriftUpdate?(displacements)
+                    } else if stackingMethod == .sigmaClipping, !isDriftReductionEnabled, let maskedSumTexture, let maskedCountTexture {
+                        // Sigma-clipping doesn't combine with drift-reduction alignment in this
+                        // pass — resampling a per-pixel running mean at a sub-pixel shift before
+                        // comparing a new sample against it is real added complexity for a
+                        // combination that's out of scope here (see `accumulateSigmaClippedPipeline`'s
+                        // doc comment). A session with drift reduction on falls through to plain/
+                        // aligned averaging below instead, silently, same as masking already does
+                        // when combined with mesh correction.
+                        dispatchSigmaClippedAccumulate(
+                            encoder: encoder, source: workingTexture, sum: maskedSumTexture, counts: maskedCountTexture,
+                            kappaSigma: sigmaClippingKappaSigma, width: frame.width, height: frame.height
+                        )
+                        let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
+                        let threadgroups = MTLSize(width: (frame.width + 15) / 16, height: (frame.height + 15) / 16, depth: 1)
+                        encoder.setComputePipelineState(normalizeMaskedAccumulatorPipeline)
+                        encoder.setTexture(maskedSumTexture, index: 0)
+                        encoder.setTexture(maskedCountTexture, index: 1)
+                        encoder.setTexture(accumulationTexture, index: 2)
+                        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+                        divisor = 1.0 // already a true per-pixel average after normalization
                     } else {
                         let shift = isDriftReductionEnabled
                             ? computeDriftShift(source: workingTexture, width: frame.width, height: frame.height)
@@ -1394,6 +1463,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 isDriftReductionEnabled: update.isDriftReductionEnabled,
                 meshDriftConfig: update.meshDriftConfig,
                 streakMask: update.streakMask,
+                stackingMethod: update.stackingMethod,
+                sigmaClippingKappaSigma: update.sigmaClippingKappaSigma,
                 isDenoisingEnabled: update.isDenoisingEnabled,
                 isWaveletSharpeningEnabled: update.isWaveletSharpeningEnabled,
                 sharpenAmount: update.sharpenAmount,
@@ -1544,6 +1615,8 @@ struct MetalPreviewView: NSViewRepresentable {
             isDriftReductionEnabled: cameraManager.isLiveStackDriftReductionEnabled,
             meshDriftConfig: cameraManager.isMeshDriftCorrectionEnabled ? cameraManager.meshDriftConfig : nil,
             streakMask: cameraManager.isStreakMaskingEnabled ? cameraManager.currentStreakMask : nil,
+            stackingMethod: cameraManager.liveStackMethod,
+            sigmaClippingKappaSigma: cameraManager.liveStackSigmaClippingKappaSigma,
             isDenoisingEnabled: cameraManager.isDenoisingEnabled,
             isWaveletSharpeningEnabled: cameraManager.isWaveletSharpeningEnabled,
             sharpenAmount: Float(cameraManager.waveletSharpenAmount),

@@ -12,6 +12,12 @@ struct SessionDetailPane: View {
     /// button, since the drill-down hierarchy this feature is built around means "up" always has
     /// one specific, nameable destination, not just "whatever's previous."
     var onBack: () -> Void
+    /// Jumps all the way back to the Projects browser's Home page, regardless of how deep the
+    /// navigation stack is. The system's own automatically-inserted back chevron only ever pops
+    /// one level (equivalent to `onBack` here), so it's hidden (`.navigationBarBackButtonHidden`)
+    /// and replaced with this explicit pair — first "Home", then "Back to Project" — rather than
+    /// leaving two chevrons that do the same thing.
+    var onHome: () -> Void
     /// Pushes the tapped timeline thumbnail's own full-width Capture page.
     var onSelectCapture: (CaptureRecord) -> Void
     /// Pushes the newly-created session's own page — see "New Session Like This…" below.
@@ -30,6 +36,7 @@ struct SessionDetailPane: View {
     @State private var isPlanningSession = false
     @State private var isCreatingSessionFromThis = false
     @State private var isDescribingSession = false
+    @State private var isSuggestingTags = false
     @State private var isMovingToProject = false
     @State private var moveErrorMessage: String?
     @State private var isElaborating = false
@@ -47,7 +54,8 @@ struct SessionDetailPane: View {
 
     init(
         project: Project, session: Session, cameraManager: CameraManager,
-        onBack: @escaping () -> Void, onSelectCapture: @escaping (CaptureRecord) -> Void,
+        onBack: @escaping () -> Void, onHome: @escaping () -> Void,
+        onSelectCapture: @escaping (CaptureRecord) -> Void,
         onSessionCreated: @escaping (Session) -> Void,
         onPreviousSession: (() -> Void)? = nil, onNextSession: (() -> Void)? = nil
     ) {
@@ -55,6 +63,7 @@ struct SessionDetailPane: View {
         self.session = session
         self.cameraManager = cameraManager
         self.onBack = onBack
+        self.onHome = onHome
         self.onSelectCapture = onSelectCapture
         self.onSessionCreated = onSessionCreated
         self.onPreviousSession = onPreviousSession
@@ -116,6 +125,25 @@ struct SessionDetailPane: View {
                     }
                 }
 
+                PageSection(title: "Cover") {
+                    CoverThumbnailEditor(
+                        currentURL: cameraManager.projectStore.mostRecentThumbnailURL(for: session, in: project),
+                        hasCustom: session.customThumbnailFileName != nil,
+                        onPick: { url in
+                            guard let name = try? cameraManager.projectStore.importCustomThumbnail(from: url, for: session, in: project) else { return }
+                            var updated = session
+                            updated.customThumbnailFileName = name
+                            applyAndSave(updated)
+                        },
+                        onRemove: {
+                            cameraManager.projectStore.removeCustomThumbnail(for: session, in: project)
+                            var updated = session
+                            updated.customThumbnailFileName = nil
+                            applyAndSave(updated)
+                        }
+                    )
+                }
+
                 PageSection(title: "History") {
                     StatsGridView(stats: historyStats)
                 }
@@ -143,18 +171,29 @@ struct SessionDetailPane: View {
                 }
 
                 PageSection(title: "Tags") {
-                    TagsEditorView(tags: session.tags) { tags in
-                        var updated = session
-                        updated.tags = tags
-                        applyAndSave(updated)
+                    VStack(alignment: .leading, spacing: 8) {
+                        TagsEditorView(tags: session.tags) { tags in
+                            var updated = session
+                            updated.tags = tags
+                            applyAndSave(updated)
+                        }
+                        Button("Suggest Tags with AI…", systemImage: "sparkles") { isSuggestingTags = true }
+                            .buttonStyle(.borderless)
                     }
                 }
 
                 PageSection(title: "Notes") {
-                    NotesEditorView(notes: session.notes) { notes in
-                        var updated = session
-                        updated.notes = notes
-                        applyAndSave(updated)
+                    VStack(alignment: .leading, spacing: 8) {
+                        NotesEditorView(notes: session.notes) { notes in
+                            var updated = session
+                            updated.notes = notes
+                            applyAndSave(updated)
+                        }
+                        // Reuses "Ask AI to Describe" (already in the toolbar menu below) — its
+                        // own "Add as Note" button is what actually appends here; this is just a
+                        // second, more discoverable entry point right where notes are shown.
+                        Button("Write a Note with AI…", systemImage: "sparkles") { isDescribingSession = true }
+                            .buttonStyle(.borderless)
                     }
                 }
 
@@ -191,9 +230,16 @@ struct SessionDetailPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("\(project.name.isEmpty ? "Untitled Project" : project.name) — \(session.name)")
+        // The system's own automatic back chevron only ever pops one level, which would sit right
+        // next to `onBack` doing the exact same thing — hidden in favor of the explicit
+        // Home/Back pair below.
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button("Back to Project", systemImage: "chevron.left", action: onBack)
+                HStack(spacing: 8) {
+                    Button("Home", systemImage: "house", action: onHome)
+                    Button("Back to Project", systemImage: "chevron.left", action: onBack)
+                }
             }
             ToolbarItemGroup {
                 if let onPreviousSession {
@@ -262,6 +308,19 @@ struct SessionDetailPane: View {
                 }
             )
         }
+        .sheet(isPresented: $isSuggestingTags) {
+            AISuggestTagsSheet(
+                title: "Suggest Tags for This Session",
+                context: AIDescriptionContext.forSession(session, project: project) { cameraManager.equipmentLibrary.system(withID: $0)?.name },
+                existingTags: session.tags,
+                cameraManager: cameraManager,
+                onAddTags: { newTags in
+                    var updated = session
+                    updated.tags.append(contentsOf: newTags)
+                    applyAndSave(updated)
+                }
+            )
+        }
         .sheet(isPresented: $isPromptingSirilSettings) {
             SirilDisabledPrompt(onOpenSettings: { cameraManager.isSettingsPresented = true })
         }
@@ -271,10 +330,10 @@ struct SessionDetailPane: View {
                     source: source,
                     suggestedRecipe: SirilElaborationService.resolveRecipe(for: source, target: target),
                     sourceDescription: "Elaborating this session's captures (\(session.name))."
-                ) { recipe in
+                ) { recipe, parameters, onLog in
                     try await cameraManager.elaborate(
                         source: source, recipe: recipe, sourceSessionIDs: [session.id],
-                        sourceCaptureID: nil, project: project
+                        sourceCaptureID: nil, project: project, parameters: parameters, onLog: onLog
                     )
                 }
             }

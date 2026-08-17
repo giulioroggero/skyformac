@@ -19,6 +19,7 @@ struct AssistantChatPanel: View {
     @State private var isRenamingChatSession = false
     @State private var renamingSessionID: AIChatSession.ID?
     @State private var renameText = ""
+    @State private var isConfirmingDeleteAllChats = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -163,6 +164,10 @@ struct AssistantChatPanel: View {
                         Button("Delete", role: .destructive) { cameraManager.deleteChatSession(session.id) }
                     }
                 }
+                Divider()
+                Button("Delete All Chats…", systemImage: "trash", role: .destructive) {
+                    isConfirmingDeleteAllChats = true
+                }
             }
         } label: {
             Image(systemName: "clock.arrow.circlepath")
@@ -171,6 +176,12 @@ struct AssistantChatPanel: View {
         .fixedSize()
         .help("Browse previous AI conversations")
         .popover(isPresented: $isRenamingChatSession) { renameSheetContent }
+        .confirmationDialog(
+            "Delete all \(cameraManager.chatSessions.count) saved chats? This can't be undone.",
+            isPresented: $isConfirmingDeleteAllChats, titleVisibility: .visible
+        ) {
+            Button("Delete All Chats", role: .destructive) { cameraManager.deleteAllChatSessions() }
+        }
     }
 
     private var renameSheetContent: some View {

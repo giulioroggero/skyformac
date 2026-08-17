@@ -54,6 +54,10 @@ struct InsightsData: Equatable {
     let byEquipmentSystem: [NamedCount]
     let byAcquisitionMode: [NamedCount]
     let monthlyActivity: [MonthlyActivity]
+    /// Every capture's raw timestamp — what the Insights page's own "Activity Over Time" chart
+    /// re-buckets on the fly (by hour/day/month, over whatever range the user picks) instead of
+    /// being limited to `monthlyActivity`'s fixed by-month grouping.
+    let allCaptureDates: [Date]
     /// Curated objects the user has never actually captured — what the "try this next" suggestion
     /// row offers, in catalog order (already alphabetical) rather than randomized, so the same
     /// input always produces the same suggestions (see the type's own no-`Date`/`random` testing
@@ -65,7 +69,7 @@ struct InsightsData: Equatable {
 
     static let empty = InsightsData(
         totalProjects: 0, totalSessions: 0, totalCaptures: 0, byObject: [], byEquipmentSystem: [],
-        byAcquisitionMode: [], monthlyActivity: [], suggestedNextObjects: [], topRatedActions: []
+        byAcquisitionMode: [], monthlyActivity: [], allCaptureDates: [], suggestedNextObjects: [], topRatedActions: []
     )
 
     static func build(
@@ -77,6 +81,7 @@ struct InsightsData: Equatable {
             return InsightsData(
                 totalProjects: projects.count, totalSessions: projects.reduce(0) { $0 + $1.sessions.count },
                 totalCaptures: 0, byObject: [], byEquipmentSystem: [], byAcquisitionMode: [], monthlyActivity: [],
+                allCaptureDates: [],
                 suggestedNextObjects: Array(knownObjects.filter { !captured.contains($0) }.prefix(5)),
                 topRatedActions: []
             )
@@ -113,6 +118,7 @@ struct InsightsData: Equatable {
             byEquipmentSystem: Self.sortedCounts(equipmentCounts),
             byAcquisitionMode: Self.sortedCounts(modeCounts),
             monthlyActivity: monthCounts.map { MonthlyActivity(month: $0.key, count: $0.value) }.sorted { $0.month < $1.month },
+            allCaptureDates: captures.map(\.date),
             suggestedNextObjects: Array(suggestions.prefix(5)),
             topRatedActions: Array(topRated.prefix(10))
         )

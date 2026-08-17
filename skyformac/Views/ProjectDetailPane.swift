@@ -1,3 +1,4 @@
+import AppKit
 import Charts
 import SwiftUI
 
@@ -13,8 +14,13 @@ struct ProjectDetailPane: View {
     let project: Project
     var cameraManager: CameraManager
     var onShowSessionHistory: (Session) -> Void
-    /// Pops back to the Home page (or wherever this page was pushed from).
+    /// Pops back one level (to wherever this page was pushed from — Home in the common case, but
+    /// "All Projects" when reached from there instead).
     var onBack: () -> Void
+    /// Jumps all the way back to the Projects browser's Home page, regardless of how deep the
+    /// navigation stack is — see `SessionDetailPane.onHome`'s doc comment for why this exists
+    /// alongside `onBack` instead of being the same action.
+    var onHome: () -> Void
     /// Called after this project is deleted (soft-deleted, per `ProjectsLibrary.softDelete(_:)`)
     /// from its own Danger Zone section — there's nothing left to show here, so the caller
     /// (`ProjectsBrowserView`) pops all the way back to Home rather than leaving this page
@@ -35,13 +41,14 @@ struct ProjectDetailPane: View {
 
     init(
         project: Project, cameraManager: CameraManager, onShowSessionHistory: @escaping (Session) -> Void,
-        onBack: @escaping () -> Void, onProjectDeleted: @escaping () -> Void,
+        onBack: @escaping () -> Void, onHome: @escaping () -> Void, onProjectDeleted: @escaping () -> Void,
         onPreviousProject: (() -> Void)? = nil, onNextProject: (() -> Void)? = nil
     ) {
         self.project = project
         self.cameraManager = cameraManager
         self.onShowSessionHistory = onShowSessionHistory
         self.onBack = onBack
+        self.onHome = onHome
         self.onProjectDeleted = onProjectDeleted
         self.onPreviousProject = onPreviousProject
         self.onNextProject = onNextProject
@@ -75,6 +82,25 @@ struct ProjectDetailPane: View {
                             .help("Write a description grounded in what this project has actually planned and captured")
                     }
                     LocationEditorView(project: project, session: nil, cameraManager: cameraManager)
+                }
+
+                PageSection(title: "Cover") {
+                    CoverThumbnailEditor(
+                        currentURL: cameraManager.projectStore.mostRecentThumbnailURL(for: project),
+                        hasCustom: project.customThumbnailFileName != nil,
+                        onPick: { url in
+                            guard let name = try? cameraManager.projectStore.importCustomThumbnail(from: url, for: project) else { return }
+                            var updated = project
+                            updated.customThumbnailFileName = name
+                            try? library.save(updated)
+                        },
+                        onRemove: {
+                            cameraManager.projectStore.removeCustomThumbnail(for: project)
+                            var updated = project
+                            updated.customThumbnailFileName = nil
+                            try? library.save(updated)
+                        }
+                    )
                 }
 
                 PageSection(title: "Stats") {
@@ -187,9 +213,16 @@ struct ProjectDetailPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(project.name.isEmpty ? "Untitled Project" : project.name)
+        // The system's own automatic back chevron only ever pops one level, which would sit right
+        // next to `onBack` doing the same thing — hidden in favor of the explicit Home/Back pair
+        // below (see `SessionDetailPane`'s identical modifier for the full reasoning).
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button("Back", systemImage: "chevron.left", action: onBack)
+                HStack(spacing: 8) {
+                    Button("Home", systemImage: "house", action: onHome)
+                    Button("Back", systemImage: "chevron.left", action: onBack)
+                }
             }
             ToolbarItemGroup {
                 if let onPreviousProject {
@@ -431,6 +464,64 @@ struct FavoriteToggleButton: View {
         }
         .buttonStyle(.plain)
         .help(isFavorite ? "Remove from Favorites" : "Add to Favorites")
+    }
+}
+
+/// "The user can change the thumbnail of a project and of a session. If not set use the
+/// automatic created. The user can remove the custom thumbnail, in that case restore the
+/// automatic created" — shared by `ProjectDetailPane` (its own project) and `SessionDetailPane`
+/// (its own session), since both just need a preview of whatever `currentURL` (the *effective*
+/// thumbnail — custom if set, otherwise the automatic most-recent-capture one) already resolves
+/// to, plus "Change…"/"Remove Custom Thumbnail" wired to the caller's own storage.
+struct CoverThumbnailEditor: View {
+    let currentURL: URL?
+    /// Whether a *custom* thumbnail is currently set — distinct from `currentURL` being non-`nil`,
+    /// since an automatic thumbnail also has a URL but "Remove Custom Thumbnail" has nothing to do
+    /// in that case (there's no custom one shadowing anything yet).
+    let hasCustom: Bool
+    var onPick: (URL) -> Void
+    var onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(.quaternary)
+                if let currentURL, let image = ThumbnailCache.image(at: currentURL) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    Image(systemName: "photo").font(.title2).foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 120, height: 80)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(hasCustom ? "Custom thumbnail" : "Automatic — most recent capture")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Change Thumbnail…") { pickImage(onPick: onPick) }
+                    if hasCustom {
+                        Button("Remove Custom Thumbnail", role: .destructive, action: onRemove)
+                    }
+                }
+            }
+        }
+    }
+
+    private func pickImage(onPick: @escaping (URL) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            onPick(url)
+        }
     }
 }
 
@@ -729,16 +820,56 @@ private struct ActivityTimelineChart: View {
 
 /// One `SirilElaborationService` result on the Project page's "Elaborated" section — tapping it
 /// opens `ExportedFileViewerView` (the same viewer FITS/PNG/TIFF exports already use), since the
-/// result is itself just a `.tif` file.
+/// result is itself just a `.tif` file. "Info…" shows what actually produced it (source, recipe,
+/// size on disk) and offers "Re-elaborate…" to run it again with different parameters — a new,
+/// separate entry alongside this one, not a replacement, so both remain comparable.
 private struct ElaboratedImageCard: View {
     let project: Project
     let image: ElaboratedImage
     var cameraManager: CameraManager
 
     @State private var isConfirmingDelete = false
+    @State private var isShowingDetail = false
+    @State private var isReElaborating = false
 
     private var fileURL: URL {
         cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
+    }
+
+    /// The session this came from — almost always exactly one entry in `sourceSessionIDs` (see
+    /// that field's own doc comment); `nil` only if that session's since been deleted.
+    private var sourceSession: Session? {
+        image.sourceSessionIDs.first.flatMap { id in project.sessions.first { $0.id == id } }
+    }
+
+    private var sourceCapture: CaptureRecord? {
+        guard let captureID = image.sourceCaptureID, let session = sourceSession else { return nil }
+        return session.captures.first { $0.id == captureID }
+    }
+
+    private var sourceDescription: String {
+        guard let sourceSession else { return "Source session no longer exists" }
+        if let sourceCapture {
+            return "\(sourceSession.name) — \(sourceCapture.fileName)"
+        }
+        return "\(sourceSession.name) (whole session)"
+    }
+
+    private var diskSizeText: String {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let size = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
+    /// Re-derives the same `SirilElaborationService.Source` the original elaboration used, from
+    /// this entry's own `sourceSessionIDs`/`sourceCaptureID` — `nil` if the session or capture it
+    /// pointed to has since been deleted, in which case there's nothing left to re-run.
+    private var reElaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
+        guard let sourceSession else { return nil }
+        if let captureID = image.sourceCaptureID {
+            return cameraManager.elaborationSource(forCaptureID: captureID, in: sourceSession, project: project)
+        }
+        return cameraManager.elaborationSource(for: sourceSession, project: project)
     }
 
     var body: some View {
@@ -762,11 +893,44 @@ private struct ElaboratedImageCard: View {
         }
         .frame(width: 150, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture { cameraManager.openExportedFile(fileURL) }
+        // Opens the same detail sheet the context menu's "Info…" does — the plain generic
+        // `ExportedFileViewerView` (what `cameraManager.openExportedFile(fileURL)` shows) has no
+        // way to know this file is an elaborated image at all, so it could never offer Delete/
+        // Re-elaborate/Info; a click landing there left exactly the "no info, can't delete"
+        // report this replaces.
+        .onTapGesture { isShowingDetail = true }
         .contextMenu {
-            Button("Open") { cameraManager.openExportedFile(fileURL) }
+            Button("Info…", systemImage: "info.circle") { isShowingDetail = true }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+            if reElaborationSource != nil {
+                Button("Re-elaborate…", systemImage: "arrow.clockwise") { isReElaborating = true }
+            }
             Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
+        }
+        .sheet(isPresented: $isShowingDetail) {
+            ElaboratedImageDetailSheet(
+                image: image, fileURL: fileURL, sourceDescription: sourceDescription, diskSizeText: diskSizeText,
+                canReElaborate: reElaborationSource != nil,
+                // Closes this sheet first, not just alongside — `isConfirmingDelete`'s
+                // `.confirmationDialog` and `isReElaborating`'s `.sheet` are both attached to the
+                // card underneath, which a still-open sheet would otherwise block from showing.
+                onReElaborate: { isShowingDetail = false; isReElaborating = true },
+                onDelete: { isShowingDetail = false; isConfirmingDelete = true }
+            )
+        }
+        .sheet(isPresented: $isReElaborating) {
+            if let (source, _) = reElaborationSource {
+                ElaborateSheet(
+                    source: source,
+                    suggestedRecipe: image.recipe,
+                    sourceDescription: "Re-elaborating \(sourceDescription)."
+                ) { recipe, parameters, onLog in
+                    try await cameraManager.elaborate(
+                        source: source, recipe: recipe, sourceSessionIDs: image.sourceSessionIDs,
+                        sourceCaptureID: image.sourceCaptureID, project: project, parameters: parameters, onLog: onLog
+                    )
+                }
+            }
         }
         .confirmationDialog(
             "Delete this elaborated image?", isPresented: $isConfirmingDelete, titleVisibility: .visible
@@ -777,5 +941,58 @@ private struct ElaboratedImageCard: View {
         } message: {
             Text("This removes the file from disk — this can't be undone.")
         }
+    }
+}
+
+/// What tapping an `ElaboratedImageCard` opens — the image itself alongside what actually
+/// produced it (source, recipe, when, size on disk) and the actions that go with it
+/// (Re-elaborate, Delete), all in one place. Exists as its own sheet rather than reusing
+/// `ExportedFileViewerView` (what plain FITS/PNG/TIFF exports open in) because that viewer only
+/// ever knows a bare file URL — it has no way to look up which `ElaboratedImage` a file
+/// corresponds to, so it could never show any of this or offer Delete/Re-elaborate at all.
+private struct ElaboratedImageDetailSheet: View {
+    let image: ElaboratedImage
+    let fileURL: URL
+    let sourceDescription: String
+    let diskSizeText: String
+    let canReElaborate: Bool
+    var onReElaborate: () -> Void
+    var onDelete: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(image.fileName).font(.headline)
+
+            if let nsImage = NSImage(contentsOf: fileURL) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: 360)
+                    .background(.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                ContentUnavailableView("Couldn't Load This Image", systemImage: "exclamationmark.triangle")
+            }
+
+            StatsGridView(stats: [
+                StatItem(label: "Elaborated", value: image.date.formatted(date: .abbreviated, time: .shortened)),
+                StatItem(label: "Source", value: sourceDescription),
+                StatItem(label: "Recipe", value: image.recipe.label),
+                StatItem(label: "Size on Disk", value: diskSizeText),
+            ])
+
+            HStack {
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+                Button("Delete…", systemImage: "trash", role: .destructive, action: onDelete)
+                Spacer()
+                if canReElaborate {
+                    Button("Re-elaborate…", systemImage: "arrow.clockwise", action: onReElaborate)
+                }
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
     }
 }

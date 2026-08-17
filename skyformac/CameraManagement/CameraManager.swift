@@ -575,6 +575,13 @@ final class CameraManager {
         aiChatLibrary.rename(id, to: title)
     }
 
+    /// "Delete all chats" — wipes every saved conversation and starts a blank one, since the
+    /// currently-open chat (if any) no longer exists on disk afterward either.
+    func deleteAllChatSessions() {
+        aiChatLibrary.deleteAll()
+        startNewChatSession()
+    }
+
     /// The assistant's approximation of "the current page's content" — this app's pages are a
     /// `NavigationStack` owned privately by `ProjectsBrowserView`, not something `CameraManager`
     /// can introspect directly, so this uses the same state every other cross-cutting feature
@@ -1224,6 +1231,69 @@ final class CameraManager {
     /// CPU-accumulation branch, so `smartStackSkipsCurrentFrame` is up to date before either the
     /// CPU path reads it directly or `MetalPreviewView` reads it (via `effectiveLiveStackPaused`)
     /// for the GPU path.
+    /// "Dynamic Auto-Stretching" (spec step 5) — the actual fix for "stacking doesn't visibly
+    /// brighten": re-derives `gpuControls`' non-linear arcsinh stretch from the *stack's own*
+    /// current histogram, on the same rate-limited cadence as the base linear `stretch`'s own
+    /// auto-restretch just above. Requires `gpuControls.isEnabled` (the arcsinh stage only runs
+    /// at all when Live GPU Controls are on) — this only ever adjusts its *parameters*, never
+    /// flips that switch on by itself, matching every other feature here that stops at "adjust a
+    /// setting the user already opted into" rather than silently enabling a whole other panel.
+    private func updateContinuousLiveStackAutoStretch(stackedFrame: CapturedFrame) {
+        guard gpuControls.isEnabled else { return }
+        let histogram = HistogramComputer.histogram(for: stackedFrame)
+        if let result = LiveStackDynamicStretch.compute(
+            histogram: histogram, aggressiveness: liveStackStretchAggressiveness,
+            blackPointOffset: liveStackAutoBlackPointOffset
+        ) {
+            gpuControls.blackPoint = result.blackPoint
+            gpuControls.whitePoint = result.whitePoint
+            gpuControls.stretchIntensity = result.stretchIntensity
+        }
+
+        // "Auto Color Balance: Aligns the peaks of the R, G, and B histograms" — shifts each
+        // channel's own black point (in the base per-channel stretch, not the single-channel
+        // arcsinh stage above) so their backgrounds line up instead of, say, a light-polluted
+        // sky's characteristic orange cast leaving red's peak well right of blue's.
+        guard isLiveStackAutoColorBalanceEnabled, let camera = connectedCamera, camera.isColorCamera,
+              let channels = HistogramComputer.channelHistograms(for: stackedFrame, isColorCamera: true, bayerPattern: camera.bayerPattern)
+        else { return }
+        func peak(_ histogram: [Int]) -> Float {
+            let bucket = histogram.indices.max { histogram[$0] < histogram[$1] } ?? 0
+            return Float(bucket) / Float(histogram.count - 1)
+        }
+        let redPeak = peak(channels.red)
+        let greenPeak = peak(channels.green)
+        let bluePeak = peak(channels.blue)
+        // Green is the reference channel (a Bayer sensor has twice as many green photosites, so
+        // it's already the least noisy estimate) — red/blue's black points shift by however far
+        // their own peak sits from green's, pulling all three backgrounds to the same level.
+        let current = effectiveChannelStretch
+        // `effectiveChannelStretch` ignores `channelStretch` entirely while independent-channel
+        // mode is off, which would make writing it below silently do nothing — this is the one
+        // deliberate case where Auto Color Balance turns that mode on by itself, since there's no
+        // other way to actually apply a per-channel correction.
+        isIndependentChannelStretchEnabled = true
+        channelStretch = PerChannelStretch(
+            red: DisplayStretch(blackPoint: Double(max(current.red.blackPoint + Double(redPeak - greenPeak), 0)), whitePoint: current.red.whitePoint),
+            green: current.green,
+            blue: DisplayStretch(blackPoint: Double(max(current.blue.blackPoint + Double(bluePeak - greenPeak), 0)), whitePoint: current.blue.whitePoint)
+        )
+    }
+
+    /// Refreshes `liveStackSigmaClippingKappaSigma` from `frame`'s own histogram — only while
+    /// sigma-clipping is actually the active stacking method, since this is an extra full-frame
+    /// histogram scan `.average` (the default) never needs to pay for. Computed from the raw
+    /// incoming frame, not the smoothed stack, so it reflects real per-frame sensor noise rather
+    /// than the (deliberately lower) noise already averaged into the accumulator so far.
+    private func updateLiveStackSigmaClippingKappaSigma(_ frame: CapturedFrame) {
+        guard isLiveStackingEnabled, liveStackMethod == .sigmaClipping else {
+            liveStackSigmaClippingKappaSigma = 0
+            return
+        }
+        let sigma = LiveStackDynamicStretch.standardDeviation(histogram: HistogramComputer.histogram(for: frame))
+        liveStackSigmaClippingKappaSigma = liveStackSigmaClippingKappa * sigma
+    }
+
     private func updateSmartLiveStackGate(_ frame: CapturedFrame) {
         guard isSmartLiveStackEnabled, isLiveStackingEnabled else {
             smartStackSkipsCurrentFrame = false
@@ -1284,6 +1354,49 @@ final class CameraManager {
     /// concrete: each cell's search window and its current displacement arrow, drawn directly
     /// over the frame it's actually measuring.
     var isMeshDriftOverlayVisible = false
+
+    // MARK: - Live Stack fix (specs/live-stackig-fix-spec.md)
+
+    /// "Stacking Method: [Average, Sigma Clipping]" — a real preference, persisted like
+    /// `smartLiveStackQualityFraction`. GPU-only; the CPU `LiveStacker` path has no sigma-clipping
+    /// implementation and always averages regardless of this setting (see `ingest`'s own doc
+    /// comment on `usesCPUStack`).
+    var liveStackMethod: LiveStackMethod = AppSettings.liveStackMethod {
+        didSet { AppSettings.liveStackMethod = liveStackMethod }
+    }
+    /// "Sigma Clipping Factor (Kappa)" — how many standard deviations a pixel must deviate from
+    /// its own running average before `accumulateMonoSigmaClipped` rejects it that frame.
+    var liveStackSigmaClippingKappa: Float = AppSettings.liveStackSigmaClippingKappa {
+        didSet { AppSettings.liveStackSigmaClippingKappa = liveStackSigmaClippingKappa }
+    }
+    /// `kappa * sigma`, recomputed every `ingest` call from the incoming frame's own histogram —
+    /// see `accumulateMonoSigmaClipped`'s doc comment for why this is a single global per-frame
+    /// noise estimate rather than a true per-pixel running variance. Read by `MetalPreviewView`
+    /// when building `MetalFrameRenderer.pendingUpdate`.
+    private(set) var liveStackSigmaClippingKappaSigma: Float = 0
+
+    /// "Dynamic Auto-Stretch" (spec step 5, section 3's Display/Stretch Settings) — the actual fix
+    /// for "stacking doesn't visibly brighten": keeps re-deriving a non-linear (arcsinh) stretch
+    /// from the *stack's own* current histogram as it grows, via `gpuControls`, instead of the
+    /// base `stretch`/`channelStretch` sliders' fixed black/white points staying static while the
+    /// underlying SNR actually improves. Opt-in like every other visually-altering toggle here.
+    var isLiveStackAutoStretchContinuous: Bool = AppSettings.isLiveStackAutoStretchContinuous {
+        didSet { AppSettings.isLiveStackAutoStretchContinuous = isLiveStackAutoStretchContinuous }
+    }
+    var liveStackStretchAggressiveness: StretchAggressiveness = AppSettings.liveStackStretchAggressiveness {
+        didSet { AppSettings.liveStackStretchAggressiveness = liveStackStretchAggressiveness }
+    }
+    /// "Auto Black Point Offset" slider — nudges the histogram-peak-derived black point that
+    /// `isLiveStackAutoStretchContinuous` computes. Positive digs further into the background.
+    var liveStackAutoBlackPointOffset: Float = AppSettings.liveStackAutoBlackPointOffset {
+        didSet { AppSettings.liveStackAutoBlackPointOffset = liveStackAutoBlackPointOffset }
+    }
+    /// "Auto Color Balance: aligns the peaks of the R, G, and B histograms" — only meaningful for
+    /// a color camera; a no-op for mono the same way `PerChannelStretch` already is everywhere
+    /// else in this app.
+    var isLiveStackAutoColorBalanceEnabled: Bool = AppSettings.isLiveStackAutoColorBalanceEnabled {
+        didSet { AppSettings.isLiveStackAutoColorBalanceEnabled = isLiveStackAutoColorBalanceEnabled }
+    }
 
     // MARK: - Plate-solved polar alignment
 
@@ -1573,12 +1686,15 @@ final class CameraManager {
     /// user's confirmed the (auto-suggested, overridable) `recipe` in `ElaborateSheet`.
     func elaborate(
         source: SirilElaborationService.Source, recipe: ElaborationRecipe,
-        sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project
+        sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project,
+        parameters: SirilElaborationService.ElaborationParameters = .default,
+        onLog: (@Sendable (String) -> Void)? = nil
     ) async throws -> ElaboratedImage {
         let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
         let baseName = "Elaborated-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970))"
         let resultURL = try await SirilElaborationService.elaborate(
-            source: source, recipe: recipe, outputDirectory: outputDirectory, outputBaseName: baseName
+            source: source, recipe: recipe, outputDirectory: outputDirectory, outputBaseName: baseName,
+            parameters: parameters, onLog: onLog
         )
         return try projectsLibrary.addElaboratedImage(
             fileName: resultURL.lastPathComponent, sourceSessionIDs: sourceSessionIDs,
@@ -2607,6 +2723,7 @@ final class CameraManager {
         scheduleQualityScoreIfNeeded(processed)
         scheduleCloudSentinelIfNeeded(processed)
         updateSmartLiveStackGate(processed)
+        updateLiveStackSigmaClippingKappaSigma(processed)
 
         // GPU live-stack accumulation (`MetalFrameRenderer.accumulationTexture`) is mono-only —
         // it never runs for RGB24 (webcam/iPhone) frames, see `MetalFrameRenderer.process`'s doc
@@ -2647,6 +2764,9 @@ final class CameraManager {
                 let stackedFrame = usesCPUStack ? currentFrame : gpuAccumulatedFrameProvider?(selectedImageType)
                 if let stackedFrame, let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: stackedFrame)) {
                     stretch = auto
+                }
+                if let stackedFrame, isLiveStackAutoStretchContinuous {
+                    updateContinuousLiveStackAutoStretch(stackedFrame: stackedFrame)
                 }
             }
         }

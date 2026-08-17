@@ -51,8 +51,10 @@ final class ProjectStore {
     /// The thumbnail belonging to `project`'s single most recent capture (across every session)
     /// that actually has one — `nil` for a project with no captures yet, or where every capture so
     /// far failed to generate a thumbnail. What the Home page's grid card shows as the project's
-    /// own "cover image," the same way a photo album shows its most recent photo.
+    /// own "cover image," the same way a photo album shows its most recent photo. A user-chosen
+    /// `customThumbnailURL(for:)` always wins over this automatic fallback when one's set.
     func mostRecentThumbnailURL(for project: Project) -> URL? {
+        if let custom = customThumbnailURL(for: project) { return custom }
         var best: (session: Session, capture: CaptureRecord)?
         for session in project.sessions {
             for capture in session.captures where capture.thumbnailFileName != nil {
@@ -66,12 +68,66 @@ final class ProjectStore {
     }
 
     /// Same idea as `mostRecentThumbnailURL(for:)`, scoped to one `session` — what a session card
-    /// on the Project Detail page shows as its own cover image.
+    /// on the Project Detail page shows as its own cover image. Its own `customThumbnailURL(for:in:)`
+    /// wins over the automatic fallback the same way the project-level one does.
     func mostRecentThumbnailURL(for session: Session, in project: Project) -> URL? {
+        if let custom = customThumbnailURL(for: session, in: project) { return custom }
         guard let best = session.captures.filter({ $0.thumbnailFileName != nil }).max(by: { $0.date < $1.date }),
               let name = best.thumbnailFileName
         else { return nil }
         return thumbnailsFolderURL(for: session, in: project).appendingPathComponent(name)
+    }
+
+    /// `project.customThumbnailFileName`'s actual file, living directly in the project's own
+    /// folder — `nil` when no custom thumbnail is set. Kept as a stored filename (not a fixed name
+    /// like "cover.png") so the original extension survives whatever image format was picked.
+    func customThumbnailURL(for project: Project) -> URL? {
+        guard let name = project.customThumbnailFileName else { return nil }
+        return projectFolderURL(for: project).appendingPathComponent(name)
+    }
+
+    func customThumbnailURL(for session: Session, in project: Project) -> URL? {
+        guard let name = session.customThumbnailFileName else { return nil }
+        return sessionFolderURL(for: session, in: project).appendingPathComponent(name)
+    }
+
+    /// Copies `sourceURL` into `project`'s own folder as its new custom thumbnail, replacing any
+    /// previous one — the caller (`ProjectsLibrary`) is responsible for saving the returned
+    /// filename onto `project.customThumbnailFileName` afterward.
+    func importCustomThumbnail(from sourceURL: URL, for project: Project) throws -> String {
+        let name = "cover.\(sourceURL.pathExtension.isEmpty ? "png" : sourceURL.pathExtension)"
+        let destination = projectFolderURL(for: project).appendingPathComponent(name)
+        try fileManager.createDirectory(at: projectFolderURL(for: project), withIntermediateDirectories: true)
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+        try fileManager.copyItem(at: sourceURL, to: destination)
+        return name
+    }
+
+    /// Same idea as `importCustomThumbnail(from:for:)`, scoped to one session's own folder.
+    func importCustomThumbnail(from sourceURL: URL, for session: Session, in project: Project) throws -> String {
+        let name = "cover.\(sourceURL.pathExtension.isEmpty ? "png" : sourceURL.pathExtension)"
+        let destination = sessionFolderURL(for: session, in: project).appendingPathComponent(name)
+        try fileManager.createDirectory(at: sessionFolderURL(for: session, in: project), withIntermediateDirectories: true)
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+        try fileManager.copyItem(at: sourceURL, to: destination)
+        return name
+    }
+
+    /// Deletes `project`'s custom thumbnail file from disk, if it has one — the caller still needs
+    /// to separately clear `project.customThumbnailFileName` and save, the same division of
+    /// responsibility `importCustomThumbnail(from:for:)` uses.
+    func removeCustomThumbnail(for project: Project) {
+        guard let url = customThumbnailURL(for: project) else { return }
+        try? fileManager.removeItem(at: url)
+    }
+
+    func removeCustomThumbnail(for session: Session, in project: Project) {
+        guard let url = customThumbnailURL(for: session, in: project) else { return }
+        try? fileManager.removeItem(at: url)
     }
 
     private func projectMetadataURL(for project: Project) -> URL {

@@ -234,6 +234,7 @@ struct ProjectsBrowserView: View {
                     project: project, cameraManager: cameraManager,
                     onShowSessionHistory: { session in path.append(.sessionHistory(projectID, session.id)) },
                     onBack: { path.removeLast() },
+                    onHome: { path.removeAll() },
                     onProjectDeleted: { path.removeAll() },
                     onPreviousProject: nav.previous,
                     onNextProject: nav.next
@@ -248,6 +249,7 @@ struct ProjectsBrowserView: View {
                 SessionDetailPane(
                     project: project, session: session, cameraManager: cameraManager,
                     onBack: { path.removeLast() },
+                    onHome: { path.removeAll() },
                     onSelectCapture: { capture in path.append(.capture(projectID, sessionID, capture.id)) },
                     onSessionCreated: { newSession in path.append(.sessionHistory(projectID, newSession.id)) },
                     onPreviousSession: nav.previous,
@@ -264,6 +266,7 @@ struct ProjectsBrowserView: View {
                 CaptureDetailPage(
                     project: project, session: session, capture: capture, cameraManager: cameraManager,
                     onBack: { path.removeLast() },
+                    onHome: { path.removeAll() },
                     onPreviousCapture: nav.previous,
                     onNextCapture: nav.next
                 )

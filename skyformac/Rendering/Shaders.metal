@@ -237,6 +237,43 @@ kernel void normalizeMaskedAccumulator(
     destination.write(float4(sum.read(gid).r / count, 0, 0, 0), gid);
 }
 
+/// "Sigma Clipping (Advanced): maintain a running variance. If a new pixel deviates by more than
+/// Kappa standard deviations from the mean... reject it" (specs/live-stackig-fix-spec.md, step 4)
+/// — the alternative to plain `accumulateMono` averaging, guarding a stack against satellite
+/// trails, cosmic ray hits, and hot pixels that a plain average would otherwise permanently bake
+/// in (each one only ever seen on one frame, then silently divided down but never fully removed).
+///
+/// Reuses `sum`/`counts` in exactly the same shape `accumulateMonoMasked`/
+/// `normalizeMaskedAccumulator` already use for per-pixel contribution counts — a rejected pixel
+/// this frame simply isn't added, the same "skip, don't zero" semantics, just decided by this
+/// kernel itself (comparing against the pixel's own running average) instead of a precomputed
+/// mask buffer.
+///
+/// `kappaSigma` is `kappa * sigma`, computed once per frame on the CPU side from that frame's own
+/// histogram (see `CameraManager`'s sigma-clipping wiring) — a single global noise estimate, not a
+/// true per-pixel variance (Welford's algorithm would need a second running-variance texture this
+/// keeps deliberately out of scope for now). `currentCount > 2` gates the check so the first few
+/// frames — before there's a meaningful running average to compare against — always accumulate
+/// unconditionally, matching `SmartLiveStackGate`'s own "no baseline yet always keeps" reasoning.
+kernel void accumulateMonoSigmaClipped(
+    texture2d<float, access::read> source [[texture(0)]],
+    texture2d<float, access::read_write> sum [[texture(1)]],
+    texture2d<float, access::read_write> counts [[texture(2)]],
+    constant float &kappaSigma [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
+    float newValue = source.read(gid).r;
+    float currentSum = sum.read(gid).r;
+    float currentCount = counts.read(gid).r;
+    if (currentCount > 2.0) {
+        float mean = currentSum / currentCount;
+        if (abs(newValue - mean) > kappaSigma) { return; }
+    }
+    sum.write(float4(currentSum + newValue, 0, 0, 0), gid);
+    counts.write(float4(currentCount + 1.0, 0, 0, 0), gid);
+}
+
 /// Per-threadgroup brightest-pixel search over the *whole* frame — used once, when a live-stack
 /// session with drift reduction on has no lock-on point yet, to find an initial star to track
 /// (see `MetalFrameRenderer.findBrightestPoint`). A plain sequential scan of the threadgroup's

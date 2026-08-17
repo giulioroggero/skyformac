@@ -324,3 +324,87 @@ struct AIDescribeSheet: View {
         }
     }
 }
+
+/// "Add tags can be helped by AI" — suggests a handful of new tags grounded in the same
+/// project/session context `AIDescribeSheet` uses, shown as a checklist (not auto-applied) so the
+/// user picks which ones actually fit before `onAddTags` appends them.
+struct AISuggestTagsSheet: View {
+    let title: String
+    let context: String
+    let existingTags: [String]
+    var cameraManager: CameraManager
+    var onAddTags: ([String]) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var suggestions: [String] = []
+    @State private var selected: Set<String> = []
+    @State private var hasGenerated = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.headline)
+            Text("Suggests tags grounded in what this actually planned and captured — pick which ones to add.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if isLoading {
+                ProgressView("Asking Ollama…")
+            } else if let errorMessage {
+                Text(errorMessage).foregroundStyle(.red).font(.caption)
+            } else if hasGenerated && suggestions.isEmpty {
+                Text("No new tag suggestions.").font(.callout).foregroundStyle(.secondary)
+            } else if hasGenerated {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(suggestions, id: \.self) { tag in
+                        Toggle(tag, isOn: Binding(
+                            get: { selected.contains(tag) },
+                            set: { isOn in if isOn { selected.insert(tag) } else { selected.remove(tag) } }
+                        ))
+                    }
+                }
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                if !hasGenerated {
+                    Button("Suggest Tags") { Task { await generate() } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isLoading)
+                } else {
+                    Button("Regenerate") { Task { await generate() } }.disabled(isLoading)
+                    Button("Add Selected") { onAddTags(Array(selected)); dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selected.isEmpty)
+                }
+            }
+        }
+        .padding()
+        .frame(width: 380, height: 320)
+        .task { await generate() }
+    }
+
+    private func generate() async {
+        isLoading = true
+        errorMessage = nil
+        suggestions = []
+        selected = []
+        hasGenerated = false
+        defer { isLoading = false }
+        do {
+            suggestions = try await cameraManager.ollamaPlanner.suggestTags(context: context, existingTags: existingTags)
+            selected = Set(suggestions)
+            hasGenerated = true
+        } catch let error as OllamaError {
+            AppLog.shared.log("Ask AI to Suggest Tags: \(error.userFacingMessage)")
+            errorMessage = error.userFacingMessage
+        } catch {
+            AppLog.shared.log("Ask AI to Suggest Tags: couldn't reach Ollama. (\(String(describing: error)))")
+            errorMessage = "Couldn't get tag suggestions from Ollama — make sure it's running locally. (\(String(describing: error)))"
+        }
+    }
+}

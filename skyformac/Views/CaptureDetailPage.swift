@@ -11,6 +11,9 @@ struct CaptureDetailPage: View {
     var cameraManager: CameraManager
     /// Pops back to this capture's own Session page.
     var onBack: () -> Void
+    /// Jumps all the way back to the Projects browser's Home page, regardless of how deep the
+    /// navigation stack is — see `SessionDetailPane.onHome`'s doc comment for the full reasoning.
+    var onHome: () -> Void
     /// Steps to the previous/next capture within this same session's timeline (newest first,
     /// matching `TimelineStripView`'s own display order). `nil` — not a no-op closure — when this
     /// is the first/last capture, so the toolbar button is hidden entirely.
@@ -20,6 +23,10 @@ struct CaptureDetailPage: View {
     @State private var isElaborating = false
     @State private var isPromptingSirilSettings = false
     @State private var isConfirmingDelete = false
+    /// Keyed to a focusable modifier on the page itself — arrow-key stepping (`onKeyPress` below)
+    /// only receives events while this view actually holds keyboard focus, which nothing else on
+    /// this page competes for (there's no text field), so it's claimed unconditionally on appear.
+    @FocusState private var isFocused: Bool
 
     private var store: ProjectStore { cameraManager.projectStore }
 
@@ -146,9 +153,34 @@ struct CaptureDetailPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("\(project.name.isEmpty ? "Untitled Project" : project.name) — \(session.name) — \(capture.fileName)")
+        // Left/right arrows step through the timeline the same way clicking the on-image
+        // Previous/Next controls does — a plain photo-browser convention, and free once the
+        // sibling closures already exist for those buttons. `onKeyPress` only fires while this
+        // view holds keyboard focus, hence `.focusable()` + claiming it on appear below.
+        .focusable()
+        .focusEffectDisabled()
+        .focused($isFocused)
+        .onAppear { isFocused = true }
+        .onKeyPress(.leftArrow) {
+            guard let onPreviousCapture else { return .ignored }
+            onPreviousCapture()
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            guard let onNextCapture else { return .ignored }
+            onNextCapture()
+            return .handled
+        }
+        // The system's own automatic back chevron only ever pops one level, which would sit right
+        // next to `onBack` doing the same thing — hidden in favor of the explicit Home/Back pair
+        // below (see `SessionDetailPane`'s identical modifier for the full reasoning).
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button("Back to Session", systemImage: "chevron.left", action: onBack)
+                HStack(spacing: 8) {
+                    Button("Home", systemImage: "house", action: onHome)
+                    Button("Back to Session", systemImage: "chevron.left", action: onBack)
+                }
             }
             ToolbarItemGroup {
                 if let onPreviousCapture {
@@ -178,10 +210,10 @@ struct CaptureDetailPage: View {
                     source: source,
                     suggestedRecipe: SirilElaborationService.resolveRecipe(for: source, target: target),
                     sourceDescription: "Elaborating \(capture.fileName)."
-                ) { recipe in
+                ) { recipe, parameters, onLog in
                     try await cameraManager.elaborate(
                         source: source, recipe: recipe, sourceSessionIDs: [session.id],
-                        sourceCaptureID: capture.id, project: project
+                        sourceCaptureID: capture.id, project: project, parameters: parameters, onLog: onLog
                     )
                 }
             }
@@ -220,18 +252,20 @@ struct CaptureDetailPage: View {
 
     @ViewBuilder
     private func captureStepButton(label: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(label, systemImage: systemImage, action: action)
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-            .controlSize(.large)
-            .padding(10)
-            .background(.thinMaterial, in: Circle())
-            // Without this, a borderless button's click target on macOS shrinks to the rendered
-            // icon glyph itself, not the visible circle behind it — the padding/background above
-            // are purely cosmetic to hit-testing unless the tappable shape is stated explicitly.
-            .contentShape(Circle())
-            .padding(12)
-            .help(label)
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 22, weight: .semibold))
+                // A fixed frame, not just the glyph's own intrinsic size — this is what actually
+                // makes the whole visible circle clickable, not just wherever the glyph itself
+                // happens to render within it.
+                .frame(width: 48, height: 48)
+        }
+        .buttonStyle(.borderless)
+        .background(.thinMaterial, in: Circle())
+        .contentShape(Circle())
+        .padding(12)
+        .help(label)
+        .accessibilityLabel(label)
     }
 
     private var fileStats: [StatItem] {
