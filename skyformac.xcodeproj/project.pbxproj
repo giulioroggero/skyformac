@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0224F37EA5218C04135476C7 /* libASICamera2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; };
+		048EA7517A3F23D16AF30BCD /* InsightsDrillLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679DDD7E0B6EFEFF4264B53D /* InsightsDrillLevelTests.swift */; };
 		056885C6201C1236C8D50051 /* SkyformacCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */; };
 		05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88925FDFCDFD5CD1889D56E /* InsightsView.swift */; };
 		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
@@ -340,6 +341,7 @@
 		65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerFirstRunTests.swift; sourceTree = "<group>"; };
 		675A55FA670A0F46DEA13428 /* PolarAlignmentSolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PolarAlignmentSolverTests.swift; sourceTree = "<group>"; };
 		677FF3C30B5127A43DE05797 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		679DDD7E0B6EFEFF4264B53D /* InsightsDrillLevelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsDrillLevelTests.swift; sourceTree = "<group>"; };
 		67F359368A5B9198F0F3224E /* EquipmentPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentPage.swift; sourceTree = "<group>"; };
 		6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsDataTests.swift; sourceTree = "<group>"; };
 		68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimatorTests.swift; sourceTree = "<group>"; };
@@ -675,6 +677,7 @@
 				C5F61391F907340F7096C136 /* LiveStackDynamicStretchTests.swift */,
 				D89576445CC21044FB95D0C4 /* GraXpertElaborationTests.swift */,
 				0FC653B9CD6FB08FB1E5AC0F /* StarNetElaborationTests.swift */,
+				679DDD7E0B6EFEFF4264B53D /* InsightsDrillLevelTests.swift */,
 			);
 			name = skyformacTests;
 			path = skyformacTests;
@@ -1263,6 +1266,7 @@
 				DE4EEA337C5F391C74D4A6F0 /* LiveStackDynamicStretchTests.swift in Sources */,
 				095B435516723DB37892A1AD /* GraXpertElaborationTests.swift in Sources */,
 				3879D4A9450B9B00DAB4F839 /* StarNetElaborationTests.swift in Sources */,
+				048EA7517A3F23D16AF30BCD /* InsightsDrillLevelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
