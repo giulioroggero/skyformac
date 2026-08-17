@@ -80,6 +80,8 @@ struct HistogramView: View {
                     .overlay(Text("No signal").foregroundStyle(.white.opacity(0.5)))
             }
 
+            clippingWarningView
+
             zoomControl
 
             if showByChannel {
@@ -151,6 +153,47 @@ struct HistogramView: View {
         .help("Zooms the Black/White Point sliders below into a narrow window around each one's own current value, for finer drag control. The exact-value fields next to each slider work at any zoom.")
     }
 
+    // MARK: - Clipping
+
+    /// Worst-channel clipping when showing Red/Green/Blue separately — a single blown channel
+    /// (e.g. a light-polluted orange sky crushing blue) is exactly the case a combined-luma
+    /// reading would hide, so this deliberately takes the max rather than an average.
+    private var currentClipping: (shadows: Double, highlights: Double)? {
+        if showByChannel, let channels = currentChannelHistograms {
+            let r = HistogramComputer.clippedFraction(channels.red)
+            let g = HistogramComputer.clippedFraction(channels.green)
+            let b = HistogramComputer.clippedFraction(channels.blue)
+            return (max(r.shadows, g.shadows, b.shadows), max(r.highlights, g.highlights, b.highlights))
+        }
+        guard let buckets = currentBuckets else { return nil }
+        return HistogramComputer.clippedFraction(buckets)
+    }
+
+    /// Below ~0.5% of the frame, a few hot pixels or one genuinely black sky-background pixel
+    /// trips this on every single frame — not useful information at that level, so the warning
+    /// only shows once clipping is actually a meaningful fraction of the image.
+    private static let clippingWarningThreshold = 0.005
+
+    @ViewBuilder
+    private var clippingWarningView: some View {
+        if let clipping = currentClipping {
+            let shadowsClipped = clipping.shadows > Self.clippingWarningThreshold
+            let highlightsClipped = clipping.highlights > Self.clippingWarningThreshold
+            if shadowsClipped || highlightsClipped {
+                HStack(spacing: 12) {
+                    if shadowsClipped {
+                        Label(String(format: "%.1f%% shadows clipped", clipping.shadows * 100), systemImage: "arrow.down.to.line")
+                    }
+                    if highlightsClipped {
+                        Label(String(format: "%.1f%% highlights clipped", clipping.highlights * 100), systemImage: "arrow.up.to.line")
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.red)
+            }
+        }
+    }
+
     // MARK: - Histogram canvas
 
     /// Always shows the *full* 0...100% range regardless of `zoom` — the two sliders can each be
@@ -172,6 +215,14 @@ struct HistogramView: View {
                     height: height
                 )
                 context.fill(Path(rect), with: .color(.accentColor.opacity(0.8)))
+            }
+
+            let clipping = HistogramComputer.clippedFraction(buckets)
+            if clipping.shadows > Self.clippingWarningThreshold {
+                context.fill(Path(CGRect(x: 0, y: 0, width: max(barWidth, 2), height: size.height)), with: .color(.red.opacity(0.6)))
+            }
+            if clipping.highlights > Self.clippingWarningThreshold {
+                context.fill(Path(CGRect(x: size.width - max(barWidth, 2), y: 0, width: max(barWidth, 2), height: size.height)), with: .color(.red.opacity(0.6)))
             }
 
             let blackX = size.width * cameraManager.stretch.blackPoint
@@ -216,6 +267,19 @@ struct HistogramView: View {
             context.stroke(curve(channels.green, in: size), with: .color(.green), lineWidth: 1)
             context.fill(curve(channels.blue, in: size), with: .color(.blue.opacity(0.35)))
             context.stroke(curve(channels.blue, in: size), with: .color(.blue), lineWidth: 1)
+
+            let barWidth = size.width / CGFloat(channels.red.count)
+            let r = HistogramComputer.clippedFraction(channels.red)
+            let g = HistogramComputer.clippedFraction(channels.green)
+            let b = HistogramComputer.clippedFraction(channels.blue)
+            let shadows = max(r.shadows, g.shadows, b.shadows)
+            let highlights = max(r.highlights, g.highlights, b.highlights)
+            if shadows > Self.clippingWarningThreshold {
+                context.fill(Path(CGRect(x: 0, y: 0, width: max(barWidth, 2), height: size.height)), with: .color(.white.opacity(0.5)))
+            }
+            if highlights > Self.clippingWarningThreshold {
+                context.fill(Path(CGRect(x: size.width - max(barWidth, 2), y: 0, width: max(barWidth, 2), height: size.height)), with: .color(.white.opacity(0.5)))
+            }
 
             let blackX = size.width * cameraManager.stretch.blackPoint
             let whiteX = size.width * cameraManager.stretch.whitePoint

@@ -59,4 +59,39 @@ struct HistogramComputerTests {
         #expect(channels.green[150] == 2)
         #expect(channels.blue[200] == 1)
     }
+
+    // MARK: - clippedFraction
+
+    @Test func clippedFractionIsZeroForEmptyBuckets() {
+        let result = HistogramComputer.clippedFraction([])
+        #expect(result.shadows == 0)
+        #expect(result.highlights == 0)
+    }
+
+    @Test func clippedFractionIsZeroWhenNoPixelsAtEitherExtreme() {
+        var buckets = [Int](repeating: 0, count: 256)
+        buckets[128] = 100
+        let result = HistogramComputer.clippedFraction(buckets)
+        #expect(result.shadows == 0)
+        #expect(result.highlights == 0)
+    }
+
+    @Test func clippedFractionCountsOnlyTheFirstAndLastBin() {
+        var buckets = [Int](repeating: 0, count: 256)
+        buckets[0] = 10 // shadows
+        buckets[1] = 80 // not clipped, just dark
+        buckets[255] = 10 // highlights
+        let result = HistogramComputer.clippedFraction(buckets)
+        #expect(abs(result.shadows - 0.1) < 0.0001)
+        #expect(abs(result.highlights - 0.1) < 0.0001)
+    }
+
+    @Test func clippedFractionIsOneWhenEveryPixelIsClipped() {
+        var buckets = [Int](repeating: 0, count: 256)
+        buckets[0] = 50
+        buckets[255] = 50
+        let result = HistogramComputer.clippedFraction(buckets)
+        #expect(result.shadows == 0.5)
+        #expect(result.highlights == 0.5)
+    }
 }

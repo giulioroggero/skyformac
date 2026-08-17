@@ -1485,6 +1485,15 @@ struct ControlsPanelView: View {
     @ViewBuilder
     private var darkFrameSection: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Button {
+                cameraManager.isCalibrationWizardPresented = true
+            } label: {
+                Label("Calibration Wizard…", systemImage: "wand.and.stars")
+            }
+            .help("Guided batch capture of several dark/flat frames in a row, instead of clicking Capture one at a time below.")
+
+            Divider()
+
             calibrationSubsection(
                 title: "Dark Frames",
                 helpText: "Lens capped / scope covered — removes fixed-pattern noise and hot pixels.",
@@ -2366,7 +2375,7 @@ private struct ZoomableValueField<Value: Equatable>: View {
 /// decade (µs/ms/s) gets equal room, while the underlying binding stays plain seconds —
 /// `CameraManager.captureSingleExposure`/`captureDarkFrame`/`captureFlatFrame` all already take
 /// fractional seconds and convert to microseconds internally, so no call site needed to change.
-private struct ExposureField: View {
+struct ExposureField: View {
     @Binding var seconds: Double
     var minSeconds: Double = 0.000_001 // 1 µs — comfortably below any real ASI sensor's floor
     var maxSeconds: Double = 60
@@ -2423,7 +2432,7 @@ private struct ExposureField: View {
 /// used to be an indeterminate-only spinner, which gave no sense of how much longer a
 /// multi-second-or-longer exposure had left. `TimelineView(.periodic(...))` redraws this on its
 /// own schedule instead of needing a `Timer`/`@State` tick counter of its own.
-private struct ExposureCountdownView: View {
+struct ExposureCountdownView: View {
     var cameraManager: CameraManager
 
     var body: some View {

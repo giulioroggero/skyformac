@@ -972,6 +972,9 @@ final class CameraManager {
     /// Drives the Acquisition Wizard `.sheet` on `ContentView` — same single-window reasoning as
     /// `isHelpPresented` above.
     var isAcquisitionWizardPresented = false
+    /// Drives the Calibration Wizard `.sheet` on `ContentView` — same single-window reasoning as
+    /// `isHelpPresented` above.
+    var isCalibrationWizardPresented = false
     /// Set by `showHelp(topicID:sectionID:)` — read once by `HelpView`'s `init` when
     /// `ContentView`'s sheet constructs it, to open directly to a specific setting's explanation
     /// instead of always landing on the first topic. `sectionID` matches a `HelpSection.id` in

@@ -27,7 +27,16 @@ extension CameraManager {
         if isLiveStackingEnabled {
             var detail = "\(liveStackedFrameCount) frames"
             if isLiveStackPaused { detail += " · Paused" }
-            if isSmartLiveStackEnabled { detail += " · Autopilot" }
+            if isSmartLiveStackEnabled {
+                detail += " · Autopilot"
+                if smartStackRejectedCount > 0 {
+                    detail += " (\(smartStackRejectedCount) rejected"
+                    if let reason = smartStackLastRejectionReason {
+                        detail += ": \(reason.label)"
+                    }
+                    detail += ")"
+                }
+            }
             if isMeshDriftCorrectionEnabled {
                 detail += " · Mesh Drift"
             } else if isLiveStackDriftReductionEnabled {
@@ -90,10 +99,18 @@ extension CameraManager {
         }
 
         if isFocusAssistEnabled {
-            let detail = focusAssist?.medianStarDiameterPixels
+            var detail = focusAssist?.medianStarDiameterPixels
                 .map { "Median star diameter \(String(format: "%.1f", $0))px" } ?? "Waiting for a star"
+            if let latestHFD = focusTracker.samples.last?.medianHFD {
+                detail += String(format: " · HFD %.2fpx", latestHFD)
+                if isFocusDriftDetected {
+                    detail += " — thermal drift"
+                }
+            }
             statuses.append(ActivePipelineStatus(
-                id: "focusAssist", icon: "camera.metering.center.weighted", title: "Focus Assist", detail: detail,
+                id: "focusAssist",
+                icon: isFocusDriftDetected ? "thermometer.sun.fill" : "camera.metering.center.weighted",
+                title: "Focus Assist", detail: detail,
                 tab: .improvements, stop: { [weak self] in self?.isFocusAssistEnabled = false }
             ))
         }

@@ -94,6 +94,12 @@ struct ContentView: View {
         )) {
             AcquisitionWizardView(cameraManager: cameraManager)
         }
+        .sheet(isPresented: Binding(
+            get: { cameraManager.isCalibrationWizardPresented },
+            set: { cameraManager.isCalibrationWizardPresented = $0 }
+        )) {
+            CalibrationWizardView(cameraManager: cameraManager)
+        }
     }
 
     /// The live video alone, filling the entire window with its own overlay controls (zoom

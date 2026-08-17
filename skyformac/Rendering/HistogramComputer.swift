@@ -135,4 +135,14 @@ enum HistogramComputer {
         }
         return sampleCount > 0 ? sum / Double(sampleCount) : 0
     }
+
+    /// Fraction of pixels sitting exactly at the histogram's first bin (shadows) or last bin
+    /// (highlights) — a pixel already pegged to black/white before any further stretch is detail
+    /// that's already lost, not detail a Black/White Point slider can recover. Used by
+    /// `HistogramView` to show a clipping warning alongside the live histogram.
+    static func clippedFraction(_ buckets: [Int]) -> (shadows: Double, highlights: Double) {
+        let total = buckets.reduce(0, +)
+        guard total > 0, let first = buckets.first, let last = buckets.last else { return (0, 0) }
+        return (Double(first) / Double(total), Double(last) / Double(total))
+    }
 }
