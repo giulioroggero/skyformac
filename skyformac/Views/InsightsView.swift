@@ -15,7 +15,6 @@ struct InsightsView: View {
     /// *some* range, but not "the days of August" or "the hours of the 16th" specifically — a real
     /// drill-down is what actually answers that.
     @State private var drillLevel: DrillLevel = .year
-    @State private var chartSelection: String?
 
     private var activityBuckets: [ActivityBucket] {
         drillLevel.bucket(data.allCaptureDates)
@@ -58,8 +57,28 @@ struct InsightsView: View {
                                 Chart(activityBuckets) { bucket in
                                     BarMark(x: .value(drillLevel.axisLabel, bucket.label), y: .value("Captures", bucket.count))
                                 }
-                                .chartXSelection(value: $chartSelection)
                                 .frame(height: 180)
+                                // `chartXSelection` reacts to hover/drag on macOS, not a discrete
+                                // click — this app wants drilling in to happen only on an actual
+                                // click, so a plain tap gesture over the plot area (mapped back to
+                                // the nearest bar via `ChartProxy.value(atX:)`) replaces it.
+                                .chartOverlay { proxy in
+                                    GeometryReader { geometry in
+                                        Rectangle()
+                                            .fill(.clear)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture { location in
+                                                guard let plotFrame = proxy.plotFrame else { return }
+                                                let origin = geometry[plotFrame].origin
+                                                let xPosition = location.x - origin.x
+                                                guard let label: String = proxy.value(atX: xPosition),
+                                                      let bucket = activityBuckets.first(where: { $0.label == label }),
+                                                      let next = drillLevel.drilling(into: bucket)
+                                                else { return }
+                                                drillLevel = next
+                                            }
+                                    }
+                                }
                                 if !drillLevel.isDeepest {
                                     Text("Tap a bar to drill in.")
                                         .font(.caption2)
@@ -97,13 +116,6 @@ struct InsightsView: View {
             ToolbarItem(placement: .navigation) {
                 Button("Back", systemImage: "chevron.left", action: onBack)
             }
-        }
-        .onChange(of: chartSelection) { _, newValue in
-            guard let newValue, let bucket = activityBuckets.first(where: { $0.label == newValue }),
-                  let next = drillLevel.drilling(into: bucket)
-            else { return }
-            drillLevel = next
-            chartSelection = nil
         }
     }
 
