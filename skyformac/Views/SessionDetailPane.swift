@@ -208,6 +208,19 @@ struct SessionDetailPane: View {
                     )
                 }
 
+                if !sessionElaboratedImages.isEmpty {
+                    PageSection(title: "Elaborated") {
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 10) {
+                                ForEach(sessionElaboratedImages) { image in
+                                    ElaboratedImageCard(project: project, image: image, cameraManager: cameraManager)
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                        }
+                    }
+                }
+
                 PageSection {
                     HStack {
                         Button("Elaborate Session…", systemImage: "wand.and.stars") { startElaborating() }
@@ -344,6 +357,15 @@ struct SessionDetailPane: View {
     /// `CameraManager.elaborationSource(for:project:)`.
     private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
         cameraManager.elaborationSource(for: session, project: project)
+    }
+
+    /// Only this session's own results — the project page shows every elaborated image across all
+    /// sessions, but here (and on `CaptureDetailPage`'s own capture-scoped equivalent) narrower is
+    /// more useful: "what came out of *this* session," not the whole project's history.
+    private var sessionElaboratedImages: [ElaboratedImage] {
+        project.elaboratedImages
+            .filter { $0.sourceSessionIDs.contains(session.id) }
+            .sorted { $0.date > $1.date }
     }
 
     private func startElaborating() {

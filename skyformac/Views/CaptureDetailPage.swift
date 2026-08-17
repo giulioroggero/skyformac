@@ -133,6 +133,19 @@ struct CaptureDetailPage: View {
                     }
                 }
 
+                if !captureElaboratedImages.isEmpty {
+                    PageSection(title: "Elaborated") {
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 10) {
+                                ForEach(captureElaboratedImages) { image in
+                                    ElaboratedImageCard(project: project, image: image, cameraManager: cameraManager)
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                        }
+                    }
+                }
+
                 if let cameraSettingsStats {
                     PageSection(title: "Camera Settings") {
                         StatsGridView(stats: cameraSettingsStats)
@@ -240,6 +253,15 @@ struct CaptureDetailPage: View {
     /// `CameraManager.elaborationSource(forCaptureID:in:project:)`.
     private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
         cameraManager.elaborationSource(forCaptureID: capture.id, in: session, project: project)
+    }
+
+    /// Only results that came from *this* capture specifically — narrower than the session-level
+    /// listing on `SessionDetailPane`, which also includes whole-session elaborations with no
+    /// single owning capture (`sourceCaptureID == nil`).
+    private var captureElaboratedImages: [ElaboratedImage] {
+        project.elaboratedImages
+            .filter { $0.sourceCaptureID == capture.id }
+            .sorted { $0.date > $1.date }
     }
 
     private func startElaborating() {

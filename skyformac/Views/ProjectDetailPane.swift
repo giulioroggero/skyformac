@@ -823,7 +823,7 @@ private struct ActivityTimelineChart: View {
 /// result is itself just a `.tif` file. "Info…" shows what actually produced it (source, recipe,
 /// size on disk) and offers "Re-elaborate…" to run it again with different parameters — a new,
 /// separate entry alongside this one, not a replacement, so both remain comparable.
-private struct ElaboratedImageCard: View {
+struct ElaboratedImageCard: View {
     let project: Project
     let image: ElaboratedImage
     var cameraManager: CameraManager
