@@ -167,7 +167,7 @@ enum SirilElaborationService {
             script = planetaryScript(
                 basename: basename, workingDirectory: scratchDirectory, outputBaseName: outputBaseName, parameters: parameters
             )
-            outputSubpath = "\(outputBaseName).tif"
+            outputSubpath = "converted/\(outputBaseName).tif"
         case (.fitsFrames(let fileURLs), .planetary):
             for fileURL in fileURLs {
                 try stageFITS(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: parameters.cropRect)
@@ -322,10 +322,21 @@ enum SirilElaborationService {
         """
     }
 
+    /// `stack` (unlike `calibrate_single`) is one of Siril's *sequence* commands — it needs a
+    /// real Siril sequence (a `.seq` file plus its indexed frames), not a bare `.ser` file
+    /// referenced by name, which is what this used to do directly. That silently produced a
+    /// mono/grayscale result instead of an error: Siril still ran `stack` against *something*
+    /// (apparently falling back to reading the raw video without any Bayer awareness at all)
+    /// rather than failing outright, so nothing here caught it before a real run surfaced the bad
+    /// color output. The fix is the same explicit `convert` step `planetaryFromFramesScript`
+    /// below already has — deliberately without `-debayer` here too, preserving the "debayer the
+    /// stacked result once at the end, not every input frame" cost saving this recipe exists for.
     private static func planetaryScript(basename: String, workingDirectory: URL, outputBaseName: String, parameters: ElaborationParameters) -> String {
         """
         requires 1.2.0
         cd "\(workingDirectory.path)"
+        convert \(basename) -out=converted
+        cd converted
         stack \(basename) rej \(rejectionArgs(parameters)) -norm=no -out=stacked_raw
         calibrate_single stacked_raw -debayer -prefix=deb_
         load deb_stacked_raw
