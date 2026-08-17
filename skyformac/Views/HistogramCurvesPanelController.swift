@@ -57,6 +57,8 @@ private struct DetachedHistogramCurvesView: View {
                 .tabItem { Text("Histogram") }
             CurvesView(cameraManager: cameraManager)
                 .tabItem { Text("Curves") }
+            StackingStatusView(cameraManager: cameraManager)
+                .tabItem { Text("Stacking") }
         }
         .frame(minWidth: 340, idealWidth: 380, minHeight: 360, idealHeight: 420)
         .padding(.top, 4)

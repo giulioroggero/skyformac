@@ -51,6 +51,7 @@
 		3E1C633F7143E6BE817DFCC2 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
 		3E946BCE3689D6DF88FFE542 /* LiveWCSSolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2916DD5705E1C8396832843 /* LiveWCSSolver.swift */; };
 		4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */; };
+		422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */; };
 		43490D1033FA607BFEF52E50 /* bright_stars.json in Resources */ = {isa = PBXBuildFile; fileRef = FCB566CFCF9887C6E0E09CC3 /* bright_stars.json */; };
 		4356247B24614D5F9FD7F857 /* WebcamCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */; };
 		4527E949643DEA91F18F3AC3 /* EquipmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F697DCCE35D7667955614A48 /* EquipmentModels.swift */; };
@@ -327,6 +328,7 @@
 		55BE7F71EFFEA8087964D1C9 /* PolarAlignmentSolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PolarAlignmentSolver.swift; sourceTree = "<group>"; };
 		57206D2F89E34EB8DEE0EFCE /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		59BAAD18C7E8388FF7CE8C98 /* AstronomyFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyFilterTests.swift; sourceTree = "<group>"; };
+		5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackingStatusView.swift; sourceTree = "<group>"; };
 		5CAFD2D6898CDC7637053BAA /* CloudDriftSentinelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudDriftSentinelTests.swift; sourceTree = "<group>"; };
 		5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectDetailPane.swift; sourceTree = "<group>"; };
 		60759144D69321A911094B7E /* ExposureOptimizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExposureOptimizer.swift; sourceTree = "<group>"; };
@@ -780,6 +782,7 @@
 				C9BB677FD43BE6A044E9AA63 /* GraXpertSheet.swift */,
 				D03B715973D42F6E04278F45 /* StarNetSettingsView.swift */,
 				C4CC2AFD7A117129510FEFE7 /* StarNetSheet.swift */,
+				5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -1177,6 +1180,7 @@
 				478066C07F1C9EFF100C0719 /* PixInsightAppLauncher.swift in Sources */,
 				A006B5C70327444FB8FC66B7 /* StarNetSettingsView.swift in Sources */,
 				1B07C172F1B14326FA01BFB9 /* StarNetSheet.swift in Sources */,
+				422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

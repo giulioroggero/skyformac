@@ -224,6 +224,8 @@ struct ContentView: View {
                                         .tabItem { Text("Histogram") }
                                     CurvesView(cameraManager: cameraManager)
                                         .tabItem { Text("Curves") }
+                                    StackingStatusView(cameraManager: cameraManager)
+                                        .tabItem { Text("Stacking") }
                                 }
                             }
                             .frame(minHeight: 150, maxHeight: 260)
