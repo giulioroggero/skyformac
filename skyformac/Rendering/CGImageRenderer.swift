@@ -1,24 +1,29 @@
 import CoreGraphics
 import Foundation
+import simd
 
 /// Converts a `CapturedFrame` into a displayable `CGImage`, applying the color camera's
 /// Bayer debayer (via `Debayer`) and a black/white point `DisplayStretch` down to 8-bit
 /// output. This is the CPU baseline per spec 3.4 / Milestone 4; the GPU upgrade pass replaces
 /// it with a `MetalKit`-backed renderer that does the stretch (and debayer) on the GPU.
 enum CGImageRenderer {
-    /// `channelStretch`/`toneCurves` are `nil` by default — every existing caller (exports, the
-    /// Vision-analysis renders in `CameraManager`'s focus-assist/streak-detection/planet-tracking
-    /// paths) keeps getting exactly the base combined `stretch`, unaffected. Only the CPU live-
-    /// preview render path (`renderedCurrentImage`/`scheduleCPUEnhancementIfNeeded`) passes them,
-    /// deliberately: "Independent Channels"/"Curves" are display-only grading, not something
-    /// Vision-based star/streak/planet detection should see tweaked underneath it.
+    /// `channelStretch`/`toneCurves`/`filterGain` are `nil`/identity by default — every existing
+    /// caller (exports, the Vision-analysis renders in `CameraManager`'s focus-assist/streak-
+    /// detection/planet-tracking paths) keeps getting exactly the base combined `stretch`,
+    /// unaffected. Only the CPU live-preview render path (`renderedCurrentImage`/
+    /// `scheduleCPUEnhancementIfNeeded`) and the export path pass them, deliberately:
+    /// "Independent Channels"/"Curves"/"Filters" are display-and-capture grading, not something
+    /// Vision-based star/streak/planet detection should see tweaked underneath it. `filterGain`
+    /// only ever applies to a color render — a mono grayscale frame has no per-channel emphasis
+    /// to boost in the first place, so the grayscale path below ignores it entirely.
     static func makeDisplayImage(
         from frame: CapturedFrame,
         isColorCamera: Bool,
         bayerPattern: ASI_BAYER_PATTERN,
         stretch: DisplayStretch,
         channelStretch: PerChannelStretch? = nil,
-        toneCurves: ChannelToneCurves? = nil
+        toneCurves: ChannelToneCurves? = nil,
+        filterGain: SIMD3<Float> = SIMD3(repeating: 1)
     ) -> CGImage? {
         switch frame.imageType {
         case ASI_IMG_RAW8, ASI_IMG_Y8:
@@ -26,7 +31,8 @@ enum CGImageRenderer {
                let rgb = Debayer.debayerRAW8(frame, pattern: bayerPattern) {
                 return makeRGB8Image(
                     rgb, width: frame.width, height: frame.height,
-                    channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves
+                    channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves,
+                    filterGain: filterGain
                 )
             }
             return makeGrayscaleImage(
@@ -42,7 +48,8 @@ enum CGImageRenderer {
             if isColorCamera, let rgb16 = Debayer.debayerRAW16(frame, pattern: bayerPattern) {
                 return makeRGB16Image(
                     rgb16, width: frame.width, height: frame.height,
-                    channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves
+                    channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves,
+                    filterGain: filterGain
                 )
             }
             return makeGrayscaleImage(
@@ -57,7 +64,8 @@ enum CGImageRenderer {
         case ASI_IMG_RGB24:
             return makeRGB8Image(
                 frame.data, width: frame.width, height: frame.height,
-                channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves
+                channelStretch: channelStretch ?? PerChannelStretch(uniform: stretch), toneCurves: toneCurves,
+                filterGain: filterGain
             )
         default:
             return nil
@@ -122,7 +130,10 @@ enum CGImageRenderer {
     /// black/white points, each further composed with `toneCurves`' own per-channel curve when
     /// present, so "Independent Channels" and "Curves" both apply identically whether the source
     /// went through debayering first (RAW8/RAW16) or is already packed RGB24.
-    private static func channelLUTs(channelStretch: PerChannelStretch, maxValue: Int, toneCurves: ChannelToneCurves?) -> (red: [UInt8], green: [UInt8], blue: [UInt8]) {
+    private static func channelLUTs(
+        channelStretch: PerChannelStretch, maxValue: Int, toneCurves: ChannelToneCurves?,
+        filterGain: SIMD3<Float> = SIMD3(repeating: 1)
+    ) -> (red: [UInt8], green: [UInt8], blue: [UInt8]) {
         var red = channelStretch.red.lookupTable(maxValue: maxValue)
         var green = channelStretch.green.lookupTable(maxValue: maxValue)
         var blue = channelStretch.blue.lookupTable(maxValue: maxValue)
@@ -134,6 +145,14 @@ enum CGImageRenderer {
             green = green.map { greenCurve[Int($0)] }
             blue = blue.map { blueCurve[Int($0)] }
         }
+        // "Filters" tab — applied last, after stretch/curves, same order as the GPU path's
+        // `applyFilterGainRGBA` (after `applyToneCurveRGBA`). Skipped entirely at the identity
+        // gain (nothing selected) — the common case — rather than doing a wasted `* 1.0` pass.
+        if filterGain != SIMD3(repeating: 1) {
+            red = red.map { UInt8(clamping: Int((Float($0) * filterGain.x).rounded())) }
+            green = green.map { UInt8(clamping: Int((Float($0) * filterGain.y).rounded())) }
+            blue = blue.map { UInt8(clamping: Int((Float($0) * filterGain.z).rounded())) }
+        }
         return (red, green, blue)
     }
 
@@ -142,10 +161,11 @@ enum CGImageRenderer {
         width: Int,
         height: Int,
         channelStretch: PerChannelStretch,
-        toneCurves: ChannelToneCurves?
+        toneCurves: ChannelToneCurves?,
+        filterGain: SIMD3<Float> = SIMD3(repeating: 1)
     ) -> CGImage? {
         guard rgbData.count >= width * height * 3 else { return nil }
-        let luts = channelLUTs(channelStretch: channelStretch, maxValue: 255, toneCurves: toneCurves)
+        let luts = channelLUTs(channelStretch: channelStretch, maxValue: 255, toneCurves: toneCurves, filterGain: filterGain)
         var output = Data(count: width * height * 3)
         rgbData.withUnsafeBytes { (src: UnsafeRawBufferPointer) in
             guard let srcBase = src.bindMemory(to: UInt8.self).baseAddress else { return }
@@ -167,10 +187,11 @@ enum CGImageRenderer {
         width: Int,
         height: Int,
         channelStretch: PerChannelStretch,
-        toneCurves: ChannelToneCurves?
+        toneCurves: ChannelToneCurves?,
+        filterGain: SIMD3<Float> = SIMD3(repeating: 1)
     ) -> CGImage? {
         guard rgb16Data.count >= width * height * 3 * 2 else { return nil }
-        let luts = channelLUTs(channelStretch: channelStretch, maxValue: 65535, toneCurves: toneCurves)
+        let luts = channelLUTs(channelStretch: channelStretch, maxValue: 65535, toneCurves: toneCurves, filterGain: filterGain)
         var output = Data(count: width * height * 3)
         rgb16Data.withUnsafeBytes { (src: UnsafeRawBufferPointer) in
             guard let srcBase = src.bindMemory(to: UInt16.self).baseAddress else { return }

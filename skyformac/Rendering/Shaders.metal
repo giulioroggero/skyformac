@@ -695,6 +695,23 @@ kernel void applyToneCurveRGBA(
     texture.write(float4(graded, color.a), gid);
 }
 
+/// The "Filters" tab's stylized astronomy-filter preview (`AstronomyFilterType` — a live-preview
+/// color emphasis, not an optical simulation of a real narrowband/light-pollution filter) —
+/// a single per-channel multiply, since `FilterSelection.combinedGain(for:)` already folds every
+/// active filter's own gain and intensity into one `float3` on the CPU side before this ever
+/// dispatches. In place on a single `access::read_write` texture, same safe shape as
+/// `arcsinhStretch`/`applyToneCurveRGBA` above — applied last, after tone curves, so a filter
+/// tints the already-graded image rather than getting graded over.
+kernel void applyFilterGainRGBA(
+    texture2d<float, access::read_write> texture [[texture(0)]],
+    constant float3 &gain [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= texture.get_width() || gid.y >= texture.get_height()) { return; }
+    float4 color = texture.read(gid);
+    texture.write(float4(saturate(color.rgb * gain), color.a), gid);
+}
+
 /// One level of an à trous ("with holes") wavelet blur — the standard stationary wavelet
 /// transform used by multi-scale sharpening tools like RegiStax: a B3-spline low-pass filter
 /// applied with `spacing` gaps between taps (rather than shrinking the image, as a dyadic

@@ -77,6 +77,7 @@ enum SidebarTab: String, CaseIterable, Identifiable {
     case cameraControls = "Camera Controls"
     case planetary = "Planetary"
     case deepSky = "Deep Sky"
+    case filters = "Filters"
     case improvements = "Improvements"
 
     var id: String { rawValue }
@@ -88,6 +89,7 @@ enum SidebarTab: String, CaseIterable, Identifiable {
         case .improvements: return "Improve"
         case .planetary: return "Planetary"
         case .deepSky: return "Deep Sky"
+        case .filters: return "Filters"
         }
     }
 
@@ -97,6 +99,7 @@ enum SidebarTab: String, CaseIterable, Identifiable {
         case .improvements: return "wand.and.stars"
         case .planetary: return "moon.fill"
         case .deepSky: return "star.fill"
+        case .filters: return "camera.filters"
         }
     }
 }
@@ -173,6 +176,8 @@ struct ControlsPanelView: View {
                         planetaryTabContent
                     case .deepSky:
                         deepSkyTabContent
+                    case .filters:
+                        filtersTabContent
                     }
                 }
                 // The window's own toolbar (GPU/CPU, Night Mode, All-Sky Monitor) overlaps this
@@ -446,6 +451,73 @@ struct ControlsPanelView: View {
                 aiSuiteSection
             } label: {
                 HelpLinkedDisclosureLabel(title: "AI & Machine Learning Suite", cameraManager: cameraManager, sectionID: "setting.aiSuite")
+            }
+        }
+    }
+
+    /// A live-preview color emphasis stylized after common astronomy filters — see
+    /// `AstronomyFilterType`'s doc comment for why this is explicitly *not* an optical simulation
+    /// of a real narrowband/light-pollution filter, and why that distinction matters. Applies to
+    /// both the live preview (GPU and CPU render paths) and to PNG/TIFF captures; raw FITS exports
+    /// stay untouched, same reasoning as the preview-zoom crop (`CameraManager
+    /// .previewCropRectNormalized`'s doc comment) — FITS keeps the full, unmodified raw sensor
+    /// data for calibration/stacking regardless of what the live view looks like.
+    @ViewBuilder
+    private var filtersTabContent: some View {
+        if cameraManager.connectedCamera == nil {
+            Text("Connect a camera to see filter controls.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack {
+                Toggle("Disable All Filters", isOn: Binding(
+                    get: { cameraManager.activeFilterSelections.isEmpty },
+                    set: { if $0 { cameraManager.disableAllFilters() } }
+                ))
+                .toggleStyle(.checkbox)
+                .disabled(cameraManager.activeFilterSelections.isEmpty)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.filters")
+            }
+            Text("A live-preview color emphasis stylized after common astronomy filters — **not** an optical simulation. A real narrowband/light-pollution filter blocks wavelengths before they reach the sensor; nothing applied after the capture can replicate that. Useful for previewing a narrowband \"look\" while framing, not as a substitute for a physical filter.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
+
+            ForEach(AstronomyFilterType.allCases) { filterType in
+                filterRow(filterType)
+                if filterType != AstronomyFilterType.allCases.last {
+                    Divider()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func filterRow(_ filterType: AstronomyFilterType) -> some View {
+        let isSelected = Binding(
+            get: { cameraManager.filterIntensity(for: filterType) > 0 },
+            set: { _ in cameraManager.toggleFilter(filterType) }
+        )
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(filterType.displayName, isOn: isSelected)
+                .toggleStyle(.checkbox)
+            Text(filterType.summary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            if cameraManager.filterIntensity(for: filterType) > 0 {
+                HStack {
+                    Slider(
+                        value: Binding(
+                            get: { cameraManager.filterIntensity(for: filterType) },
+                            set: { cameraManager.setFilterIntensity(filterType, intensity: $0) }
+                        ),
+                        in: 0.05...1
+                    )
+                    Text("\(Int(cameraManager.filterIntensity(for: filterType) * 100))%")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 40, alignment: .trailing)
+                }
             }
         }
     }

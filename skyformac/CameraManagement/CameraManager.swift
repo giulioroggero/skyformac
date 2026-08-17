@@ -771,6 +771,57 @@ final class CameraManager {
     var toneCurves = ChannelToneCurves.identity {
         didSet { if isToneCurveEnabled { refreshCurrentImage() } }
     }
+    /// "Filters" tab — a live-preview color emphasis stylized after common astronomy filters (see
+    /// `AstronomyFilterType`'s doc comment: a stylistic aid, not an optical simulation of a real
+    /// filter). Session state, not a persisted preference — always starts empty on launch; which
+    /// filters were active for a given capture is recorded per-capture instead, via
+    /// `AcquisitionPreset.selectedFilters`, the same "recall it like any other setting" treatment
+    /// gain/exposure/ROI already get.
+    var activeFilterSelections: [FilterSelection] = [] {
+        didSet { refreshCurrentImage() }
+    }
+
+    /// What the render pipeline (GPU `MetalFrameRenderer`, CPU `CGImageRenderer`, and the export
+    /// path via `renderedCurrentImage`) actually reads — `(1, 1, 1)`, a true no-op, when nothing's
+    /// selected, so every stage can skip itself entirely rather than doing a wasted identity pass.
+    var combinedFilterGain: SIMD3<Float> {
+        FilterSelection.combinedGain(for: activeFilterSelections)
+    }
+
+    func filterIntensity(for filter: AstronomyFilterType) -> Double {
+        activeFilterSelections.first { $0.filter == filter }?.intensity ?? 0
+    }
+
+    /// Sets `filter`'s intensity directly (the "Filters" tab's per-filter slider) — `0` removes it
+    /// from `activeFilterSelections` entirely rather than leaving a lingering zero-strength entry,
+    /// so "how many filters are active" (used for the tab's badge/summary) stays accurate.
+    func setFilterIntensity(_ filter: AstronomyFilterType, intensity: Double) {
+        let clamped = max(0, min(1, intensity))
+        if let index = activeFilterSelections.firstIndex(where: { $0.filter == filter }) {
+            if clamped <= 0 {
+                activeFilterSelections.remove(at: index)
+            } else {
+                activeFilterSelections[index].intensity = clamped
+            }
+        } else if clamped > 0 {
+            activeFilterSelections.append(FilterSelection(filter: filter, intensity: clamped))
+        }
+    }
+
+    /// Selecting a filter with no intensity specified yet (the tab's own checkbox/swatch) starts
+    /// it at a visible-but-not-overwhelming `0.75` — "pick one, see it live" shouldn't also require
+    /// dragging a slider up from zero just to see anything happen.
+    func toggleFilter(_ filter: AstronomyFilterType) {
+        if activeFilterSelections.contains(where: { $0.filter == filter }) {
+            activeFilterSelections.removeAll { $0.filter == filter }
+        } else {
+            activeFilterSelections.append(FilterSelection(filter: filter, intensity: 0.75))
+        }
+    }
+
+    func disableAllFilters() {
+        activeFilterSelections.removeAll()
+    }
     /// Set on a fresh ZWO connection (see `connect(to:)`) — `.identity` is a safe *interim* value
     /// (better than inheriting an unrelated previous session's black/white point), but it's a bad
     /// permanent default for a real linear sensor: real signal only occupies a small fraction of
@@ -2338,6 +2389,9 @@ final class CameraManager {
             // newly-added optional preset field.
             isMeshDriftCorrectionEnabled = preset.isMeshDriftCorrectionEnabled ?? false
         }
+        // `?? []` covers a preset saved before "Filters" existed — same reasoning as
+        // `isMeshDriftCorrectionEnabled` above, an older preset simply had none active.
+        activeFilterSelections = preset.selectedFilters ?? []
     }
 
     /// Writes `preset` as its own JSON file — one file per preset, via a save panel, matching
@@ -2402,7 +2456,8 @@ final class CameraManager {
             isDriftReductionEnabled: isLiveStackDriftReductionEnabled,
             isSmartLiveStackEnabled: isSmartLiveStackEnabled,
             luckyBurstCount: nil,
-            serDurationSeconds: nil
+            serDurationSeconds: nil,
+            selectedFilters: activeFilterSelections.isEmpty ? nil : activeFilterSelections
         )
     }
 
@@ -3261,7 +3316,8 @@ final class CameraManager {
             bayerPattern: camera.bayerPattern,
             stretch: stretch,
             channelStretch: effectiveChannelStretch,
-            toneCurves: isToneCurveEnabled ? toneCurves : nil
+            toneCurves: isToneCurveEnabled ? toneCurves : nil,
+            filterGain: combinedFilterGain
         )
     }
 
@@ -3295,6 +3351,7 @@ final class CameraManager {
         let currentStretch = stretch
         let currentChannelStretch = effectiveChannelStretch
         let currentToneCurves = isToneCurveEnabled ? toneCurves : nil
+        let currentFilterGain = combinedFilterGain
         let frameIDAtSchedule = frameID
 
         enhancementTask = Task.detached(priority: .userInitiated) { [weak self] in
@@ -3309,7 +3366,7 @@ final class CameraManager {
             }
             let image = CGImageRenderer.makeDisplayImage(
                 from: displayFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: currentStretch,
-                channelStretch: currentChannelStretch, toneCurves: currentToneCurves
+                channelStretch: currentChannelStretch, toneCurves: currentToneCurves, filterGain: currentFilterGain
             )
             await self?.applyEnhancedImage(image, ifStillOnFrame: frameIDAtSchedule)
         }

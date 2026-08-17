@@ -70,6 +70,10 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private let greenCurveBuffer: MTLBuffer
     private let blueCurveBuffer: MTLBuffer
 
+    /// The "Filters" tab's stylized astronomy-filter preview — `applyFilterGainRGBA`'s single
+    /// per-channel multiply. See that kernel's doc comment in Shaders.metal.
+    private let filterGainPipeline: MTLComputePipelineState
+
     private var sourceTexture: MTLTexture?
     private var outputTexture: MTLTexture?
     // Scratch textures for the optional denoise/wavelet-sharpen stages, same dimensions/format
@@ -157,7 +161,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
         stretch: DisplayStretch, channelStretch: PerChannelStretch, isLiveStacking: Bool, isLiveStackPaused: Bool, isDriftReductionEnabled: Bool, meshDriftConfig: MeshDriftConfig?, streakMask: StreakMask?,
         isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
-        liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?
+        liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?, filterGain: SIMD3<Float>
     )?
 
     /// Fired (off the main thread — hop back before touching UI state) with a fresh 256-bucket
@@ -210,6 +214,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
               let histogramBayerChannelsFn = library.makeFunction(name: "histogramReduceBayerChannels"),
               let histogramRGB24ChannelsFn = library.makeFunction(name: "histogramReduceRGB24Channels"),
               let toneCurveFn = library.makeFunction(name: "applyToneCurveRGBA"),
+              let filterGainFn = library.makeFunction(name: "applyFilterGainRGBA"),
               let vertexFn = library.makeFunction(name: "fullscreenTriangleVertex"),
               let fragmentFn = library.makeFunction(name: "blitFragment"),
               let histogramBuffer = device.makeBuffer(
@@ -264,6 +269,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             self.histogramReduceBayerChannelsPipeline = try device.makeComputePipelineState(function: histogramBayerChannelsFn)
             self.histogramReduceRGB24ChannelsPipeline = try device.makeComputePipelineState(function: histogramRGB24ChannelsFn)
             self.toneCurvePipeline = try device.makeComputePipelineState(function: toneCurveFn)
+            self.filterGainPipeline = try device.makeComputePipelineState(function: filterGainFn)
 
             let renderDescriptor = MTLRenderPipelineDescriptor()
             renderDescriptor.vertexFunction = vertexFn
@@ -349,7 +355,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private func processRGB24(
         frame: CapturedFrame, channelStretch: PerChannelStretch,
         isDenoisingEnabled: Bool, isWaveletSharpeningEnabled: Bool, sharpenAmount: Float,
-        liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?
+        liveGPUControls: GPULiveControlsSnapshot, toneCurves: ChannelToneCurves?, filterGain: SIMD3<Float>
     ) {
         ensureOutputTexture(width: frame.width, height: frame.height)
         let byteCount = frame.width * frame.height * 3
@@ -448,6 +454,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
         applyArcsinhStretchIfNeeded(liveGPUControls, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         applyToneCurveIfNeeded(toneCurves, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
+        applyFilterGainIfNeeded(filterGain, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         encoder.endEncoding()
 
         if onHistogramUpdate != nil, let histogramEncoder = commandBuffer.makeComputeCommandEncoder() {
@@ -979,6 +986,25 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
     }
 
+    /// Skips the dispatch when `gain` is the identity `(1, 1, 1)` — no filters selected, or every
+    /// active one's intensity is `0` — same "cost nothing when off" gating as the other stages.
+    private func applyFilterGainIfNeeded(
+        _ gain: SIMD3<Float>,
+        encoder: MTLComputeCommandEncoder,
+        threadgroups: MTLSize,
+        threadsPerGroup: MTLSize
+    ) {
+        guard gain != SIMD3<Float>(1, 1, 1), let outputTexture else { return }
+        var gain = gain
+        encoder.setComputePipelineState(filterGainPipeline)
+        encoder.setTexture(outputTexture, index: 0)
+        // `.stride`, not `.size` — Metal's `constant float3` is 16-byte aligned (same in-memory
+        // shape as `float4`), matching Swift's own `SIMD3<Float>` stride; `.size` (12) would
+        // under-copy and leave the shader reading uninitialized/garbage padding.
+        encoder.setBytes(&gain, length: MemoryLayout<SIMD3<Float>>.stride, index: 0)
+        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+    }
+
     private func copyLUT(_ lut: [UInt8], into buffer: MTLBuffer) {
         lut.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
@@ -1017,7 +1043,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         isWaveletSharpeningEnabled: Bool,
         sharpenAmount: Float,
         liveGPUControls: GPULiveControlsSnapshot,
-        toneCurves: ChannelToneCurves?
+        toneCurves: ChannelToneCurves?,
+        filterGain: SIMD3<Float>
     ) {
         if frame.imageType == ASI_IMG_RGB24 {
             // Webcam/iPhone frames: already color-processed by the device's own ISP, so no
@@ -1030,7 +1057,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             processRGB24(
                 frame: frame, channelStretch: channelStretch,
                 isDenoisingEnabled: isDenoisingEnabled, isWaveletSharpeningEnabled: isWaveletSharpeningEnabled,
-                sharpenAmount: sharpenAmount, liveGPUControls: liveGPUControls, toneCurves: toneCurves
+                sharpenAmount: sharpenAmount, liveGPUControls: liveGPUControls, toneCurves: toneCurves,
+                filterGain: filterGain
             )
             return
         }
@@ -1284,6 +1312,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
         applyArcsinhStretchIfNeeded(liveGPUControls, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         applyToneCurveIfNeeded(toneCurves, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
+        applyFilterGainIfNeeded(filterGain, encoder: encoder, threadgroups: threadgroups, threadsPerGroup: threadsPerGroup)
         encoder.endEncoding()
 
         // Histogram is computed from the same (possibly-stacked) source, matching
@@ -1369,7 +1398,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                 isWaveletSharpeningEnabled: update.isWaveletSharpeningEnabled,
                 sharpenAmount: update.sharpenAmount,
                 liveGPUControls: update.liveGPUControls,
-                toneCurves: update.toneCurves
+                toneCurves: update.toneCurves,
+                filterGain: update.filterGain
             )
         }
 
@@ -1494,7 +1524,8 @@ struct MetalPreviewView: NSViewRepresentable {
             isDenoisingEnabled: cameraManager.isDenoisingEnabled,
             isWaveletSharpeningEnabled: cameraManager.isWaveletSharpeningEnabled,
             sharpenAmount: Float(cameraManager.waveletSharpenAmount),
-            liveGPUControls: cameraManager.gpuControls.snapshot
+            liveGPUControls: cameraManager.gpuControls.snapshot,
+            filterGain: cameraManager.combinedFilterGain
         )
         let frameChanged = context.coordinator.lastRenderedFrameID != cameraManager.frameID
         let settingsChanged = context.coordinator.lastAppliedSignature != signature
@@ -1517,7 +1548,8 @@ struct MetalPreviewView: NSViewRepresentable {
             isWaveletSharpeningEnabled: cameraManager.isWaveletSharpeningEnabled,
             sharpenAmount: Float(cameraManager.waveletSharpenAmount),
             liveGPUControls: cameraManager.gpuControls.snapshot,
-            toneCurves: cameraManager.isToneCurveEnabled ? cameraManager.toneCurves : nil
+            toneCurves: cameraManager.isToneCurveEnabled ? cameraManager.toneCurves : nil,
+            filterGain: cameraManager.combinedFilterGain
         )
         nsView.setNeedsDisplay(nsView.bounds)
     }
@@ -1534,6 +1566,10 @@ struct MetalPreviewView: NSViewRepresentable {
         var isWaveletSharpeningEnabled: Bool
         var sharpenAmount: Float
         var liveGPUControls: GPULiveControlsSnapshot
+        /// Cheaply `Equatable` (unlike `toneCurves`), so adjusting a filter's intensity or
+        /// toggling one on/off re-renders the *current* frame immediately — same reasoning as
+        /// `liveGPUControls` above.
+        var filterGain: SIMD3<Float>
     }
 
     final class Coordinator {

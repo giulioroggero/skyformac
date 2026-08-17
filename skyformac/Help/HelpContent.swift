@@ -306,6 +306,16 @@ enum HelpContent {
                 id: "setting.disableImprovements", heading: "Disable All Improvements",
                 body: "One checkbox that turns everything in this tab off at once, for isolating whether an enhancement is causing a visual problem, or just to see the camera's own unmodified output."
             ),
+            HelpSection(
+                id: "setting.filters", heading: "Filters",
+                body: "A live-preview color emphasis stylized after common astronomy filters (Hα, OIII, SII, UHC/CLS, L-eNhance) — **not** an optical simulation. A real narrowband or light-pollution filter works by physically blocking wavelengths before they reach the sensor; nothing applied after an already-captured frame can replicate that rejection. This is purely a stylistic aid for previewing a narrowband \"look\" while framing a target.",
+                bullets: [
+                    "Select more than one filter at once — their effects combine rather than one replacing the other.",
+                    "Each filter has its own intensity slider (0–100%); deselecting a filter (or dragging its intensity to 0) removes it entirely.",
+                    "Applies to the live preview and to PNG/TIFF captures. Raw FITS exports are always untouched, keeping the full unmodified sensor data for calibration/stacking.",
+                    "Which filters were active is recorded with the capture and recalled with the rest of that capture's settings (gain, exposure, ROI, ...)."
+                ]
+            ),
             HelpSection(heading: "Planetary tab — the small-ROI, high-FPS, burst/video workflow",
                 body: "Focus Assist appears here too (also in Deep Sky) — it genuinely serves both, so it isn't locked to one tab over the other."),
             HelpSection(

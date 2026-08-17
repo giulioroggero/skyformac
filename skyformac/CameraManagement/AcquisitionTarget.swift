@@ -276,6 +276,11 @@ struct AcquisitionPreset: Codable, Identifiable, Equatable {
     /// comment) — offered as an opt-in row in the Wizard editor for any Live-Stack-using target,
     /// not auto-enabled for any of them.
     var isMeshDriftCorrectionEnabled: Bool?
+    /// The "Filters" tab's active selections at the moment this preset was captured/saved —
+    /// `Optional`, same back-compat reasoning as `isMeshDriftCorrectionEnabled` above (a preset
+    /// saved before "Filters" existed decodes as `nil`, not a load failure). `nil` and `[]` both
+    /// mean "no filters," but `nil` is what an old preset actually decodes to.
+    var selectedFilters: [FilterSelection]?
 
     /// A short, one-line human summary of the parameters actually set — "Live Stack · Gain 100 ·
     /// 2.0s · ROI 800×600" — shared by the Recall Parameters picker and the Insights page's own
@@ -287,6 +292,9 @@ struct AcquisitionPreset: Codable, Identifiable, Equatable {
         if let roiWidth, let roiHeight { parts.append("ROI \(roiWidth)×\(roiHeight)") }
         if let serDurationSeconds { parts.append("SER \(Int(serDurationSeconds))s") }
         if let luckyBurstCount { parts.append("Burst \(luckyBurstCount)") }
+        if let selectedFilters, !selectedFilters.isEmpty {
+            parts.append(selectedFilters.map(\.filter.displayName).joined(separator: "+"))
+        }
         return parts.joined(separator: " · ")
     }
 }

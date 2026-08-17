@@ -57,6 +57,7 @@
 		4C8024DD0B34D0D83BB01DDB /* SirilSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DAB1EF4A03C7A451F197505 /* SirilSettingsView.swift */; };
 		4D06715FBD7B11463C7D3E01 /* FocusTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA24301D1DACD820F9B31382 /* FocusTrackerTests.swift */; };
 		4D13D0C44BEEDB8C1CC59876 /* CameraManagerCaptureNoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */; };
+		50D97AE8E13A97A8B3C2003F /* AstronomyFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BAAD18C7E8388FF7CE8C98 /* AstronomyFilterTests.swift */; };
 		53BACB792DD5FDDC11B3BFF0 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7866DFCEC932D3B738897 /* RootView.swift */; };
 		58C8C84D2D082EFED7F1BE93 /* LuckyImagingFrameBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B75D3B271F9C06ECB3BB9B6 /* LuckyImagingFrameBrowserView.swift */; };
 		59012F0493E0A68CC0C0C8A2 /* FrameBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE7DA51F7B4CABA4250F23B /* FrameBuffer.swift */; };
@@ -130,6 +131,7 @@
 		AE4B3B2F3E9A93FEC227D482 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D62DF43DD336DC4B958BEC14 /* ContentView.swift */; };
 		AF544BD4594F4990AED3122B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 392148FF8E1F44F886E731F8 /* PrivacyInfo.xcprivacy */; };
 		AF70883DC4C841CBC4DA62CE /* SessionReuseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D73D8098F2265E5CD371A4 /* SessionReuseTests.swift */; };
+		B06485A3991626D406647122 /* AstronomyFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B6388ED3A137828CD46D07 /* AstronomyFilter.swift */; };
 		B0C2F7C35F16D15AE0D2767E /* AIPlanSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09CEC70CD60D51339EAB38EA /* AIPlanSheets.swift */; };
 		B13443BEE16017351BFE79DF /* GitHubIssuesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F52CEF77846ED4897AA403CF /* GitHubIssuesService.swift */; };
 		B50020272473177E2E598EFF /* CTupleConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC3074349F7D44055727ADF /* CTupleConversions.swift */; };
@@ -304,6 +306,7 @@
 		54AD039A6ED048AFB2646C82 /* ThumbnailCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailCacheTests.swift; sourceTree = "<group>"; };
 		55BE7F71EFFEA8087964D1C9 /* PolarAlignmentSolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PolarAlignmentSolver.swift; sourceTree = "<group>"; };
 		57206D2F89E34EB8DEE0EFCE /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		59BAAD18C7E8388FF7CE8C98 /* AstronomyFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyFilterTests.swift; sourceTree = "<group>"; };
 		5CAFD2D6898CDC7637053BAA /* CloudDriftSentinelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudDriftSentinelTests.swift; sourceTree = "<group>"; };
 		5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectDetailPane.swift; sourceTree = "<group>"; };
 		60759144D69321A911094B7E /* ExposureOptimizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExposureOptimizer.swift; sourceTree = "<group>"; };
@@ -383,6 +386,7 @@
 		B2BCC1BF45D0CE9438E957E4 /* ProjectStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectStoreTests.swift; sourceTree = "<group>"; };
 		B36AD0E9120D1B73D98FDCCC /* StarPatternRecognizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarPatternRecognizer.swift; sourceTree = "<group>"; };
 		B3E429C8F7CA250F8AA00FA6 /* FrameCropperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrameCropperTests.swift; sourceTree = "<group>"; };
+		B4B6388ED3A137828CD46D07 /* AstronomyFilter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyFilter.swift; sourceTree = "<group>"; };
 		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
 		B8A44408D853D33E940C1CF7 /* StackSNREstimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimator.swift; sourceTree = "<group>"; };
 		BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SmartLiveStackGateTests.swift; sourceTree = "<group>"; };
@@ -634,6 +638,7 @@
 				C2C0DD35B6D8AD74A597E92C /* LiveWCSSolverTests.swift */,
 				0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */,
 				6201C1C63B6BED5181006C60 /* SirilElaborationTests.swift */,
+				59BAAD18C7E8388FF7CE8C98 /* AstronomyFilterTests.swift */,
 			);
 			name = skyformacTests;
 			path = skyformacTests;
@@ -870,6 +875,7 @@
 				4A9C056C0EE26B49BC25C0F0 /* FlatFieldCorrector.swift */,
 				D096BA93F69912E52AB7D663 /* ImageEnhancer.swift */,
 				CFA796E075478701D2A6AC5A /* DiskSpaceChecker.swift */,
+				B4B6388ED3A137828CD46D07 /* AstronomyFilter.swift */,
 			);
 			name = Rendering;
 			path = Rendering;
@@ -1114,6 +1120,7 @@
 				1F2E288FC70FE2BB37AE5B68 /* SirilElaborationService.swift in Sources */,
 				4C8024DD0B34D0D83BB01DDB /* SirilSettingsView.swift in Sources */,
 				EB477CA489E577D7D5920F59 /* ElaborateSheet.swift in Sources */,
+				B06485A3991626D406647122 /* AstronomyFilter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1191,6 +1198,7 @@
 				9B66C665CD08AE8D3E38D97F /* LiveWCSSolverTests.swift in Sources */,
 				4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */,
 				B54E63258BA41234D8EE5B7B /* SirilElaborationTests.swift in Sources */,
+				50D97AE8E13A97A8B3C2003F /* AstronomyFilterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
