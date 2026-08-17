@@ -78,110 +78,136 @@ struct SessionDetailPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                PageSection(title: "Session") {
-                    HStack {
-                        TextField("Name", text: $name).onChange(of: name) { _, _ in save() }
-                        FavoriteToggleButton(isFavorite: session.isFavorite) {
-                            var updated = session
-                            updated.isFavorite.toggle()
-                            applyAndSave(updated)
+                // Row 1: Cover (a small, fixed-width thumbnail editor — see
+                // `CoverThumbnailEditor`'s own 120×80 image, it never needed a full-width row of
+                // its own) alongside the Session Summary, which takes the rest of the width.
+                HStack(alignment: .top, spacing: 16) {
+                    PageSection(title: "Cover") {
+                        CoverThumbnailEditor(
+                            currentURL: cameraManager.projectStore.mostRecentThumbnailURL(for: session, in: project),
+                            hasCustom: session.customThumbnailFileName != nil,
+                            onPick: { url in
+                                guard let name = try? cameraManager.projectStore.importCustomThumbnail(from: url, for: session, in: project) else { return }
+                                var updated = session
+                                updated.customThumbnailFileName = name
+                                applyAndSave(updated)
+                            },
+                            onRemove: {
+                                cameraManager.projectStore.removeCustomThumbnail(for: session, in: project)
+                                var updated = session
+                                updated.customThumbnailFileName = nil
+                                applyAndSave(updated)
+                            }
+                        )
+                    }
+                    .frame(width: 280)
+
+                    PageSection(title: "Session Summary") {
+                        HStack {
+                            TextField("Name", text: $name).onChange(of: name) { _, _ in save() }
+                            FavoriteToggleButton(isFavorite: session.isFavorite) {
+                                var updated = session
+                                updated.isFavorite.toggle()
+                                applyAndSave(updated)
+                            }
+                            RatingView(rating: session.rating) { newRating in
+                                var updated = session
+                                updated.rating = newRating
+                                applyAndSave(updated)
+                            }
                         }
-                        RatingView(rating: session.rating) { newRating in
-                            var updated = session
-                            updated.rating = newRating
-                            applyAndSave(updated)
+                        TextField("Aim", text: $goal, prompt: Text("What is this session for?"), axis: .vertical)
+                            .onChange(of: goal) { _, _ in save() }
+                        TextField("Objects (comma separated)", text: $plannedObjectsText, prompt: Text("M13, M57, Saturn"))
+                            .onChange(of: plannedObjectsText) { _, _ in savePlannedObjects() }
+                        Toggle("Planned Date", isOn: $hasPlannedDate)
+                            .onChange(of: hasPlannedDate) { _, isOn in savePlannedDate(isOn ? plannedDate : nil) }
+                        if hasPlannedDate {
+                            DatePicker("Date & Time", selection: $plannedDate, displayedComponents: [.date, .hourAndMinute])
+                                .onChange(of: plannedDate) { _, new in savePlannedDate(new) }
+                        }
+                        LocationEditorView(project: project, session: session, cameraManager: cameraManager)
+                        HStack {
+                            Button("Run This Session", systemImage: "play.fill") {
+                                cameraManager.setActive(project: project, session: session)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
+                            Spacer()
+                            Button("Recall Parameters…", systemImage: "clock.arrow.circlepath") {
+                                cameraManager.isRecallParametersPresented = true
+                            }
+                            .help("Reuse the camera parameters from a previous action to speed up setting this one up")
+                            Button("New Session Like This…", systemImage: "plus.square.on.square") {
+                                isCreatingSessionFromThis = true
+                            }
+                            .help("Create a new session with this one's goal, objects, location, and equipment — without any of its captures")
+                            Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningSession = true }
+                            Button("Ask AI to Describe…", systemImage: "text.quote") { isDescribingSession = true }
+                                .help("Write a description grounded in what this session has actually planned and captured")
                         }
                     }
-                    TextField("Aim", text: $goal, prompt: Text("What is this session for?"), axis: .vertical)
-                        .onChange(of: goal) { _, _ in save() }
-                    TextField("Objects (comma separated)", text: $plannedObjectsText, prompt: Text("M13, M57, Saturn"))
-                        .onChange(of: plannedObjectsText) { _, _ in savePlannedObjects() }
-                    Toggle("Planned Date", isOn: $hasPlannedDate)
-                        .onChange(of: hasPlannedDate) { _, isOn in savePlannedDate(isOn ? plannedDate : nil) }
-                    if hasPlannedDate {
-                        DatePicker("Date & Time", selection: $plannedDate, displayedComponents: [.date, .hourAndMinute])
-                            .onChange(of: plannedDate) { _, new in savePlannedDate(new) }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                // Row 2: History, Equipment, Stats, and Tags side by side — four short reference
+                // panels that each used to take a full-width row of their own for a handful of
+                // lines.
+                HStack(alignment: .top, spacing: 16) {
+                    PageSection(title: "History") {
+                        StatsGridView(stats: historyStats)
                     }
-                    LocationEditorView(project: project, session: session, cameraManager: cameraManager)
-                    HStack {
-                        Button("Run This Session", systemImage: "play.fill") {
-                            cameraManager.setActive(project: project, session: session)
+
+                    PageSection(title: "Equipment") {
+                        Picker("System", selection: Binding(
+                            get: { session.equipmentSystemID },
+                            set: { newValue in
+                                var updated = session
+                                updated.equipmentSystemID = newValue
+                                applyAndSave(updated)
+                            }
+                        )) {
+                            Text("Inherit from Project\(inheritedEquipmentSuffix)").tag(UUID?.none)
+                            ForEach(cameraManager.equipmentLibrary.systems) { system in
+                                Text(system.name).tag(UUID?.some(system.id))
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
-                        Spacer()
-                        Button("Recall Parameters…", systemImage: "clock.arrow.circlepath") {
-                            cameraManager.isRecallParametersPresented = true
+                        .labelsHidden()
+                    }
+
+                    if !session.captures.isEmpty {
+                        PageSection(title: "Stats") {
+                            StatsGridView(stats: captureStats)
                         }
-                        .help("Reuse the camera parameters from a previous action to speed up setting this one up")
-                        Button("New Session Like This…", systemImage: "plus.square.on.square") {
-                            isCreatingSessionFromThis = true
+                    }
+
+                    PageSection(title: "Tags") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            TagsEditorView(tags: session.tags) { tags in
+                                var updated = session
+                                updated.tags = tags
+                                applyAndSave(updated)
+                            }
+                            Button("Suggest Tags with AI…", systemImage: "sparkles") { isSuggestingTags = true }
+                                .buttonStyle(.borderless)
                         }
-                        .help("Create a new session with this one's goal, objects, location, and equipment — without any of its captures")
-                        Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningSession = true }
-                        Button("Ask AI to Describe…", systemImage: "text.quote") { isDescribingSession = true }
-                            .help("Write a description grounded in what this session has actually planned and captured")
                     }
                 }
 
-                PageSection(title: "Cover") {
-                    CoverThumbnailEditor(
-                        currentURL: cameraManager.projectStore.mostRecentThumbnailURL(for: session, in: project),
-                        hasCustom: session.customThumbnailFileName != nil,
-                        onPick: { url in
-                            guard let name = try? cameraManager.projectStore.importCustomThumbnail(from: url, for: session, in: project) else { return }
-                            var updated = session
-                            updated.customThumbnailFileName = name
-                            applyAndSave(updated)
-                        },
-                        onRemove: {
-                            cameraManager.projectStore.removeCustomThumbnail(for: session, in: project)
-                            var updated = session
-                            updated.customThumbnailFileName = nil
-                            applyAndSave(updated)
+                // Row 3: Timeline.
+                PageSection(title: "Timeline") {
+                    TimelineStripView(
+                        project: project, session: session, store: cameraManager.projectStore,
+                        cameraManager: cameraManager,
+                        onSelect: onSelectCapture,
+                        onDelete: { capture in
+                            try? library.deleteCapture(capture.id, fromSessionID: session.id, in: project)
                         }
                     )
                 }
 
-                PageSection(title: "History") {
-                    StatsGridView(stats: historyStats)
-                }
-
-                PageSection(title: "Equipment") {
-                    Picker("System", selection: Binding(
-                        get: { session.equipmentSystemID },
-                        set: { newValue in
-                            var updated = session
-                            updated.equipmentSystemID = newValue
-                            applyAndSave(updated)
-                        }
-                    )) {
-                        Text("Inherit from Project\(inheritedEquipmentSuffix)").tag(UUID?.none)
-                        ForEach(cameraManager.equipmentLibrary.systems) { system in
-                            Text(system.name).tag(UUID?.some(system.id))
-                        }
-                    }
-                }
-
-                if !session.captures.isEmpty {
-                    PageSection(title: "Stats") {
-                        StatsGridView(stats: captureStats)
-                    }
-                }
-
-                PageSection(title: "Tags") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TagsEditorView(tags: session.tags) { tags in
-                            var updated = session
-                            updated.tags = tags
-                            applyAndSave(updated)
-                        }
-                        Button("Suggest Tags with AI…", systemImage: "sparkles") { isSuggestingTags = true }
-                            .buttonStyle(.borderless)
-                    }
-                }
-
+                // Row 4: Notes.
                 PageSection(title: "Notes") {
                     VStack(alignment: .leading, spacing: 8) {
                         NotesEditorView(notes: session.notes) { notes in
@@ -197,17 +223,6 @@ struct SessionDetailPane: View {
                     }
                 }
 
-                PageSection(title: "Timeline") {
-                    TimelineStripView(
-                        project: project, session: session, store: cameraManager.projectStore,
-                        cameraManager: cameraManager,
-                        onSelect: onSelectCapture,
-                        onDelete: { capture in
-                            try? library.deleteCapture(capture.id, fromSessionID: session.id, in: project)
-                        }
-                    )
-                }
-
                 if !sessionElaboratedImages.isEmpty {
                     PageSection(title: "Elaborated") {
                         ScrollView(.horizontal) {
@@ -221,6 +236,7 @@ struct SessionDetailPane: View {
                     }
                 }
 
+                // Row 5: Elaborate, Archive, Move, Delete.
                 PageSection {
                     HStack {
                         Button("Elaborate Session…", systemImage: "wand.and.stars") { startElaborating() }
