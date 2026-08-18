@@ -195,4 +195,129 @@ struct ProjectsLibraryTests {
         #expect(reloadedSource?.sessions.isEmpty == true)
         #expect(reloadedDestination?.sessions.first?.id == session.id)
     }
+
+    @Test func moveCaptureWithinTheSameProjectUpdatesInMemoryToo() throws {
+        let (library, root) = makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = library.createProject(name: "Project")
+        try library.save(project)
+        let source = Session.newSession(name: "Session A")
+        let destination = Session.newSession(name: "Session B")
+        var updated = try library.addSession(source, to: project)
+        updated = try library.addSession(destination, to: updated)
+        let capture = CaptureRecord(date: Date(), fileName: "a.fits", thumbnailFileName: nil, kind: .fits)
+        try FileManager.default.createDirectory(
+            at: library.store.sessionFolderURL(for: source, in: updated), withIntermediateDirectories: true
+        )
+        try Data("frame".utf8).write(
+            to: library.store.sessionFolderURL(for: source, in: updated).appendingPathComponent("a.fits")
+        )
+        var sourceWithCapture = source
+        sourceWithCapture.captures = [capture]
+        guard let sourceIndex = updated.sessions.firstIndex(where: { $0.id == source.id }) else {
+            Issue.record("source session missing")
+            return
+        }
+        updated.sessions[sourceIndex] = sourceWithCapture
+        try library.save(updated)
+
+        try library.moveCapture(
+            capture.id, fromSessionID: source.id, toSessionID: destination.id, from: updated, to: updated
+        )
+
+        let reloaded = library.projects.first { $0.id == project.id }
+        #expect(reloaded?.sessions.first { $0.id == source.id }?.captures.isEmpty == true)
+        #expect(reloaded?.sessions.first { $0.id == destination.id }?.captures.first?.id == capture.id)
+    }
+
+    @Test func moveCaptureAcrossProjectsUpdatesBothInMemory() throws {
+        let (library, root) = makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sourceProject = library.createProject(name: "Source")
+        try library.save(sourceProject)
+        let destinationProject = library.createProject(name: "Destination")
+        try library.save(destinationProject)
+        let sourceSession = Session.newSession(name: "Session A")
+        let destinationSession = Session.newSession(name: "Session B")
+        let updatedSource = try library.addSession(sourceSession, to: sourceProject)
+        let updatedDestination = try library.addSession(destinationSession, to: destinationProject)
+
+        let capture = CaptureRecord(date: Date(), fileName: "a.png", thumbnailFileName: nil, kind: .png)
+        try FileManager.default.createDirectory(
+            at: library.store.sessionFolderURL(for: sourceSession, in: updatedSource), withIntermediateDirectories: true
+        )
+        try Data("frame".utf8).write(
+            to: library.store.sessionFolderURL(for: sourceSession, in: updatedSource).appendingPathComponent("a.png")
+        )
+        var sourceWithCapture = updatedSource
+        guard let sessionIndex = sourceWithCapture.sessions.firstIndex(where: { $0.id == sourceSession.id }) else {
+            Issue.record("source session missing")
+            return
+        }
+        sourceWithCapture.sessions[sessionIndex].captures = [capture]
+        try library.save(sourceWithCapture)
+
+        try library.moveCapture(
+            capture.id, fromSessionID: sourceSession.id, toSessionID: destinationSession.id,
+            from: sourceWithCapture, to: updatedDestination
+        )
+
+        let reloadedSource = library.projects.first { $0.id == sourceProject.id }
+        let reloadedDestination = library.projects.first { $0.id == destinationProject.id }
+        #expect(reloadedSource?.sessions.first?.captures.isEmpty == true)
+        #expect(reloadedDestination?.sessions.first?.captures.first?.id == capture.id)
+    }
+
+    @Test func splitSessionMovesTheCaptureAndEverythingAfterItIntoANewSession() throws {
+        let (library, root) = makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = library.createProject(name: "Project")
+        try library.save(project)
+        var session = Session.newSession(name: "Original Session", goal: "Widefield", plannedObjects: ["M31"])
+        let early = Date(timeIntervalSince1970: 1000)
+        let splitPoint = Date(timeIntervalSince1970: 2000)
+        let after = Date(timeIntervalSince1970: 3000)
+        let earlyCapture = CaptureRecord(date: early, fileName: "a.fits", thumbnailFileName: nil, kind: .fits)
+        let splitCapture = CaptureRecord(date: splitPoint, fileName: "b.fits", thumbnailFileName: nil, kind: .fits)
+        let laterCapture = CaptureRecord(date: after, fileName: "c.fits", thumbnailFileName: nil, kind: .fits)
+        session.captures = [earlyCapture, splitCapture, laterCapture]
+        let updated = try library.addSession(session, to: project)
+
+        let sessionFolder = library.store.sessionFolderURL(for: session, in: updated)
+        try FileManager.default.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
+        for name in ["a.fits", "b.fits", "c.fits"] {
+            try Data("frame".utf8).write(to: sessionFolder.appendingPathComponent(name))
+        }
+
+        let newSession = try library.splitSession(
+            session, atCaptureID: splitCapture.id, newSessionName: "New Target", in: updated
+        )
+
+        let reloaded = library.projects.first { $0.id == project.id }
+        let originalReloaded = reloaded?.sessions.first { $0.id == session.id }
+        let newReloaded = reloaded?.sessions.first { $0.id == newSession.id }
+
+        #expect(originalReloaded?.captures.map(\.id) == [earlyCapture.id])
+        #expect(newReloaded?.captures.map(\.id).sorted() == [splitCapture.id, laterCapture.id].sorted())
+        #expect(newReloaded?.name == "New Target")
+        #expect(newReloaded?.goal == "Widefield")
+        #expect(newReloaded?.plannedObjects == ["M31"])
+    }
+
+    @Test func splitSessionThrowsWhenTheCaptureIsntFound() throws {
+        let (library, root) = makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = library.createProject(name: "Project")
+        try library.save(project)
+        let session = Session.newSession(name: "Original Session")
+        let updated = try library.addSession(session, to: project)
+
+        #expect(throws: ProjectsLibrary.SplitSessionError.self) {
+            try library.splitSession(session, atCaptureID: UUID(), newSessionName: "New Target", in: updated)
+        }
+    }
 }

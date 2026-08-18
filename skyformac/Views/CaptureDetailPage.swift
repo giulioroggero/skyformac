@@ -23,6 +23,9 @@ struct CaptureDetailPage: View {
     @State private var isElaborating = false
     @State private var isPromptingSirilSettings = false
     @State private var isConfirmingDelete = false
+    @State private var isMovingToSession = false
+    @State private var isSplittingSession = false
+    @State private var actionErrorMessage: String?
     /// Keyed to a focusable modifier on the page itself — arrow-key stepping (`onKeyPress` below)
     /// only receives events while this view actually holds keyboard focus, which nothing else on
     /// this page competes for (there's no text field), so it's claimed unconditionally on appear.
@@ -130,6 +133,13 @@ struct CaptureDetailPage: View {
                             }
                             if elaborationSource != nil {
                                 Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
+                            }
+                            Button("Move to Session…", systemImage: "folder") {
+                                isMovingToSession = true
+                            }
+                            .disabled(moveSessionCandidates.isEmpty)
+                            Button("Split into New Session…", systemImage: "scissors") {
+                                isSplittingSession = true
                             }
                             Button("Delete…", systemImage: "trash", role: .destructive) {
                                 isConfirmingDelete = true
@@ -252,6 +262,61 @@ struct CaptureDetailPage: View {
             )
             Text("This removes the file (\(diskUsage)) and its thumbnail from disk — this can't be undone.")
         }
+        .sheet(isPresented: $isMovingToSession) {
+            MoveCaptureToSessionSheet(candidates: moveSessionCandidates) { candidate in
+                do {
+                    try cameraManager.projectsLibrary.moveCapture(
+                        capture.id, fromSessionID: session.id, toSessionID: candidate.session.id,
+                        from: project, to: candidate.project
+                    )
+                    // This capture no longer lives under this session/project — its own route is
+                    // now stale, same reasoning as the delete confirmation above.
+                    onBack()
+                } catch {
+                    actionErrorMessage = error.localizedDescription
+                }
+            }
+        }
+        .sheet(isPresented: $isSplittingSession) {
+            SplitSessionSheet(session: session) { newName in
+                do {
+                    try cameraManager.projectsLibrary.splitSession(
+                        session, atCaptureID: capture.id, newSessionName: newName, in: project
+                    )
+                    // This capture (and everything after it) just moved to the new session.
+                    onBack()
+                } catch {
+                    actionErrorMessage = error.localizedDescription
+                }
+            }
+        }
+        .alert("Couldn't Complete That", isPresented: Binding(
+            get: { actionErrorMessage != nil },
+            set: { isPresented in if !isPresented { actionErrorMessage = nil } }
+        ), presenting: actionErrorMessage) { _ in
+            Button("OK") { actionErrorMessage = nil }
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    /// Every other active, non-archived session across every project — "Move to Session…"'s own
+    /// candidate list, one flat list rather than a two-step project-then-session picker (the same
+    /// flattening `RecallParametersView` already uses for "every capture across every session").
+    /// Excludes this capture's own current session (nothing to move to).
+    fileprivate struct SessionCandidate: Identifiable {
+        var id: Session.ID { session.id }
+        let project: Project
+        let session: Session
+    }
+
+    private var moveSessionCandidates: [SessionCandidate] {
+        cameraManager.projectsLibrary.activeProjects.flatMap { candidateProject in
+            candidateProject.sessions
+                .filter { !$0.isArchived && $0.id != session.id }
+                .map { SessionCandidate(project: candidateProject, session: $0) }
+        }
+        .sorted { ($0.project.name, $0.session.name) < ($1.project.name, $1.session.name) }
     }
 
     /// `nil` when this capture's `kind` isn't something Siril can process further — see
@@ -353,5 +418,102 @@ struct CaptureDetailPage: View {
             }
         }
         return stats
+    }
+}
+
+/// "Move to Session…" — a flat pick-one list of every other session across every project, each
+/// row showing which project it belongs to since the same session name could plausibly repeat
+/// across different projects. Same plain-`List`-of-`Button`s shape as `MoveSessionToProjectSheet`
+/// (`SessionDetailPane.swift`), just one level deeper (project *and* session per row) since a
+/// capture's destination genuinely needs both, unlike a whole session's move (which only ever
+/// needs a project — the session keeps its own identity).
+private struct MoveCaptureToSessionSheet: View {
+    let candidates: [CaptureDetailPage.SessionCandidate]
+    var onMove: (CaptureDetailPage.SessionCandidate) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Move to Session").font(.headline).padding()
+            Divider()
+            if candidates.isEmpty {
+                Text("No other sessions to move this to yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding()
+                Spacer()
+            } else {
+                List(candidates) { candidate in
+                    Button {
+                        onMove(candidate)
+                        dismiss()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(candidate.session.name)
+                            Text(candidate.project.name.isEmpty ? "Untitled Project" : candidate.project.name)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Divider()
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+            .padding()
+        }
+        .frame(width: 360, height: 420)
+    }
+}
+
+/// "Split into New Session…" — the user changed target partway through this session, so this
+/// capture and everything captured after it should move to a fresh session instead. Just a name
+/// prompt (unlike `NewSessionFromExistingSheet`'s extra planned-date field — a split session
+/// starts *now*, at this capture's own date, not some future planned date) since everything else
+/// about the new session (goal, objects, location, equipment) is inherited from the one it's
+/// splitting off from.
+private struct SplitSessionSheet: View {
+    let session: Session
+    var onSplit: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name: String
+
+    init(session: Session, onSplit: @escaping (String) -> Void) {
+        self.session = session
+        self.onSplit = onSplit
+        self._name = State(initialValue: "\(session.name) (New Target)")
+    }
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Split into New Session").font(.headline)
+            Text("Moves this capture, and every capture after it in \"\(session.name)\", into a new session with this name — reusing its goal, objects, location, and equipment.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Name", text: $name, prompt: Text("Session name")).onSubmit(split)
+            Spacer()
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Button("Split") { split() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 380, height: 200)
+    }
+
+    private func split() {
+        guard !trimmedName.isEmpty else { return }
+        onSplit(trimmedName)
+        dismiss()
     }
 }

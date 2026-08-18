@@ -197,6 +197,110 @@ struct ProjectStoreTests {
         #expect(ProjectStore.MoveSessionError.destinationFolderAlreadyExists.errorDescription != nil)
     }
 
+    @Test func moveCaptureWithinProjectRelocatesTheFileAndUpdatesBothSessions() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "One Project")
+        let source = Session.newSession(name: "Session A")
+        let destination = Session.newSession(name: "Session B")
+        let capture = CaptureRecord(date: Date(), fileName: "a.fits", thumbnailFileName: "a.jpg", kind: .fits)
+        var sourceWithCapture = source
+        sourceWithCapture.captures = [capture]
+        project.sessions = [sourceWithCapture, destination]
+        try store.save(project)
+
+        let sourceFolder = store.sessionFolderURL(for: source, in: project)
+        try Data("frame bytes".utf8).write(to: sourceFolder.appendingPathComponent("a.fits"))
+        let sourceThumbnails = store.thumbnailsFolderURL(for: source, in: project)
+        try FileManager.default.createDirectory(at: sourceThumbnails, withIntermediateDirectories: true)
+        try Data("thumb bytes".utf8).write(to: sourceThumbnails.appendingPathComponent("a.jpg"))
+
+        try store.moveCapture(capture.id, fromSessionID: source.id, toSessionID: destination.id, in: &project)
+
+        let reloadedSource = project.sessions.first { $0.id == source.id }
+        let reloadedDestination = project.sessions.first { $0.id == destination.id }
+        #expect(reloadedSource?.captures.isEmpty == true)
+        #expect(reloadedDestination?.captures.first?.id == capture.id)
+
+        let destinationFolder = store.sessionFolderURL(for: destination, in: project)
+        #expect(!FileManager.default.fileExists(atPath: sourceFolder.appendingPathComponent("a.fits").path))
+        #expect(FileManager.default.fileExists(atPath: destinationFolder.appendingPathComponent("a.fits").path))
+        #expect(FileManager.default.fileExists(atPath: store.thumbnailsFolderURL(for: destination, in: project).appendingPathComponent("a.jpg").path))
+
+        let reloaded = store.loadAllProjects().first
+        #expect(reloaded?.sessions.first { $0.id == destination.id }?.captures.count == 1)
+    }
+
+    @Test func moveCaptureAcrossProjectsRelocatesTheFileAndUpdatesBothProjects() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var source = Project.newProject(name: "Source Project")
+        var destination = Project.newProject(name: "Destination Project")
+        let sourceSession = Session.newSession(name: "Session A")
+        let destinationSession = Session.newSession(name: "Session B")
+        let capture = CaptureRecord(date: Date(), fileName: "a.png", thumbnailFileName: nil, kind: .png)
+        var sourceSessionWithCapture = sourceSession
+        sourceSessionWithCapture.captures = [capture]
+        source.sessions = [sourceSessionWithCapture]
+        destination.sessions = [destinationSession]
+        try store.save(source)
+        try store.save(destination)
+
+        let sourceFolder = store.sessionFolderURL(for: sourceSession, in: source)
+        try Data("frame bytes".utf8).write(to: sourceFolder.appendingPathComponent("a.png"))
+
+        try store.moveCapture(
+            capture.id, fromSessionID: sourceSession.id, in: &source,
+            toSessionID: destinationSession.id, in: &destination
+        )
+
+        #expect(source.sessions.first?.captures.isEmpty == true)
+        #expect(destination.sessions.first?.captures.first?.id == capture.id)
+        let destinationFolder = store.sessionFolderURL(for: destinationSession, in: destination)
+        #expect(!FileManager.default.fileExists(atPath: sourceFolder.appendingPathComponent("a.png").path))
+        #expect(FileManager.default.fileExists(atPath: destinationFolder.appendingPathComponent("a.png").path))
+    }
+
+    @Test func moveCaptureIsANoOpWhenTheCaptureIsntInTheSourceSession() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Project")
+        let source = Session.newSession(name: "Session A")
+        let destination = Session.newSession(name: "Session B")
+        project.sessions = [source, destination]
+        try store.save(project)
+
+        try store.moveCapture(UUID(), fromSessionID: source.id, toSessionID: destination.id, in: &project)
+
+        #expect(project.sessions.allSatisfy { $0.captures.isEmpty })
+    }
+
+    @Test func moveCaptureThrowsWhenTheDestinationFileAlreadyExists() throws {
+        let (store, root) = makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var project = Project.newProject(name: "Project")
+        let source = Session.newSession(name: "Session A")
+        let destination = Session.newSession(name: "Session B")
+        let capture = CaptureRecord(date: Date(), fileName: "a.fits", thumbnailFileName: nil, kind: .fits)
+        var sourceWithCapture = source
+        sourceWithCapture.captures = [capture]
+        project.sessions = [sourceWithCapture, destination]
+        try store.save(project)
+
+        let destinationFolder = store.sessionFolderURL(for: destination, in: project)
+        try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
+        try Data("collision".utf8).write(to: destinationFolder.appendingPathComponent("a.fits"))
+
+        #expect(throws: ProjectStore.MoveCaptureError.self) {
+            try store.moveCapture(capture.id, fromSessionID: source.id, toSessionID: destination.id, in: &project)
+        }
+        #expect(ProjectStore.MoveCaptureError.destinationFileAlreadyExists.errorDescription != nil)
+    }
+
     @Test func setArchivedPersists() throws {
         let (store, root) = makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

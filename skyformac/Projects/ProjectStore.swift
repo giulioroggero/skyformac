@@ -354,6 +354,102 @@ final class ProjectStore {
         try save(project)
     }
 
+    enum MoveCaptureError: Error, LocalizedError {
+        /// As unlikely as `MoveSessionError.destinationFolderAlreadyExists` (capture file names
+        /// already embed a timestamp), but refused outright for the same reason — never silently
+        /// overwrite whatever's already there.
+        case destinationFileAlreadyExists
+
+        var errorDescription: String? {
+            switch self {
+            case .destinationFileAlreadyExists:
+                return "A file with this name already exists in the destination session."
+            }
+        }
+    }
+
+    /// Moves one capture (its file, thumbnail, and `CaptureRecord`) from `sourceSessionID` to
+    /// `destinationSessionID` within the SAME project — a real on-disk file move, not delete-
+    /// then-recreate, then updates `project.sessions` in place and re-saves once. A no-op if
+    /// either session or the capture itself isn't found.
+    func moveCapture(
+        _ captureID: UUID, fromSessionID sourceSessionID: UUID, toSessionID destinationSessionID: UUID,
+        in project: inout Project
+    ) throws {
+        guard let sourceIndex = project.sessions.firstIndex(where: { $0.id == sourceSessionID }),
+              let destinationIndex = project.sessions.firstIndex(where: { $0.id == destinationSessionID }),
+              let captureIndex = project.sessions[sourceIndex].captures.firstIndex(where: { $0.id == captureID })
+        else { return }
+        let capture = project.sessions[sourceIndex].captures[captureIndex]
+        try moveCaptureFiles(
+            capture, from: project.sessions[sourceIndex], in: project,
+            to: project.sessions[destinationIndex], in: project
+        )
+
+        project.sessions[sourceIndex].captures.remove(at: captureIndex)
+        // Re-located by ID, not the `destinationIndex` captured above — removing from
+        // `sourceIndex` shifts every later index down by one, and `destinationIndex` could be
+        // either side of `sourceIndex`.
+        guard let refreshedDestinationIndex = project.sessions.firstIndex(where: { $0.id == destinationSessionID })
+        else { return }
+        project.sessions[refreshedDestinationIndex].captures.insert(capture, at: 0)
+        try save(project)
+    }
+
+    /// Cross-project variant of the above — `source`/`destination` are two different projects
+    /// (their own session, in each), so both in-memory copies are updated and both `project.json`s
+    /// re-saved, the same "update both in place" shape as `moveSession`.
+    func moveCapture(
+        _ captureID: UUID, fromSessionID sourceSessionID: UUID, in source: inout Project,
+        toSessionID destinationSessionID: UUID, in destination: inout Project
+    ) throws {
+        guard let sourceIndex = source.sessions.firstIndex(where: { $0.id == sourceSessionID }),
+              let destinationIndex = destination.sessions.firstIndex(where: { $0.id == destinationSessionID }),
+              let captureIndex = source.sessions[sourceIndex].captures.firstIndex(where: { $0.id == captureID })
+        else { return }
+        let capture = source.sessions[sourceIndex].captures[captureIndex]
+        try moveCaptureFiles(
+            capture, from: source.sessions[sourceIndex], in: source,
+            to: destination.sessions[destinationIndex], in: destination
+        )
+
+        source.sessions[sourceIndex].captures.remove(at: captureIndex)
+        destination.sessions[destinationIndex].captures.insert(capture, at: 0)
+        try save(source)
+        try save(destination)
+    }
+
+    /// The actual on-disk relocation shared by both `moveCapture` overloads above — moves
+    /// `capture`'s file, and its thumbnail if it has one, out of `sourceSession`'s folder and
+    /// into `destinationSession`'s. Thumbnail move failures are tolerated (`try?`, matching
+    /// `deleteCapture`'s own leniency there) since a missing thumbnail is regenerable and far
+    /// less costly to lose than the capture file itself.
+    private func moveCaptureFiles(
+        _ capture: CaptureRecord, from sourceSession: Session, in sourceProject: Project,
+        to destinationSession: Session, in destinationProject: Project
+    ) throws {
+        let sourceFileURL = sessionFolderURL(for: sourceSession, in: sourceProject).appendingPathComponent(capture.fileName)
+        let destinationFolder = sessionFolderURL(for: destinationSession, in: destinationProject)
+        let destinationFileURL = destinationFolder.appendingPathComponent(capture.fileName)
+        guard !fileManager.fileExists(atPath: destinationFileURL.path) else {
+            throw MoveCaptureError.destinationFileAlreadyExists
+        }
+
+        try fileManager.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
+        if fileManager.fileExists(atPath: sourceFileURL.path) {
+            try fileManager.moveItem(at: sourceFileURL, to: destinationFileURL)
+        }
+
+        if let thumbnailName = capture.thumbnailFileName {
+            let sourceThumbnailURL = thumbnailsFolderURL(for: sourceSession, in: sourceProject).appendingPathComponent(thumbnailName)
+            if fileManager.fileExists(atPath: sourceThumbnailURL.path) {
+                let destinationThumbnailFolder = thumbnailsFolderURL(for: destinationSession, in: destinationProject)
+                try fileManager.createDirectory(at: destinationThumbnailFolder, withIntermediateDirectories: true)
+                try? fileManager.moveItem(at: sourceThumbnailURL, to: destinationThumbnailFolder.appendingPathComponent(thumbnailName))
+            }
+        }
+    }
+
     // MARK: - Elaborated images (Siril)
 
     /// Records a `SirilElaborationService` result that's already been written to

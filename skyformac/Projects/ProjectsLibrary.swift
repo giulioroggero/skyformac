@@ -141,6 +141,32 @@ final class ProjectsLibrary {
         replace(updated)
     }
 
+    /// Moves one capture to a different session — the same project's own session, or a session
+    /// in an entirely different project ("the user changed target/equipment mid-outing and this
+    /// frame actually belongs with a different session's timeline"). Dispatches to
+    /// `ProjectStore`'s same-project or cross-project overload depending on whether
+    /// `destinationProject.id == sourceProject.id`, since a single `Project` value can't be
+    /// passed as two separate `inout` parameters to the cross-project one.
+    func moveCapture(
+        _ captureID: UUID, fromSessionID sourceSessionID: UUID, toSessionID destinationSessionID: UUID,
+        from sourceProject: Project, to destinationProject: Project
+    ) throws {
+        if sourceProject.id == destinationProject.id {
+            var updated = sourceProject
+            try store.moveCapture(captureID, fromSessionID: sourceSessionID, toSessionID: destinationSessionID, in: &updated)
+            replace(updated)
+        } else {
+            var source = sourceProject
+            var destination = destinationProject
+            try store.moveCapture(
+                captureID, fromSessionID: sourceSessionID, in: &source,
+                toSessionID: destinationSessionID, in: &destination
+            )
+            replace(source)
+            replace(destination)
+        }
+    }
+
     @discardableResult
     func addElaboratedImage(
         fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe? = nil,
@@ -171,6 +197,47 @@ final class ProjectsLibrary {
         try store.moveSession(sessionID, from: &source, to: &destination)
         replace(source)
         replace(destination)
+    }
+
+    enum SplitSessionError: Error, LocalizedError {
+        case captureNotFound
+        var errorDescription: String? {
+            switch self {
+            case .captureNotFound: return "Couldn't find that capture in its session."
+            }
+        }
+    }
+
+    /// "The user changed target partway through a session" — creates a new session in the SAME
+    /// project (same goal/planned objects/location/equipment as `session`, via
+    /// `duplicatedForReuse`, but a fresh name the caller supplies), then moves `fromCaptureID` and
+    /// every capture *at or after* its own date out of `session` into the new one — the rest of
+    /// the timeline from that point on, not just the one capture, since a changed target usually
+    /// means everything captured afterward belongs with the new target too. Returns the new
+    /// session so the caller can navigate straight to it.
+    @discardableResult
+    func splitSession(_ session: Session, atCaptureID fromCaptureID: UUID, newSessionName: String, in project: Project) throws -> Session {
+        var updated = project
+        guard let sessionIndex = updated.sessions.firstIndex(where: { $0.id == session.id }),
+              let splitDate = updated.sessions[sessionIndex].captures.first(where: { $0.id == fromCaptureID })?.date
+        else { throw SplitSessionError.captureNotFound }
+
+        let newSession = session.duplicatedForReuse(name: newSessionName)
+        updated.sessions.insert(newSession, at: 0)
+
+        // Re-located by ID, not `sessionIndex` above — inserting `newSession` at index 0 shifted
+        // every existing session's index up by one, making that index stale.
+        guard let refreshedSessionIndex = updated.sessions.firstIndex(where: { $0.id == session.id }) else {
+            throw SplitSessionError.captureNotFound
+        }
+        let movingCaptureIDs = updated.sessions[refreshedSessionIndex].captures
+            .filter { $0.date >= splitDate }
+            .map(\.id)
+        for captureID in movingCaptureIDs {
+            try store.moveCapture(captureID, fromSessionID: session.id, toSessionID: newSession.id, in: &updated)
+        }
+        replace(updated)
+        return newSession
     }
 
     /// Adds `session` to `project` and saves — the one entry point both the "new session" button
