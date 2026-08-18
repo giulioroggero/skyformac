@@ -498,7 +498,11 @@ struct CoverThumbnailEditor: View {
     var onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        // Two rows, not side by side — a 120×80 thumbnail squeezed next to its own caption/buttons
+        // read as an afterthought in the narrower single-column width `SessionDetailPane`/
+        // `ProjectDetailPane`'s own Cover + Summary row gives this; a large thumbnail on top with
+        // its description and actions below reads as the cover it actually is.
+        VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8).fill(.quaternary)
                 if let currentURL, let image = ThumbnailCache.image(at: currentURL) {
@@ -507,21 +511,20 @@ struct CoverThumbnailEditor: View {
                         .aspectRatio(contentMode: .fill)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else {
-                    Image(systemName: "photo").font(.title2).foregroundStyle(.secondary)
+                    Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 120, height: 80)
+            .frame(maxWidth: .infinity)
+            .frame(height: 160)
             .clipped()
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(hasCustom ? "Custom thumbnail" : "Automatic — most recent capture")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack {
-                    Button("Change Thumbnail…") { pickImage(onPick: onPick) }
-                    if hasCustom {
-                        Button("Remove Custom Thumbnail", role: .destructive, action: onRemove)
-                    }
+            Text(hasCustom ? "Custom thumbnail" : "Automatic — most recent capture")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Change Thumbnail…") { pickImage(onPick: onPick) }
+                if hasCustom {
+                    Button("Remove Custom Thumbnail", role: .destructive, action: onRemove)
                 }
             }
         }
