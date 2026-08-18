@@ -11,7 +11,16 @@ import Foundation
 ///   wavelet pass makes three full-image sweeps. Fine for the CPU preview path at typical camera
 ///   resolutions/frame rates; a large sensor at high frame rate will want the Metal path instead.
 enum ImageEnhancer {
-    static func denoise(_ frame: CapturedFrame, spatialSigma: Double = 1.5, rangeSigma: Double = 0.08) -> CapturedFrame? {
+    /// `isColorCamera`/`bayerPattern` restrict the blur to same-Bayer-color neighbors for a color
+    /// camera's still-mosaiced RAW8/RAW16 buffer — the same fix as the GPU `bilateralDenoise`
+    /// kernel's doc comment explains: a plain spatial window here runs *before* debayering, so
+    /// without this it averages neighboring red/green/blue photosites together and visibly
+    /// desaturates the image. `isColorCamera == false` (mono camera) skips the check — every
+    /// neighbor is already the same channel.
+    static func denoise(
+        _ frame: CapturedFrame, spatialSigma: Double = 1.5, rangeSigma: Double = 0.08,
+        isColorCamera: Bool = false, bayerPattern: ASI_BAYER_PATTERN = ASI_BAYER_RG
+    ) -> CapturedFrame? {
         if frame.imageType == ASI_IMG_RGB24 {
             return denoiseRGB24(frame, spatialSigma: spatialSigma, rangeSigma: rangeSigma)
         }
@@ -24,12 +33,16 @@ enum ImageEnhancer {
         for y in 0..<height {
             for x in 0..<width {
                 let center = samples[y * width + x]
+                let centerChannel = isColorCamera ? Debayer.channel(atX: x, y: y, pattern: bayerPattern) : nil
                 var sumWeight = 0.0
                 var sumValue = 0.0
                 for dy in -radius...radius {
                     for dx in -radius...radius {
                         let sx = min(max(x + dx, 0), width - 1)
                         let sy = min(max(y + dy, 0), height - 1)
+                        if let centerChannel, Debayer.channel(atX: sx, y: sy, pattern: bayerPattern) != centerChannel {
+                            continue
+                        }
                         let sample = samples[sy * width + sx]
                         let spatialWeight = exp(-Double(dx * dx + dy * dy) / (2 * spatialSigma * spatialSigma))
                         let delta = sample - center

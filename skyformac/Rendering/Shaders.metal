@@ -577,6 +577,16 @@ inline bool isBlueAt(uint2 p, uint pattern) {
     }
 }
 
+/// True if `a` and `b` sample the same Bayer color (both red, both blue, or both green — the
+/// two green sub-lattices count as one channel here, since mixing them doesn't cross a color
+/// boundary the way mixing red/green/blue does). Used by `bilateralDenoise` to keep a spatial
+/// blur from averaging together photosites of different colors before debayering ever happens.
+inline bool sameChannelAt(uint2 a, uint2 b, uint pattern) {
+    bool aRed = isRedAt(a, pattern), bRed = isRedAt(b, pattern);
+    bool aBlue = isBlueAt(a, pattern), bBlue = isBlueAt(b, pattern);
+    return (aRed == bRed) && (aBlue == bBlue);
+}
+
 inline float readClamped(texture2d<float, access::read> tex, int x, int y) {
     uint width = tex.get_width();
     uint height = tex.get_height();
@@ -641,11 +651,22 @@ kernel void debayerAndStretch(
 /// pixels weighted by both spatial distance and intensity similarity, so it smooths flat noisy
 /// regions (sky background) while leaving sharp edges (star points, planetary detail) largely
 /// intact. Real-time per-frame noise suppression without requiring a trained model of any kind.
+///
+/// `source` here is the raw, still-Bayer-mosaiced mono sensor buffer for a color camera (this
+/// runs *before* `debayerAndStretch` — see `MetalFrameRenderer.process`'s doc comment on why).
+/// A plain spatial window mixes neighboring red/green/blue photosites together — averaging away
+/// the color the mosaic encodes, before it's ever demosaiced into RGB. `isColorCamera`/
+/// `bayerPattern` let this kernel restrict its blur to same-color neighbors only (matching
+/// `debayerAndStretch`'s own Bayer-awareness), so denoising a color camera's live view/stack no
+/// longer desaturates it. `isColorCamera == 0` (a mono camera, or Y8) skips the check entirely —
+/// every neighbor is already the same "channel."
 kernel void bilateralDenoise(
     texture2d<float, access::read> source [[texture(0)]],
     texture2d<float, access::write> destination [[texture(1)]],
     constant float &spatialSigma [[buffer(0)]],
     constant float &rangeSigma [[buffer(1)]],
+    constant uint &bayerPattern [[buffer(2)]],
+    constant uint &isColorCamera [[buffer(3)]],
     uint2 gid [[thread_position_in_grid]]
 ) {
     if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
@@ -657,7 +678,9 @@ kernel void bilateralDenoise(
         for (int dx = -radius; dx <= radius; dx++) {
             int x = clamp(int(gid.x) + dx, 0, int(source.get_width()) - 1);
             int y = clamp(int(gid.y) + dy, 0, int(source.get_height()) - 1);
-            float sample = source.read(uint2(x, y)).r;
+            uint2 samplePos = uint2(x, y);
+            if (isColorCamera != 0 && !sameChannelAt(gid, samplePos, bayerPattern)) { continue; }
+            float sample = source.read(samplePos).r;
             float spatialWeight = exp(-float(dx * dx + dy * dy) / (2 * spatialSigma * spatialSigma));
             float delta = sample - center;
             float rangeWeight = exp(-(delta * delta) / (2 * rangeSigma * rangeSigma));

@@ -76,6 +76,38 @@ struct ImageEnhancerTests {
         }
     }
 
+    /// Guards against the real bug reported from an actual session: a stacked color-camera image
+    /// coming out desaturated/monochrome. Denoise runs on the raw, still-Bayer-mosaiced buffer,
+    /// *before* debayering — a spatial blur that isn't aware of the mosaic mixes neighboring red/
+    /// green/blue photosites together, which for a typical low-contrast deep-sky background
+    /// (subtle real color, not a hard color edge) washes color out almost entirely. This uses a
+    /// realistic, low-contrast RGGB field (red photosites slightly brighter than green/blue —
+    /// a faint color cast, not a hard edge) to catch exactly that: with `isColorCamera: true`,
+    /// each photosite should stay close to its own channel's true value; without it, the red
+    /// samples get measurably pulled toward the surrounding green/blue value.
+    @Test func denoiseIsColorAwareForBayerPatternedRAW8() throws {
+        let width = 8, height = 8
+        var bytes = [UInt8](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                bytes[y * width + x] = Debayer.channel(atX: x, y: y, pattern: ASI_BAYER_RG) == .red ? 140 : 120
+            }
+        }
+        let frame = CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: Data(bytes))
+
+        let colorAware = try #require(ImageEnhancer.denoise(frame, isColorCamera: true, bayerPattern: ASI_BAYER_RG))
+        let colorBlind = try #require(ImageEnhancer.denoise(frame, isColorCamera: false, bayerPattern: ASI_BAYER_RG))
+
+        let x = 2, y = 2
+        #expect(Debayer.channel(atX: x, y: y, pattern: ASI_BAYER_RG) == .red)
+        let index = y * width + x
+        // Bayer-aware: every same-channel neighbor is also 140, so the red photosite's own value
+        // survives essentially unchanged. Bayer-blind: neighboring green/blue's lower value pulls
+        // it measurably down.
+        #expect(abs(Int(colorAware.data[index]) - 140) <= 1)
+        #expect(Int(colorBlind.data[index]) < Int(colorAware.data[index]) - 3)
+    }
+
     @Test func unsupportedImageTypeReturnsNil() {
         // `ASI_IMG_END` (-1) is the SDK's own "no such format" sentinel — a genuinely
         // unsupported `ASI_IMG_TYPE`, unlike RGB24 (see the RGB24-specific tests below, which

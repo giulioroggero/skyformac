@@ -1155,11 +1155,15 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             if let liveGPUSpatialTexture {
                 var spatialSigma = liveGPUControls.spatialSigma
                 var rangeSigma = liveGPUControls.rangeSigma
+                var patternValue = UInt32(bayerPattern.rawValue)
+                var colorFlag: UInt32 = isColorCamera ? 1 : 0
                 encoder.setComputePipelineState(denoisePipeline)
                 encoder.setTexture(workingTexture, index: 0)
                 encoder.setTexture(liveGPUSpatialTexture, index: 1)
                 encoder.setBytes(&spatialSigma, length: MemoryLayout<Float>.size, index: 0)
                 encoder.setBytes(&rangeSigma, length: MemoryLayout<Float>.size, index: 1)
+                encoder.setBytes(&patternValue, length: MemoryLayout<UInt32>.size, index: 2)
+                encoder.setBytes(&colorFlag, length: MemoryLayout<UInt32>.size, index: 3)
                 encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
                 workingTexture = liveGPUSpatialTexture
             }
@@ -1169,11 +1173,15 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         if isDenoisingEnabled, let denoiseTexture {
             var spatialSigma: Float = 1.5
             var rangeSigma: Float = 0.08
+            var patternValue = UInt32(bayerPattern.rawValue)
+            var colorFlag: UInt32 = isColorCamera ? 1 : 0
             encoder.setComputePipelineState(denoisePipeline)
             encoder.setTexture(workingTexture, index: 0)
             encoder.setTexture(denoiseTexture, index: 1)
             encoder.setBytes(&spatialSigma, length: MemoryLayout<Float>.size, index: 0)
             encoder.setBytes(&rangeSigma, length: MemoryLayout<Float>.size, index: 1)
+            encoder.setBytes(&patternValue, length: MemoryLayout<UInt32>.size, index: 2)
+            encoder.setBytes(&colorFlag, length: MemoryLayout<UInt32>.size, index: 3)
             let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
             let threadgroups = MTLSize(width: (frame.width + 15) / 16, height: (frame.height + 15) / 16, depth: 1)
             encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)

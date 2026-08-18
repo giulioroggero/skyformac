@@ -3532,7 +3532,7 @@ final class CameraManager {
 
         enhancementTask = Task.detached(priority: .userInitiated) { [weak self] in
             var displayFrame = frame
-            if denoiseEnabled, let denoised = ImageEnhancer.denoise(displayFrame) {
+            if denoiseEnabled, let denoised = ImageEnhancer.denoise(displayFrame, isColorCamera: isColorCamera, bayerPattern: bayerPattern) {
                 displayFrame = denoised
             }
             if sharpenEnabled, let sharpened = ImageEnhancer.waveletSharpen(
