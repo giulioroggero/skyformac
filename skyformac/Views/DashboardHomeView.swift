@@ -30,6 +30,19 @@ struct DashboardHomeView: View {
     /// equivalent, so the card simply doesn't appear until (if) Ollama actually answers.
     @State private var suggestedSession: OllamaPlanner.SuggestedSessionPlan?
 
+    /// Home's own search — `.searchable` below puts the field in the window's toolbar; typing
+    /// anything replaces the rest of the page with `searchResultsSection` rather than filtering
+    /// the sections in place, since most of Home (Resume/Common Tasks/Timeline) has nothing to
+    /// filter *by* text in the first place. Reuses `ProjectSearch` — the same name/goal/tags/
+    /// objects/notes substring match the Projects browser's own search already uses — rather
+    /// than a second, narrower search implementation.
+    @State private var searchText = ""
+
+    private var searchResults: [ProjectSearch.Result] {
+        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        return ProjectSearch.search(projects, text: searchText)
+    }
+
     /// The single most recently active session across every project — what "resume the last
     /// session" actually resumes. Falls back to `nil` (the card just doesn't show) when nothing's
     /// ever been captured anywhere, rather than picking an arbitrary "most recent" with nothing
@@ -77,6 +90,57 @@ struct DashboardHomeView: View {
         let highlightedSessions = highlightedSessions(excludingSessionID: lastActive?.session.id)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    searchResultsSection
+                } else {
+                homeContent(lastActive: lastActive, highlightedSessions: highlightedSessions)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .searchable(text: $searchText, prompt: "Search projects, sessions, objects…")
+        .navigationTitle("Home")
+        .task {
+            suggestedSession = await cameraManager.fetchSuggestedNextSession()
+        }
+        .toolbar {
+            // Only shown when the assistant isn't already sitting in the sidebar — the panel's
+            // own "Close"/"Detach"/"Minimize" controls are otherwise the only way back, and none
+            // of those are reachable once the panel itself is gone.
+            if !cameraManager.isAssistantPanelVisible || cameraManager.isAssistantDetached || cameraManager.isAssistantMinimized {
+                ToolbarItem {
+                    Button("Open Assistant", systemImage: "bubble.left.and.bubble.right") {
+                        cameraManager.isAssistantPanelVisible = true
+                        cameraManager.isAssistantDetached = false
+                        cameraManager.isAssistantMinimized = false
+                    }
+                    .accessibilityIdentifier("DashboardOpenAssistantToolbarButton")
+                    .help("Open the AI assistant in the sidebar")
+                }
+            }
+            ToolbarItem {
+                Button("Settings…", systemImage: "gearshape", action: onShowSettings)
+                    .accessibilityIdentifier("DashboardSettingsToolbarButton")
+            }
+        }
+        // See `ProjectsBrowserView`'s own matching `.frame(minWidth: 600, ...)` doc comment —
+        // this one (applied to the Dashboard, the NavigationStack's own root content) contributes
+        // to the same overall window-width floor and needed the identical fix, or the window
+        // would still be forced past a 1024pt-wide screen regardless of the other one changing.
+        .frame(minWidth: 600, minHeight: 600)
+    }
+
+    /// Everything Home shows when the user isn't searching — split out of `body` so the search-
+    /// vs-normal branching above stays readable. `lastActive`/`highlightedSessions` are computed
+    /// once in `body` (see its own doc comment on why) and threaded through rather than
+    /// recomputed here.
+    @ViewBuilder
+    private func homeContent(
+        lastActive: (project: Project, session: Session)?,
+        highlightedSessions: [(project: Project, session: Session)]
+    ) -> some View {
+        Group {
                 if let lastActive {
                     PageSection(title: "Resume Where You Left Off") {
                         HStack {
@@ -216,40 +280,54 @@ struct DashboardHomeView: View {
                         }
                     }
                 }
+        }
+    }
 
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .navigationTitle("Home")
-        .task {
-            suggestedSession = await cameraManager.fetchSuggestedNextSession()
-        }
-        .toolbar {
-            // Only shown when the assistant isn't already sitting in the sidebar — the panel's
-            // own "Close"/"Detach"/"Minimize" controls are otherwise the only way back, and none
-            // of those are reachable once the panel itself is gone.
-            if !cameraManager.isAssistantPanelVisible || cameraManager.isAssistantDetached || cameraManager.isAssistantMinimized {
-                ToolbarItem {
-                    Button("Open Assistant", systemImage: "bubble.left.and.bubble.right") {
-                        cameraManager.isAssistantPanelVisible = true
-                        cameraManager.isAssistantDetached = false
-                        cameraManager.isAssistantMinimized = false
+    /// Every matching project/session — tapping a project row opens it, a session row opens
+    /// straight to that session (matching `RecentProjects`/`HighlightedSessions`'s own actions
+    /// above), each labeled with which project it belongs to so a session result isn't ambiguous.
+    @ViewBuilder
+    private var searchResultsSection: some View {
+        PageSection(title: "Search Results") {
+            if searchResults.isEmpty {
+                Text("No projects or sessions match \"\(searchText)\".")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(searchResults) { result in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            if let session = result.session {
+                                Text(session.name).font(.body)
+                                Text(result.project.name.isEmpty ? "Untitled Project" : result.project.name)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(result.project.name.isEmpty ? "Untitled Project" : result.project.name).font(.body)
+                                Text("Project").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Button("Open") {
+                            if let session = result.session {
+                                onOpenSession(result.project, session)
+                            } else {
+                                onSelectProject(result.project)
+                            }
+                        }
+                        .buttonStyle(.borderless)
                     }
-                    .accessibilityIdentifier("DashboardOpenAssistantToolbarButton")
-                    .help("Open the AI assistant in the sidebar")
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if let session = result.session {
+                            onOpenSession(result.project, session)
+                        } else {
+                            onSelectProject(result.project)
+                        }
+                    }
                 }
             }
-            ToolbarItem {
-                Button("Settings…", systemImage: "gearshape", action: onShowSettings)
-                    .accessibilityIdentifier("DashboardSettingsToolbarButton")
-            }
         }
-        // See `ProjectsBrowserView`'s own matching `.frame(minWidth: 600, ...)` doc comment —
-        // this one (applied to the Dashboard, the NavigationStack's own root content) contributes
-        // to the same overall window-width floor and needed the identical fix, or the window
-        // would still be forced past a 1024pt-wide screen regardless of the other one changing.
-        .frame(minWidth: 600, minHeight: 600)
     }
 
     @ViewBuilder
