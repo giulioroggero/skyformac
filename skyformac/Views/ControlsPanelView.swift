@@ -2357,6 +2357,17 @@ private struct ZoomableValueField<Value: Equatable>: View {
                         guard !isManualEntryFocused else { return }
                         manualEntryText = format(newValue)
                     }
+                    // `onCommit` above only fires on Return — clicking away (the slider, another
+                    // field, the Capture button) without pressing Return left whatever was typed
+                    // silently discarded the moment focus moved on, since `value`'s own
+                    // `.onChange` above then overwrote `manualEntryText` back to the last-
+                    // committed value. Reported as "typing 40s doesn't work" when in fact it
+                    // depended entirely on whether Return happened to be pressed afterward —
+                    // committing on blur too makes clicking away behave like every other macOS
+                    // text field (a real edit sticks) instead of silently reverting it.
+                    .onChange(of: isManualEntryFocused) { _, isFocused in
+                        if !isFocused { commitManualEntry() }
+                    }
                 Slider(value: position, in: positionRange)
             }
             HStack(spacing: 6) {
