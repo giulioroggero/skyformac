@@ -1738,13 +1738,6 @@ struct ControlsPanelView: View {
                 }
             }
             .help("How much of each newly-measured displacement blends into a vertex's smoothed value per frame. Lower is steadier (resists a single noisy/wrong measurement, reacts to real drift more slowly); higher reacts immediately, but more jitter shows through.")
-
-            Toggle("Show mesh & vectors on preview", isOn: Binding(
-                get: { cameraManager.isMeshDriftOverlayVisible },
-                set: { cameraManager.isMeshDriftOverlayVisible = $0 }
-            ))
-            .font(.caption)
-            .help("Overlays the tracked grid on the live preview — each cell's search window (showing the overlap set above) and an arrow for its current measured displacement, so you can actually see what this is doing before trusting it on a real session.")
         }
     }
 

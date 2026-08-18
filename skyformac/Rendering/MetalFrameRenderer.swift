@@ -190,12 +190,6 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     /// frame, so `CameraManager` can surface it in the UI the same way `LiveStacker.frameCount` does.
     var onLiveStackFrameCountUpdate: (@Sendable (Int) -> Void)?
 
-    /// Fired with the current (already-blended) mesh vertex displacements whenever "Experimental"
-    /// mesh-based drift correction actually ran this frame — purely for the preview overlay
-    /// visualization (`CameraManager.meshDriftVisualization`/`MeshDriftOverlayView`, "see the
-    /// vector overlap"), not consumed by rendering itself.
-    var onMeshDriftUpdate: (@Sendable ([SIMD2<Float>]) -> Void)?
-
     init?(device: MTLDevice) {
         guard let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
@@ -1312,7 +1306,6 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
                             vertexDisplacements: displacements, gridSize: meshDriftConfig.gridSize,
                             width: frame.width, height: frame.height
                         )
-                        onMeshDriftUpdate?(displacements)
                     } else if stackingMethod == .sigmaClipping, !isDriftReductionEnabled, let maskedSumTexture, let maskedCountTexture {
                         // Sigma-clipping doesn't combine with drift-reduction alignment in this
                         // pass — resampling a per-pixel running mean at a sub-pixel shift before
@@ -1567,9 +1560,6 @@ struct MetalPreviewView: NSViewRepresentable {
             }
             renderer?.onLiveStackFrameCountUpdate = { [weak cameraManager] count in
                 Task { @MainActor in cameraManager?.gpuLiveStackFrameCount = count }
-            }
-            renderer?.onMeshDriftUpdate = { [weak cameraManager] displacements in
-                Task { @MainActor in cameraManager?.meshDriftVisualization = displacements }
             }
             cameraManager.gpuAccumulatedFrameProvider = { [weak renderer] imageType in
                 renderer?.currentAccumulatedFrame(imageType: imageType)

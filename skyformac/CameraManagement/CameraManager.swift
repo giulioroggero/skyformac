@@ -1359,17 +1359,6 @@ final class CameraManager {
     /// GPU-only, same as the single-star lock.
     var isMeshDriftCorrectionEnabled = false
     var meshDriftConfig = MeshDriftConfig.default
-    /// The mesh's current (already-blended) vertex displacements, as last reported by
-    /// `MetalFrameRenderer.onMeshDriftUpdate` — purely for `MeshDriftOverlayView`'s "see the
-    /// vector overlap" visualization on the live preview; rendering itself never reads this back,
-    /// it only ever flows the other direction (`CameraManager` → `MetalFrameRenderer`, via
-    /// `meshDriftConfig`). `nil` whenever mesh correction hasn't produced a result yet (just
-    /// turned on, or not currently live-stacking).
-    var meshDriftVisualization: [SIMD2<Float>]?
-    /// Drives `MeshDriftOverlayView` on the live preview — "see the vector overlap" made
-    /// concrete: each cell's search window and its current displacement arrow, drawn directly
-    /// over the frame it's actually measuring.
-    var isMeshDriftOverlayVisible = false
 
     // MARK: - Live Stack fix (specs/live-stackig-fix-spec.md)
 
@@ -3766,7 +3755,6 @@ final class CameraManager {
         planetROI = nil
         gpuHistogramCounts = nil
         gpuChannelHistogramCounts = nil
-        meshDriftVisualization = nil
         catalogFetchTask?.cancel()
         catalogFetchTask = nil
         liveWCS = nil
