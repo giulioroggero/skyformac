@@ -1296,6 +1296,15 @@ final class CameraManager {
         )
     }
 
+    /// Throttles `updateLiveStackSigmaClippingKappaSigma`'s full-frame histogram scan to once
+    /// every `sigmaClippingKappaUpdateInterval` frames — background noise doesn't meaningfully
+    /// change frame-to-frame, so re-deriving it on every single incoming frame (this was a real
+    /// contributor to live stacking feeling unresponsive: a full histogram pass on the main
+    /// actor, once per frame, only while sigma-clipping was active) bought accuracy nobody could
+    /// actually see for a real per-frame cost.
+    private var sigmaClippingKappaFrameCounter = 0
+    private let sigmaClippingKappaUpdateInterval = 5
+
     /// Refreshes `liveStackSigmaClippingKappaSigma` from `frame`'s own histogram — only while
     /// sigma-clipping is actually the active stacking method, since this is an extra full-frame
     /// histogram scan `.average` (the default) never needs to pay for. Computed from the raw
@@ -1304,8 +1313,11 @@ final class CameraManager {
     private func updateLiveStackSigmaClippingKappaSigma(_ frame: CapturedFrame) {
         guard isLiveStackingEnabled, liveStackMethod == .sigmaClipping else {
             liveStackSigmaClippingKappaSigma = 0
+            sigmaClippingKappaFrameCounter = 0
             return
         }
+        defer { sigmaClippingKappaFrameCounter += 1 }
+        guard sigmaClippingKappaFrameCounter % sigmaClippingKappaUpdateInterval == 0 else { return }
         let sigma = LiveStackDynamicStretch.standardDeviation(histogram: HistogramComputer.histogram(for: frame))
         liveStackSigmaClippingKappaSigma = liveStackSigmaClippingKappa * sigma
     }

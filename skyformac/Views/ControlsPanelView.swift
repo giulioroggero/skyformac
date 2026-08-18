@@ -1758,6 +1758,12 @@ struct ControlsPanelView: View {
         .disabled(!cameraManager.useMetalRenderer)
         .help("Average: a plain running mean. Sigma Clipping: also rejects a pixel outright on any one frame if it deviates too far from its own running average — guards against satellite trails, cosmic ray hits, and hot pixels a plain average would otherwise bake in.")
 
+        if cameraManager.liveStackMethod == .sigmaClipping, cameraManager.isLiveStackDriftReductionEnabled {
+            Label("\"Reduce Drift\" is also on, so this session is stacking with plain averaging instead — the two don't combine yet. Turn off \"Reduce Drift\" to actually use Sigma Clipping.", systemImage: "exclamationmark.triangle")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+        }
+
         if cameraManager.liveStackMethod == .sigmaClipping {
             LabeledContent("Sigma Clipping Factor (κ)") {
                 HStack {
