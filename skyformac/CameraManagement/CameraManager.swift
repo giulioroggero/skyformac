@@ -1780,6 +1780,10 @@ final class CameraManager {
     var isLuckyImagingPaused = false
 
     private var frameConsumerTask: Task<Void, Never>?
+    /// Chains every capture-pipeline restart (`changeImageType`/`changeCaptureROI`) one after
+    /// another instead of letting them run concurrently — see `restartCapturePipeline`'s doc
+    /// comment for the actual bug this exists to prevent.
+    private var pipelineRestartTask: Task<Void, Never>?
     private var focusAssistTask: Task<Void, Never>?
     private var enhancementTask: Task<Void, Never>?
     private var qualityScoreTask: Task<Void, Never>?
@@ -2376,6 +2380,30 @@ final class CameraManager {
         }
     }
 
+    /// The one place a live capture pipeline restart actually happens — `changeImageType`/
+    /// `changeCaptureROI` both funnel their `engine.stop()` → `...` → `startPreview()` sequence
+    /// through this instead of each spawning its own untracked `Task`. Awaits any restart already
+    /// in flight before starting this one, so two requests fired back-to-back with no `await`
+    /// between them on the caller's side (`applyAcquisitionPreset` changing both image type *and*
+    /// ROI at once, say — exactly what "create a new session" does via `quickStart(with:)` while
+    /// a camera is already connected) apply strictly one at a time instead of interleaving.
+    ///
+    /// Without this, two overlapping restarts raced: `CaptureEngine.startStreaming` no-ops via
+    /// `guard !isRunning else { return }` if the other restart's own `startStreaming` already won,
+    /// so the *later* restart's `frames()` call still replaces the actor's stream `continuation`
+    /// even though no new poll loop is feeding it — leaving `frameConsumerTask` (whichever
+    /// restart's `startPreview` happened to finish last) iterating a stream nothing yields to
+    /// anymore, with `isLiveViewActive`/`connectionState` still reporting `.streaming`. Nothing
+    /// throws in that path, so the live view just goes silently stale with no in-app recovery —
+    /// reported as "the camera hangs and I need to reset" when starting a new session.
+    private func restartCapturePipeline(_ body: @escaping () async -> Void) {
+        let previous = pipelineRestartTask
+        pipelineRestartTask = Task {
+            await previous?.value
+            await body()
+        }
+    }
+
     /// Switches the live capture format (e.g. RAW8 <-> RAW16) by restarting the capture
     /// engine's stream. No-op if `imageType` isn't advertised by the connected camera.
     func changeImageType(_ imageType: ASI_IMG_TYPE) {
@@ -2386,9 +2414,9 @@ final class CameraManager {
         frameConsumerTask?.cancel()
         currentFrame = nil
         currentImage = nil
-        Task {
+        restartCapturePipeline { [weak self] in
             await engine.stop()
-            await startPreview(using: engine, imageType: imageType)
+            await self?.startPreview(using: engine, imageType: imageType)
         }
     }
 
@@ -2433,13 +2461,14 @@ final class CameraManager {
         captureROICenterY = height != nil ? centerY : nil
         captureROIAppliedStartX = nil
         captureROIAppliedStartY = nil
-        Task {
+        let imageType = selectedImageType
+        restartCapturePipeline { [weak self] in
             await engine.stop()
             await engine.setROI(width: width, height: height, centerX: centerX, centerY: centerY)
-            await startPreview(using: engine, imageType: selectedImageType)
+            await self?.startPreview(using: engine, imageType: imageType)
             if width != nil, height != nil, let applied = try? await engine.currentStartPosition() {
-                captureROIAppliedStartX = applied.x
-                captureROIAppliedStartY = applied.y
+                self?.captureROIAppliedStartX = applied.x
+                self?.captureROIAppliedStartY = applied.y
             }
         }
     }
