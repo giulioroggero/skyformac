@@ -315,8 +315,8 @@ enum SirilElaborationService {
         """
         requires 1.2.0
         cd "\(workingDirectory.path)"
-        calibrate_single \(basename) -debayer -prefix=deb_
-        load deb_\(basename)
+        calibrate_single "\(basename)" -debayer -prefix=deb_
+        load "deb_\(basename)"
         autostretch
         savetif \(outputBaseName)
         """
@@ -335,9 +335,9 @@ enum SirilElaborationService {
         """
         requires 1.2.0
         cd "\(workingDirectory.path)"
-        convert \(basename) -out=converted
+        convert "\(basename)" -out=converted
         cd converted
-        stack \(basename) rej \(rejectionArgs(parameters)) -norm=no -out=stacked_raw
+        stack "\(basename)" rej \(rejectionArgs(parameters)) -norm=no -out=stacked_raw
         calibrate_single stacked_raw -debayer -prefix=deb_
         load deb_stacked_raw
         autostretch
