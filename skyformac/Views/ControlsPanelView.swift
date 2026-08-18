@@ -1629,6 +1629,19 @@ struct ControlsPanelView: View {
             }
 
             Divider()
+            // Also reachable from the Improve tab — surfaced here too since "Dynamic
+            // Auto-Stretch" below depends on it being on, and that dependency was easy to miss
+            // with the two controls living on separate tabs (the warning label inside
+            // `dynamicAutoStretchSection` pointing across tabs was the tell). Same
+            // `showLiveGPUSection`/`cameraManager.gpuControls` state either way, so toggling it
+            // here or on Improve is exactly the same switch, not a separate copy.
+            DisclosureGroup(isExpanded: $showLiveGPUSection) {
+                liveGPUControlsSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Live GPU Enhancement Controls", cameraManager: cameraManager, sectionID: "setting.liveGPU")
+            }
+
+            Divider()
             experimentalMeshDriftSection
 
             Divider()
@@ -1792,11 +1805,11 @@ struct ControlsPanelView: View {
             get: { cameraManager.isLiveStackAutoStretchContinuous },
             set: { cameraManager.isLiveStackAutoStretchContinuous = $0 }
         ))
-        .help("Keeps re-adjusting the display stretch as the stack grows, so it visibly reveals more as noise averages down — the fixed Black Point/White Point sliders elsewhere don't do this on their own. Needs \"Live GPU Enhancement Controls\" turned on below to actually show (that's what applies the non-linear stretch itself).")
+        .help("Keeps re-adjusting the display stretch as the stack grows, so it visibly reveals more as noise averages down — the fixed Black Point/White Point sliders elsewhere don't do this on their own. Needs \"Live GPU Enhancement Controls\" turned on above to actually show (that's what applies the non-linear stretch itself).")
 
         if cameraManager.isLiveStackAutoStretchContinuous {
             if !cameraManager.gpuControls.isEnabled {
-                Label("Turn on \"Live GPU Enhancement Controls\" (Improve tab) to see this.", systemImage: "exclamationmark.triangle")
+                Label("Turn on \"Live GPU Enhancement Controls\" above to see this.", systemImage: "exclamationmark.triangle")
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
