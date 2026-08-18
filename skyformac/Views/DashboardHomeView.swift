@@ -14,6 +14,10 @@ struct DashboardHomeView: View {
     var onOpenProjects: () -> Void
     var onSelectProject: (Project) -> Void
     var onOpenSession: (Project, Session) -> Void
+    /// Jumps straight to one specific capture, surfaced by tapping a thumbnail in the Observation
+    /// Timeline — mixed across sessions/projects there, so (unlike `onOpenSession`) it needs to
+    /// carry the specific session and project each tapped capture actually belongs to.
+    var onOpenCapture: (Project, Session, CaptureRecord) -> Void
     var onNewProject: () -> Void
     var onQuickStart: () -> Void
     var onShowEquipment: () -> Void
@@ -119,6 +123,13 @@ struct DashboardHomeView: View {
                     }
                     .defaultScrollAnchor(.leading)
                     .accessibilityIdentifier("CommonTasksScrollView")
+                }
+
+                PageSection(title: "Observation Timeline") {
+                    ObservationTimelineView(
+                        projects: projects, cameraManager: cameraManager,
+                        onSelect: { project, session, capture in onOpenCapture(project, session, capture) }
+                    )
                 }
 
                 if !recentProjects.isEmpty {

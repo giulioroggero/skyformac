@@ -114,6 +114,9 @@ struct ProjectsBrowserView: View {
                 onOpenProjects: { path.append(.projectsList) },
                 onSelectProject: { path.append(.project($0.id)) },
                 onOpenSession: { project, session in path.append(contentsOf: [.project(project.id), .sessionHistory(project.id, session.id)]) },
+                onOpenCapture: { project, session, capture in
+                    path.append(contentsOf: [.project(project.id), .sessionHistory(project.id, session.id), .capture(project.id, session.id, capture.id)])
+                },
                 onNewProject: { isShowingNewProjectSheet = true },
                 onQuickStart: { isShowingQuickStartSheet = true },
                 onShowEquipment: { path.append(.equipment(startsCreating: false)) },
