@@ -262,6 +262,9 @@ struct ContentView: View {
                 imageTypePicker
             }
             ToolbarItem {
+                captureROIIndicator
+            }
+            ToolbarItem {
                 Toggle(isOn: Binding(
                     get: { cameraManager.useMetalRenderer },
                     set: { cameraManager.useMetalRenderer = $0 }
@@ -360,6 +363,29 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 160)
+        }
+    }
+
+    /// Always shown while a camera is connected — a cropped Capture ROI (the FireCapture-style
+    /// "small ROI, high FPS" planetary workflow) changes what's actually landing on disk, so it
+    /// shouldn't be a setting buried a tab and two disclosure groups deep with no visible trace
+    /// once applied. Clicking it jumps straight to that control (`revealCaptureROISettings()`)
+    /// instead of making the user hunt for it again under Planetary → Advanced.
+    @ViewBuilder
+    private var captureROIIndicator: some View {
+        if cameraManager.connectedCamera != nil {
+            Button {
+                cameraManager.revealCaptureROISettings()
+            } label: {
+                if let width = cameraManager.captureROIWidth, let height = cameraManager.captureROIHeight {
+                    Label("\(width)×\(height)", systemImage: "crop")
+                } else {
+                    Label("Full Sensor", systemImage: "crop")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .help("Capture ROI: \(cameraManager.captureROIWidth.map { "\($0)×\(cameraManager.captureROIHeight ?? 0)" } ?? "full sensor") — click to open its settings")
+            .accessibilityIdentifier("CaptureROIIndicator")
         }
     }
 

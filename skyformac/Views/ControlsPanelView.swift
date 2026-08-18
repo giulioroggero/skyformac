@@ -200,6 +200,11 @@ struct ControlsPanelView: View {
             Divider()
             verticalTabStrip
         }
+        .onChange(of: cameraManager.captureROIRevealRequestID) {
+            tab = .planetary
+            showPlanetaryAdvancedSection = true
+            showCaptureROISection = true
+        }
     }
 
     /// Vertical tab strip on the sidebar's trailing edge, rather than a horizontal picker above

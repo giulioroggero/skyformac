@@ -993,6 +993,19 @@ final class CameraManager {
         helpAnchorSectionID = sectionID
         isHelpPresented = true
     }
+
+    /// Bumped by `revealCaptureROISettings()` — `ControlsPanelView` observes this via
+    /// `.onChange` and reacts by switching itself to the Planetary tab and expanding the
+    /// Advanced/Capture ROI disclosure groups down to that control. A counter, not a `Bool`,
+    /// so asking for the same reveal twice in a row (e.g. the header's ROI shortcut clicked
+    /// again while already on that tab) still fires the `.onChange` each time.
+    private(set) var captureROIRevealRequestID: Int = 0
+
+    /// Called from the live-session header's ROI shortcut — jumps straight to the Capture ROI
+    /// control in the sidebar instead of making the user hunt for it under Planetary → Advanced.
+    func revealCaptureROISettings() {
+        captureROIRevealRequestID += 1
+    }
     /// Drives `NavigationSplitView`'s `columnVisibility` in `ContentView` — lifted up (same
     /// reasoning as the properties above) specifically because the native sidebar-toggle button
     /// was reported to have no way back once the sidebar was collapsed: with no binding of our
