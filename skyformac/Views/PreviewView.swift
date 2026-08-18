@@ -134,10 +134,6 @@ struct PreviewView: View {
                 .foregroundStyle(.white)
             } else if useMetalRenderer || cameraManager.currentImage != nil {
                 zoomablePreview
-                if cameraManager.isMeshDriftOverlayVisible, cameraManager.isMeshDriftCorrectionEnabled,
-                   let frame = cameraManager.currentFrame {
-                    MeshDriftOverlayView(cameraManager: cameraManager, frameWidth: frame.width, frameHeight: frame.height)
-                }
             } else {
                 ProgressView("Waiting for first frame…")
                     .foregroundStyle(.white)
