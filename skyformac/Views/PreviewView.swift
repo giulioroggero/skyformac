@@ -81,6 +81,7 @@ struct PreviewView: View {
             .overlay { Color.white.opacity(captureFlashOpacity).allowsHitTesting(false) }
             .overlay(alignment: .bottomLeading) { zoomBadge.colorMultiply(nightTint) }
             .overlay(alignment: .topTrailing) { cornerControls.colorMultiply(nightTint) }
+            .overlay(alignment: .top) { exposureCountdownBadge.colorMultiply(nightTint) }
             .overlay(alignment: .bottom) { zoomControlBar.colorMultiply(nightTint) }
             .onExitCommand { onExitFullScreen?() }
             .onChange(of: cameraManager.captureFeedbackTrigger) {
@@ -313,6 +314,31 @@ struct PreviewView: View {
         withAnimation(.easeOut(duration: 0.2)) {
             zoom = 1
             panOffset = .zero
+        }
+    }
+
+    /// A big, hard-to-miss countdown directly on the preview during a blocking single/dark/flat
+    /// exposure — `ExposureCountdownView` itself only ever appeared next to the "Capture" button
+    /// deep inside the sidebar's collapsed "Advanced" section, so a long exposure's progress was
+    /// easy to miss entirely unless that section happened to already be open. Same driving state
+    /// (`CameraManager.isCapturingExposure`/`capturingExposureStartDate`/
+    /// `capturingExposureDurationSeconds`) — this is just a second, always-visible presentation
+    /// of it, not a separate timer.
+    @ViewBuilder
+    private var exposureCountdownBadge: some View {
+        if cameraManager.isCapturingExposure,
+           let start = cameraManager.capturingExposureStartDate,
+           let duration = cameraManager.capturingExposureDurationSeconds {
+            TimelineView(.periodic(from: start, by: 0.1)) { context in
+                let remaining = max(0, duration - context.date.timeIntervalSince(start))
+                Label(String(format: "Exposing… %.1fs left", remaining), systemImage: "timer")
+                    .font(.callout.monospacedDigit().bold())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .foregroundStyle(.white)
+            }
+            .padding(.top, 10)
         }
     }
 
