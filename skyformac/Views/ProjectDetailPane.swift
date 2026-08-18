@@ -59,93 +59,93 @@ struct ProjectDetailPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                PageSection(title: "Project") {
-                    HStack {
-                        TextField("Name", text: $name, prompt: Text("Untitled Project"))
-                            .onSubmit(save)
-                            .onChange(of: name) { _, _ in save() }
-                        FavoriteToggleButton(isFavorite: project.isFavorite) {
-                            var updated = project
-                            updated.isFavorite.toggle()
-                            try? library.save(updated)
+                // Row 1: Cover (a small, fixed-width thumbnail editor) alongside Project, which
+                // takes the rest of the width — same pairing as `SessionDetailPane`'s own Cover +
+                // Session Summary row.
+                HStack(alignment: .top, spacing: 16) {
+                    PageSection(title: "Cover") {
+                        CoverThumbnailEditor(
+                            currentURL: cameraManager.projectStore.mostRecentThumbnailURL(for: project),
+                            hasCustom: project.customThumbnailFileName != nil,
+                            onPick: { url in
+                                guard let name = try? cameraManager.projectStore.importCustomThumbnail(from: url, for: project) else { return }
+                                var updated = project
+                                updated.customThumbnailFileName = name
+                                try? library.save(updated)
+                            },
+                            onRemove: {
+                                cameraManager.projectStore.removeCustomThumbnail(for: project)
+                                var updated = project
+                                updated.customThumbnailFileName = nil
+                                try? library.save(updated)
+                            }
+                        )
+                    }
+                    .frame(width: 280)
+
+                    PageSection(title: "Project") {
+                        HStack {
+                            TextField("Name", text: $name, prompt: Text("Untitled Project"))
+                                .onSubmit(save)
+                                .onChange(of: name) { _, _ in save() }
+                            FavoriteToggleButton(isFavorite: project.isFavorite) {
+                                var updated = project
+                                updated.isFavorite.toggle()
+                                try? library.save(updated)
+                            }
+                            RatingView(rating: project.rating) { newRating in
+                                var updated = project
+                                updated.rating = newRating
+                                try? library.save(updated)
+                            }
                         }
-                        RatingView(rating: project.rating) { newRating in
+                        HStack(alignment: .top) {
+                            TextField("Goal", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
+                                .onChange(of: goal) { _, _ in save() }
+                            Button("Ask AI to Describe…", systemImage: "sparkles") { isDescribingProject = true }
+                                .help("Write a description grounded in what this project has actually planned and captured")
+                        }
+                        LocationEditorView(project: project, session: nil, cameraManager: cameraManager)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                // Row 2: Stats, Equipment, and Tags side by side.
+                HStack(alignment: .top, spacing: 16) {
+                    PageSection(title: "Stats") {
+                        StatsGridView(stats: projectStats)
+                    }
+
+                    PageSection(title: "Equipment") {
+                        Picker("System", selection: Binding(
+                            get: { project.equipmentSystemID },
+                            set: { newValue in
+                                var updated = project
+                                updated.equipmentSystemID = newValue
+                                try? library.save(updated)
+                            }
+                        )) {
+                            Text("None").tag(UUID?.none)
+                            ForEach(cameraManager.equipmentLibrary.systems) { system in
+                                Text(system.name).tag(UUID?.some(system.id))
+                            }
+                        }
+                        .labelsHidden()
+                        Text("Sessions use this by default — each one can override it individually.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    PageSection(title: "Tags") {
+                        TagsEditorView(tags: project.tags) { tags in
                             var updated = project
-                            updated.rating = newRating
+                            updated.tags = tags
                             try? library.save(updated)
                         }
                     }
-                    HStack(alignment: .top) {
-                        TextField("Goal", text: $goal, prompt: Text("What are you trying to observe or achieve?"), axis: .vertical)
-                            .onChange(of: goal) { _, _ in save() }
-                        Button("Ask AI to Describe…", systemImage: "sparkles") { isDescribingProject = true }
-                            .help("Write a description grounded in what this project has actually planned and captured")
-                    }
-                    LocationEditorView(project: project, session: nil, cameraManager: cameraManager)
                 }
 
-                PageSection(title: "Cover") {
-                    CoverThumbnailEditor(
-                        currentURL: cameraManager.projectStore.mostRecentThumbnailURL(for: project),
-                        hasCustom: project.customThumbnailFileName != nil,
-                        onPick: { url in
-                            guard let name = try? cameraManager.projectStore.importCustomThumbnail(from: url, for: project) else { return }
-                            var updated = project
-                            updated.customThumbnailFileName = name
-                            try? library.save(updated)
-                        },
-                        onRemove: {
-                            cameraManager.projectStore.removeCustomThumbnail(for: project)
-                            var updated = project
-                            updated.customThumbnailFileName = nil
-                            try? library.save(updated)
-                        }
-                    )
-                }
-
-                PageSection(title: "Stats") {
-                    StatsGridView(stats: projectStats)
-                }
-
-                PageSection(title: "Activity Timeline") {
-                    ActivityTimelineChart(project: project)
-                }
-
-                PageSection(title: "Equipment") {
-                    Picker("System", selection: Binding(
-                        get: { project.equipmentSystemID },
-                        set: { newValue in
-                            var updated = project
-                            updated.equipmentSystemID = newValue
-                            try? library.save(updated)
-                        }
-                    )) {
-                        Text("None").tag(UUID?.none)
-                        ForEach(cameraManager.equipmentLibrary.systems) { system in
-                            Text(system.name).tag(UUID?.some(system.id))
-                        }
-                    }
-                    Text("Sessions use this by default — each one can override it individually.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                PageSection(title: "Tags") {
-                    TagsEditorView(tags: project.tags) { tags in
-                        var updated = project
-                        updated.tags = tags
-                        try? library.save(updated)
-                    }
-                }
-
-                PageSection(title: "Notes") {
-                    NotesEditorView(notes: project.notes) { notes in
-                        var updated = project
-                        updated.notes = notes
-                        try? library.save(updated)
-                    }
-                }
-
+                // Row 3: Sessions.
                 PageSection {
                     HStack {
                         Text("Sessions").font(.headline)
@@ -183,6 +183,20 @@ struct ProjectDetailPane: View {
                     }
                 }
 
+                // Row 4: Timeline (activity over the project's whole lifetime).
+                PageSection(title: "Timeline") {
+                    ActivityTimelineChart(project: project)
+                }
+
+                // Row 5: Notes.
+                PageSection(title: "Notes") {
+                    NotesEditorView(notes: project.notes) { notes in
+                        var updated = project
+                        updated.notes = notes
+                        try? library.save(updated)
+                    }
+                }
+
                 if !project.elaboratedImages.isEmpty {
                     PageSection(title: "Elaborated") {
                         ScrollView(.horizontal) {
@@ -196,6 +210,7 @@ struct ProjectDetailPane: View {
                     }
                 }
 
+                // Row 6: Archive, Delete.
                 PageSection {
                     HStack {
                         Button(project.isArchived ? "Unarchive Project" : "Archive Project", systemImage: "archivebox") {

@@ -54,6 +54,7 @@ struct CaptureDetailPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                // Row 1: the image itself.
                 PageSection {
                     HStack {
                         Spacer(minLength: 0)
@@ -91,44 +92,64 @@ struct CaptureDetailPage: View {
                     }
                 }
 
-                PageSection(title: "File") {
-                    StatsGridView(stats: fileStats)
-                    if let note = capture.note, !note.isEmpty {
-                        Text(note).font(.callout)
-                    }
-                    RatingView(rating: capture.rating) { newRating in
-                        var updatedSession = session
-                        guard let index = updatedSession.captures.firstIndex(where: { $0.id == capture.id }) else { return }
-                        updatedSession.captures[index].rating = newRating
-                        var updatedProject = project
-                        guard let sessionIndex = updatedProject.sessions.firstIndex(where: { $0.id == session.id }) else { return }
-                        updatedProject.sessions[sessionIndex] = updatedSession
-                        try? cameraManager.projectsLibrary.save(updatedProject)
-                    }
-                    HStack {
-                        // FITS gets the app's own real viewer (black/white-point stretch,
-                        // debayer) — nicer than whatever (if anything) the system associates
-                        // with the extension. Every other kind (SER, a continuous-recording
-                        // folder, PNG/TIFF) opens in whatever the system already handles it
-                        // with — "if it's not a capture image ... I want to see it" without
-                        // this app needing its own SER/video player.
-                        if capture.kind == .fits {
-                            Button("Open in Viewer", systemImage: "eye") {
-                                cameraManager.openExportedFile(fileURL)
+                // Row 2: everything else about this capture — File, Camera Settings, Session, and
+                // Stats side by side, instead of each taking a full-width row of their own.
+                HStack(alignment: .top, spacing: 16) {
+                    PageSection(title: "File") {
+                        StatsGridView(stats: fileStats)
+                        if let note = capture.note, !note.isEmpty {
+                            Text(note).font(.callout)
+                        }
+                        RatingView(rating: capture.rating) { newRating in
+                            var updatedSession = session
+                            guard let index = updatedSession.captures.firstIndex(where: { $0.id == capture.id }) else { return }
+                            updatedSession.captures[index].rating = newRating
+                            var updatedProject = project
+                            guard let sessionIndex = updatedProject.sessions.firstIndex(where: { $0.id == session.id }) else { return }
+                            updatedProject.sessions[sessionIndex] = updatedSession
+                            try? cameraManager.projectsLibrary.save(updatedProject)
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            // FITS gets the app's own real viewer (black/white-point stretch,
+                            // debayer) — nicer than whatever (if anything) the system associates
+                            // with the extension. Every other kind (SER, a continuous-recording
+                            // folder, PNG/TIFF) opens in whatever the system already handles it
+                            // with — "if it's not a capture image ... I want to see it" without
+                            // this app needing its own SER/video player.
+                            if capture.kind == .fits {
+                                Button("Open in Viewer", systemImage: "eye") {
+                                    cameraManager.openExportedFile(fileURL)
+                                }
+                            } else {
+                                Button("Open", systemImage: "arrow.up.forward.app") {
+                                    NSWorkspace.shared.open(fileURL)
+                                }
                             }
-                        } else {
-                            Button("Open", systemImage: "arrow.up.forward.app") {
-                                NSWorkspace.shared.open(fileURL)
+                            Button("Show in Finder", systemImage: "folder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                            }
+                            if elaborationSource != nil {
+                                Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
+                            }
+                            Button("Delete…", systemImage: "trash", role: .destructive) {
+                                isConfirmingDelete = true
                             }
                         }
-                        Button("Show in Finder", systemImage: "folder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    }
+
+                    if let cameraSettingsStats {
+                        PageSection(title: "Camera Settings") {
+                            StatsGridView(stats: cameraSettingsStats)
                         }
-                        if elaborationSource != nil {
-                            Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
-                        }
-                        Button("Delete…", systemImage: "trash", role: .destructive) {
-                            isConfirmingDelete = true
+                    }
+
+                    PageSection(title: "Session") {
+                        StatsGridView(stats: sessionContextStats)
+                    }
+
+                    if !session.captures.isEmpty {
+                        PageSection(title: "Stats") {
+                            StatsGridView(stats: sessionCaptureStats)
                         }
                     }
                 }
@@ -143,22 +164,6 @@ struct CaptureDetailPage: View {
                             }
                             .padding(.horizontal, 2)
                         }
-                    }
-                }
-
-                if let cameraSettingsStats {
-                    PageSection(title: "Camera Settings") {
-                        StatsGridView(stats: cameraSettingsStats)
-                    }
-                }
-
-                PageSection(title: "Session") {
-                    StatsGridView(stats: sessionContextStats)
-                }
-
-                if !session.captures.isEmpty {
-                    PageSection(title: "Stats") {
-                        StatsGridView(stats: sessionCaptureStats)
                     }
                 }
             }
