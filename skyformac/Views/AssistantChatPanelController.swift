@@ -20,7 +20,7 @@ final class AssistantChatPanelController: NSWindowController, NSWindowDelegate {
         panel.title = "AI"
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
-        panel.contentView = NSHostingView(rootView: AssistantChatPanel(cameraManager: cameraManager, isDetachedWindow: true))
+        panel.contentView = NSHostingView(rootView: AssistantChatPanel(cameraManager: cameraManager, isDetachedWindow: true).nightModeTint(cameraManager))
         panel.minSize = NSSize(width: 280, height: 320)
         super.init(window: panel)
         panel.delegate = self

@@ -108,6 +108,7 @@
 		862CBED2AB6F491F8CD7ED7B /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68FBDACF61BD48CA886373E3 /* ThumbnailCache.swift */; };
 		86FC232F65510B942E12093E /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8294B26F98035A7FF1A95728 /* CameraManager.swift */; };
 		870DFDA6B82D975FE0D93C0B /* SmartLiveStackGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7DF30A0E47AA4548BE6C4C /* SmartLiveStackGate.swift */; };
+		881AB064BC65DE63B2E52230 /* NightModeTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E813AEB385426A777F99203 /* NightModeTint.swift */; };
 		890021C06EE5390F034AFAC1 /* CalibrationLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EBFCB3EEF2743F5F87DBE0 /* CalibrationLibrary.swift */; };
 		8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */; };
 		8BC13D3DD60D7F595F418CE3 /* FITSReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1842F26D7B76C34083DD829 /* FITSReader.swift */; };
@@ -294,6 +295,7 @@
 		2933EAB79302DA70C2417DF3 /* SERReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SERReader.swift; sourceTree = "<group>"; };
 		2B1859DB557F01A0CB1DA601 /* HistogramCurvesPanelController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramCurvesPanelController.swift; sourceTree = "<group>"; };
 		2B97B82E0DE1F75083C77992 /* ASICamera2.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ASICamera2.h; sourceTree = "<group>"; };
+		2E813AEB385426A777F99203 /* NightModeTint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightModeTint.swift; sourceTree = "<group>"; };
 		2F188C9AA2C56922FA2E61A7 /* CalibrationLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalibrationLibraryTests.swift; sourceTree = "<group>"; };
 		323B04EDD5766E5A3ABF06C6 /* ImageExporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageExporterTests.swift; sourceTree = "<group>"; };
 		3300E705A6AD404B91F04E5A /* WCSProjectionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WCSProjectionTests.swift; sourceTree = "<group>"; };
@@ -789,6 +791,7 @@
 				C4CC2AFD7A117129510FEFE7 /* StarNetSheet.swift */,
 				5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */,
 				01E58BB115186A5229E3FC09 /* ObservationTimelineView.swift */,
+				2E813AEB385426A777F99203 /* NightModeTint.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -1187,6 +1190,7 @@
 				1B07C172F1B14326FA01BFB9 /* StarNetSheet.swift in Sources */,
 				422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */,
 				D49C73CF5EA2075A596A84D7 /* ObservationTimelineView.swift in Sources */,
+				881AB064BC65DE63B2E52230 /* NightModeTint.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

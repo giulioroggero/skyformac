@@ -60,6 +60,7 @@ private struct DetachedHistogramCurvesView: View {
             StackingStatusView(cameraManager: cameraManager)
                 .tabItem { Text("Stacking") }
         }
+        .nightModeTint(cameraManager)
         .frame(minWidth: 340, idealWidth: 380, minHeight: 360, idealHeight: 420)
         .padding(.top, 4)
     }

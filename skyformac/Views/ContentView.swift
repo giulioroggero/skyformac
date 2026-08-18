@@ -81,24 +81,28 @@ struct ContentView: View {
             set: { cameraManager.isHelpPresented = $0 }
         )) {
             HelpView(initialTopicID: cameraManager.helpAnchorTopicID, initialSectionID: cameraManager.helpAnchorSectionID)
+                .nightModeTint(cameraManager)
         }
         .sheet(isPresented: Binding(
             get: { cameraManager.viewingExportedFile != nil },
             set: { if !$0 { cameraManager.viewingExportedFile = nil } }
         )) {
             ExportedFileViewerView(cameraManager: cameraManager)
+                .nightModeTint(cameraManager)
         }
         .sheet(isPresented: Binding(
             get: { cameraManager.isAcquisitionWizardPresented },
             set: { cameraManager.isAcquisitionWizardPresented = $0 }
         )) {
             AcquisitionWizardView(cameraManager: cameraManager)
+                .nightModeTint(cameraManager)
         }
         .sheet(isPresented: Binding(
             get: { cameraManager.isCalibrationWizardPresented },
             set: { cameraManager.isCalibrationWizardPresented = $0 }
         )) {
             CalibrationWizardView(cameraManager: cameraManager)
+                .nightModeTint(cameraManager)
         }
     }
 
@@ -173,6 +177,7 @@ struct ContentView: View {
                                 AllSkyMonitorView()
                                     .frame(width: 220)
                                     .padding(12)
+                                    .nightModeTint(cameraManager)
                             }
                         }
                     // A second, harder-to-miss "End Session" directly under the live view itself
@@ -187,6 +192,7 @@ struct ContentView: View {
                         Spacer()
                     }
                     .padding(.vertical, 6)
+                    .nightModeTint(cameraManager)
                     // No explicit `.frame(height:)` here on purpose — `.layoutPriority(1)` above
                     // makes the preview claim any extra vertical space first, so this only ever
                     // gets exactly what its currently-selected tab's own content actually needs
@@ -257,12 +263,15 @@ struct ContentView: View {
                         .help("Stop running this session and return to its Project page")
                     plannedObjectsHint
                 }
+                .nightModeTint(cameraManager)
             }
             ToolbarItem(placement: .principal) {
                 imageTypePicker
+                    .nightModeTint(cameraManager)
             }
             ToolbarItem {
                 captureROIIndicator
+                    .nightModeTint(cameraManager)
             }
             ToolbarItem {
                 Toggle(isOn: Binding(
@@ -279,6 +288,7 @@ struct ContentView: View {
                     ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
                     : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
                 .accessibilityIdentifier("RenderPathToggle")
+                .nightModeTint(cameraManager)
             }
             ToolbarItem {
                 Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(
@@ -286,6 +296,7 @@ struct ContentView: View {
                     set: { cameraManager.isNightModeEnabled = $0 }
                 ))
                     .help("Red-only UI to preserve night vision during visual observation")
+                    .nightModeTint(cameraManager)
             }
             ToolbarItem {
                 Toggle("All-Sky Monitor", systemImage: "cloud.sun", isOn: Binding(
@@ -293,6 +304,7 @@ struct ContentView: View {
                     set: { cameraManager.isAllSkyMonitorVisible = $0 }
                 ))
                     .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
+                    .nightModeTint(cameraManager)
             }
             ToolbarItem {
                 if cameraManager.isExternalWebcam {
@@ -300,6 +312,7 @@ struct ContentView: View {
                         cameraManager.disconnect()
                     }
                     .help("Stop the iPhone/webcam feed and return to the disconnected state")
+                    .nightModeTint(cameraManager)
                 }
             }
         }

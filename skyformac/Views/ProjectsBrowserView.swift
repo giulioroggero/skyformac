@@ -131,9 +131,11 @@ struct ProjectsBrowserView: View {
             NewProjectSheet(cameraManager: cameraManager) { project in
                 path = [.project(project.id)]
             }
+            .nightModeTint(cameraManager)
         }
         .sheet(isPresented: $isShowingQuickStartSheet) {
             QuickStartSheet(cameraManager: cameraManager)
+                .nightModeTint(cameraManager)
         }
         .onAppear {
             // Reopening the browser (via "End Session", say) lands back exactly where that

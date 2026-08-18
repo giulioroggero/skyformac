@@ -23,7 +23,13 @@ struct RootView: View {
         HStack(spacing: 0) {
             Group {
                 if cameraManager.activeSession == nil {
+                    // `ContentView` manages its own night-mode tint internally (deliberately
+                    // excluding the live image) — applying it there too. Here at `RootView`
+                    // level a blanket tint would be safe for `ProjectsBrowserView` (nothing
+                    // exempt in it) but would also reach into `ContentView`'s `PreviewView` and
+                    // tint the live image, so it's scoped to just this branch instead.
                     ProjectsBrowserView(cameraManager: cameraManager)
+                        .nightModeTint(cameraManager)
                 } else {
                     ContentView()
                 }
@@ -41,10 +47,12 @@ struct RootView: View {
                 if cameraManager.isAssistantMinimized {
                     Divider()
                     AssistantMinimizedRail(cameraManager: cameraManager)
+                        .nightModeTint(cameraManager)
                 } else {
                     AssistantResizeHandle(width: $assistantPanelWidth)
                     AssistantChatPanel(cameraManager: cameraManager)
                         .frame(width: assistantPanelWidth)
+                        .nightModeTint(cameraManager)
                 }
             }
         }
@@ -55,6 +63,7 @@ struct RootView: View {
             set: { cameraManager.isLogViewerPresented = $0 }
         )) {
             LogViewerView()
+                .nightModeTint(cameraManager)
         }
         // Same "works no matter which of the two is currently showing" reasoning as the log
         // sheet above — Recall Parameters is useful both from the Session page (before running)
@@ -64,12 +73,14 @@ struct RootView: View {
             set: { cameraManager.isRecallParametersPresented = $0 }
         )) {
             RecallParametersView(cameraManager: cameraManager)
+                .nightModeTint(cameraManager)
         }
         .sheet(isPresented: Binding(
             get: { cameraManager.isSettingsPresented },
             set: { cameraManager.isSettingsPresented = $0 }
         )) {
             SettingsView(cameraManager: cameraManager)
+                .nightModeTint(cameraManager)
         }
         // Watches the combination, not just `isAssistantDetached` alone — pressing the detached
         // panel's own Close button sets `isAssistantPanelVisible = false` while leaving
