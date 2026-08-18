@@ -953,6 +953,14 @@ final class CameraManager {
     var isNightModeEnabled = AppSettings.isNightModeEnabled {
         didSet { AppSettings.isNightModeEnabled = isNightModeEnabled }
     }
+    /// Independent of `isNightModeEnabled` — the live image itself is exempt from the red tint
+    /// by default (true star colors are the point of the app), but this lets it be tinted too
+    /// ("dark mode" for the video, matching the rest of the UI) or switched back to true color
+    /// ("normal") on demand, both without touching the master Night Mode switch. Meaningless
+    /// while `isNightModeEnabled` is off — `PreviewView` only reads it when that's also on.
+    var isNightModePreviewTinted = AppSettings.isNightModePreviewTinted {
+        didSet { AppSettings.isNightModePreviewTinted = isNightModePreviewTinted }
+    }
     var isAllSkyMonitorVisible = false
     /// Same "lifted up" reasoning as `isNightModeEnabled` above — the preview's own overlay
     /// button for this was reported unclickable (same screen-position issue as the sidebar tab

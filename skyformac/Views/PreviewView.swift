@@ -68,15 +68,22 @@ struct PreviewView: View {
     }
 
     /// Night mode tints everything *around* the live image red (preserves dark adaptation
-    /// reading labels/sliders/badges), but never the image itself — the actual point of this app
-    /// is seeing the real sensor data (true star colors, a correctly white-balanced RGB24 frame),
-    /// which a red multiply would destroy. `ContentView` applies the same tint to everything else
-    /// in the window (sidebar, Controls panel, Histogram/Curves) individually rather than as one
-    /// blanket modifier over the whole content area, for the identical reason.
+    /// reading labels/sliders/badges). The image itself defaults to staying untinted — the
+    /// actual point of this app is seeing the real sensor data (true star colors, a correctly
+    /// white-balanced RGB24 frame), which a red multiply would destroy — but
+    /// `isNightModePreviewTinted` (toggled via `videoTintToggle` below) lets it be tinted too for
+    /// sessions dark-adapted enough that even a small true-color preview matters, or switched
+    /// back to true color ("normal") on demand without leaving Night Mode altogether.
+    /// `ContentView` applies the chrome-only tint to everything else in the window individually
+    /// rather than as one blanket modifier over the whole content area, for the identical reason.
     private var nightTint: Color { cameraManager.isNightModeEnabled ? .red : .white }
+    private var imageNightTint: Color {
+        cameraManager.isNightModeEnabled && cameraManager.isNightModePreviewTinted ? .red : .white
+    }
 
     var body: some View {
         preview
+            .colorMultiply(imageNightTint)
             .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
             .overlay { Color.white.opacity(captureFlashOpacity).allowsHitTesting(false) }
             .overlay(alignment: .bottomLeading) { zoomBadge.colorMultiply(nightTint) }
@@ -163,6 +170,25 @@ struct PreviewView: View {
                     .help(useMetalRenderer
                         ? "Rendering on GPU (Metal compute shaders)"
                         : "Rendering on CPU (CGImage)")
+            }
+            if cameraManager.isNightModeEnabled {
+                Button {
+                    cameraManager.isNightModePreviewTinted.toggle()
+                } label: {
+                    Label(
+                        cameraManager.isNightModePreviewTinted ? "Normal" : "Dark",
+                        systemImage: cameraManager.isNightModePreviewTinted ? "sun.max.fill" : "moon.fill"
+                    )
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .help(cameraManager.isNightModePreviewTinted
+                    ? "Video is red-tinted along with the rest of the UI. Click to switch just the video back to normal (true color) without leaving Night Mode."
+                    : "Video stays true color while Night Mode tints the rest of the UI. Click to red-tint the video too.")
             }
             if let onEnterFullScreen {
                 Button(action: onEnterFullScreen) {

@@ -17,6 +17,7 @@ enum AppSettings {
         case isPlanetaryTrackingEnabled
         case isPlanetaryCropEnabled
         case isNightModeEnabled
+        case isNightModePreviewTinted
         case isLiveGPUControlsEnabled
         case gpuTemporalAlpha
         case gpuSpatialSigma
@@ -133,6 +134,16 @@ enum AppSettings {
     static var isNightModeEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Key.isNightModeEnabled.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.isNightModeEnabled.rawValue) }
+    }
+
+    /// Off by default — preserves the original behavior (live image always true color) for
+    /// anyone who hasn't discovered this yet. When on, the live preview's actual image is also
+    /// red-tinted along with the rest of the UI, for observing sessions dark-adapted enough that
+    /// even a small true-color preview is too much; the toggle right on `PreviewView` lets it be
+    /// flipped back to true color ("normal") without leaving Night Mode altogether.
+    static var isNightModePreviewTinted: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isNightModePreviewTinted.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isNightModePreviewTinted.rawValue) }
     }
 
     // MARK: - Live GPU Enhancement Controls (specs/skyformac_GPU_Live_Controls_Spec.md)
