@@ -422,6 +422,15 @@ enum HelpContent {
                 bullets: ["Each frame's own trash icon removes it individually; \"Clear All\" next to the enable toggle removes every dark (or every flat) and turns that correction off in one action."]
             ),
             HelpSection(
+                id: "setting.deepSkyBinning", heading: "Binning",
+                body: "ZWO cameras only. Requests 2×2 pixel binning from the camera itself (`ASISetROIFormat`) — each 2×2 block of photosites is averaged into one output pixel by the sensor before the frame is even read off, rather than downsampled afterward. Quarter resolution, but roughly quadruple the signal landing in each remaining pixel: a real SNR win for a faint, noise-limited deep-sky target, not just a smaller file.",
+                bullets: [
+                    "Only offered if the connected camera actually reports 2× binning support.",
+                    "Restarts the live stream to take effect, same as changing image format or Capture ROI.",
+                    "Not recommended together with a custom Capture ROI (Planetary tab) — the ASI SDK's ROI width/height are always in binned-pixel space once binning is on, so a ROI sized for the full unbinned sensor won't mean what it used to.",
+                ]
+            ),
+            HelpSection(
                 id: "setting.liveStack", heading: "Live Stack",
                 body: "A running average of incoming frames. By default no star alignment — this assumes a tracked, stationary mount, the same scoping SharpCap's basic live-stack mode uses. See **Reduce Drift** below for basic alignment. Exporting FITS/PNG/TIFF (Export, above) while this is on exports the actual stacked average, on both the GPU and CPU render paths — not just whatever the latest single frame happened to be. Works for an iPhone/webcam source too — it always accumulates on the CPU running-average regardless of the GPU/CPU toggle above, since the GPU accumulator only supports a ZWO camera's mono sensor data; the live preview still renders on the GPU either way. \"Save Stacked Image…\" saves the stack exactly as it looks right now as a PNG, without needing the Export section below. \"Pause\" freezes the stack exactly as it is — new frames stop being added, but nothing already stacked is lost — so you can actually look at the current result (focus, whether alignment is holding up) before deciding to keep going; \"Resume\" continues right where it left off. \"Reset\" is different — it discards the stack and starts over."
             ),

@@ -616,6 +616,11 @@ struct ControlsPanelView: View {
             acquisitionWizardButton
             Divider()
 
+            if cameraManager.connectedCamera?.cameraID ?? -1 >= 0 {
+                binningSection
+                Divider()
+            }
+
             DisclosureGroup(isExpanded: $showLiveStackSection) {
                 liveStackSection
             } label: {
@@ -1593,6 +1598,39 @@ struct ControlsPanelView: View {
                         .font(.caption)
                 }
             }
+        }
+    }
+
+    // MARK: - Binning
+
+    /// "Bin 2×2" — averages each 2×2 block of photosites into one output pixel: quarter
+    /// resolution, but roughly quadruple the signal landing in each remaining pixel, which for a
+    /// faint, noise-limited deep-sky target is usually a better trade than the extra detail a
+    /// full-resolution frame would show anyway (especially once seeing/tracking/optics already
+    /// cap how much real detail is there to resolve). Filtered against `supportedBinnings` —
+    /// not every camera reports 2× binning support, and `1×1` (its inverse) is always offered.
+    /// ZWO cameras only (guarded at the call site) — no `ASISetROIFormat` equivalent for a
+    /// webcam/iPhone source.
+    @ViewBuilder
+    private var binningSection: some View {
+        HStack {
+            Picker("Binning", selection: Binding(
+                get: { cameraManager.captureBinning },
+                set: { cameraManager.changeCaptureBinning($0) }
+            )) {
+                Text("1×1").tag(1)
+                if cameraManager.connectedCamera?.supportedBinnings.contains(2) ?? true {
+                    Text("2×2").tag(2)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 140)
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.deepSkyBinning")
+        }
+        if cameraManager.captureBinning > 1 {
+            Text("Quarter resolution, roughly 4× the signal per pixel — a good trade for faint targets. Combining this with a custom Capture ROI (Planetary tab) isn't recommended — ROI dimensions there are sized for the full sensor, not binned pixels.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 

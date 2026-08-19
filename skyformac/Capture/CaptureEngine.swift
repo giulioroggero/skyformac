@@ -52,6 +52,13 @@ actor CaptureEngine {
     /// require the caller to already know the sensor's dimensions.
     private var desiredCenterX: Int
     private var desiredCenterY: Int
+    /// `ASISetROIFormat`'s 4th parameter — pixel binning (1 = off, 2 = 2×2). Per the ASI SDK's own
+    /// doc comment on that call ("the width and height is the value after binning... at bin2 or
+    /// bin3 mode, the position is relative to the image after binning"), width/height/center here
+    /// are always in *binned*-image space once this is &gt; 1 — `camera.maxWidth`/`maxHeight` (raw,
+    /// unbinned sensor size) alone would be wrong as a "full frame" bound or a start-position
+    /// sensor size the moment binning is on, hence every use of them below divides by this first.
+    private var desiredBinning: Int = 1
 
     private var continuation: AsyncStream<CapturedFrame>.Continuation?
     private var onCameraRemoved: (@Sendable () -> Void)?
@@ -71,28 +78,36 @@ actor CaptureEngine {
         self.desiredCenterY = camera.maxHeight / 2
     }
 
-    /// Sets the ROI width/height/center future `startStreaming`/`captureSingleExposure` calls
-    /// will request — `nil` width/height resets to the full sensor. Width/height are
-    /// validated/clamped to the ASI SDK's own hard constraints (`ASISetROIFormat`: width a
-    /// multiple of 8, height a multiple of 2) and to the sensor's real dimensions, rather than
-    /// trusting the caller to have already done that; `centerX`/`centerY` (full-sensor pixel
-    /// coordinates), if given, are resolved to a top-left start position at request time (see
-    /// `ROIGeometry.startPosition`) — `nil` means centered on the sensor. Doesn't itself restart
+    /// Sets the ROI width/height/center/binning future `startStreaming`/`captureSingleExposure`
+    /// calls will request — `nil` width/height resets to the full (binned) sensor. `binning`
+    /// (1 or 2 — 2×2 pixel binning, the deep-sky "trade resolution for SNR/frame-rate" toggle)
+    /// changes what "full sensor"/the clamp ceiling/`centerX`/`centerY` actually mean, per the ASI
+    /// SDK's own doc comment on `ASISetROIFormat`: width/height/position are always in *binned*-
+    /// image-space pixels once binning is on, not raw sensor pixels — see `desiredBinning`'s own
+    /// doc comment. Width/height are validated/clamped to the ASI SDK's own hard constraints
+    /// (`ASISetROIFormat`: width a multiple of 8, height a multiple of 2) and to the sensor's real
+    /// (binned) dimensions, rather than trusting the caller to have already done that;
+    /// `centerX`/`centerY` (binned-sensor pixel coordinates), if given, are resolved to a top-left
+    /// start position at request time (see `ROIGeometry.startPosition`) — `nil` means centered on
+    /// the sensor. Doesn't itself restart
     /// any in-progress stream — the caller (`CameraManager`) is responsible for stopping and
     /// restarting streaming for a new ROI to actually take effect, the same way switching
     /// RAW8/RAW16 format already works.
-    func setROI(width: Int?, height: Int?, centerX: Int? = nil, centerY: Int? = nil) {
+    func setROI(width: Int?, height: Int?, centerX: Int? = nil, centerY: Int? = nil, binning: Int = 1) {
+        desiredBinning = binning
+        let maxWidth = camera.maxWidth / binning
+        let maxHeight = camera.maxHeight / binning
         guard let width, let height else {
-            desiredWidth = camera.maxWidth
-            desiredHeight = camera.maxHeight
-            desiredCenterX = camera.maxWidth / 2
-            desiredCenterY = camera.maxHeight / 2
+            desiredWidth = maxWidth
+            desiredHeight = maxHeight
+            desiredCenterX = maxWidth / 2
+            desiredCenterY = maxHeight / 2
             return
         }
-        desiredWidth = ROIGeometry.clampedDimension(width, maximum: camera.maxWidth, multipleOf: 8)
-        desiredHeight = ROIGeometry.clampedDimension(height, maximum: camera.maxHeight, multipleOf: 2)
-        desiredCenterX = centerX ?? camera.maxWidth / 2
-        desiredCenterY = centerY ?? camera.maxHeight / 2
+        desiredWidth = ROIGeometry.clampedDimension(width, maximum: maxWidth, multipleOf: 8)
+        desiredHeight = ROIGeometry.clampedDimension(height, maximum: maxHeight, multipleOf: 2)
+        desiredCenterX = centerX ?? maxWidth / 2
+        desiredCenterY = centerY ?? maxHeight / 2
     }
 
     /// `ASISetStartPos(cameraID:startX:startY:)` for whatever `desiredWidth`/`desiredHeight`
@@ -102,7 +117,7 @@ actor CaptureEngine {
     private func applyStartPosition(width: Int, height: Int) throws {
         let start = ROIGeometry.startPosition(
             width: width, height: height, centerX: desiredCenterX, centerY: desiredCenterY,
-            sensorWidth: camera.maxWidth, sensorHeight: camera.maxHeight
+            sensorWidth: camera.maxWidth / desiredBinning, sensorHeight: camera.maxHeight / desiredBinning
         )
         try ZWOSDK.setStartPos(cameraID: camera.cameraID, startX: start.x, startY: start.y)
     }
@@ -133,10 +148,10 @@ actor CaptureEngine {
         }
     }
 
-    /// Configures the camera for unbinned video capture in `imageType`, at whatever ROI
-    /// `setROI(width:height:)` last requested (the full sensor by default), and starts the
-    /// background poll loop. Call `frames(onCameraRemoved:)` first to obtain the stream. Safe to
-    /// call again with a different `imageType` after `stop()`.
+    /// Configures the camera for video capture in `imageType`, at whatever ROI/binning
+    /// `setROI(width:height:binning:)` last requested (the full sensor, unbinned, by default), and
+    /// starts the background poll loop. Call `frames(onCameraRemoved:)` first to obtain the
+    /// stream. Safe to call again with a different `imageType` after `stop()`.
     func startStreaming(imageType: ASI_IMG_TYPE = ASI_IMG_RAW8) throws {
         guard !isRunning else { return }
 
@@ -146,7 +161,7 @@ actor CaptureEngine {
             cameraID: camera.cameraID,
             width: width,
             height: height,
-            binning: 1,
+            binning: desiredBinning,
             imageType: imageType
         )
         try applyStartPosition(width: width, height: height)
@@ -185,7 +200,7 @@ actor CaptureEngine {
             cameraID: camera.cameraID,
             width: width,
             height: height,
-            binning: 1,
+            binning: desiredBinning,
             imageType: imageType
         )
         try applyStartPosition(width: width, height: height)

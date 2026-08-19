@@ -137,4 +137,24 @@ struct AcquisitionTargetTests {
         )
         #expect(preset.summaryLine == "Lucky Imaging")
     }
+
+    @Test func summaryLineIncludesBinningOnlyWhenAboveOne() throws {
+        let binned = AcquisitionPreset(
+            name: "Test", targetID: "", mode: .liveStack, gain: nil, exposureSeconds: nil,
+            roiWidth: nil, roiHeight: nil, isDriftReductionEnabled: false, isSmartLiveStackEnabled: false, binning: 2
+        )
+        #expect(binned.summaryLine.contains("Bin 2×2"))
+
+        let unbinned = AcquisitionPreset(
+            name: "Test", targetID: "", mode: .liveStack, gain: nil, exposureSeconds: nil,
+            roiWidth: nil, roiHeight: nil, isDriftReductionEnabled: false, isSmartLiveStackEnabled: false, binning: 1
+        )
+        #expect(!unbinned.summaryLine.contains("Bin"))
+
+        let absent = AcquisitionPreset(
+            name: "Test", targetID: "", mode: .liveStack, gain: nil, exposureSeconds: nil,
+            roiWidth: nil, roiHeight: nil, isDriftReductionEnabled: false, isSmartLiveStackEnabled: false
+        )
+        #expect(!absent.summaryLine.contains("Bin"))
+    }
 }

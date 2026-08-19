@@ -281,6 +281,11 @@ struct AcquisitionPreset: Codable, Identifiable, Equatable {
     /// saved before "Filters" existed decodes as `nil`, not a load failure). `nil` and `[]` both
     /// mean "no filters," but `nil` is what an old preset actually decodes to.
     var selectedFilters: [FilterSelection]?
+    /// 2×2 pixel binning (`CameraManager.captureBinning`) — `Optional`, same back-compat
+    /// reasoning as `isMeshDriftCorrectionEnabled` above (a preset saved before binning existed
+    /// decodes as `nil`, treated the same as 1/off by every reader). `1` and `nil` both mean "no
+    /// binning" — `nil` is just what an old preset actually decodes to.
+    var binning: Int?
 
     /// A short, one-line human summary of the parameters actually set — "Live Stack · Gain 100 ·
     /// 2.0s · ROI 800×600" — shared by the Recall Parameters picker and the Insights page's own
@@ -290,6 +295,7 @@ struct AcquisitionPreset: Codable, Identifiable, Equatable {
         if let gain { parts.append("Gain \(gain)") }
         if let exposureSeconds { parts.append("\(exposureSeconds.formatted(.number.precision(.fractionLength(0...2))))s") }
         if let roiWidth, let roiHeight { parts.append("ROI \(roiWidth)×\(roiHeight)") }
+        if let binning, binning > 1 { parts.append("Bin \(binning)×\(binning)") }
         if let serDurationSeconds { parts.append("SER \(Int(serDurationSeconds))s") }
         if let luckyBurstCount { parts.append("Burst \(luckyBurstCount)") }
         if let selectedFilters, !selectedFilters.isEmpty {

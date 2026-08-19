@@ -2451,20 +2451,31 @@ final class CameraManager {
     /// expect — is actually visible instead of just trusted away.
     private(set) var captureROIAppliedStartX: Int?
     private(set) var captureROIAppliedStartY: Int?
+    /// `CaptureEngine.setROI`'s `binning` — 1 (off) or 2 (2×2 pixel binning). The deep-sky
+    /// "trade resolution for SNR/frame-rate" toggle: averaging each 2×2 block of photosites into
+    /// one output pixel quarters resolution but roughly quadruples per-pixel signal, which for a
+    /// faint, noise-limited deep-sky target is usually the better trade than the extra detail a
+    /// full-resolution frame would have shown anyway. Session state, not an `AppSettings`
+    /// preference — same reasoning as `captureROIWidth`/`captureROIHeight` (a stale non-default
+    /// value silently carrying over to a new, unrelated session would be a worse default than
+    /// always starting unbinned).
+    private(set) var captureBinning: Int = 1
 
-    /// Requests a smaller-than-full-sensor capture region — ZWO cameras only (see `CaptureEngine
-    /// .setROI`'s doc comment for why this is worth doing at all: a smaller ROI genuinely
-    /// increases achievable frame rate, since less data has to be read off the sensor per frame,
-    /// the same "small ROI, high FPS" technique real planetary/lunar lucky-imaging workflows
-    /// (FireCapture, SharpCap) rely on). `width`/`height` `nil` resets to the full sensor.
-    /// `centerX`/`centerY` (full-sensor pixel coordinates) place the ROI anywhere on the sensor —
-    /// `nil` means centered on the sensor, which is what every caller except the Controls panel's
-    /// own custom-ROI fields uses. Without this, a ROI always landed at the sensor's top-left
-    /// corner (`ASISetStartPos` was never called at all) regardless of where the actual target
-    /// sat — see `ROIGeometry.startPosition`'s doc comment. No-op for a webcam/iPhone source,
-    /// where there's no `ASISetROIFormat` equivalent — frame size there is whatever the selected
-    /// `AVCaptureDevice.Format` already is.
-    func changeCaptureROI(width: Int?, height: Int?, centerX: Int? = nil, centerY: Int? = nil) {
+    /// Requests a smaller-than-full-sensor capture region, and/or 2×2 pixel binning — ZWO cameras
+    /// only (see `CaptureEngine.setROI`'s doc comment for why either is worth doing at all: a
+    /// smaller ROI genuinely increases achievable frame rate, and binning genuinely increases
+    /// per-pixel SNR, since less data has to be read off the sensor per frame either way — the
+    /// same "small ROI, high FPS" technique real planetary/lunar lucky-imaging tools (FireCapture,
+    /// SharpCap) rely on, plus the "bin for SNR" technique real deep-sky tools offer alongside
+    /// it). `width`/`height` `nil` resets to the full (binned) sensor. `centerX`/`centerY`
+    /// (binned-sensor pixel coordinates) place the ROI anywhere on the sensor — `nil` means
+    /// centered on the sensor, which is what every caller except the Controls panel's own
+    /// custom-ROI fields uses. Without the center-resolving logic here, a ROI always landed at the
+    /// sensor's top-left corner (`ASISetStartPos` was never called at all) regardless of where the
+    /// actual target sat — see `ROIGeometry.startPosition`'s doc comment. No-op for a webcam/iPhone
+    /// source, where there's no `ASISetROIFormat` equivalent — frame size there is whatever the
+    /// selected `AVCaptureDevice.Format` already is.
+    func changeCaptureROI(width: Int?, height: Int?, centerX: Int? = nil, centerY: Int? = nil, binning: Int = 1) {
         guard let engine = captureEngine, connectedCamera != nil else { return }
         frameConsumerTask?.cancel()
         currentFrame = nil
@@ -2475,16 +2486,26 @@ final class CameraManager {
         captureROICenterY = height != nil ? centerY : nil
         captureROIAppliedStartX = nil
         captureROIAppliedStartY = nil
+        captureBinning = binning
         let imageType = selectedImageType
         restartCapturePipeline { [weak self] in
             await engine.stop()
-            await engine.setROI(width: width, height: height, centerX: centerX, centerY: centerY)
+            await engine.setROI(width: width, height: height, centerX: centerX, centerY: centerY, binning: binning)
             await self?.startPreview(using: engine, imageType: imageType)
             if width != nil, height != nil, let applied = try? await engine.currentStartPosition() {
                 self?.captureROIAppliedStartX = applied.x
                 self?.captureROIAppliedStartY = applied.y
             }
         }
+    }
+
+    /// "Bin 2×2 (Deep Sky)" — the Controls panel's dedicated binning toggle. A thin
+    /// `changeCaptureROI` call that keeps whatever ROI is already set (most deep-sky sessions want
+    /// the full binned sensor, i.e. no custom ROI at all, but this doesn't force that) and just
+    /// changes `binning` — kept separate from `changeCaptureROI` itself since binning is a plain
+    /// on/off switch in the UI, not a width/height/center picker.
+    func changeCaptureBinning(_ binning: Int) {
+        changeCaptureROI(width: captureROIWidth, height: captureROIHeight, centerX: captureROICenterX, centerY: captureROICenterY, binning: binning)
     }
 
     // MARK: - ST4 guide port (pulse guiding)
@@ -2591,7 +2612,7 @@ final class CameraManager {
             if camera.supportedVideoFormats.contains(ASI_IMG_RAW8) {
                 changeImageType(ASI_IMG_RAW8)
             }
-            changeCaptureROI(width: preset.roiWidth, height: preset.roiHeight)
+            changeCaptureROI(width: preset.roiWidth, height: preset.roiHeight, binning: preset.binning ?? 1)
 
             if let exposureSeconds = preset.exposureSeconds,
                let exposureCap = controlCap(ASI_EXPOSURE, in: controls), exposureCap.isWritable {
@@ -2681,7 +2702,8 @@ final class CameraManager {
             isSmartLiveStackEnabled: isSmartLiveStackEnabled,
             luckyBurstCount: nil,
             serDurationSeconds: nil,
-            selectedFilters: activeFilterSelections.isEmpty ? nil : activeFilterSelections
+            selectedFilters: activeFilterSelections.isEmpty ? nil : activeFilterSelections,
+            binning: captureBinning
         )
     }
 
@@ -3835,6 +3857,7 @@ final class CameraManager {
         captureROICenterY = nil
         captureROIAppliedStartX = nil
         captureROIAppliedStartY = nil
+        captureBinning = 1
         if isRecordingSERVideo { stopSERRecording() }
         cancelIPhoneNightModeCapture()
         isWebcamFocusLocked = false
