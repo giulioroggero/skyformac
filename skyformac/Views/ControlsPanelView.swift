@@ -2279,12 +2279,43 @@ struct ControlsPanelView: View {
     /// this app's own default (`ASI_GAIN = 5`, see `CameraManager.connect(to:)`) sits in, since
     /// dragging one pixel of slider width jumps several real gain steps there. `GainField` gives
     /// most of the slider's width to that 0...20 sub-range instead.
+    /// Known "sweet spot" gain values — per-model recommendations from real usage, not anything
+    /// derivable from the ASI SDK's own capability struct (which only reports min/max/default).
+    /// ZWO's ASI678MC/ASI678MM switch into their low-read-noise HCG (High Conversion Gain) mode at
+    /// gain 182 — the generally-recommended value for deep-sky imaging with this sensor. Matched
+    /// by a substring of the camera's own reported name (e.g. "ZWO ASI678MC") rather than an exact
+    /// match, so it still finds "678" regardless of the exact string the SDK reports. Extend this
+    /// table as more models' own recommended values become known.
+    private static let knownGainSweetSpots: [(modelSubstring: String, gain: Int)] = [
+        ("678", 182),
+    ]
+
+    /// `nil` when the connected camera isn't one of `knownGainSweetSpots`, or when its own
+    /// reported gain range doesn't even reach the known value (a model-name substring match
+    /// alone isn't proof the value is actually valid for *this* particular camera/mode).
+    private func gainSweetSpot(for cap: ZWOControlCaps) -> Int? {
+        guard let cameraName = cameraManager.connectedCamera?.name,
+              let match = Self.knownGainSweetSpots.first(where: { cameraName.localizedCaseInsensitiveContains($0.modelSubstring) }),
+              match.gain >= cap.minValue, match.gain <= cap.maxValue
+        else { return nil }
+        return match.gain
+    }
+
     @ViewBuilder
     private func gainRow(_ cap: ZWOControlCaps) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Gain")
                 HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.gain")
+                if cap.isWritable, let sweetSpot = gainSweetSpot(for: cap) {
+                    Spacer()
+                    Button("Sweet Spot (\(sweetSpot))") {
+                        cameraManager.setControlValue(cap.controlType, value: sweetSpot)
+                    }
+                    .font(.caption)
+                    .controlSize(.small)
+                    .help("Sets Gain to \(sweetSpot) — this camera's known low-read-noise \"sweet spot\" value.")
+                }
             }
             if cap.isWritable, cap.minValue < cap.maxValue {
                 GainField(
