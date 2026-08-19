@@ -248,8 +248,10 @@ struct OllamaPlanner: Sendable {
     /// final return value has that preamble already stripped; a caller showing partial text live
     /// (`AIDescribeSheet`) should simply replace it with the final value once this returns, the
     /// same way a chat UI shows a model "thinking" before swapping in its polished answer.
-    func summarize(context: String, onPartialResponse: (@Sendable (String) -> Void)? = nil) async throws -> String {
-        let text = try await generate(prompt: Self.summaryPrompt(context: context), onPartialResponse: onPartialResponse)
+    func summarize(context: String, extraInstructions: String = "", onPartialResponse: (@Sendable (String) -> Void)? = nil) async throws -> String {
+        let text = try await generate(
+            prompt: Self.summaryPrompt(context: context, extraInstructions: extraInstructions), onPartialResponse: onPartialResponse
+        )
         let stripped = Self.stripReasoningPreamble(from: text)
         guard !stripped.isEmpty else { throw OllamaError.emptySummary }
         return stripped
@@ -258,8 +260,10 @@ struct OllamaPlanner: Sendable {
     /// "Add tags can be helped by AI" — a handful of short, lowercase, single/double-word tags
     /// grounded in the same project/session context `summarize(context:)` uses, filtered against
     /// `existingTags` so the caller only ever sees genuinely new suggestions to add.
-    func suggestTags(context: String, existingTags: [String]) async throws -> [String] {
-        let text = try await generate(prompt: Self.suggestTagsPrompt(context: context, existingTags: existingTags))
+    func suggestTags(context: String, existingTags: [String], extraInstructions: String = "") async throws -> [String] {
+        let text = try await generate(
+            prompt: Self.suggestTagsPrompt(context: context, existingTags: existingTags, extraInstructions: extraInstructions)
+        )
         guard let json = Self.extractJSONArray(from: text) else { throw OllamaError.invalidPlanJSON }
         guard let decoded = try? JSONDecoder().decode([String].self, from: json) else { throw OllamaError.invalidPlanJSON }
         let existingLowercased = Set(existingTags.map { $0.lowercased() })
@@ -473,24 +477,26 @@ struct OllamaPlanner: Sendable {
         """
     }
 
-    private static func summaryPrompt(context: String) -> String {
+    private static func summaryPrompt(context: String, extraInstructions: String) -> String {
         """
         You are an assistant helping an amateur astronomer write a short, engaging description of \
         their observing project or session, grounded only in the facts given below — don't invent \
         details (equipment, dates, objects) that aren't in this data.
         \(context)
+        \(extraInstructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : "Additional instructions from the user: \(extraInstructions)\n")\
         Respond with a plain-text paragraph only — no JSON, no markdown formatting, no preamble like \
         "Here's a description:".
         """
     }
 
-    private static func suggestTagsPrompt(context: String, existingTags: [String]) -> String {
+    private static func suggestTagsPrompt(context: String, existingTags: [String], extraInstructions: String) -> String {
         """
         You are an assistant suggesting short organizational tags for an amateur astronomer's \
         observing project or session, grounded only in the facts given below — don't invent \
         details (equipment, dates, objects) that aren't in this data.
         \(context)
         \(existingTags.isEmpty ? "" : "Tags already applied (don't repeat these): \(existingTags.joined(separator: ", "))\n")\
+        \(extraInstructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : "Additional instructions from the user: \(extraInstructions)\n")\
         Suggest up to 5 new tags — short, lowercase, one or two words each (e.g. "deep-sky", \
         "planetary", "widefield", "moonless-night").
         Respond with ONLY a JSON array of strings, no other text, e.g. ["deep-sky", "widefield"]

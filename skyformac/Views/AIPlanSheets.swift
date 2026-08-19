@@ -13,6 +13,7 @@ struct AIPlanProjectSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var goalText: String
+    @State private var extraInstructions = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var suggestion: OllamaPlanner.ProjectPlanSuggestion?
@@ -42,6 +43,13 @@ struct AIPlanProjectSheet: View {
             TextField("Goal", text: $goalText, prompt: Text("e.g. the nicest Messier objects visible in August from Orta San Giulio"), axis: .vertical)
                 .lineLimit(3...8)
                 .disabled(pendingQuestion != nil)
+            if pendingQuestion == nil, suggestion == nil {
+                TextField(
+                    "Additional instructions (optional)", text: $extraInstructions,
+                    prompt: Text("e.g. no more than 3 sessions, prefer widefield targets"), axis: .vertical
+                )
+                .lineLimit(2...5)
+            }
 
             if isLoading {
                 ProgressView("Asking Ollama…")
@@ -89,7 +97,7 @@ struct AIPlanProjectSheet: View {
             }
         }
         .padding()
-        .frame(width: 440, height: 440)
+        .frame(width: 440, height: 470)
     }
 
     private func ask() async {
@@ -135,6 +143,10 @@ struct AIPlanProjectSheet: View {
             lines.append("Observing location: \(location.displayName).")
         }
         lines.append("Today's date: \(Date().formatted(date: .long, time: .omitted)).")
+        let trimmedInstructions = extraInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedInstructions.isEmpty {
+            lines.append("Additional instructions from the user: \(trimmedInstructions).")
+        }
         if !accumulatedContext.isEmpty {
             lines.append(accumulatedContext)
         }
@@ -165,6 +177,7 @@ struct AIPlanSessionSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var goalText: String
+    @State private var extraInstructions = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var suggestion: OllamaPlanner.SessionPlanSuggestion?
@@ -181,6 +194,11 @@ struct AIPlanSessionSheet: View {
             Text("Ask AI to Plan This Session").font(.headline)
             TextField("Goal", text: $goalText, prompt: Text("e.g. see M13, M57, Saturn"), axis: .vertical)
                 .lineLimit(3...8)
+            TextField(
+                "Additional instructions (optional)", text: $extraInstructions,
+                prompt: Text("e.g. keep total time under 2 hours"), axis: .vertical
+            )
+            .lineLimit(2...5)
 
             if isLoading {
                 ProgressView("Asking Ollama…")
@@ -207,7 +225,7 @@ struct AIPlanSessionSheet: View {
             }
         }
         .padding()
-        .frame(width: 380, height: 340)
+        .frame(width: 380, height: 380)
     }
 
     private func ask() async {
@@ -215,7 +233,7 @@ struct AIPlanSessionSheet: View {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            suggestion = try await cameraManager.ollamaPlanner.planSession(goal: goalText)
+            suggestion = try await cameraManager.ollamaPlanner.planSession(goal: goalText, notes: extraInstructions)
         } catch let error as OllamaError {
             AppLog.shared.log("Ask AI to Plan: \(error.userFacingMessage)")
             errorMessage = error.userFacingMessage
@@ -251,6 +269,7 @@ struct AIDescribeSheet: View {
     var onAddNote: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
+    @State private var extraInstructions = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var generatedText = ""
@@ -262,6 +281,17 @@ struct AIDescribeSheet: View {
             Text("Writes a description grounded in what this actually planned and captured — nothing invented.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            // Asked for up front, before the first request fires, rather than auto-generating the
+            // instant the sheet opens — a chance to steer tone/length/emphasis ("keep it to one
+            // sentence," "mention the seeing conditions") without having to Regenerate blind.
+            if !hasGenerated, !isLoading {
+                TextField(
+                    "Additional instructions (optional)", text: $extraInstructions,
+                    prompt: Text("e.g. keep it to one sentence, focus on the challenges"), axis: .vertical
+                )
+                .lineLimit(2...5)
+            }
 
             if isLoading, generatedText.isEmpty {
                 // Nothing streamed in yet — still waiting on the first chunk (model load, or a
@@ -303,7 +333,6 @@ struct AIDescribeSheet: View {
         }
         .padding()
         .frame(width: 460, height: 360)
-        .task { await generate() }
     }
 
     private func generate() async {
@@ -313,7 +342,7 @@ struct AIDescribeSheet: View {
         hasGenerated = false
         defer { isLoading = false }
         do {
-            let final = try await cameraManager.ollamaPlanner.summarize(context: context) { partial in
+            let final = try await cameraManager.ollamaPlanner.summarize(context: context, extraInstructions: extraInstructions) { partial in
                 Task { @MainActor in generatedText = partial }
             }
             generatedText = final
@@ -339,6 +368,7 @@ struct AISuggestTagsSheet: View {
     var onAddTags: ([String]) -> Void
     @Environment(\.dismiss) private var dismiss
 
+    @State private var extraInstructions = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var suggestions: [String] = []
@@ -351,6 +381,14 @@ struct AISuggestTagsSheet: View {
             Text("Suggests tags grounded in what this actually planned and captured — pick which ones to add.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            if !hasGenerated, !isLoading {
+                TextField(
+                    "Additional instructions (optional)", text: $extraInstructions,
+                    prompt: Text("e.g. favor equipment/technique tags over target names"), axis: .vertical
+                )
+                .lineLimit(2...5)
+            }
 
             if isLoading {
                 ProgressView("Asking Ollama…")
@@ -388,7 +426,6 @@ struct AISuggestTagsSheet: View {
         }
         .padding()
         .frame(width: 380, height: 320)
-        .task { await generate() }
     }
 
     private func generate() async {
@@ -399,7 +436,9 @@ struct AISuggestTagsSheet: View {
         hasGenerated = false
         defer { isLoading = false }
         do {
-            suggestions = try await cameraManager.ollamaPlanner.suggestTags(context: context, existingTags: existingTags)
+            suggestions = try await cameraManager.ollamaPlanner.suggestTags(
+                context: context, existingTags: existingTags, extraInstructions: extraInstructions
+            )
             selected = Set(suggestions)
             hasGenerated = true
         } catch let error as OllamaError {
