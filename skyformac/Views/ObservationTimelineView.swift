@@ -31,7 +31,7 @@ struct ObservationTimelineView: View {
     @State private var pixelsPerHour: Double
 
     private static let thumbnailSize: CGFloat = 72
-    private static let laneHeight: CGFloat = thumbnailSize + 76
+    private static let laneHeight: CGFloat = thumbnailSize + 88
     /// The whole date range is scaled to roughly this many points wide at the default zoom — wide
     /// enough to read as a real timeline without opening already fully zoomed in.
     private static let targetInitialWidth: CGFloat = 1400
@@ -102,7 +102,10 @@ struct ObservationTimelineView: View {
     private var zoomControl: some View {
         HStack {
             Text("Zoom").font(.caption)
-            Slider(value: $pixelsPerHour, in: (defaultPixelsPerHour * 0.05)...(defaultPixelsPerHour * 40))
+            // Upper bound is 4x what it used to be (40x default → 160x, a 300% increase) — the
+            // original max zoom still wasn't enough to separate captures taken close together
+            // within one session without a lot of scrolling.
+            Slider(value: $pixelsPerHour, in: (defaultPixelsPerHour * 0.05)...(defaultPixelsPerHour * 160))
             if pixelsPerHour != defaultPixelsPerHour {
                 Button("Reset") { pixelsPerHour = defaultPixelsPerHour }
                     .font(.caption)
@@ -158,8 +161,14 @@ struct ObservationTimelineView: View {
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
             .clipped()
 
-            Text(entry.capture.date.formatted(.dateTime.month(.abbreviated).day()))
-                .font(.system(size: 9))
+            if let object = entry.capture.object, !object.isEmpty {
+                Text(object)
+                    .font(.system(size: 9, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Text(entry.capture.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                .font(.system(size: 8))
                 .foregroundStyle(.secondary)
         }
         .frame(width: Self.thumbnailSize + 16)
