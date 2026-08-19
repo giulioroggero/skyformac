@@ -12,6 +12,14 @@ struct CalibrationFrame: Identifiable, Sendable {
     let frame: CapturedFrame
     let capturedAt: Date
     let exposureMicroseconds: Int
+    /// `ASI_GAIN`'s value at the moment this frame was captured — `nil` for a webcam/iPhone
+    /// source (no such control) or if it couldn't be read. Matched against the live `ASI_GAIN`
+    /// value at apply time (`CameraManager.darkFrameMismatchWarning`) — thermal/read noise is
+    /// gain-dependent, so a dark captured at a different gain than what's currently running won't
+    /// fully cancel the noise it's meant to, and unlike exposure this was previously tracked
+    /// nowhere at all (implicitly "whatever gain happened to be set" with no record of what that
+    /// was).
+    let gain: Int?
 
     /// Mean pixel value of `frame`, computed once here rather than by `FlatFieldCorrector` on
     /// every single live frame — a flat frame is static once captured, so recomputing its mean
@@ -21,11 +29,12 @@ struct CalibrationFrame: Identifiable, Sendable {
     /// for darks too rather than making it optional.
     let meanBrightness: Double
 
-    init(name: String, frame: CapturedFrame, capturedAt: Date, exposureMicroseconds: Int) {
+    init(name: String, frame: CapturedFrame, capturedAt: Date, exposureMicroseconds: Int, gain: Int? = nil) {
         self.name = name
         self.frame = frame
         self.capturedAt = capturedAt
         self.exposureMicroseconds = exposureMicroseconds
+        self.gain = gain
         self.meanBrightness = CalibrationFrame.computeMeanBrightness(of: frame)
     }
 
@@ -70,10 +79,10 @@ final class CalibrationLibrary {
     var activeFlat: CalibrationFrame? { flatFrames.first { $0.id == activeFlatID } }
 
     @discardableResult
-    func addDark(_ frame: CapturedFrame, exposureMicroseconds: Int, name: String? = nil) -> CalibrationFrame {
+    func addDark(_ frame: CapturedFrame, exposureMicroseconds: Int, gain: Int? = nil, name: String? = nil) -> CalibrationFrame {
         let entry = CalibrationFrame(
             name: name ?? "Dark \(darkFrames.count + 1) (\(String(format: "%.2f", Double(exposureMicroseconds) / 1_000_000))s)",
-            frame: frame, capturedAt: Date(), exposureMicroseconds: exposureMicroseconds
+            frame: frame, capturedAt: Date(), exposureMicroseconds: exposureMicroseconds, gain: gain
         )
         darkFrames.append(entry)
         if activeDarkID == nil { activeDarkID = entry.id }
@@ -81,10 +90,10 @@ final class CalibrationLibrary {
     }
 
     @discardableResult
-    func addFlat(_ frame: CapturedFrame, exposureMicroseconds: Int, name: String? = nil) -> CalibrationFrame {
+    func addFlat(_ frame: CapturedFrame, exposureMicroseconds: Int, gain: Int? = nil, name: String? = nil) -> CalibrationFrame {
         let entry = CalibrationFrame(
             name: name ?? "Flat \(flatFrames.count + 1)",
-            frame: frame, capturedAt: Date(), exposureMicroseconds: exposureMicroseconds
+            frame: frame, capturedAt: Date(), exposureMicroseconds: exposureMicroseconds, gain: gain
         )
         flatFrames.append(entry)
         if activeFlatID == nil { activeFlatID = entry.id }

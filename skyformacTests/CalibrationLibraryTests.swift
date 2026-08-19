@@ -7,6 +7,19 @@ struct CalibrationLibraryTests {
         CapturedFrame(width: 2, height: 2, imageType: ASI_IMG_RAW8, data: Data([1, 2, 3, 4]))
     }
 
+    @Test func addDarkStoresGainAlongsideExposure() {
+        let library = CalibrationLibrary()
+        let entry = library.addDark(frame(), exposureMicroseconds: 1_000_000, gain: 182)
+        #expect(entry.gain == 182)
+        #expect(library.activeDark?.gain == 182)
+    }
+
+    @Test func addDarkDefaultsGainToNilWhenNotProvided() {
+        let library = CalibrationLibrary()
+        let entry = library.addDark(frame(), exposureMicroseconds: 1_000_000)
+        #expect(entry.gain == nil)
+    }
+
     @Test func firstAddedDarkBecomesActiveAutomatically() {
         let library = CalibrationLibrary()
         let entry = library.addDark(frame(), exposureMicroseconds: 1_000_000)

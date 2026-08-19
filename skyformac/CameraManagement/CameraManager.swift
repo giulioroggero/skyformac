@@ -1145,6 +1145,44 @@ final class CameraManager {
     var darkFrame: CapturedFrame? { calibrationLibrary.activeDark?.frame }
     var flatFrame: CapturedFrame? { calibrationLibrary.activeFlat?.frame }
 
+    /// `nil` when dark subtraction is off, no dark is active, or the active dark's own
+    /// exposure/gain both match the camera's current live `ASI_EXPOSURE`/`ASI_GAIN` values (the
+    /// ones actually driving the continuous video stream live stacking accumulates — not the
+    /// separate "Single Exposure" field). Non-`nil` explains exactly what differs. Purely
+    /// informational — `applyDarkSubtraction` still subtracts the active dark either way (a
+    /// same-dimension dark captured at the wrong gain/exposure still removes *some* fixed-pattern
+    /// noise, just not all of it) — but a mismatch was previously silent: dial in a fresh gain
+    /// for tonight's target after capturing darks yesterday at a different one, and the app would
+    /// keep subtracting the stale dark with no indication it no longer fully cancels the sensor's
+    /// current thermal/read noise.
+    /// The live `ASI_EXPOSURE` control's current value, in seconds — `nil` for a webcam/iPhone
+    /// source or before it's ever been read. What "Match Live" (next to the dark-frame capture
+    /// field) copies into the capture-exposure field, since that's the value a dark actually
+    /// needs to match — not the separate "Single Exposure" field, which drives a different,
+    /// independent blocking capture.
+    var currentLiveExposureSeconds: Double? {
+        guard let exposureCap = controlCap(ASI_EXPOSURE, in: controls), let microseconds = controlValues[exposureCap.id]?.value
+        else { return nil }
+        return Double(microseconds) / 1_000_000
+    }
+
+    var darkFrameMismatchWarning: String? {
+        guard isDarkSubtractionEnabled, let dark = calibrationLibrary.activeDark else { return nil }
+        var mismatches: [String] = []
+        if let exposureCap = controlCap(ASI_EXPOSURE, in: controls), let liveMicroseconds = controlValues[exposureCap.id]?.value,
+           liveMicroseconds != dark.exposureMicroseconds {
+            let darkSeconds = String(format: "%.2f", Double(dark.exposureMicroseconds) / 1_000_000)
+            let liveSeconds = String(format: "%.2f", Double(liveMicroseconds) / 1_000_000)
+            mismatches.append("exposure (dark: \(darkSeconds)s, live: \(liveSeconds)s)")
+        }
+        if let gainCap = controlCap(ASI_GAIN, in: controls), let liveGain = controlValues[gainCap.id]?.value,
+           let darkGain = dark.gain, liveGain != darkGain {
+            mismatches.append("gain (dark: \(darkGain), live: \(liveGain))")
+        }
+        guard !mismatches.isEmpty else { return nil }
+        return "Active dark doesn't match current live settings — \(mismatches.joined(separator: ", ")). It'll still be subtracted, but won't fully cancel sensor noise until you capture a new one at these settings."
+    }
+
     // MARK: - Live stacking (unaligned running average)
     //
     // Two accumulators, exactly one of which is live at a time depending on `useMetalRenderer`:
@@ -3160,7 +3198,8 @@ final class CameraManager {
             let frame = try await engine.captureSingleExposure(
                 imageType: selectedImageType, exposureMicroseconds: exposureMicroseconds, isDark: true
             )
-            calibrationLibrary.addDark(frame, exposureMicroseconds: exposureMicroseconds)
+            let gain = controlCap(ASI_GAIN, in: controls).flatMap { controlValues[$0.id]?.value }
+            calibrationLibrary.addDark(frame, exposureMicroseconds: exposureMicroseconds, gain: gain)
             connectionState = .connected
         } catch {
             lastErrorMessage = String(describing: error)
@@ -3187,7 +3226,8 @@ final class CameraManager {
             let frame = try await engine.captureSingleExposure(
                 imageType: selectedImageType, exposureMicroseconds: exposureMicroseconds
             )
-            calibrationLibrary.addFlat(frame, exposureMicroseconds: exposureMicroseconds)
+            let gain = controlCap(ASI_GAIN, in: controls).flatMap { controlValues[$0.id]?.value }
+            calibrationLibrary.addFlat(frame, exposureMicroseconds: exposureMicroseconds, gain: gain)
             connectionState = .connected
         } catch {
             lastErrorMessage = String(describing: error)

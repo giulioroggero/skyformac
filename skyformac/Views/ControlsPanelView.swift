@@ -1519,8 +1519,16 @@ struct ControlsPanelView: View {
                     get: { cameraManager.isDarkSubtractionEnabled },
                     set: { cameraManager.isDarkSubtractionEnabled = $0 }
                 ),
-                enabledLabel: "Subtract Active Dark"
+                enabledLabel: "Subtract Active Dark",
+                matchLiveExposure: cameraManager.currentLiveExposureSeconds.map { liveSeconds in
+                    { darkFrameSeconds = liveSeconds }
+                }
             )
+            if let warning = cameraManager.darkFrameMismatchWarning {
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
 
             Divider()
 
@@ -1557,13 +1565,22 @@ struct ControlsPanelView: View {
         onRemove: @escaping (UUID) -> Void,
         onClearAll: @escaping () -> Void,
         isEnabled: Binding<Bool>,
-        enabledLabel: String
+        enabledLabel: String,
+        matchLiveExposure: (() -> Void)? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption.bold())
             Text(helpText).font(.caption2).foregroundStyle(.secondary)
 
-            ExposureField(seconds: seconds)
+            HStack {
+                ExposureField(seconds: seconds)
+                if let matchLiveExposure {
+                    Button("Match Live") { matchLiveExposure() }
+                        .font(.caption)
+                        .controlSize(.small)
+                        .help("Copies the live view's current exposure into this field — the value that actually needs to match for this dark to fully cancel sensor noise, not the separate \"Single Exposure\" setting.")
+                }
+            }
             HStack {
                 Button(captureLabel) { Task { await onCapture() } }
                     .disabled(cameraManager.isCapturingExposure)
