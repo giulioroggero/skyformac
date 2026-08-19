@@ -849,6 +849,10 @@ final class CameraManager {
     /// actually improves underneath. Every 5s is fast enough to feel responsive without recomputing
     /// a histogram (and, on the GPU path, reading the accumulator back to the CPU) every frame.
     private static let liveStackAutoStretchInterval: TimeInterval = 5
+    /// Guards against overlapping restretch work — the histogram/channel-histogram passes below
+    /// run detached (see the doc comment where this is used), so a slow one still running when
+    /// the next 5-second interval elapses just gets skipped rather than queuing up a second one.
+    private var liveStackAutoStretchTask: Task<Void, Never>?
 
     /// `true` while continuously polling video frames; `false` while showing a still frame
     /// from `captureSingleExposure`.
@@ -1255,53 +1259,63 @@ final class CameraManager {
     /// CPU-accumulation branch, so `smartStackSkipsCurrentFrame` is up to date before either the
     /// CPU path reads it directly or `MetalPreviewView` reads it (via `effectiveLiveStackPaused`)
     /// for the GPU path.
+    /// The bucket-index-of-the-max-count, as a 0...1 fraction — `nonisolated` so
+    /// `applyLiveStackAutoStretch`'s detached task (see `ingest()`) can call it without hopping
+    /// back to the main actor; it's a pure function over a plain `[Int]`, nothing about it needs
+    /// `CameraManager`'s own state.
+    nonisolated private static func peakFraction(_ histogram: [Int]) -> Float {
+        let bucket = histogram.indices.max { histogram[$0] < histogram[$1] } ?? 0
+        return Float(bucket) / Float(histogram.count - 1)
+    }
+
     /// "Dynamic Auto-Stretching" (spec step 5) — the actual fix for "stacking doesn't visibly
     /// brighten": re-derives `gpuControls`' non-linear arcsinh stretch from the *stack's own*
     /// current histogram, on the same rate-limited cadence as the base linear `stretch`'s own
-    /// auto-restretch just above. Requires `gpuControls.isEnabled` (the arcsinh stage only runs
-    /// at all when Live GPU Controls are on) — this only ever adjusts its *parameters*, never
-    /// flips that switch on by itself, matching every other feature here that stops at "adjust a
-    /// setting the user already opted into" rather than silently enabling a whole other panel.
-    private func updateContinuousLiveStackAutoStretch(stackedFrame: CapturedFrame) {
-        guard gpuControls.isEnabled else { return }
-        let histogram = HistogramComputer.histogram(for: stackedFrame)
-        if let result = LiveStackDynamicStretch.compute(
-            histogram: histogram, aggressiveness: liveStackStretchAggressiveness,
-            blackPointOffset: liveStackAutoBlackPointOffset
-        ) {
-            gpuControls.blackPoint = result.blackPoint
-            gpuControls.whitePoint = result.whitePoint
-            gpuControls.stretchIntensity = result.stretchIntensity
+    /// auto-restretch. Requires `gpuControls.isEnabled` (the arcsinh stage only runs at all when
+    /// Live GPU Controls are on) — this only ever adjusts its *parameters*, never flips that
+    /// switch on by itself, matching every other feature here that stops at "adjust a setting the
+    /// user already opted into" rather than silently enabling a whole other panel.
+    ///
+    /// Called from `ingest()`'s detached restretch task with results already computed off the
+    /// main actor (the histogram passes are the expensive part — see that call site's doc
+    /// comment) — this just applies them. `channelPeaks` mirrors "Auto Color Balance: Aligns the
+    /// peaks of the R, G, and B histograms," shifting each channel's own black point (in the base
+    /// per-channel stretch, not the single-channel arcsinh stage above) so their backgrounds line
+    /// up instead of, say, a light-polluted sky's characteristic orange cast leaving red's peak
+    /// well right of blue's. Green is the reference channel (a Bayer sensor has twice as many
+    /// green photosites, so it's already the least noisy estimate) — red/blue's black points
+    /// shift by however far their own peak sits from green's.
+    private func applyLiveStackAutoStretch(
+        auto: DisplayStretch?, dynamicResult: LiveStackDynamicStretch.Result?, channelPeaks: (red: Float, green: Float, blue: Float)?
+    ) {
+        if let auto {
+            stretch = auto
         }
-
-        // "Auto Color Balance: Aligns the peaks of the R, G, and B histograms" — shifts each
-        // channel's own black point (in the base per-channel stretch, not the single-channel
-        // arcsinh stage above) so their backgrounds line up instead of, say, a light-polluted
-        // sky's characteristic orange cast leaving red's peak well right of blue's.
-        guard isLiveStackAutoColorBalanceEnabled, let camera = connectedCamera, camera.isColorCamera,
-              let channels = HistogramComputer.channelHistograms(for: stackedFrame, isColorCamera: true, bayerPattern: camera.bayerPattern)
-        else { return }
-        func peak(_ histogram: [Int]) -> Float {
-            let bucket = histogram.indices.max { histogram[$0] < histogram[$1] } ?? 0
-            return Float(bucket) / Float(histogram.count - 1)
+        if let dynamicResult {
+            gpuControls.blackPoint = dynamicResult.blackPoint
+            gpuControls.whitePoint = dynamicResult.whitePoint
+            gpuControls.stretchIntensity = dynamicResult.stretchIntensity
         }
-        let redPeak = peak(channels.red)
-        let greenPeak = peak(channels.green)
-        let bluePeak = peak(channels.blue)
-        // Green is the reference channel (a Bayer sensor has twice as many green photosites, so
-        // it's already the least noisy estimate) — red/blue's black points shift by however far
-        // their own peak sits from green's, pulling all three backgrounds to the same level.
-        let current = effectiveChannelStretch
-        // `effectiveChannelStretch` ignores `channelStretch` entirely while independent-channel
-        // mode is off, which would make writing it below silently do nothing — this is the one
-        // deliberate case where Auto Color Balance turns that mode on by itself, since there's no
-        // other way to actually apply a per-channel correction.
-        isIndependentChannelStretchEnabled = true
-        channelStretch = PerChannelStretch(
-            red: DisplayStretch(blackPoint: Double(max(current.red.blackPoint + Double(redPeak - greenPeak), 0)), whitePoint: current.red.whitePoint),
-            green: current.green,
-            blue: DisplayStretch(blackPoint: Double(max(current.blue.blackPoint + Double(bluePeak - greenPeak), 0)), whitePoint: current.blue.whitePoint)
-        )
+        if let channelPeaks {
+            let current = effectiveChannelStretch
+            // `effectiveChannelStretch` ignores `channelStretch` entirely while independent-
+            // channel mode is off, which would make writing it below silently do nothing — this
+            // is the one deliberate case where Auto Color Balance turns that mode on by itself,
+            // since there's no other way to actually apply a per-channel correction.
+            isIndependentChannelStretchEnabled = true
+            channelStretch = PerChannelStretch(
+                red: DisplayStretch(
+                    blackPoint: Double(max(current.red.blackPoint + Double(channelPeaks.red - channelPeaks.green), 0)),
+                    whitePoint: current.red.whitePoint
+                ),
+                green: current.green,
+                blue: DisplayStretch(
+                    blackPoint: Double(max(current.blue.blackPoint + Double(channelPeaks.blue - channelPeaks.green), 0)),
+                    whitePoint: current.blue.whitePoint
+                )
+            )
+        }
+        liveStackAutoStretchTask = nil
     }
 
     /// Throttles `updateLiveStackSigmaClippingKappaSigma`'s full-frame histogram scan to once
@@ -2846,7 +2860,7 @@ final class CameraManager {
             currentFrame = processed
         }
 
-        if isLiveStackingEnabled, !effectiveLiveStackPaused {
+        if isLiveStackingEnabled, !effectiveLiveStackPaused, liveStackAutoStretchTask == nil {
             let restretchNow = Date()
             if lastLiveStackAutoStretchDate == nil
                 || restretchNow.timeIntervalSince(lastLiveStackAutoStretchDate!) >= Self.liveStackAutoStretchInterval {
@@ -2854,13 +2868,44 @@ final class CameraManager {
                 // The averaged frame, not the raw one just ingested — on the CPU path `currentFrame`
                 // already is that average (see just above); on the GPU path the accumulation lives
                 // entirely inside `MetalFrameRenderer`, reachable only via the same
-                // `gpuAccumulatedFrameProvider` readback `frameForExport()` uses.
-                let stackedFrame = usesCPUStack ? currentFrame : gpuAccumulatedFrameProvider?(selectedImageType)
-                if let stackedFrame, let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: stackedFrame)) {
-                    stretch = auto
-                }
-                if let stackedFrame, isLiveStackAutoStretchContinuous {
-                    updateContinuousLiveStackAutoStretch(stackedFrame: stackedFrame)
+                // `gpuAccumulatedFrameProvider` readback `frameForExport()` uses. This one texture
+                // readback stays on the main actor (a single `getBytes` + format pass, not the
+                // expensive part) — everything that follows is plain CPU work on the resulting
+                // `CapturedFrame` value, with no actor affinity, so it's safe to detach.
+                if let stackedFrame = usesCPUStack ? currentFrame : gpuAccumulatedFrameProvider?(selectedImageType) {
+                    let isContinuous = isLiveStackAutoStretchContinuous
+                    let isGPUControlsEnabled = gpuControls.isEnabled
+                    let isAutoColorBalanceEnabled = isLiveStackAutoColorBalanceEnabled
+                    let isColorCamera = connectedCamera?.isColorCamera ?? false
+                    let bayerPattern = connectedCamera?.bayerPattern ?? ASI_BAYER_RG
+                    let aggressiveness = liveStackStretchAggressiveness
+                    let blackPointOffset = liveStackAutoBlackPointOffset
+                    // Up to 4 full-frame CPU passes (the base histogram, the dynamic-stretch
+                    // histogram, and — worst case — both a mono and a per-channel histogram for
+                    // Auto Color Balance) plus, on a real astro sensor, several megapixels each:
+                    // this was previously all synchronous on `@MainActor`, once every 5 seconds,
+                    // for as long as Live Stack ran — a real periodic multi-second beachball
+                    // ("every time it cycles the cursor goes into wait"), not a one-off. Detached
+                    // so it can take however long it needs without blocking the run loop.
+                    liveStackAutoStretchTask = Task.detached(priority: .utility) { [weak self] in
+                        let histogram = HistogramComputer.histogram(for: stackedFrame)
+                        let auto = DisplayStretch.autoStretch(histogram: histogram)
+
+                        var dynamicResult: LiveStackDynamicStretch.Result?
+                        var channelPeaks: (red: Float, green: Float, blue: Float)?
+                        if isContinuous, isGPUControlsEnabled {
+                            dynamicResult = LiveStackDynamicStretch.compute(
+                                histogram: histogram, aggressiveness: aggressiveness, blackPointOffset: blackPointOffset
+                            )
+                            if isAutoColorBalanceEnabled, isColorCamera,
+                               let channels = HistogramComputer.channelHistograms(for: stackedFrame, isColorCamera: true, bayerPattern: bayerPattern) {
+                                channelPeaks = (
+                                    Self.peakFraction(channels.red), Self.peakFraction(channels.green), Self.peakFraction(channels.blue)
+                                )
+                            }
+                        }
+                        await self?.applyLiveStackAutoStretch(auto: auto, dynamicResult: dynamicResult, channelPeaks: channelPeaks)
+                    }
                 }
             }
         }
