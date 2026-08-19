@@ -238,6 +238,9 @@ struct ProjectsBrowserView: View {
                 ProjectDetailPane(
                     project: project, cameraManager: cameraManager,
                     onShowSessionHistory: { session in path.append(.sessionHistory(projectID, session.id)) },
+                    onSelectCapture: { session, capture in
+                        path.append(contentsOf: [.sessionHistory(projectID, session.id), .capture(projectID, session.id, capture.id)])
+                    },
                     onBack: { path.removeLast() },
                     onHome: { path.removeAll() },
                     onProjectDeleted: { path.removeAll() },
