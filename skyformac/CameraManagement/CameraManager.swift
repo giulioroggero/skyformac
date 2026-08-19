@@ -858,6 +858,23 @@ final class CameraManager {
     /// from `captureSingleExposure`.
     private(set) var isLiveViewActive = true
     private(set) var isCapturingExposure = false
+    /// When the live-view frame currently exposing started — `nil` whenever there's nothing
+    /// worth counting down (no camera, a blocking single/dark/flat capture is running instead,
+    /// or the exposure is short enough that a countdown would just flicker uselessly). Reset to
+    /// "now" every time a real frame actually arrives (`ingest(_:)`), since in continuous
+    /// streaming mode that's also the moment the camera's own internal exposure/readout cycle
+    /// starts again for the next one — `ASIGetVideoData` blocks until the *current* exposure
+    /// finishes, so "time since the last frame arrived" is exactly "time into the next exposure."
+    private(set) var liveViewFrameStartDate: Date?
+    /// How long the just-started live-view exposure is expected to take — a snapshot of
+    /// `currentLiveExposureSeconds` taken alongside `liveViewFrameStartDate`, not read live by the
+    /// UI each tick, so a mid-exposure change to the exposure control doesn't retroactively
+    /// misdate a countdown already in progress.
+    private(set) var liveViewFrameExpectedDuration: Double?
+    /// Below this, a countdown would tick faster than it's readable and just adds visual noise at
+    /// normal fast live-view frame rates — the whole point is surfacing a wait actually worth
+    /// knowing about.
+    private static let liveViewCountdownMinimumDuration: Double = 0.75
     /// Wall-clock start time + requested length of whichever exposure is currently running
     /// (`captureSingleExposure`/`captureDarkFrame`/`captureFlatFrame` all set these alongside
     /// `isCapturingExposure`) — lets the UI show a real countdown instead of only an
@@ -2855,6 +2872,18 @@ final class CameraManager {
     /// stacking — all operating on raw sensor data, before `refreshCurrentImage` debayers and
     /// stretches whatever `currentFrame` ends up being for on-screen display.
     private func ingest(_ rawFrame: CapturedFrame) async {
+        // A real frame just arrived — in continuous streaming mode that's also exactly when the
+        // camera's own internal cycle starts exposing the next one (see `liveViewFrameStartDate`'s
+        // doc comment), so this is the reset point for "time until the next frame" countdown.
+        if !isCapturingExposure, let liveExposure = currentLiveExposureSeconds,
+           liveExposure >= Self.liveViewCountdownMinimumDuration {
+            liveViewFrameStartDate = Date()
+            liveViewFrameExpectedDuration = liveExposure
+        } else {
+            liveViewFrameStartDate = nil
+            liveViewFrameExpectedDuration = nil
+        }
+
         var processed = await applyDarkSubtraction(rawFrame)
 
         if pendingAutoStretch {
@@ -3898,6 +3927,8 @@ final class CameraManager {
         captureROIAppliedStartX = nil
         captureROIAppliedStartY = nil
         captureBinning = 1
+        liveViewFrameStartDate = nil
+        liveViewFrameExpectedDuration = nil
         if isRecordingSERVideo { stopSERRecording() }
         cancelIPhoneNightModeCapture()
         isWebcamFocusLocked = false

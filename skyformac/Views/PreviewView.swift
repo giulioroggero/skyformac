@@ -89,6 +89,7 @@ struct PreviewView: View {
             .overlay(alignment: .bottomLeading) { zoomBadge.colorMultiply(nightTint) }
             .overlay(alignment: .topTrailing) { cornerControls.colorMultiply(nightTint) }
             .overlay(alignment: .top) { exposureCountdownBadge.colorMultiply(nightTint) }
+            .overlay(alignment: .top) { liveViewCountdownBadge.colorMultiply(nightTint) }
             .overlay(alignment: .bottom) { zoomControlBar.colorMultiply(nightTint) }
             .onExitCommand { onExitFullScreen?() }
             .onChange(of: cameraManager.captureFeedbackTrigger) {
@@ -363,6 +364,37 @@ struct PreviewView: View {
                     .padding(.vertical, 6)
                     .background(.black.opacity(0.55), in: Capsule())
                     .foregroundStyle(.white)
+            }
+            .padding(.top, 10)
+        }
+    }
+
+    /// A "next frame in Xs" indicator for continuous live-view streaming with a long exposure set
+    /// (e.g. 5s) — distinct from `exposureCountdownBadge` above (a one-shot blocking capture):
+    /// this is a recurring cadence, so it uses a lighter/secondary visual treatment (a thin
+    /// progress ring, not a bold capsule) to read as "the view refreshes periodically" rather
+    /// than "something is blocked." Mutually exclusive with `exposureCountdownBadge` in practice
+    /// (`CameraManager.liveViewFrameStartDate` is only set while `!isCapturingExposure`), so both
+    /// safely share the same `.overlay(alignment: .top)` slot.
+    @ViewBuilder
+    private var liveViewCountdownBadge: some View {
+        if let start = cameraManager.liveViewFrameStartDate,
+           let duration = cameraManager.liveViewFrameExpectedDuration {
+            TimelineView(.periodic(from: start, by: 0.1)) { context in
+                let elapsed = context.date.timeIntervalSince(start)
+                let remaining = max(0, duration - elapsed)
+                HStack(spacing: 6) {
+                    ProgressView(value: min(elapsed / duration, 1))
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                        .tint(.white)
+                    Text(String(format: "Next frame in %.1fs", remaining))
+                        .font(.caption.monospacedDigit())
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.black.opacity(0.4), in: Capsule())
+                .foregroundStyle(.white.opacity(0.85))
             }
             .padding(.top, 10)
         }
