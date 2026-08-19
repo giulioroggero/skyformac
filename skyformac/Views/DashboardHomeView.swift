@@ -105,20 +105,7 @@ struct DashboardHomeView: View {
             suggestedSession = await cameraManager.fetchSuggestedNextSession()
         }
         .toolbar {
-            // Only shown when the assistant isn't already sitting in the sidebar — the panel's
-            // own "Close"/"Detach"/"Minimize" controls are otherwise the only way back, and none
-            // of those are reachable once the panel itself is gone.
-            if !cameraManager.isAssistantPanelVisible || cameraManager.isAssistantDetached || cameraManager.isAssistantMinimized {
-                ToolbarItem {
-                    Button("Open Assistant", systemImage: "bubble.left.and.bubble.right") {
-                        cameraManager.isAssistantPanelVisible = true
-                        cameraManager.isAssistantDetached = false
-                        cameraManager.isAssistantMinimized = false
-                    }
-                    .accessibilityIdentifier("DashboardOpenAssistantToolbarButton")
-                    .help("Open the AI assistant in the sidebar")
-                }
-            }
+            OpenAssistantToolbarItem(cameraManager: cameraManager)
             ToolbarItem {
                 Button("Settings…", systemImage: "gearshape", action: onShowSettings)
                     .accessibilityIdentifier("DashboardSettingsToolbarButton")

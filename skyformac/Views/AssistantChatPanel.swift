@@ -6,6 +6,37 @@ import SwiftUI
 /// so it's the same one panel/conversation regardless of where the user is, not a separate chat
 /// per page. Any proposed change (`CameraManager.assistantPendingAction`) always shows its own
 /// Approve/Reject card rather than being applied the moment the model suggests it.
+/// "The AI button must be visible not only in Home's top bar, but on every page" — one shared
+/// `ToolbarContent` used from `DashboardHomeView`, `ContentView`, `ProjectDetailPane`,
+/// `SessionDetailPane`, and `CaptureDetailPage`, instead of copy-pasting the same visibility
+/// condition and action five times. Only shown when the assistant isn't already sitting
+/// somewhere reachable — the panel's own "Close"/"Detach"/"Minimize" controls are otherwise the
+/// only way back, and none of those are reachable once the panel itself is gone.
+struct OpenAssistantToolbarItem: ToolbarContent {
+    var cameraManager: CameraManager
+    /// `false` on `ContentView` (the live camera page) — `RootView` only ever embeds the docked
+    /// sidebar while `activeSession == nil`, and `CameraManager.isAssistantPanelVisible`'s own
+    /// `didSet` immediately forces `isAssistantDetached` back to `true` during a live session
+    /// regardless, so asking for the docked sidebar there would just get silently overridden.
+    /// Skipping the assignment entirely (rather than setting it and having it bounce back) keeps
+    /// this button's action honest about what it's actually going to do.
+    var isEmbeddedSidebarAvailable: Bool = true
+
+    var body: some ToolbarContent {
+        ToolbarItem {
+            if !cameraManager.isAssistantPanelVisible || cameraManager.isAssistantDetached || cameraManager.isAssistantMinimized {
+                Button("Open Assistant", systemImage: "bubble.left.and.bubble.right") {
+                    cameraManager.isAssistantPanelVisible = true
+                    if isEmbeddedSidebarAvailable { cameraManager.isAssistantDetached = false }
+                    cameraManager.isAssistantMinimized = false
+                }
+                .accessibilityIdentifier("OpenAssistantToolbarButton")
+                .help("Open the AI assistant")
+            }
+        }
+    }
+}
+
 struct AssistantChatPanel: View {
     var cameraManager: CameraManager
     /// `true` when hosted inside `AssistantChatPanelController`'s floating `NSPanel` — hides the

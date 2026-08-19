@@ -247,6 +247,7 @@ struct ProjectDetailPane: View {
                     Button("Next Project", systemImage: "chevron.down", action: onNextProject)
                 }
             }
+            OpenAssistantToolbarItem(cameraManager: cameraManager)
         }
         // `name`/`goal` are local `@State` (so typing doesn't fight `save()` on every keystroke),
         // which otherwise goes stale the moment something *external* to this page's own text

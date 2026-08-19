@@ -349,6 +349,7 @@ struct ContentView: View {
                     .nightModeTint(cameraManager)
                 }
             }
+            OpenAssistantToolbarItem(cameraManager: cameraManager, isEmbeddedSidebarAvailable: false)
         }
         .alert(
             "Camera Error",

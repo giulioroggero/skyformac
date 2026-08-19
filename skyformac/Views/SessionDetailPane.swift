@@ -280,6 +280,7 @@ struct SessionDetailPane: View {
                     Button("Next Session", systemImage: "chevron.down", action: onNextSession)
                 }
             }
+            OpenAssistantToolbarItem(cameraManager: cameraManager)
         }
         // Same reasoning as `ProjectDetailPane`'s own `.onChange(of: project)` — local `@State`
         // for name/goal otherwise goes stale the moment something external (Ask AI to Plan, Ask

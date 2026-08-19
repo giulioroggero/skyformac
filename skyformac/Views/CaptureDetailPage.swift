@@ -225,6 +225,7 @@ struct CaptureDetailPage: View {
                     Button("Next Capture", systemImage: "chevron.down", action: onNextCapture)
                 }
             }
+            OpenAssistantToolbarItem(cameraManager: cameraManager)
         }
         // FITS's "Open in Viewer" button (above) sets `cameraManager.viewingExportedFile` —
         // `ContentView` already has the equivalent `.sheet` for the live camera view, but this
