@@ -296,8 +296,10 @@ struct AssistantMinimizedRail: View {
 struct AssistantResizeHandle: View {
     @Binding var width: Double
     @State private var widthAtDragStart: Double?
-
-    private static let widthRange: ClosedRange<Double> = 260...600
+    /// Defaults to the assistant sidebar's own original range — `ControlsPanelView`'s resize
+    /// handle (`ContentView.swift`) passes its own, wider range instead, since that panel's
+    /// default width is deliberately much smaller.
+    var widthRange: ClosedRange<Double> = 260...600
 
     var body: some View {
         Divider()
@@ -314,7 +316,7 @@ struct AssistantResizeHandle: View {
                         // The handle sits on the sidebar's leading edge — dragging left (a
                         // negative `translation.width`) should grow the panel, so the delta is
                         // subtracted, not added.
-                        width = min(max(start - value.translation.width, Self.widthRange.lowerBound), Self.widthRange.upperBound)
+                        width = min(max(start - value.translation.width, widthRange.lowerBound), widthRange.upperBound)
                     }
                     .onEnded { _ in widthAtDragStart = nil }
             )

@@ -6,6 +6,14 @@ struct ContentView: View {
     /// `cameraManager.isHistogramPanelDetached` is `false`, created/torn down by the
     /// `.onChange` below rather than left dangling once its window closes.
     @State private var histogramPanelController: HistogramCurvesPanelController?
+    /// The Controls panel's own width — user-resizable (`ControlsPanelResizeHandle` below) and
+    /// persisted across sessions/relaunches, the same `@AppStorage` pattern `RootView`'s
+    /// `assistantPanelWidth` already uses. Defaults to roughly half the panel's old fixed
+    /// `idealWidth` (340) — deliberately smaller so the live preview gets more room by default;
+    /// `controlsPanelWidthRange`'s lower bound matches this default exactly, so the very first
+    /// launch doesn't already sit at the range's edge.
+    @AppStorage("controlsPanelWidth") private var controlsPanelWidth: Double = 170
+    private let controlsPanelWidthRange: ClosedRange<Double> = 170...600
 
     /// Applied individually to every part of the window *except* the live preview (which tints
     /// only its own overlay chrome, not the image itself — see `PreviewView.nightTint`'s doc
@@ -137,6 +145,99 @@ struct ContentView: View {
         }
     }
 
+    /// The live preview + "End Session" + Histogram/Curves stack — everything to the left of the
+    /// Controls panel's resize handle. Pulled out of `mainContent` as its own computed property
+    /// (rather than left inline inside the `HStack`) purely to keep the type-checker's per-
+    /// expression workload down — the combined nesting depth of `NavigationSplitView` → `HStack`
+    /// → this whole `VStack` → its own conditional `Group` was enough on its own to make the
+    /// compiler give up with "unable to type-check this expression in reasonable time."
+    @ViewBuilder
+    private var previewAndHistogramColumn: some View {
+        // `.frame(maxHeight: .infinity)` here is what actually matters: without it, whenever the
+        // window is taller than this column's own intrinsic content height (e.g. a saved/restored
+        // window frame from before Histogram/Curves got shorter), this column doesn't stretch to
+        // fill that extra height on its own — it was showing up as blank space below everything,
+        // at the very bottom of the whole window, not specifically "belonging" to the histogram.
+        // `PreviewView`'s own `.layoutPriority(1)` then makes sure that extra height actually goes
+        // to the preview image, not back into more wasted space below the tabs.
+        VStack(spacing: 0) {
+            PreviewView(
+                cameraManager: cameraManager,
+                useMetalRenderer: cameraManager.useMetalRenderer,
+                onEnterFullScreen: { cameraManager.isPreviewFullScreenEnabled = true }
+            )
+                .frame(minWidth: 480, minHeight: 300)
+                .layoutPriority(1)
+                .overlay(alignment: .bottomTrailing) {
+                    if cameraManager.isAllSkyMonitorVisible {
+                        AllSkyMonitorView()
+                            .frame(width: 220)
+                            .padding(12)
+                            .nightModeTint(cameraManager)
+                    }
+                }
+            // A second, harder-to-miss "End Session" directly under the live view itself — the
+            // toolbar's own copy (next to the breadcrumb) can scroll out of view or just not be
+            // where the eye is while watching the preview; this one always is.
+            HStack {
+                Spacer()
+                Button("End Session", systemImage: "stop.circle.fill") {
+                    cameraManager.endActiveSession()
+                }
+                .buttonStyle(.bordered)
+                Spacer()
+            }
+            .padding(.vertical, 6)
+            .nightModeTint(cameraManager)
+            // No explicit `.frame(height:)` here on purpose — `.layoutPriority(1)` above makes
+            // the preview claim any extra vertical space first, so this only ever gets exactly
+            // what its currently-selected tab's own content actually needs (a fixed height either
+            // wastes space below shorter content, like the plain combined histogram, or clips
+            // taller content, like "By Channel" mode's extra sliders — `HistogramView`'s own
+            // `ScrollView` is the fallback for that latter case, not the normal case).
+            Group {
+                if cameraManager.isHistogramPanelDetached {
+                    HStack {
+                        Text("Histogram & Curves are in a separate window.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Dock") { cameraManager.isHistogramPanelDetached = false }
+                            .controlSize(.small)
+                    }
+                    .padding(8)
+                } else {
+                    VStack(spacing: 0) {
+                        HStack {
+                            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.detachHistogramCurves")
+                            Spacer()
+                            Button {
+                                cameraManager.isHistogramPanelDetached = true
+                            } label: {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right.rectangle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Detach Histogram & Curves into their own floating window — it can overlap the main window, stay open while you work elsewhere, and be docked back with the same button (or by closing it).")
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.top, 4)
+                        TabView {
+                            HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
+                                .tabItem { Text("Histogram") }
+                            CurvesView(cameraManager: cameraManager)
+                                .tabItem { Text("Curves") }
+                            StackingStatusView(cameraManager: cameraManager)
+                                .tabItem { Text("Stacking") }
+                        }
+                    }
+                    .frame(minHeight: 150, maxHeight: 260)
+                }
+            }
+            .colorMultiply(nightTint)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
     private var mainContent: some View {
         NavigationSplitView(columnVisibility: Binding(
             get: { cameraManager.isCameraListSidebarVisible ? .all : .detailOnly },
@@ -144,106 +245,28 @@ struct ContentView: View {
         )) {
             CameraListView(cameraManager: cameraManager)
                 .colorMultiply(nightTint)
-                // `max` matters here, not just `min`/`ideal` — the "detail" side (the HSplitView
-                // below, `PreviewView`/`ControlsPanelView`) has its own real minimum width
-                // (480 + 320 = 800pt). Without a cap here, dragging this sidebar wider than what
-                // that leaves available forced the *whole window* to grow instead — since
-                // `NavigationSplitView` won't shrink `detail` below its declared minimum, growing
-                // the window was its only way to satisfy both at once, which could push the
-                // window partly off-screen on a smaller display. Capped comfortably under that
-                // threshold so this column always resizes within the existing window instead, the
-                // same way dragging the divider between `PreviewView`/`ControlsPanelView` already
-                // does (a plain `HSplitView`, which never grows the window either).
+                // `max` matters here, not just `min`/`ideal` — the "detail" side (`PreviewView`
+                // plus the resizable Controls panel below) has its own real minimum width
+                // (480 + `controlsPanelWidthRange.lowerBound`). Without a cap here, dragging this
+                // sidebar wider than what that leaves available forced the *whole window* to grow
+                // instead — since `NavigationSplitView` won't shrink `detail` below its declared
+                // minimum, growing the window was its only way to satisfy both at once, which
+                // could push the window partly off-screen on a smaller display. Capped comfortably
+                // under that threshold so this column always resizes within the existing window
+                // instead, the same way dragging the Controls panel's own resize handle does.
                 .navigationSplitViewColumnWidth(min: 130, ideal: 150, max: 280)
         } detail: {
-            HSplitView {
-                // `.frame(maxHeight: .infinity)` here is what actually matters: without it,
-                // whenever the window is taller than this column's own intrinsic content height
-                // (e.g. a saved/restored window frame from before Histogram/Curves got shorter),
-                // neither `HSplitView` nor its children stretch to fill that extra height on
-                // their own — it was showing up as blank space below everything, at the very
-                // bottom of the whole window, not specifically "belonging" to the histogram.
-                // `PreviewView`'s own `.layoutPriority(1)` then makes sure that extra height
-                // actually goes to the preview image, not back into more wasted space below the
-                // tabs.
-                VStack(spacing: 0) {
-                    PreviewView(
-                        cameraManager: cameraManager,
-                        useMetalRenderer: cameraManager.useMetalRenderer,
-                        onEnterFullScreen: { cameraManager.isPreviewFullScreenEnabled = true }
-                    )
-                        .frame(minWidth: 480, minHeight: 300)
-                        .layoutPriority(1)
-                        .overlay(alignment: .bottomTrailing) {
-                            if cameraManager.isAllSkyMonitorVisible {
-                                AllSkyMonitorView()
-                                    .frame(width: 220)
-                                    .padding(12)
-                                    .nightModeTint(cameraManager)
-                            }
-                        }
-                    // A second, harder-to-miss "End Session" directly under the live view itself
-                    // — the toolbar's own copy (next to the breadcrumb) can scroll out of view or
-                    // just not be where the eye is while watching the preview; this one always is.
-                    HStack {
-                        Spacer()
-                        Button("End Session", systemImage: "stop.circle.fill") {
-                            cameraManager.endActiveSession()
-                        }
-                        .buttonStyle(.bordered)
-                        Spacer()
-                    }
-                    .padding(.vertical, 6)
-                    .nightModeTint(cameraManager)
-                    // No explicit `.frame(height:)` here on purpose — `.layoutPriority(1)` above
-                    // makes the preview claim any extra vertical space first, so this only ever
-                    // gets exactly what its currently-selected tab's own content actually needs
-                    // (a fixed height either wastes space below shorter content, like the plain
-                    // combined histogram, or clips taller content, like "By Channel" mode's extra
-                    // sliders — `HistogramView`'s own `ScrollView` is the fallback for that latter
-                    // case, not the normal case).
-                    Group {
-                        if cameraManager.isHistogramPanelDetached {
-                            HStack {
-                                Text("Histogram & Curves are in a separate window.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button("Dock") { cameraManager.isHistogramPanelDetached = false }
-                                    .controlSize(.small)
-                            }
-                            .padding(8)
-                        } else {
-                            VStack(spacing: 0) {
-                                HStack {
-                                    Spacer()
-                                    Button {
-                                        cameraManager.isHistogramPanelDetached = true
-                                    } label: {
-                                        Image(systemName: "arrow.up.left.and.arrow.down.right.rectangle")
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .help("Detach Histogram & Curves into their own floating window — it can overlap the main window, stay open while you work elsewhere, and be docked back with the same button (or by closing it).")
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.top, 4)
-                                TabView {
-                                    HistogramView(cameraManager: cameraManager, useMetalRenderer: cameraManager.useMetalRenderer)
-                                        .tabItem { Text("Histogram") }
-                                    CurvesView(cameraManager: cameraManager)
-                                        .tabItem { Text("Curves") }
-                                    StackingStatusView(cameraManager: cameraManager)
-                                        .tabItem { Text("Stacking") }
-                                }
-                            }
-                            .frame(minHeight: 150, maxHeight: 260)
-                        }
-                    }
-                    .colorMultiply(nightTint)
-                }
-                .frame(maxHeight: .infinity)
+            // A plain `HStack` + `AssistantResizeHandle` (shared with `RootView`'s assistant
+            // sidebar), not `HSplitView` — SwiftUI's `HSplitView` has no way to read back or bind
+            // to the user's dragged pane width at all (it's a thin bridge onto `NSSplitView`,
+            // which manages that entirely internally), so the Controls panel's width could never
+            // actually be persisted across launches while built on it.
+            HStack(spacing: 0) {
+                previewAndHistogramColumn
+                AssistantResizeHandle(width: $controlsPanelWidth, widthRange: controlsPanelWidthRange)
                 ControlsPanelView(cameraManager: cameraManager)
-                    .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
+                    .frame(width: controlsPanelWidth)
+                    .frame(maxHeight: .infinity)
                     .colorMultiply(nightTint)
             }
         }
@@ -276,37 +299,46 @@ struct ContentView: View {
                     .nightModeTint(cameraManager)
             }
             ToolbarItem {
-                Toggle(isOn: Binding(
-                    get: { cameraManager.useMetalRenderer },
-                    set: { cameraManager.useMetalRenderer = $0 }
-                )) {
-                    Label(
-                        cameraManager.useMetalRenderer ? "GPU" : "CPU",
-                        systemImage: cameraManager.useMetalRenderer ? "bolt.fill" : "cpu"
-                    )
-                    .foregroundStyle(cameraManager.useMetalRenderer ? .green : .primary)
+                HStack(spacing: 2) {
+                    Toggle(isOn: Binding(
+                        get: { cameraManager.useMetalRenderer },
+                        set: { cameraManager.useMetalRenderer = $0 }
+                    )) {
+                        Label(
+                            cameraManager.useMetalRenderer ? "GPU" : "CPU",
+                            systemImage: cameraManager.useMetalRenderer ? "bolt.fill" : "cpu"
+                        )
+                        .foregroundStyle(cameraManager.useMetalRenderer ? .green : .primary)
+                    }
+                    .help(cameraManager.useMetalRenderer
+                        ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
+                        : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
+                    .accessibilityIdentifier("RenderPathToggle")
+                    HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.gpuCpuToggle")
                 }
-                .help(cameraManager.useMetalRenderer
-                    ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
-                    : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
-                .accessibilityIdentifier("RenderPathToggle")
                 .nightModeTint(cameraManager)
             }
             ToolbarItem {
-                Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(
-                    get: { cameraManager.isNightModeEnabled },
-                    set: { cameraManager.isNightModeEnabled = $0 }
-                ))
-                    .help("Red-only UI to preserve night vision during visual observation")
-                    .nightModeTint(cameraManager)
+                HStack(spacing: 2) {
+                    Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(
+                        get: { cameraManager.isNightModeEnabled },
+                        set: { cameraManager.isNightModeEnabled = $0 }
+                    ))
+                        .help("Red-only UI to preserve night vision during visual observation")
+                    HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.nightModeApp")
+                }
+                .nightModeTint(cameraManager)
             }
             ToolbarItem {
-                Toggle("All-Sky Monitor", systemImage: "cloud.sun", isOn: Binding(
-                    get: { cameraManager.isAllSkyMonitorVisible },
-                    set: { cameraManager.isAllSkyMonitorVisible = $0 }
-                ))
-                    .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
-                    .nightModeTint(cameraManager)
+                HStack(spacing: 2) {
+                    Toggle("All-Sky Monitor", systemImage: "cloud.sun", isOn: Binding(
+                        get: { cameraManager.isAllSkyMonitorVisible },
+                        set: { cameraManager.isAllSkyMonitorVisible = $0 }
+                    ))
+                        .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
+                    HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.allSkyMonitor")
+                }
+                .nightModeTint(cameraManager)
             }
             ToolbarItem {
                 if cameraManager.isExternalWebcam {
