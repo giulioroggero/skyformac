@@ -32,6 +32,10 @@ struct StackingStatusView: View {
 
     @ViewBuilder
     private var statusContent: some View {
+        HStack {
+            Text("Running").font(.headline)
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.activePipelines")
+        }
         LabeledContent("Frames Stacked", value: "\(cameraManager.liveStackedFrameCount)")
         LabeledContent("Method", value: cameraManager.liveStackMethod.label)
         if cameraManager.liveStackMethod == .sigmaClipping {

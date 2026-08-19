@@ -83,6 +83,7 @@ struct AssistantChatPanel: View {
     private var header: some View {
         HStack {
             Label("AI", systemImage: "bubble.left.and.bubble.right").font(.headline)
+            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.assistant")
             modelMenu
             Spacer()
             historyMenu

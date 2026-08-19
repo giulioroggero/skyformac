@@ -173,10 +173,13 @@ struct SettingsView: View {
                         get: { cameraManager.useMetalRenderer },
                         set: { cameraManager.useMetalRenderer = $0 }
                     ))
-                    Toggle("Night Mode", isOn: Binding(
-                        get: { cameraManager.isNightModeEnabled },
-                        set: { cameraManager.isNightModeEnabled = $0 }
-                    ))
+                    HStack {
+                        Toggle("Night Mode", isOn: Binding(
+                            get: { cameraManager.isNightModeEnabled },
+                            set: { cameraManager.isNightModeEnabled = $0 }
+                        ))
+                        HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.nightModeApp")
+                    }
                 }
         }
         .formStyle(.grouped)

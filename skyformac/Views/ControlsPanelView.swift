@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// used below matches a `HelpSection.id` in `HelpContent.configurationReference` (or, for the
 /// iPhone/webcam controls, `HelpContent.usingIPhone`). Search in Help covers the same content
 /// too; this is the "I'm already looking at the control, just tell me what it does" shortcut.
-private struct HelpLinkButton: View {
+struct HelpLinkButton: View {
     var cameraManager: CameraManager
     var topicID: String
     var sectionID: String?
@@ -28,7 +28,7 @@ private struct HelpLinkButton: View {
 /// whose entire content maps to one `HelpContent` anchor (as opposed to a section covering
 /// several distinct settings, each with its own anchor, which instead places a `HelpLinkButton`
 /// next to each setting individually inside the section body).
-private struct HelpLinkedDisclosureLabel: View {
+struct HelpLinkedDisclosureLabel: View {
     var title: String
     var cameraManager: CameraManager
     var sectionID: String

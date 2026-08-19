@@ -38,6 +38,7 @@ struct CurvesView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Curves").font(.headline)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.curves")
                 Spacer()
                 Toggle("Enable", isOn: Binding(
                     get: { cameraManager.isToneCurveEnabled },

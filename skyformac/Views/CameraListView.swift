@@ -57,7 +57,10 @@ struct CameraListView: View {
     @ViewBuilder
     private var acquisitionSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Acquisition").font(.headline)
+            HStack {
+                Text("Acquisition").font(.headline)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.acquisitionPresetStandalone")
+            }
             Button {
                 cameraManager.isAcquisitionWizardPresented = true
             } label: {

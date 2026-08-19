@@ -53,6 +53,7 @@ struct HistogramView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Histogram").font(.headline)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.blackWhitePoint")
                 if currentChannelHistograms != nil {
                     Spacer()
                     Toggle("By Channel", isOn: Binding(
@@ -65,6 +66,7 @@ struct HistogramView: View {
                         .toggleStyle(.checkbox)
                         .font(.caption)
                         .help("Shows separate Red/Green/Blue histograms, and switches the Black/White Point sliders below to three independent pairs (one per channel) instead of the one combined pair — useful for compensating a color imbalance (e.g. a light-polluted sky's orange cast) directly at the stretch stage.")
+                    HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.histogramByChannel")
                 }
             }
 
