@@ -150,6 +150,13 @@ struct CaptureDetailPage: View {
                     if let cameraSettingsStats {
                         PageSection(title: "Camera Settings") {
                             StatsGridView(stats: cameraSettingsStats)
+                            if let preset = capture.preset {
+                                Button("Use These Settings & Open Live", systemImage: "video.fill") {
+                                    cameraManager.recallParameters(preset)
+                                    cameraManager.setActive(project: project, session: session)
+                                }
+                                .help("Applies this capture's camera settings (or holds them until a camera connects) and opens \(session.name) live.")
+                            }
                         }
                     }
 
