@@ -41,6 +41,7 @@ struct SessionDetailPane: View {
     @State private var moveErrorMessage: String?
     @State private var isElaborating = false
     @State private var isPromptingSirilSettings = false
+    @State private var isConfirmingDelete = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// "Move to Project…"'s own candidate list — every other active project, alphabetically;
@@ -134,6 +135,7 @@ struct SessionDetailPane: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
                             .help(session.captures.isEmpty ? "Starts this session — switches the main window to the camera view" : "Resumes capturing into this session")
+                            HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.runSession")
                             Spacer()
                             Button("Recall Parameters…", systemImage: "clock.arrow.circlepath") {
                                 cameraManager.isRecallParametersPresented = true
@@ -250,7 +252,7 @@ struct SessionDetailPane: View {
                         Button("Move to Project…", systemImage: "folder") { isMovingToProject = true }
                             .disabled(otherProjects.isEmpty)
                         Button("Delete Session", systemImage: "trash", role: .destructive) {
-                            try? library.deleteSession(session.id, in: project)
+                            isConfirmingDelete = true
                         }
                     }
                 }
@@ -310,6 +312,19 @@ struct SessionDetailPane: View {
             Button("OK") { moveErrorMessage = nil }
         } message: { message in
             Text(message)
+        }
+        .confirmationDialog(
+            "Delete this session?", isPresented: $isConfirmingDelete, titleVisibility: .visible
+        ) {
+            Button("Delete \(session.name)", role: .destructive) {
+                try? library.deleteSession(session.id, in: project)
+                // The session this page is showing no longer exists — its own route is now
+                // stale, same reasoning as the "Move to Project…" success handler above, so pop
+                // back to the (still-valid) Project page.
+                onBack()
+            }
+        } message: {
+            Text("This removes \(session.captures.count) capture\(session.captures.count == 1 ? "" : "s") and everything else in this session from disk — this can't be undone.")
         }
         .sheet(isPresented: $isCreatingSessionFromThis) {
             NewSessionFromExistingSheet(session: session) { name, plannedDate in
