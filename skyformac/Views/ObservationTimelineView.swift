@@ -82,6 +82,16 @@ struct ObservationTimelineView: View {
         return max(targetInitialWidth / totalHours, 0.5)
     }
 
+    /// Lower bound stays relative to `defaultPixelsPerHour` (zooming *out* only ever needs to
+    /// relate to how wide the actual data span already is). The upper bound doesn't — a purely
+    /// relative ceiling (e.g. `defaultPixelsPerHour * 300`) shrinks to nothing for a timeline
+    /// spanning months/years, since `defaultPixelsPerHour` itself is already tiny at that scale
+    /// (see its own doc comment). An absolute floor of 3000 px/hour (50pt/minute — enough to tell
+    /// captures a minute apart apart, per the actual request: "resolution of minutes") guarantees
+    /// real minute-level zoom is always reachable regardless of how long the total span is.
+    private var minPixelsPerHour: Double { defaultPixelsPerHour * 0.05 }
+    private var maxPixelsPerHour: Double { max(defaultPixelsPerHour * 300, 3000) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if entries.isEmpty {
@@ -89,28 +99,47 @@ struct ObservationTimelineView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                zoomControl
-                ScrollView(.horizontal) {
-                    timelineCanvas
+                ScrollViewReader { proxy in
+                    zoomControl(proxy: proxy)
+                    ScrollView(.horizontal) {
+                        timelineCanvas
+                    }
+                    .frame(height: Self.laneHeight)
+                    .defaultScrollAnchor(.trailing)
                 }
-                .frame(height: Self.laneHeight)
-                .defaultScrollAnchor(.trailing)
             }
         }
     }
 
-    private var zoomControl: some View {
+    private func zoomControl(proxy: ScrollViewProxy) -> some View {
         HStack {
             Text("Zoom").font(.caption)
-            // Upper bound is 4x what it used to be (40x default → 160x, a 300% increase) — the
-            // original max zoom still wasn't enough to separate captures taken close together
-            // within one session without a lot of scrolling.
-            Slider(value: $pixelsPerHour, in: (defaultPixelsPerHour * 0.05)...(defaultPixelsPerHour * 160))
+            Button {
+                withAnimation { pixelsPerHour = minPixelsPerHour }
+            } label: {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .help("Zoom all the way out")
+            Slider(value: $pixelsPerHour, in: minPixelsPerHour...maxPixelsPerHour)
+            Button {
+                withAnimation { pixelsPerHour = maxPixelsPerHour }
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .help("Zoom all the way in — minute-level resolution")
             if pixelsPerHour != defaultPixelsPerHour {
-                Button("Reset") { pixelsPerHour = defaultPixelsPerHour }
+                Button("Reset") { withAnimation { pixelsPerHour = defaultPixelsPerHour } }
                     .font(.caption)
                     .controlSize(.small)
             }
+            Divider().frame(height: 14)
+            Button {
+                guard let lastID = entries.last?.id else { return }
+                withAnimation { proxy.scrollTo(lastID, anchor: .trailing) }
+            } label: {
+                Image(systemName: "arrow.right.to.line")
+            }
+            .help("Jump to the most recent capture")
         }
         .help("Zooms the timeline horizontally — captures close together in time spread apart as you zoom in, so a dense session's captures become individually tappable instead of overlapping.")
     }
@@ -133,6 +162,7 @@ struct ObservationTimelineView: View {
                 ForEach(entries) { entry in
                     thumbnailView(for: entry)
                         .offset(x: xOffset(for: entry.capture.date, start: dateRange.lowerBound) + 20, y: 0)
+                        .id(entry.id)
                 }
             }
             .frame(width: totalWidth, height: Self.laneHeight, alignment: .topLeading)
