@@ -23,13 +23,19 @@ struct RootView: View {
         HStack(spacing: 0) {
             Group {
                 if cameraManager.activeSession == nil {
-                    // `ContentView` manages its own night-mode tint internally (deliberately
-                    // excluding the live image) — applying it there too. Here at `RootView`
-                    // level a blanket tint would be safe for `ProjectsBrowserView` (nothing
-                    // exempt in it) but would also reach into `ContentView`'s `PreviewView` and
-                    // tint the live image, so it's scoped to just this branch instead.
+                    // Deliberately NOT `.nightModeTint`ed, unlike most other top-level pages —
+                    // this whole browsing hierarchy (`DashboardHomeView`, `ProjectDetailPane`,
+                    // `SessionDetailPane`, `CaptureDetailPage`, the Observation Timeline) is full
+                    // of actual capture thumbnails/previews, not just chrome. A blanket tint here
+                    // once red-multiplied every one of them — real astrophotos rendering solid
+                    // red while reviewing past sessions, not just the surrounding UI (reported as
+                    // "the capture become red"). `.colorMultiply` has no per-descendant "opt out"
+                    // (unlike `PreviewView`'s live image, which is simply never placed under a
+                    // tinted ancestor in the first place) — retinting only this hierarchy's own
+                    // chrome would need tint applied section-by-section throughout every one of
+                    // those views, not one modifier here, so for now this page just stays
+                    // untinted rather than risk the same bug again.
                     ProjectsBrowserView(cameraManager: cameraManager)
-                        .nightModeTint(cameraManager)
                 } else {
                     ContentView()
                 }

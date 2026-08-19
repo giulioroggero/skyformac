@@ -87,8 +87,10 @@ struct ContentView: View {
             get: { cameraManager.viewingExportedFile != nil },
             set: { if !$0 { cameraManager.viewingExportedFile = nil } }
         )) {
+            // Not tinted — this shows the actual exported image/FITS content, not just chrome
+            // (see `RootView`'s doc comment on `ProjectsBrowserView` for the full reasoning: a
+            // red multiply here would visibly discolor the real capture being viewed).
             ExportedFileViewerView(cameraManager: cameraManager)
-                .nightModeTint(cameraManager)
         }
         .sheet(isPresented: Binding(
             get: { cameraManager.isAcquisitionWizardPresented },
