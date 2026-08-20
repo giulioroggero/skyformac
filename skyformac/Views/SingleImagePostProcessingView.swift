@@ -129,7 +129,11 @@ struct SingleImagePostProcessingView: View {
                     Divider()
                     colorSection
                     Divider()
+                    cleanUpSection
+                    Divider()
                     sharpenSection
+                    Divider()
+                    astronomyToolsSection
                 }
                 .padding(16)
             }
@@ -177,35 +181,23 @@ struct SingleImagePostProcessingView: View {
     private var cropSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Crop").font(.title3.bold())
-            cropSlider("Left", value: $cropLeft)
-            cropSlider("Right", value: $cropRight)
-            cropSlider("Top", value: $cropTop)
-            cropSlider("Bottom", value: $cropBottom)
+            resettableSlider("Left", value: $cropLeft, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
+            resettableSlider("Right", value: $cropRight, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
+            resettableSlider("Top", value: $cropTop, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
+            resettableSlider("Bottom", value: $cropBottom, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
         }
-    }
-
-    private func cropSlider(_ label: String, value: Binding<Double>) -> some View {
-        LabeledContent(label) {
-            HStack {
-                Slider(value: value, in: 0...0.49, step: 0.01)
-                Text("\(Int(value.wrappedValue * 100))%").font(.caption.monospacedDigit()).frame(width: 36, alignment: .trailing)
-            }
-        }
-        .onChange(of: value.wrappedValue) { _, _ in scheduleRender() }
     }
 
     private var rotateSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Rotate").font(.title3.bold())
-            HStack {
-                Slider(value: $adjustments.rotationDegrees, in: -180...180, step: 0.5)
-                Text(String(format: "%.1f°", adjustments.rotationDegrees)).font(.caption.monospacedDigit()).frame(width: 50, alignment: .trailing)
-            }
-            .onChange(of: adjustments.rotationDegrees) { _, _ in scheduleRender() }
+            resettableSlider(
+                "Angle", value: $adjustments.rotationDegrees, range: -180...180, defaultValue: 0,
+                step: 0.5, format: "%.1f°"
+            )
             HStack {
                 Button("-90°") { adjustments.rotationDegrees -= 90; scheduleRender() }
                 Button("+90°") { adjustments.rotationDegrees += 90; scheduleRender() }
-                Button("Reset") { adjustments.rotationDegrees = 0; scheduleRender() }
             }
         }
     }
@@ -213,23 +205,26 @@ struct SingleImagePostProcessingView: View {
     private var colorSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Color & Contrast").font(.title3.bold())
-            LabeledContent("Brightness") {
-                Slider(value: $adjustments.brightness, in: -1...1, step: 0.01)
-            }
-            .onChange(of: adjustments.brightness) { _, _ in scheduleRender() }
-            LabeledContent("Contrast") {
-                Slider(value: $adjustments.contrast, in: 0.25...4, step: 0.01)
-            }
-            .onChange(of: adjustments.contrast) { _, _ in scheduleRender() }
-            LabeledContent("Saturation") {
-                Slider(value: $adjustments.saturation, in: 0...2, step: 0.01)
-            }
-            .onChange(of: adjustments.saturation) { _, _ in scheduleRender() }
-            LabeledContent("Curve (Gamma)") {
-                Slider(value: $adjustments.gamma, in: 0.1...4, step: 0.01)
-            }
-            .onChange(of: adjustments.gamma) { _, _ in scheduleRender() }
+            resettableSlider("Brightness", value: $adjustments.brightness, range: -1...1, defaultValue: 0)
+            resettableSlider("Contrast", value: $adjustments.contrast, range: 0.25...4, defaultValue: 1)
+            resettableSlider("Saturation", value: $adjustments.saturation, range: 0...2, defaultValue: 1)
+            resettableSlider("Curve (Gamma)", value: $adjustments.gamma, range: 0.1...4, defaultValue: 1)
             Text("Gamma lifts or crushes midtones without clipping black/white — the one-knob \"curves\" control for a quick touch-up.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var cleanUpSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Clean Up").font(.title3.bold())
+            resettableSlider("Denoise", value: $adjustments.denoiseAmount, range: 0...1, defaultValue: 0)
+            Text("Smooths sensor/read noise out of faint backgrounds — push too far and it starts to soften real detail too.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Toggle("Remove Hot Pixels", isOn: $adjustments.removesHotPixels)
+                .onChange(of: adjustments.removesHotPixels) { _, _ in scheduleRender() }
+            Text("A median filter that knocks out isolated single-pixel hot pixels/cosmic-ray hits without softening real detail.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -238,9 +233,59 @@ struct SingleImagePostProcessingView: View {
     private var sharpenSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Sharpen").font(.title3.bold())
-            Slider(value: $adjustments.sharpenIntensity, in: 0...2, step: 0.01)
-                .onChange(of: adjustments.sharpenIntensity) { _, _ in scheduleRender() }
+            resettableSlider("Strength", value: $adjustments.sharpenIntensity, range: 0...5, defaultValue: 0)
         }
+    }
+
+    private var astronomyToolsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Astronomy Tools").font(.title3.bold())
+            resettableSlider("Remove Green Cast", value: $adjustments.greenCastRemoval, range: 0...1, defaultValue: 0)
+            Text("SCNR — caps the green channel at the red/blue average, the standard fix for the green cast stacking software often leaves behind.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            resettableSlider("Reduce Star Size", value: $adjustments.starSizeReduction, range: 0...5, defaultValue: 0)
+            Text("Erodes bloated star images down without touching the fainter background/nebulosity around them.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            resettableSlider("Shadow Lift", value: $adjustments.shadowLift, range: 0...1, defaultValue: 0)
+            Text("Brings out faint nebulosity/dim planetary features hiding in the shadows.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            resettableSlider("Highlight Recovery", value: $adjustments.highlightRecovery, range: 0...1, defaultValue: 0)
+            Text("Pulls back a blown-out planetary disk or bright core.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// A slider paired with its own small reset control — every adjustment gets one, not just
+    /// the single global "Reset" in the Auto-Fix section, so one parameter can be dialed back
+    /// without losing every other tweak already made.
+    private func resettableSlider(
+        _ label: String, value: Binding<Double>, range: ClosedRange<Double>, defaultValue: Double,
+        step: Double = 0.01, format: String = "%.2f", displayScale: Double = 1
+    ) -> some View {
+        LabeledContent(label) {
+            HStack {
+                Slider(value: value, in: range, step: step)
+                Text(String(format: format, value.wrappedValue * displayScale))
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 46, alignment: .trailing)
+                Button {
+                    value.wrappedValue = defaultValue
+                    scheduleRender()
+                } label: {
+                    Image(systemName: "arrow.counterclockwise.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .opacity(value.wrappedValue == defaultValue ? 0.25 : 1)
+                .disabled(value.wrappedValue == defaultValue)
+                .help("Reset to default")
+            }
+        }
+        .onChange(of: value.wrappedValue) { _, _ in scheduleRender() }
     }
 
     // MARK: - Pipeline

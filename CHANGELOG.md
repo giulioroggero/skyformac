@@ -22,9 +22,12 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
   cancellable processing with real progress feedback, GPU-accelerated debayering (falls back to
   CPU where Metal isn't available), and an optional GraXpert pass without leaving the modal.
 - "Edit Image…" on any single FITS/PNG/TIFF capture: GPU-backed (Core Image) brightness,
-  contrast, saturation, a gamma curve, sharpen, rotate, and crop, plus a one-tap "Magic Wand"
-  auto-fix (the same auto-enhance analysis behind Photos.app), saved as a new Elaborated Image.
-  Lucky Imaging/Live Capture results become editable here too once saved as a capture.
+  contrast, saturation, a gamma curve, sharpen (now up to 5x), rotate, crop, denoise, and a hot-
+  pixel/cosmic-ray "clean up" filter, plus three more astronomy-specific tools — green-cast
+  (SCNR) removal, star-size reduction, and shadow/highlight recovery — and a one-tap "Magic
+  Wand" auto-fix (the same auto-enhance analysis behind Photos.app). Every slider has its own
+  reset control, not just one global reset. Saved as a new Elaborated Image; Lucky Imaging/Live
+  Capture results become editable here too once saved as a capture.
 - "Live Capture": buffers a few seconds of the live feed (default 3, adjustable), then lets you
   scrub through every frame it captured and export whichever one actually looked sharpest as
   PNG/TIFF — an iPhone-Live-Photo-style alternative to timing one manual capture.
