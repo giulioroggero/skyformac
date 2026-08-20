@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import simd
 
 /// Converts a `CapturedFrame` into a displayable `CGImage`, applying the color camera's
@@ -7,6 +8,33 @@ import simd
 /// output. This is the CPU baseline per spec 3.4 / Milestone 4; the GPU upgrade pass replaces
 /// it with a `MetalKit`-backed renderer that does the stretch (and debayer) on the GPU.
 enum CGImageRenderer {
+    enum LoadError: Error { case unreadableImage }
+
+    /// Loads *any* capture file this app can show a preview for — `.fits`/`.fit` (parsed +
+    /// auto-stretched via `FITSReader`/`HistogramComputer`/`DisplayStretch`, same as
+    /// `ExportedFileViewerView`'s own FITS path) or anything `ImageIO` already understands
+    /// (`.png`/`.tiff`/`.jpg`, decoded directly) — one call for either case, so callers that just
+    /// want "a `CGImage` to show" (`SingleImagePostProcessingView`, `SessionStrayFilesBrowserView`
+    /// 's own preview pane) don't need to duplicate the FITS-vs-everything-else branch themselves.
+    /// `nonisolated` — safe to call from a background thread/`Task.detached`.
+    nonisolated static func loadDisplayImage(from url: URL) throws -> CGImage {
+        switch url.pathExtension.lowercased() {
+        case "fits", "fit":
+            let parsed = try FITSReader.read(from: url)
+            let histogram = HistogramComputer.histogram(for: parsed.frame)
+            let stretch = DisplayStretch.autoStretch(histogram: histogram) ?? .identity
+            guard let image = makeDisplayImage(
+                from: parsed.frame, isColorCamera: parsed.isColorCamera, bayerPattern: parsed.bayerPattern, stretch: stretch
+            ) else { throw LoadError.unreadableImage }
+            return image
+        default:
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            else { throw LoadError.unreadableImage }
+            return image
+        }
+    }
+
     /// `channelStretch`/`toneCurves`/`filterGain` are `nil`/identity by default — every existing
     /// caller (exports, the Vision-analysis renders in `CameraManager`'s focus-assist/streak-
     /// detection/planet-tracking paths) keeps getting exactly the base combined `stretch`,

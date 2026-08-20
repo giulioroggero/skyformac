@@ -44,8 +44,6 @@ struct SingleImagePostProcessingView: View {
     @State private var savedImage: ElaboratedImage?
     @State private var saveErrorMessage: String?
 
-    private enum LoadError: Error { case unreadableImage }
-
     private var fullScreenSize: CGSize {
         let visible = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1200, height: 800)
         return CGSize(width: max(visible.width - 40, 980), height: max(visible.height - 40, 660))
@@ -250,7 +248,7 @@ struct SingleImagePostProcessingView: View {
     private func loadImage() async {
         do {
             let image = try await Task.detached(priority: .userInitiated) {
-                try Self.loadCGImage(from: sourceURL)
+                try CGImageRenderer.loadDisplayImage(from: sourceURL)
             }.value
             originalImage = image
             workingImage = image
@@ -259,27 +257,6 @@ struct SingleImagePostProcessingView: View {
         } catch {
             errorMessage = "Couldn't open \(sourceURL.lastPathComponent): \(error.localizedDescription)"
             stage = .failed
-        }
-    }
-
-    /// `nonisolated` — `View` conformance otherwise infers this (a plain, pure file-reading
-    /// function with no view state) as `@MainActor`, which would defeat the point of running it
-    /// inside `Task.detached` in `loadImage()` above.
-    private nonisolated static func loadCGImage(from url: URL) throws -> CGImage {
-        switch url.pathExtension.lowercased() {
-        case "fits", "fit":
-            let parsed = try FITSReader.read(from: url)
-            let histogram = HistogramComputer.histogram(for: parsed.frame)
-            let stretch = DisplayStretch.autoStretch(histogram: histogram) ?? .identity
-            guard let image = CGImageRenderer.makeDisplayImage(
-                from: parsed.frame, isColorCamera: parsed.isColorCamera, bayerPattern: parsed.bayerPattern, stretch: stretch
-            ) else { throw LoadError.unreadableImage }
-            return image
-        default:
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-            else { throw LoadError.unreadableImage }
-            return image
         }
     }
 

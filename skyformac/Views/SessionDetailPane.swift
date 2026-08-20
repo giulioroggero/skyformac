@@ -45,6 +45,7 @@ struct SessionDetailPane: View {
     /// Bumped after deleting a stray file so `strayFilesInSessionFolder` (a plain `FileManager`
     /// directory listing, not something `ProjectsLibrary` tracks/republishes) re-reads the folder.
     @State private var strayFilesRefreshTrigger = 0
+    @State private var isBrowsingStrayFiles = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// Files sitting in this session's own folder that AREN'T one of its tracked
@@ -236,10 +237,16 @@ struct SessionDetailPane: View {
 
                 if !strayFilesInSessionFolder.isEmpty {
                     PageSection(title: "Other Files in This Folder") {
-                        SessionStrayFilesView(
-                            project: project, session: session, cameraManager: cameraManager, files: strayFilesInSessionFolder,
-                            onDeleted: { strayFilesRefreshTrigger &+= 1 }
-                        )
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Not tracked captures — likely left behind by an external tool (Siril, AutoStakkert) pointed at this folder.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                isBrowsingStrayFiles = true
+                            } label: {
+                                Label("Browse \(strayFilesInSessionFolder.count) File(s)…", systemImage: "doc.on.doc")
+                            }
+                        }
                     }
                 }
 
@@ -402,6 +409,12 @@ struct SessionDetailPane: View {
         }
         .sheet(isPresented: $isPromptingSirilSettings) {
             SirilDisabledPrompt(onOpenSettings: { cameraManager.isSettingsPresented = true })
+        }
+        .sheet(isPresented: $isBrowsingStrayFiles) {
+            SessionStrayFilesBrowserView(
+                cameraManager: cameraManager, files: strayFilesInSessionFolder,
+                onChanged: { strayFilesRefreshTrigger &+= 1 }
+            )
         }
         .sheet(isPresented: $isElaborating) {
             if let (source, target) = elaborationSource {
@@ -619,65 +632,170 @@ private struct MoveSessionToProjectSheet: View {
     }
 }
 
-/// One row per file the session folder actually contains that `session.captures` doesn't know
-/// about — e.g. a Siril/AutoStakkert result (`moon_00290.fit`) dropped straight into the folder
-/// by an external tool. "View" reuses the same in-app viewer `TimelineStripView`'s own "Show in
-/// Finder" context-menu item stops short of (`CameraManager.openExportedFile`/
-/// `ExportedFileViewerView`, presented app-wide from `ContentView` whenever
-/// `cameraManager.viewingExportedFile` is non-`nil` — no local sheet wiring needed here). Delete
-/// removes the file directly with `FileManager` since, unlike a tracked `CaptureRecord`, there's
-/// no catalog entry/thumbnail to also clean up.
-private struct SessionStrayFilesView: View {
-    let project: Project
-    let session: Session
+/// A full browser modal for the files the session folder actually contains that
+/// `session.captures` doesn't know about — e.g. a Siril/AutoStakkert result
+/// (`moon_00290.fit`) dropped straight into the folder by an external tool. Multi-selectable
+/// (native `List` selection — ⌘/⇧-click, or "Select All" below) with a live preview pane and
+/// bulk actions (Delete, Show in Finder) over however many files are selected at once, rather
+/// than the previous one-row-at-a-time inline list.
+struct SessionStrayFilesBrowserView: View {
     var cameraManager: CameraManager
     let files: [URL]
-    var onDeleted: () -> Void
+    /// Called once, on dismiss, if anything was actually deleted — lets
+    /// `SessionDetailPane.strayFilesInSessionFolder` re-read the folder for next time this
+    /// browser is opened (this view manages its own local list live in the meantime, so nothing
+    /// needs to observe it while it's open).
+    var onChanged: () -> Void
 
-    @State private var pendingDeleteURL: URL?
+    @Environment(\.dismiss) private var dismiss
+    @State private var currentFiles: [URL] = []
+    @State private var selection: Set<URL> = []
+    @State private var previewImage: CGImage?
+    @State private var isLoadingPreview = false
+    @State private var isConfirmingDelete = false
+    @State private var didDeleteAnything = false
+
+    private var selectedFiles: [URL] { currentFiles.filter { selection.contains($0) } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("These aren't tracked captures — likely left behind by an external tool (Siril, AutoStakkert) pointed at this folder.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            ForEach(files, id: \.self) { url in
-                HStack {
-                    Image(systemName: "doc")
+        VStack(spacing: 0) {
+            header
+            Divider()
+            HSplitView {
+                fileList
+                    .frame(minWidth: 260, idealWidth: 300)
+                previewPane
+                    .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+            }
+            Divider()
+            footer
+        }
+        .frame(minWidth: 720, idealWidth: 860, minHeight: 480, idealHeight: 560)
+        .onAppear { currentFiles = files }
+        .onChange(of: selection) { _, _ in loadPreview() }
+        .onDisappear {
+            if didDeleteAnything { onChanged() }
+        }
+        .confirmationDialog(
+            "Delete \(selection.count) file\(selection.count == 1 ? "" : "s")?",
+            isPresented: $isConfirmingDelete, titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { deleteSelected() }
+        } message: {
+            Text("This removes the file(s) from disk — this can't be undone.")
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Label("Other Files in This Folder", systemImage: "doc.on.doc").font(.headline)
+            Spacer()
+            Text("\(currentFiles.count) file(s)").font(.caption).foregroundStyle(.secondary)
+            Button("Close") { dismiss() }
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding()
+    }
+
+    private var fileList: some View {
+        List(currentFiles, id: \.self, selection: $selection) { url in
+            HStack {
+                Image(systemName: "doc")
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(url.lastPathComponent).font(.callout).lineLimit(1)
+                    Text(fileSizeText(for: url)).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            // Multi-select is List's own native ⌘/⇧-click handling via the `selection:` binding
+            // above — no manual checkbox state needed.
+        }
+    }
+
+    @ViewBuilder
+    private var previewPane: some View {
+        ZStack {
+            Color.black.opacity(0.03)
+            if selection.isEmpty {
+                Text("Select a file to preview it.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else if selection.count > 1 {
+                VStack(spacing: 8) {
+                    Image(systemName: "square.stack")
+                        .font(.system(size: 32))
                         .foregroundStyle(.secondary)
-                    Text(url.lastPathComponent)
+                    Text("\(selection.count) files selected")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            } else if isLoadingPreview {
+                ProgressView()
+            } else if let previewImage {
+                Image(decorative: previewImage, scale: 1)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding(12)
+            } else if let url = selectedFiles.first {
+                VStack(spacing: 8) {
+                    Image(systemName: "doc.questionmark")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("No in-app preview for \(url.pathExtension.uppercased()) — try \"Show in Finder\" and open it with whatever handles that format.")
                         .font(.caption)
-                        .lineLimit(1)
-                    Spacer()
-                    Text(fileSizeText(for: url))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Button("View") { cameraManager.openExportedFile(url) }
-                        .font(.caption)
-                        .buttonStyle(.borderless)
-                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-                        .font(.caption)
-                        .buttonStyle(.borderless)
-                    Button(role: .destructive) { pendingDeleteURL = url } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                 }
             }
         }
-        .confirmationDialog(
-            "Delete this file?", isPresented: Binding(get: { pendingDeleteURL != nil }, set: { if !$0 { pendingDeleteURL = nil } }),
-            titleVisibility: .visible
-        ) {
-            if let url = pendingDeleteURL {
-                Button("Delete \(url.lastPathComponent)", role: .destructive) {
-                    try? FileManager.default.removeItem(at: url)
-                    pendingDeleteURL = nil
-                    onDeleted()
-                }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var footer: some View {
+        HStack {
+            Button(selection.count == currentFiles.count ? "Deselect All" : "Select All") {
+                selection = selection.count == currentFiles.count ? [] : Set(currentFiles)
             }
-        } message: {
-            Text("This removes the file from disk — this can't be undone.")
+            .disabled(currentFiles.isEmpty)
+            Spacer()
+            Button("Show in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting(selectedFiles)
+            }
+            .disabled(selection.isEmpty)
+            Button("View") {
+                guard let url = selectedFiles.first else { return }
+                cameraManager.openExportedFile(url)
+            }
+            .disabled(selection.count != 1)
+            Button("Delete…", role: .destructive) { isConfirmingDelete = true }
+                .disabled(selection.isEmpty)
+        }
+        .padding()
+    }
+
+    private func deleteSelected() {
+        for url in selectedFiles {
+            try? FileManager.default.removeItem(at: url)
+        }
+        currentFiles.removeAll { selection.contains($0) }
+        selection.removeAll()
+        didDeleteAnything = true
+    }
+
+    private func loadPreview() {
+        previewImage = nil
+        guard selection.count == 1, let url = selectedFiles.first else { return }
+        isLoadingPreview = true
+        Task {
+            let image = try? await Task.detached(priority: .userInitiated) {
+                try CGImageRenderer.loadDisplayImage(from: url)
+            }.value
+            isLoadingPreview = false
+            // The user may have changed the selection while this was loading — only apply a
+            // preview that's still actually relevant.
+            guard selection.count == 1, selectedFiles.first == url else { return }
+            previewImage = image
         }
     }
 

@@ -35,8 +35,10 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
   the live trend direction rather than any fixed clockwise/counterclockwise mapping — software
   has no way to know which way a given focuser's knob actually turns.
 - Session pages now surface files sitting in a session's own folder that aren't tracked captures
-  (e.g. a result an external post-processing tool dropped straight into the folder) — viewable
-  and deletable in-app instead of only reachable via "Show in Finder."
+  (e.g. a result an external post-processing tool dropped straight into the folder), via a new
+  "Browse Files…" modal — a multi-select list (native ⌘/⇧-click, or "Select All") with a live
+  preview pane and bulk actions (Delete, Show in Finder) over however many files are selected,
+  instead of only reachable one at a time via "Show in Finder."
 - The Home page's Observation Timeline now shows a big "MM.DD.YY"-style date header above the
   strip. Captures close together in time still visually overlap the same way they always have —
   only the date/object label under a capture too close to its predecessor to fit legibly is now
