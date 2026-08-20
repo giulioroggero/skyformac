@@ -40,10 +40,17 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
   preview pane and bulk actions (Delete, Show in Finder) over however many files are selected,
   instead of only reachable one at a time via "Show in Finder."
 - The Home page's Observation Timeline now shows a big "MM.DD.YY"-style date header above the
-  strip. Captures close together in time still visually overlap the same way they always have —
-  only the date/object label under a capture too close to its predecessor to fit legibly is now
-  hidden (the thumbnail itself, and its tooltip, stay fully there), instead of letting two
-  labels collide into illegible overlapping text.
+  strip that tracks whatever's actually scrolled into view (not always today/the single most
+  recent capture). Captures still visually overlap the same way they always have when zoomed
+  out — only the date/object label under a capture too close to its neighbor to fit legibly is
+  hidden (the thumbnail itself, and its tooltip, stay fully there), instead of letting two labels
+  collide into illegible overlapping text. Spacing between thumbnails is now purely index-based
+  (how many captures there are), not proportional to real elapsed time, so there's never dead
+  empty space between two thumbnails just because a lot of quiet time passed between them.
+- Session pages: **Other Files in This Folder** now also shows their combined disk usage right
+  in the "Browse…" button, and moved to sit directly above the session's own
+  Elaborate/Archive/Move/Delete action row; **Elaborated** moved up to sit directly under
+  **Timeline**.
 - A bundled `Fix Gatekeeper Warning.command` script alongside `skyformac.app` in both the
   `.zip` and a new `.dmg` release — moves the app into `/Applications` (avoiding macOS App
   Translocation, which otherwise silently breaks Camera permission prompts for the iPhone/
@@ -81,8 +88,11 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
 - The Observation Timeline's "jump to most recent capture" button could scroll to the wrong
   spot — every thumbnail was positioned with `.offset()`, a purely visual transform that doesn't
   change what the scroll view believes a view's actual position is. Positioning is now done
-  with real layout (padding-based), which fixes this and is also what makes lane-packing (above)
-  possible.
+  with real layout (padding-based).
+- Zooming the Observation Timeline in/out could leave the view scrolled all the way back to the
+  oldest, first thumbnail — changing the zoom changes the strip's total width, and the scroll
+  view was left wherever its old absolute scroll offset happened to clamp to against that new
+  width. It now re-anchors to whatever was actually in view right before the zoom change.
 - Exporting an image (PNG/TIFF/FITS) froze the whole app and spun the pointer for a full-detail
   write — the actual file encode now runs off the main actor instead of blocking it.
 - Capturing a dark or flat calibration frame left the live preview frozen/blank afterward, with

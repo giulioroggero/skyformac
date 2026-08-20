@@ -70,6 +70,16 @@ struct SessionDetailPane: View {
         }
         return stray.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
+    /// Combined disk usage of every stray file above — shown right in the "Browse…" button so
+    /// there's a sense of how much space these untracked files are actually taking up without
+    /// needing to open the browser first.
+    private var strayFilesTotalSizeText: String {
+        let totalBytes = strayFilesInSessionFolder.reduce(Int64(0)) { total, url in
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? nil
+            return total + Int64(size ?? 0)
+        }
+        return ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+    }
     /// "Move to Project…"'s own candidate list — every other active project, alphabetically;
     /// excludes the current one (nothing to move to) and archived/deleted projects (not
     /// realistically where anyone wants to relocate a session they're actively looking at).
@@ -235,17 +245,15 @@ struct SessionDetailPane: View {
                     )
                 }
 
-                if !strayFilesInSessionFolder.isEmpty {
-                    PageSection(title: "Other Files in This Folder") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Not tracked captures — likely left behind by an external tool (Siril, AutoStakkert) pointed at this folder.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Button {
-                                isBrowsingStrayFiles = true
-                            } label: {
-                                Label("Browse \(strayFilesInSessionFolder.count) File(s)…", systemImage: "doc.on.doc")
+                if !sessionElaboratedImages.isEmpty {
+                    PageSection(title: "Elaborated") {
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 10) {
+                                ForEach(sessionElaboratedImages) { image in
+                                    ElaboratedImageCard(project: project, image: image, cameraManager: cameraManager)
+                                }
                             }
+                            .padding(.horizontal, 2)
                         }
                     }
                 }
@@ -266,15 +274,20 @@ struct SessionDetailPane: View {
                     }
                 }
 
-                if !sessionElaboratedImages.isEmpty {
-                    PageSection(title: "Elaborated") {
-                        ScrollView(.horizontal) {
-                            HStack(alignment: .top, spacing: 10) {
-                                ForEach(sessionElaboratedImages) { image in
-                                    ElaboratedImageCard(project: project, image: image, cameraManager: cameraManager)
-                                }
+                if !strayFilesInSessionFolder.isEmpty {
+                    PageSection(title: "Other Files in This Folder") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Not tracked captures — likely left behind by an external tool (Siril, AutoStakkert) pointed at this folder.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                isBrowsingStrayFiles = true
+                            } label: {
+                                Label(
+                                    "Browse \(strayFilesInSessionFolder.count) File(s) (\(strayFilesTotalSizeText))…",
+                                    systemImage: "doc.on.doc"
+                                )
                             }
-                            .padding(.horizontal, 2)
                         }
                     }
                 }

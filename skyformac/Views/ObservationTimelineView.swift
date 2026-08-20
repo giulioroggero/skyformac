@@ -15,32 +15,39 @@ struct TimelineEntry: Identifiable {
 }
 
 /// Every capture from every session across every project, merged into one chronological, zoomable
-/// timeline — real elapsed time between captures *close together* becomes horizontal distance, so
-/// a dense session's captures cluster proportionally. A gap longer than `maxGapHours` (a quiet
-/// week/month/year between sessions) no longer stretches proportionally to its real length —
-/// it's capped at `maxGapHours`' worth of width, so the timeline stays compact and scrollable
-/// instead of mostly blank space between the handful of sessions that actually happened. Zooming
-/// in spreads a cluster apart until individual captures (from different sessions/projects,
-/// interleaved by when they actually happened) become separately tappable. Placed on the Home
-/// page, above "Recent Projects."
+/// timeline. Spacing between thumbnails is purely index-based — one fixed "per-thumbnail" width
+/// at a time, not proportional to how much real time separates two captures — so the strip's
+/// scale depends only on how many captures there are, and there's never any dead, empty stretch
+/// between two thumbnails just because a lot of real time passed between them. Zooming in spreads
+/// everything apart until individual captures become easier to tap; zooming out packs them
+/// tighter, letting nearby ones visually overlap the same way a crowded film strip would. Placed
+/// on the Home page, above "Recent Projects."
 struct ObservationTimelineView: View {
     let projects: [Project]
     var cameraManager: CameraManager
     var onSelect: (Project, Session, CaptureRecord) -> Void
 
     private let entries: [TimelineEntry]
-    private let defaultPixelsPerHour: Double
-    @State private var pixelsPerHour: Double
+    private let defaultPixelsPerThumbnail: Double
+    @State private var pixelsPerThumbnail: Double
+    /// Tracked live via `.scrollPosition(id:)` below — whichever entry is currently at the
+    /// scroll view's own anchor point. Drives the big date header (so it reflects whatever's
+    /// actually on screen, not always the single most recent capture) and doubles as the anchor
+    /// `rezoom(to:)` re-scrolls back to after a zoom change, instead of leaving the view to land
+    /// wherever the new (often much narrower or wider) content width happens to clamp the old
+    /// absolute scroll offset to — previously, that was usually the very first, oldest thumbnail.
+    @State private var visibleEntryID: CaptureRecord.ID?
 
     private static let thumbnailSize: CGFloat = 72
     private static let laneHeight: CGFloat = thumbnailSize + 88
-    /// The whole (gap-capped) span is scaled to roughly this many points wide at the default
-    /// zoom — wide enough to read as a real timeline without opening already fully zoomed in.
+    /// A thumbnail column's total footprint (`thumbnailView`'s own `.frame(width:)` below) — the
+    /// spacing `showsText(count:pixelsPerThumbnail:columnWidth:)` compares against to decide how
+    /// many thumbnails apart a text label can safely appear.
+    private static let columnWidth: CGFloat = thumbnailSize + 16
+    /// The whole strip is scaled to roughly this many points wide at the default zoom, however
+    /// many captures there are — wide enough to read as a real timeline without opening already
+    /// fully zoomed in.
     private static let targetInitialWidth: CGFloat = 1400
-    /// Any inter-capture gap longer than this compresses to exactly this many hours' worth of
-    /// width, regardless of how much real time actually passed — the fix for "remove the empty
-    /// spaces between days, compress the timeline dynamically if there is no observation."
-    private static let maxGapHours: Double = 6
 
     init(projects: [Project], cameraManager: CameraManager, onSelect: @escaping (Project, Session, CaptureRecord) -> Void) {
         self.projects = projects
@@ -49,10 +56,9 @@ struct ObservationTimelineView: View {
 
         let built = Self.mergedEntries(from: projects)
         self.entries = built
-        let compressedHours = Self.compressedTotalHours(for: built)
-        let initial = max(Self.targetInitialWidth / compressedHours, 0.5)
-        self.defaultPixelsPerHour = initial
-        self._pixelsPerHour = State(initialValue: initial)
+        let initial = Self.defaultPixelsPerThumbnail(count: built.count)
+        self.defaultPixelsPerThumbnail = initial
+        self._pixelsPerThumbnail = State(initialValue: initial)
     }
 
     /// Every capture from every session across every project, interleaved chronologically —
@@ -69,52 +75,36 @@ struct ObservationTimelineView: View {
         }.sorted { $0.capture.date < $1.capture.date }
     }
 
-    /// Sum of every consecutive inter-capture gap, each capped at `maxGapHours` — the "real"
-    /// total span with long quiet stretches compressed out, used both to pick a sensible default
-    /// zoom (`defaultPixelsPerHour`) and, per-entry, to lay each thumbnail out
-    /// (`compressedOffsetsInHours`). At least 0.1h so a single capture (or several in the same
-    /// instant) doesn't divide by zero.
-    nonisolated static func compressedTotalHours(for entries: [TimelineEntry]) -> Double {
-        guard entries.count > 1 else { return 0.1 }
-        var total = 0.0
-        for i in 1..<entries.count {
-            let gapHours = entries[i].capture.date.timeIntervalSince(entries[i - 1].capture.date) / 3600
-            total += min(max(gapHours, 0), maxGapHours)
-        }
-        return max(total, 0.1)
+    /// Fits `count` thumbnails, evenly spaced by index, into roughly `targetInitialWidth` points
+    /// — "the scale of the timeline ... depends on how many thumbnails are present," not on how
+    /// much real time separates them. At least 1pt so a single/no-capture timeline doesn't divide
+    /// by zero.
+    nonisolated static func defaultPixelsPerThumbnail(count: Int) -> Double {
+        guard count > 1 else { return Double(columnWidth) }
+        return max(Double(targetInitialWidth) / Double(count - 1), 1)
     }
 
-    /// Each entry's horizontal position, in hours from the first entry, with every inter-capture
-    /// gap capped at `maxGapHours` — same index order as `entries`. `xOffset`s pixel positions
-    /// come straight from multiplying these by `pixelsPerHour`.
-    nonisolated static func compressedOffsetsInHours(for entries: [TimelineEntry]) -> [Double] {
-        guard !entries.isEmpty else { return [] }
-        var offsets = [0.0]
-        for i in 1..<entries.count {
-            let gapHours = entries[i].capture.date.timeIntervalSince(entries[i - 1].capture.date) / 3600
-            offsets.append(offsets[i - 1] + min(max(gapHours, 0), maxGapHours))
-        }
-        return offsets
-    }
-
-    /// Lower bound stays relative to `defaultPixelsPerHour` (zooming *out* only ever needs to
-    /// relate to how wide the actual data span already is). The upper bound doesn't — a purely
-    /// relative ceiling (e.g. `defaultPixelsPerHour * 300`) shrinks to nothing for a timeline
-    /// spanning months/years, since `defaultPixelsPerHour` itself is already tiny at that scale
-    /// (see its own doc comment). An absolute floor of 3000 px/hour (50pt/minute — enough to tell
-    /// captures a minute apart apart, per the actual request: "resolution of minutes") guarantees
-    /// real minute-level zoom is always reachable regardless of how long the total span is.
-    private var minPixelsPerHour: Double { defaultPixelsPerHour * 0.05 }
-    private var maxPixelsPerHour: Double { max(defaultPixelsPerHour * 300, 3000) }
+    /// Lower bound stays relative to `defaultPixelsPerThumbnail` (zooming *out* only ever needs
+    /// to relate to how wide the actual strip already is at its default scale). The upper bound
+    /// has an absolute floor too (three column-widths) so zooming in always reaches a spacing
+    /// wide enough to fully separate every thumbnail, however many there are.
+    private var minPixelsPerThumbnail: Double { max(defaultPixelsPerThumbnail * 0.1, 1) }
+    private var maxPixelsPerThumbnail: Double { max(defaultPixelsPerThumbnail * 10, Double(Self.columnWidth) * 3) }
 
     /// "MM.dd.yy" — the big-number date header above the timeline, styled like a calendar page
-    /// heading rather than a plain sentence date, matching the literal ask ("show the date in
-    /// large number eg 08.14.26").
+    /// heading rather than a plain sentence date.
     private static let bigDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MM.dd.yy"
         return formatter
     }()
+
+    /// Whichever entry the header should show the date of — `visibleEntryID` once the user has
+    /// scrolled/zoomed at all, otherwise the most recent capture (matching where the strip
+    /// actually opens, `.defaultScrollAnchor(.trailing)` below).
+    private var headerDate: Date? {
+        (entries.first(where: { $0.id == visibleEntryID }) ?? entries.last)?.capture.date
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -123,9 +113,9 @@ struct ObservationTimelineView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                if let mostRecentDate = entries.last?.capture.date {
-                    Text(Self.bigDateFormatter.string(from: mostRecentDate))
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                if let headerDate {
+                    Text(Self.bigDateFormatter.string(from: headerDate))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                         .monospacedDigit()
                 }
                 ScrollViewReader { proxy in
@@ -133,10 +123,29 @@ struct ObservationTimelineView: View {
                     ScrollView(.horizontal) {
                         timelineCanvas
                     }
+                    .scrollPosition(id: $visibleEntryID)
                     .frame(height: Self.laneHeight)
                     .defaultScrollAnchor(.trailing)
+                    .onChange(of: pixelsPerThumbnail) { _, _ in
+                        rezoom(proxy: proxy)
+                    }
                 }
             }
+        }
+    }
+
+    /// Re-anchors the scroll view to whatever was actually visible right before a zoom change —
+    /// the fix for "the zoom in/out show only the most old thumb": changing `pixelsPerThumbnail`
+    /// changes the strip's total width, and without this the scroll view was left wherever its
+    /// old absolute scroll offset happened to clamp to against the new width, which after
+    /// zooming out (a much narrower strip) was usually all the way back to the first, oldest
+    /// thumbnail. Dispatched to the next runloop tick since the new width from this same
+    /// `pixelsPerThumbnail` change needs to actually land before `scrollTo` has anywhere new to
+    /// scroll to.
+    private func rezoom(proxy: ScrollViewProxy) {
+        guard let anchorID = visibleEntryID ?? entries.last?.id else { return }
+        DispatchQueue.main.async {
+            proxy.scrollTo(anchorID, anchor: .center)
         }
     }
 
@@ -144,20 +153,20 @@ struct ObservationTimelineView: View {
         HStack {
             Text("Zoom").font(.caption)
             Button {
-                withAnimation { pixelsPerHour = minPixelsPerHour }
+                withAnimation { pixelsPerThumbnail = minPixelsPerThumbnail }
             } label: {
                 Image(systemName: "minus.magnifyingglass")
             }
             .help("Zoom all the way out")
-            Slider(value: $pixelsPerHour, in: minPixelsPerHour...maxPixelsPerHour)
+            Slider(value: $pixelsPerThumbnail, in: minPixelsPerThumbnail...maxPixelsPerThumbnail)
             Button {
-                withAnimation { pixelsPerHour = maxPixelsPerHour }
+                withAnimation { pixelsPerThumbnail = maxPixelsPerThumbnail }
             } label: {
                 Image(systemName: "plus.magnifyingglass")
             }
-            .help("Zoom all the way in — minute-level resolution")
-            if pixelsPerHour != defaultPixelsPerHour {
-                Button("Reset") { withAnimation { pixelsPerHour = defaultPixelsPerHour } }
+            .help("Zoom all the way in — every thumbnail fully separated")
+            if pixelsPerThumbnail != defaultPixelsPerThumbnail {
+                Button("Reset") { withAnimation { pixelsPerThumbnail = defaultPixelsPerThumbnail } }
                     .font(.caption)
                     .controlSize(.small)
             }
@@ -170,48 +179,32 @@ struct ObservationTimelineView: View {
             }
             .help("Jump to the most recent capture")
         }
-        .help("Zooms the timeline horizontally — captures close together in time spread apart as you zoom in, so a dense session's captures become individually tappable instead of overlapping.")
+        .help("Zooms the timeline horizontally — captures spread apart as you zoom in, so a dense session's captures become individually tappable instead of overlapping.")
     }
 
-    /// A thumbnail column's total footprint (`thumbnailView`'s own `.frame(width:)` below) — the
-    /// threshold `showsText(offsetsInHours:pixelsPerHour:)` compares each entry's gap from its
-    /// predecessor against.
-    private static let columnWidth: CGFloat = thumbnailSize + 16
-
-    /// Real thumbnails are still allowed to overlap (restoring the original, denser look — a
-    /// crowded session's frames genuinely do stack visually, same as before lane-splitting was
-    /// tried and made the whole strip taller than the timeline's own frame) — only each entry's
-    /// *text* (object name + date, the part that actually became unreadable when two captures
-    /// landed close together) gets suppressed. `nonisolated static` — see `mergedEntries`'s own
-    /// doc comment for why — so it's directly unit-testable.
-    ///
-    /// Chained against the immediately-previous entry only (not "the previous entry that still
-    /// shows text"), which is suffient on its own: if entry `i`'s gap from `i-1` already clears
-    /// `columnWidth`, its gap from any earlier entry `i-2`, `i-3`, ... is at least as large too
-    /// (positions only increase), so there's no way its text can collide with an earlier one
-    /// that's still showing.
-    nonisolated static func showsText(offsetsInHours: [Double], pixelsPerHour: Double) -> [Bool] {
-        offsetsInHours.indices.map { i in
-            guard i > 0 else { return true }
-            let gap = CGFloat(offsetsInHours[i] - offsetsInHours[i - 1]) * pixelsPerHour
-            return gap >= columnWidth
-        }
+    /// Real thumbnails are allowed to overlap when zoomed out (a crowded run of captures visually
+    /// stacks, rather than reserving empty space to keep every one fully apart) — only each
+    /// entry's *text* (object name + date, the part that actually becomes unreadable when two
+    /// captures land close together) gets suppressed, on a fixed stride so it's evenly spaced out
+    /// rather than by real time gaps. `nonisolated static` — see `mergedEntries`'s own doc
+    /// comment for why — so it's directly unit-testable; `columnWidth` is threaded through as a
+    /// parameter (rather than reading the `private` constant directly) for that same reason.
+    nonisolated static func showsText(count: Int, pixelsPerThumbnail: Double, columnWidth: Double) -> [Bool] {
+        guard count > 0 else { return [] }
+        let stride = max(1, Int((columnWidth / max(pixelsPerThumbnail, 1)).rounded(.up)))
+        return (0..<count).map { $0 % stride == 0 }
     }
 
-    /// A real `HStack` with computed (possibly negative) leading padding between entries, not a
-    /// `ZStack` of `.offset()`-positioned children — `.offset()` is a purely visual transform
-    /// that doesn't change what the layout system (and, critically, `ScrollViewReader.scrollTo`)
-    /// believes a view's own position actually is, which is exactly why "jump to most recent"
-    /// could scroll to the wrong place: every absolutely-offset thumbnail reported the *same*
-    /// pre-offset layout frame to the scroll view. Padding-based layout doesn't have that
-    /// problem, and — unlike `.offset()` — still allows genuine visual overlap when the padding
-    /// works out negative (two captures close enough in time that their columns would collide).
+    /// A real `HStack`, not a `ZStack` of `.offset()`-positioned children — `.offset()` is a
+    /// purely visual transform that doesn't change what the layout system (and, critically,
+    /// `ScrollViewReader.scrollTo`/`.scrollPosition(id:)`) believes a view's own position
+    /// actually is. Every entry gets the same fixed `pixelsPerThumbnail` spacing regardless of
+    /// its actual capture date — see this type's own doc comment for why.
     @ViewBuilder
     private var timelineCanvas: some View {
         if !entries.isEmpty {
-            let offsetsInHours = Self.compressedOffsetsInHours(for: entries)
-            let totalWidth = CGFloat(offsetsInHours.last ?? 0) * pixelsPerHour + Self.thumbnailSize + 40
-            let showsText = Self.showsText(offsetsInHours: offsetsInHours, pixelsPerHour: pixelsPerHour)
+            let totalWidth = CGFloat(entries.count - 1) * pixelsPerThumbnail + Self.thumbnailSize + 40
+            let showsText = Self.showsText(count: entries.count, pixelsPerThumbnail: pixelsPerThumbnail, columnWidth: Double(Self.columnWidth))
             ZStack(alignment: .topLeading) {
                 Rectangle()
                     .fill(.quaternary)
@@ -220,11 +213,8 @@ struct ObservationTimelineView: View {
                     .padding(.top, Self.thumbnailSize / 2 + 24)
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                        let x = CGFloat(offsetsInHours[index]) * pixelsPerHour
-                        let previousX = index == 0 ? nil : CGFloat(offsetsInHours[index - 1]) * pixelsPerHour
-                        let leadingPadding = index == 0 ? x + 20 : x - previousX!
                         thumbnailView(for: entry, showsText: showsText[index])
-                            .padding(.leading, leadingPadding)
+                            .padding(.leading, index == 0 ? 20 : pixelsPerThumbnail - Double(Self.columnWidth))
                             .id(entry.id)
                             // Later (visually rightmost/more-recent) thumbnails draw on top of
                             // whatever they overlap, same as `zIndex` ordering elsewhere in this
@@ -233,6 +223,7 @@ struct ObservationTimelineView: View {
                             .zIndex(Double(index))
                     }
                 }
+                .scrollTargetLayout()
             }
             .frame(width: totalWidth, height: Self.laneHeight, alignment: .topLeading)
         }
