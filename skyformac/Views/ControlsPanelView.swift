@@ -128,6 +128,9 @@ struct ControlsPanelView: View {
     @State private var showDarkFrameSection = false
     @State private var showLiveStackSection = false
     @State private var showLuckyImagingSection = false
+    @State private var showLiveCaptureSection = false
+    @State private var isLiveCaptureBrowserPresented = false
+    @AppStorage("liveCaptureDurationSeconds") private var liveCaptureDurationSeconds: Double = 3
     @State private var showLuckyImagingFrameBrowser = false
     @State private var showExportSection = false
     @State private var showExportedFilesSection = false
@@ -563,6 +566,13 @@ struct ControlsPanelView: View {
             }
             Divider()
 
+            DisclosureGroup(isExpanded: $showLiveCaptureSection) {
+                liveCaptureSection
+            } label: {
+                HelpLinkedDisclosureLabel(title: "Live Capture", cameraManager: cameraManager, sectionID: "setting.liveCapture")
+            }
+            Divider()
+
             DisclosureGroup("Advanced", isExpanded: $showPlanetaryAdvancedSection) {
                 VStack(alignment: .leading, spacing: 14) {
                     DisclosureGroup(isExpanded: $showFocusAssistSection) {
@@ -971,6 +981,17 @@ struct ControlsPanelView: View {
                 }
             }
             .pickerStyle(.segmented)
+            // The live feed tears down and rebuilds on every ROI change — firing several before
+            // the first one settles is what used to show up as the preview repeatedly flashing/
+            // tearing ("continues to flash between rows") until the whole backlog finally drained.
+            // Disabling the controls for that (usually sub-second) stretch means only one restart
+            // is ever in flight at a time.
+            .disabled(cameraManager.isRestartingCapturePipeline)
+            if cameraManager.isRestartingCapturePipeline {
+                Label("Applying new ROI — restarting the live stream…", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             if let width = cameraManager.captureROIWidth, let height = cameraManager.captureROIHeight {
                 let centerX = cameraManager.captureROICenterX ?? (cameraManager.connectedCamera?.maxWidth ?? 0) / 2
@@ -1038,6 +1059,7 @@ struct ControlsPanelView: View {
                             centerX: customROICenterX, centerY: customROICenterY
                         )
                     }
+                    .disabled(cameraManager.isRestartingCapturePipeline)
                     Button("Center on Sensor") {
                         if let camera = cameraManager.connectedCamera {
                             customROICenterX = camera.maxWidth / 2
@@ -1141,6 +1163,7 @@ struct ControlsPanelView: View {
                 }
             }
             .font(.caption)
+            focusQualityIndicator
         }
 
         Toggle("Recognize Stars (vs. Stellarium catalog)", isOn: Binding(
@@ -1158,6 +1181,70 @@ struct ControlsPanelView: View {
         if !cameraManager.focusTracker.samples.isEmpty {
             hfdTrendView
         }
+    }
+
+    /// "Is my focus okay, and which way do I turn the focuser?" — reads the same live HFD
+    /// `hfdTrendView`'s chart already plots, but as a plain sentence rather than a number the
+    /// user has to interpret themselves. There's no way to know from software alone which
+    /// physical direction (CW/CCW) a given focuser's knob needs to turn to *lower* HFD — that
+    /// depends on the focuser/OTA's own mechanics — so the direction hint instead reads the
+    /// *live trend* (`FocusTracker.trendPerMinute`): whatever the user is currently doing to the
+    /// focuser, keep doing it if HFD is falling, reverse it if HFD is rising. Once real
+    /// motorized-focuser control exists, this is exactly the signal an autofocus routine would
+    /// hill-climb on too — this is a manual, human-in-the-loop version of the same idea.
+    @ViewBuilder
+    private var focusQualityIndicator: some View {
+        if let hfd = cameraManager.focusTracker.samples.last?.medianHFD {
+            let trend = cameraManager.focusTracker.trendPerMinute()
+            VStack(alignment: .leading, spacing: 2) {
+                Label(focusQualityLabel(hfd: hfd), systemImage: focusQualityIcon(hfd: hfd))
+                    .font(.caption.bold())
+                    .foregroundStyle(focusQualityColor(hfd: hfd))
+                Text(focusGuidance(hfd: hfd, trendPerMinute: trend))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Thresholds are a rule of thumb for a typical amateur setup, not a calibrated instrument
+    /// spec — good enough to point a beginner toward "keep going" vs. "stop, back off."
+    private func focusQualityLabel(hfd: Double) -> String {
+        switch hfd {
+        case ..<2.5: return "Focus: Good"
+        case 2.5..<5: return "Focus: Fair"
+        default: return "Focus: Poor"
+        }
+    }
+
+    private func focusQualityIcon(hfd: Double) -> String {
+        switch hfd {
+        case ..<2.5: return "checkmark.circle.fill"
+        case 2.5..<5: return "circle.lefthalf.filled"
+        default: return "exclamationmark.circle.fill"
+        }
+    }
+
+    private func focusQualityColor(hfd: Double) -> Color {
+        switch hfd {
+        case ..<2.5: return .green
+        case 2.5..<5: return .orange
+        default: return .red
+        }
+    }
+
+    private func focusGuidance(hfd: Double, trendPerMinute: Double?) -> String {
+        // A small dead zone around zero — a barely-measurable trend isn't a real signal either
+        // way, and reporting one would just be noise the user can't act on.
+        if let trendPerMinute, abs(trendPerMinute) > 0.15 {
+            return trendPerMinute > 0
+                ? "Getting worse — reverse whatever you just did to the focuser."
+                : "Improving — keep turning the focuser the same way."
+        }
+        if hfd < 2.5 {
+            return "Looks sharp. Nudge the focuser slightly if you want to try to do better."
+        }
+        return "Turn the focuser slowly either way and watch this number — lower is sharper."
     }
 
     @ViewBuilder
@@ -2038,6 +2125,44 @@ struct ControlsPanelView: View {
         }
         .sheet(isPresented: $showLuckyImagingFrameBrowser) {
             LuckyImagingFrameBrowserView(cameraManager: cameraManager)
+        }
+    }
+
+    // MARK: - Live Capture
+
+    @ViewBuilder
+    private var liveCaptureSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Like an iPhone Live Photo: buffers the live feed for a few seconds, then lets you scrub through every frame it captured and export whichever one actually looked sharpest — instead of betting on the timing of one manual capture.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text(String(format: "%.1f sec", liveCaptureDurationSeconds))
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 60, alignment: .leading)
+                Slider(value: $liveCaptureDurationSeconds, in: 1...10, step: 0.5)
+            }
+
+            Button {
+                cameraManager.startLiveCapture(durationSeconds: liveCaptureDurationSeconds)
+                isLiveCaptureBrowserPresented = true
+            } label: {
+                Label("Start Live Capture", systemImage: "livephoto")
+            }
+            // Shares `CameraManager.luckyImagingSession` with Lucky Imaging above — starting
+            // either while the other's burst is still active/being browsed would silently
+            // replace it, so both triggers disable themselves while the other one's session is
+            // in memory instead of letting that happen.
+            .disabled(!cameraManager.isLiveViewActive || cameraManager.luckyImagingSession != nil)
+            if cameraManager.luckyImagingSession != nil && cameraManager.luckyImagingProgress != nil {
+                Text("Disabled while a Lucky Imaging burst is active or its frames are still being browsed.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .sheet(isPresented: $isLiveCaptureBrowserPresented) {
+            LiveCaptureBrowserView(cameraManager: cameraManager)
         }
     }
 

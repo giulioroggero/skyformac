@@ -15,26 +15,32 @@ struct TimelineEntry: Identifiable {
 }
 
 /// Every capture from every session across every project, merged into one chronological, zoomable
-/// timeline — real elapsed time between captures becomes horizontal distance, not just list order,
-/// so a dense session's captures cluster tightly together and a quiet month between sessions shows
-/// as real empty space. Zooming in spreads a cluster apart until individual captures (from
-/// different sessions/projects, interleaved by when they actually happened) become separately
-/// tappable. Placed on the Home page, above "Recent Projects."
+/// timeline — real elapsed time between captures *close together* becomes horizontal distance, so
+/// a dense session's captures cluster proportionally. A gap longer than `maxGapHours` (a quiet
+/// week/month/year between sessions) no longer stretches proportionally to its real length —
+/// it's capped at `maxGapHours`' worth of width, so the timeline stays compact and scrollable
+/// instead of mostly blank space between the handful of sessions that actually happened. Zooming
+/// in spreads a cluster apart until individual captures (from different sessions/projects,
+/// interleaved by when they actually happened) become separately tappable. Placed on the Home
+/// page, above "Recent Projects."
 struct ObservationTimelineView: View {
     let projects: [Project]
     var cameraManager: CameraManager
     var onSelect: (Project, Session, CaptureRecord) -> Void
 
     private let entries: [TimelineEntry]
-    private let dateRange: ClosedRange<Date>?
     private let defaultPixelsPerHour: Double
     @State private var pixelsPerHour: Double
 
     private static let thumbnailSize: CGFloat = 72
     private static let laneHeight: CGFloat = thumbnailSize + 88
-    /// The whole date range is scaled to roughly this many points wide at the default zoom — wide
-    /// enough to read as a real timeline without opening already fully zoomed in.
+    /// The whole (gap-capped) span is scaled to roughly this many points wide at the default
+    /// zoom — wide enough to read as a real timeline without opening already fully zoomed in.
     private static let targetInitialWidth: CGFloat = 1400
+    /// Any inter-capture gap longer than this compresses to exactly this many hours' worth of
+    /// width, regardless of how much real time actually passed — the fix for "remove the empty
+    /// spaces between days, compress the timeline dynamically if there is no observation."
+    private static let maxGapHours: Double = 6
 
     init(projects: [Project], cameraManager: CameraManager, onSelect: @escaping (Project, Session, CaptureRecord) -> Void) {
         self.projects = projects
@@ -43,9 +49,8 @@ struct ObservationTimelineView: View {
 
         let built = Self.mergedEntries(from: projects)
         self.entries = built
-        let range = Self.dateRange(for: built)
-        self.dateRange = range
-        let initial = Self.defaultPixelsPerHour(for: range)
+        let compressedHours = Self.compressedTotalHours(for: built)
+        let initial = max(Self.targetInitialWidth / compressedHours, 0.5)
         self.defaultPixelsPerHour = initial
         self._pixelsPerHour = State(initialValue: initial)
     }
@@ -64,22 +69,32 @@ struct ObservationTimelineView: View {
         }.sorted { $0.capture.date < $1.capture.date }
     }
 
-    /// `nil` for no captures anywhere. At least a minute wide even for a single capture (or
-    /// several taken in the same instant) — a zero-width range would divide by zero in
-    /// `defaultPixelsPerHour(for:)`.
-    nonisolated static func dateRange(for entries: [TimelineEntry]) -> ClosedRange<Date>? {
-        entries.first.map { first in
-            let last = entries.last?.capture.date ?? first.capture.date
-            return first.capture.date...max(last, first.capture.date.addingTimeInterval(60))
+    /// Sum of every consecutive inter-capture gap, each capped at `maxGapHours` — the "real"
+    /// total span with long quiet stretches compressed out, used both to pick a sensible default
+    /// zoom (`defaultPixelsPerHour`) and, per-entry, to lay each thumbnail out
+    /// (`compressedOffsetsInHours`). At least 0.1h so a single capture (or several in the same
+    /// instant) doesn't divide by zero.
+    nonisolated static func compressedTotalHours(for entries: [TimelineEntry]) -> Double {
+        guard entries.count > 1 else { return 0.1 }
+        var total = 0.0
+        for i in 1..<entries.count {
+            let gapHours = entries[i].capture.date.timeIntervalSince(entries[i - 1].capture.date) / 3600
+            total += min(max(gapHours, 0), maxGapHours)
         }
+        return max(total, 0.1)
     }
 
-    /// Scales `range` to roughly `targetInitialWidth` points wide — wide enough to read as a real
-    /// timeline without opening already fully zoomed in, regardless of whether the actual data
-    /// spans a day or several years.
-    nonisolated static func defaultPixelsPerHour(for range: ClosedRange<Date>?) -> Double {
-        let totalHours = range.map { max($0.upperBound.timeIntervalSince($0.lowerBound) / 3600, 0.1) } ?? 1
-        return max(targetInitialWidth / totalHours, 0.5)
+    /// Each entry's horizontal position, in hours from the first entry, with every inter-capture
+    /// gap capped at `maxGapHours` — same index order as `entries`. `xOffset`s pixel positions
+    /// come straight from multiplying these by `pixelsPerHour`.
+    nonisolated static func compressedOffsetsInHours(for entries: [TimelineEntry]) -> [Double] {
+        guard !entries.isEmpty else { return [] }
+        var offsets = [0.0]
+        for i in 1..<entries.count {
+            let gapHours = entries[i].capture.date.timeIntervalSince(entries[i - 1].capture.date) / 3600
+            offsets.append(offsets[i - 1] + min(max(gapHours, 0), maxGapHours))
+        }
+        return offsets
     }
 
     /// Lower bound stays relative to `defaultPixelsPerHour` (zooming *out* only ever needs to
@@ -152,25 +167,22 @@ struct ObservationTimelineView: View {
     /// would silently render past the stack's bounds without it.
     @ViewBuilder
     private var timelineCanvas: some View {
-        if let dateRange {
-            let totalWidth = xOffset(for: dateRange.upperBound, start: dateRange.lowerBound) + Self.thumbnailSize + 40
+        if !entries.isEmpty {
+            let offsetsInHours = Self.compressedOffsetsInHours(for: entries)
+            let totalWidth = CGFloat(offsetsInHours.last ?? 0) * pixelsPerHour + Self.thumbnailSize + 40
             ZStack(alignment: .topLeading) {
                 Rectangle()
                     .fill(.quaternary)
                     .frame(width: totalWidth, height: 2)
                     .offset(x: 20, y: Self.thumbnailSize / 2 + 24)
-                ForEach(entries) { entry in
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     thumbnailView(for: entry)
-                        .offset(x: xOffset(for: entry.capture.date, start: dateRange.lowerBound) + 20, y: 0)
+                        .offset(x: CGFloat(offsetsInHours[index]) * pixelsPerHour + 20, y: 0)
                         .id(entry.id)
                 }
             }
             .frame(width: totalWidth, height: Self.laneHeight, alignment: .topLeading)
         }
-    }
-
-    private func xOffset(for date: Date, start: Date) -> CGFloat {
-        CGFloat(date.timeIntervalSince(start) / 3600) * pixelsPerHour
     }
 
     @ViewBuilder

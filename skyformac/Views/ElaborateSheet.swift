@@ -113,7 +113,7 @@ struct ElaborateSheet: View {
             }
 
             HStack {
-                Button("Open in Siril…", systemImage: "arrow.up.forward.app") { openInSiril() }
+                Button("Open Siril Directly…", systemImage: "arrow.up.forward.app") { openInSiril() }
                     .help("Opens Siril's own app with the source file loaded, for full manual control — alignment, rejection, curves, PixelMath — beyond what this automated recipe covers.")
                 Spacer()
                 if completedImage != nil {

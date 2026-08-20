@@ -299,46 +299,41 @@ struct ContentView: View {
                     .nightModeTint(cameraManager)
             }
             ToolbarItem {
-                HStack(spacing: 2) {
-                    Toggle(isOn: Binding(
-                        get: { cameraManager.useMetalRenderer },
-                        set: { cameraManager.useMetalRenderer = $0 }
-                    )) {
-                        Label(
-                            cameraManager.useMetalRenderer ? "GPU" : "CPU",
-                            systemImage: cameraManager.useMetalRenderer ? "bolt.fill" : "cpu"
-                        )
-                        .foregroundStyle(cameraManager.useMetalRenderer ? .green : .primary)
-                    }
-                    .help(cameraManager.useMetalRenderer
-                        ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
-                        : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
-                    .accessibilityIdentifier("RenderPathToggle")
-                    HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.gpuCpuToggle")
+                exportPNGButton
+                    .nightModeTint(cameraManager)
+            }
+            ToolbarItem {
+                Toggle(isOn: Binding(
+                    get: { cameraManager.useMetalRenderer },
+                    set: { cameraManager.useMetalRenderer = $0 }
+                )) {
+                    Label(
+                        cameraManager.useMetalRenderer ? "GPU" : "CPU",
+                        systemImage: cameraManager.useMetalRenderer ? "bolt.fill" : "cpu"
+                    )
+                    .foregroundStyle(cameraManager.useMetalRenderer ? .green : .primary)
                 }
+                .help(cameraManager.useMetalRenderer
+                    ? "Rendering on GPU (Metal compute shaders). Click to switch to the CPU (CGImage) path."
+                    : "Rendering on CPU (CGImage). Click to switch to the GPU (Metal) path.")
+                .accessibilityIdentifier("RenderPathToggle")
                 .nightModeTint(cameraManager)
             }
             ToolbarItem {
-                HStack(spacing: 2) {
-                    Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(
-                        get: { cameraManager.isNightModeEnabled },
-                        set: { cameraManager.isNightModeEnabled = $0 }
-                    ))
-                        .help("Red-only UI to preserve night vision during visual observation")
-                    HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.nightModeApp")
-                }
-                .nightModeTint(cameraManager)
+                Toggle("Night Mode", systemImage: "moon.stars.fill", isOn: Binding(
+                    get: { cameraManager.isNightModeEnabled },
+                    set: { cameraManager.isNightModeEnabled = $0 }
+                ))
+                    .help("Red-only UI to preserve night vision during visual observation")
+                    .nightModeTint(cameraManager)
             }
             ToolbarItem {
-                HStack(spacing: 2) {
-                    Toggle("All-Sky Monitor", systemImage: "cloud.sun", isOn: Binding(
-                        get: { cameraManager.isAllSkyMonitorVisible },
-                        set: { cameraManager.isAllSkyMonitorVisible = $0 }
-                    ))
-                        .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
-                    HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.allSkyMonitor")
-                }
-                .nightModeTint(cameraManager)
+                Toggle("All-Sky Monitor", systemImage: "cloud.sun", isOn: Binding(
+                    get: { cameraManager.isAllSkyMonitorVisible },
+                    set: { cameraManager.isAllSkyMonitorVisible = $0 }
+                ))
+                    .help("Picture-in-picture feed from a secondary webcam or nearby iPhone (Continuity Camera) for watching clouds/cables")
+                    .nightModeTint(cameraManager)
             }
             ToolbarItem {
                 if cameraManager.isExternalWebcam {
@@ -411,6 +406,23 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 160)
+        }
+    }
+
+    /// Always visible next to the RAW8/RAW16 picker rather than buried in the Export section a
+    /// tab deep — a one-tap "save what I'm looking at right now" companion to "Export > PNG"
+    /// (`CameraManager.exportCurrentFrame(as:)`, the exact same full-detail debayered/stretched
+    /// PNG write, session-folder-aware save location included).
+    @ViewBuilder
+    private var exportPNGButton: some View {
+        if cameraManager.connectedCamera != nil {
+            Button {
+                cameraManager.exportCurrentFrame(as: .png)
+            } label: {
+                Label("PNG", systemImage: "square.and.arrow.down")
+            }
+            .help("Save the current frame as a full-detail PNG — same as Export > PNG.")
+            .disabled(cameraManager.currentFrame == nil)
         }
     }
 

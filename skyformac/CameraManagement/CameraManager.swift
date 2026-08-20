@@ -1836,6 +1836,40 @@ final class CameraManager {
         )
     }
 
+    /// Records a `PlanetaryPostProcessingView` result as its own new `ElaboratedImage` — unlike
+    /// `sendToGraXpert`/`sendToStarNet`, there's no external process here (the whole pipeline runs
+    /// in-app), so this just writes the already-rendered frame to disk and catalogs it.
+    func savePlanetaryPostProcessingResult(
+        _ image: CGImage, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project
+    ) throws -> ElaboratedImage {
+        let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        let fileName = "Planetary-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970)).png"
+        let resultURL = outputDirectory.appendingPathComponent(fileName)
+        try ImageExporter.writePNG(image, to: resultURL)
+        return try projectsLibrary.addElaboratedImage(
+            fileName: fileName, sourceSessionIDs: sourceSessionIDs,
+            sourceCaptureID: sourceCaptureID, toolLabel: "Planetary Post-Processing", to: project
+        )
+    }
+
+    /// `SingleImagePostProcessingView`'s own save — same "write a PNG into this project's
+    /// Elaborated folder, catalog it" shape as `savePlanetaryPostProcessingResult` above, just
+    /// under a different tool label so the two are distinguishable in the Elaborated gallery.
+    func saveImageEditResult(
+        _ image: CGImage, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project
+    ) throws -> ElaboratedImage {
+        let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        let fileName = "Edited-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970)).png"
+        let resultURL = outputDirectory.appendingPathComponent(fileName)
+        try ImageExporter.writePNG(image, to: resultURL)
+        return try projectsLibrary.addElaboratedImage(
+            fileName: fileName, sourceSessionIDs: sourceSessionIDs,
+            sourceCaptureID: sourceCaptureID, toolLabel: "Image Editor", to: project
+        )
+    }
+
     // MARK: - Lucky imaging (burst capture + sharpness-ranked stacking — see `LuckyImagingSession`)
 
     private(set) var luckyImagingSession: LuckyImagingSession?
@@ -2465,11 +2499,31 @@ final class CameraManager {
     /// anymore, with `isLiveViewActive`/`connectionState` still reporting `.streaming`. Nothing
     /// throws in that path, so the live view just goes silently stale with no in-app recovery —
     /// reported as "the camera hangs and I need to reset" when starting a new session.
+    /// True whenever a capture-pipeline restart is queued or actually in flight — surfaced so the
+    /// UI (the ROI picker/custom-ROI Apply button) can disable itself for that stretch instead of
+    /// letting the user queue up several more restarts before the first one settles. Each restart
+    /// briefly tears the live feed down and rebuilds it (`engine.stop()` → reconfigure →
+    /// `startPreview`), so firing several back-to-back — nothing previously stopped that — showed
+    /// up as the live preview repeatedly flashing/tearing until the whole backlog finally drained,
+    /// "I need to restart the app because it continues to flash between rows."
+    private(set) var isRestartingCapturePipeline = false
+    /// Bumped on every `restartCapturePipeline` call — lets a restart tell, once it finishes,
+    /// whether it was the *last* one queued (in which case it clears `isRestartingCapturePipeline`)
+    /// or whether a newer one has since been queued behind it (in which case it leaves the flag
+    /// alone — that newer restart will clear it once it, in turn, finishes).
+    private var pipelineRestartGeneration = 0
+
     private func restartCapturePipeline(_ body: @escaping () async -> Void) {
         let previous = pipelineRestartTask
-        pipelineRestartTask = Task {
+        isRestartingCapturePipeline = true
+        pipelineRestartGeneration += 1
+        let generation = pipelineRestartGeneration
+        pipelineRestartTask = Task { [weak self] in
             await previous?.value
             await body()
+            if self?.pipelineRestartGeneration == generation {
+                self?.isRestartingCapturePipeline = false
+            }
         }
     }
 
@@ -3213,7 +3267,14 @@ final class CameraManager {
     func captureDarkFrame(seconds: Double) async {
         guard let camera = connectedCamera else { return }
         beginBlockingCapture(seconds: seconds)
-        defer { endBlockingCapture() }
+        // Unlike `captureSingleExposure` (whose own doc comment says explicitly: stays paused so
+        // the user can inspect that still frame, "call `resumeLiveView()` to go back"), nothing
+        // about a dark/flat calibration frame is meant to be inspected on screen — it's consumed
+        // straight into `calibrationLibrary`. With no UI anywhere offering a "Resume Live View"
+        // button next to this capture (unlike single exposure's), leaving live view paused here
+        // was a straight freeze: the preview goes blank/stuck on the last frame and stays that
+        // way forever once this returns.
+        defer { endBlockingCapture(); resumeLiveView() }
 
         let exposureMicroseconds = Int(seconds * 1_000_000)
 
@@ -3381,6 +3442,53 @@ final class CameraManager {
         refreshCurrentImage()
     }
 
+    // MARK: - Live Capture (iPhone-Live-Photo-style burst + pick)
+
+    /// True for exactly `startLiveCapture`'s `durationSeconds` — `LiveCaptureBrowserView` shows a
+    /// "Capturing…" state for as long as this is true, then flips to the frame-picker once it
+    /// isn't. Distinct from `LuckyImagingSession.isComplete` (frame-count-based) since this burst
+    /// is stopped by elapsed time, not a target frame count — see `startLiveCapture`'s own doc
+    /// comment for why.
+    private(set) var isLiveCaptureBurstActive = false
+
+    /// Buffers every incoming live frame for `durationSeconds` (default 3, matching an iPhone
+    /// Live Photo), then lets the user scrub through the whole burst afterward
+    /// (`LiveCaptureBrowserView`) and export whichever single frame actually looked sharpest —
+    /// rather than betting on the timing of one manual capture. Reuses `LuckyImagingSession`
+    /// exactly as-is (the same in-memory scored-frame buffer `ingest` already knows how to feed)
+    /// — the only real difference from an actual Lucky Imaging burst is *what* stops it: elapsed
+    /// time (`isLuckyImagingPaused = true` once the timer fires) instead of a target frame count,
+    /// so `targetFrameCount` here is just a generous cap never expected to be hit first.
+    ///
+    /// Shares `luckyImagingSession` with the Lucky Imaging feature — starting one while the other
+    /// already has a burst in flight replaces it, same as starting a second Lucky Imaging burst
+    /// would. The UI is expected to disable whichever trigger isn't relevant while the other's
+    /// burst is active/its frames are still being browsed, rather than this guarding it itself.
+    func startLiveCapture(durationSeconds: Double = 3) {
+        luckyImagingSession = LuckyImagingSession(targetFrameCount: 100_000)
+        isLuckyImagingPaused = false
+        isLiveCaptureBurstActive = true
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(durationSeconds))
+            guard let self else { return }
+            self.isLuckyImagingPaused = true
+            self.isLiveCaptureBurstActive = false
+        }
+    }
+
+    /// Shows one specific frame from the current Live Capture burst, in the order it was actually
+    /// captured (unlike `showLuckyImagingFrame(atSortedIndex:)`, which indexes the
+    /// sharpest-first ranking) — a scrubber naturally wants chronological order, the same way
+    /// scrubbing an iPhone Live Photo does.
+    func showLiveCaptureFrame(atIndex index: Int) {
+        guard let session = luckyImagingSession else { return }
+        let frames = session.scoredFrames
+        guard frames.indices.contains(index) else { return }
+        currentFrame = frames[index].frame
+        frameID &+= 1
+        refreshCurrentImage()
+    }
+
     // MARK: - Export
 
     /// Writes `currentFrame`/`currentImage` in the requested format: FITS carries the raw
@@ -3451,33 +3559,61 @@ final class CameraManager {
     /// `NSSound.beep()` plays alongside it, matching what a physical shutter would communicate.
     private(set) var captureFeedbackTrigger = 0
 
+    /// Gathers whatever in-memory data the actual write needs (cheap — already-decoded pixels,
+    /// no disk I/O yet), then hands the disk write itself off to `Task.detached`. A full-detail
+    /// TIFF or FITS of a multi-megapixel sensor frame can take long enough to encode that doing
+    /// it inline on this (SwiftUI button action → `@MainActor`) call blocked the whole app and
+    /// spun the pointer — this is the fix for that freeze. Bookkeeping that touches `@MainActor`
+    /// state (`recordExport`, `recordActiveSessionCapture`, the shutter-feedback beep) resumes
+    /// afterwards, back on the main actor.
     private func finishExport(kind: ExportKind, to url: URL) {
-        do {
-            switch kind {
-            case .fits:
-                guard let frame = frameForExport() else { return }
+        switch kind {
+        case .fits:
+            guard let frame = frameForExport() else { return }
+            let instrumentName = connectedCamera?.name ?? "skyformac"
+            let isColorCamera = connectedCamera?.isColorCamera ?? false
+            let bayerPattern = connectedCamera?.bayerPattern ?? ASI_BAYER_RG
+            let image = imageForExport()
+            runExport(url: url) {
                 try FITSWriter.write(
-                    frame: frame, instrumentName: connectedCamera?.name ?? "skyformac",
-                    isColorCamera: connectedCamera?.isColorCamera ?? false, bayerPattern: connectedCamera?.bayerPattern ?? ASI_BAYER_RG,
-                    to: url
+                    frame: frame, instrumentName: instrumentName, isColorCamera: isColorCamera, bayerPattern: bayerPattern, to: url
                 )
-                recordExport(url: url, kind: .fits)
-                recordActiveSessionCapture(url: url, kind: .fits, image: imageForExport())
-            case .png:
-                guard let image = imageForExport() else { return }
-                try ImageExporter.writePNG(image, to: url)
-                recordExport(url: url, kind: .png)
-                recordActiveSessionCapture(url: url, kind: .png, image: image)
-            case .tiff:
-                guard let image = imageForExport() else { return }
-                try ImageExporter.writeTIFF(image, to: url)
-                recordExport(url: url, kind: .tiff)
-                recordActiveSessionCapture(url: url, kind: .tiff, image: image)
+            } onSuccess: {
+                self.recordExport(url: url, kind: .fits)
+                self.recordActiveSessionCapture(url: url, kind: .fits, image: image)
             }
+        case .png:
+            guard let image = imageForExport() else { return }
+            runExport(url: url) {
+                try ImageExporter.writePNG(image, to: url)
+            } onSuccess: {
+                self.recordExport(url: url, kind: .png)
+                self.recordActiveSessionCapture(url: url, kind: .png, image: image)
+            }
+        case .tiff:
+            guard let image = imageForExport() else { return }
+            runExport(url: url) {
+                try ImageExporter.writeTIFF(image, to: url)
+            } onSuccess: {
+                self.recordExport(url: url, kind: .tiff)
+                self.recordActiveSessionCapture(url: url, kind: .tiff, image: image)
+            }
+        }
+    }
+
+    private func runExport(
+        url: URL, write: @escaping @Sendable () throws -> Void, onSuccess: @escaping @MainActor () -> Void
+    ) {
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated, operation: write).value
+            } catch {
+                lastErrorMessage = String(describing: error)
+                return
+            }
+            onSuccess()
             captureFeedbackTrigger &+= 1
             NSSound.beep()
-        } catch {
-            lastErrorMessage = String(describing: error)
         }
     }
 

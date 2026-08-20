@@ -21,12 +21,12 @@ struct TimelineStripView: View {
             )
             .frame(height: 140)
         } else {
-            // Newest first, left to right — `>` sorts a later date before an earlier one, and an
-            // `HStack` lays out its first element leftmost, so the most recent capture is always
-            // the leftmost thumbnail.
+            // Oldest first, left to right — matches `ObservationTimelineView`'s own convention on
+            // the Home page (most recent capture on the right, `.defaultScrollAnchor(.trailing)`
+            // there too), which this previously disagreed with by sorting the opposite way.
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 10) {
-                    ForEach(session.captures.sorted(by: { $0.date > $1.date })) { capture in
+                    ForEach(session.captures.sorted(by: { $0.date < $1.date })) { capture in
                         TimelineThumbnailView(
                             project: project, session: session, capture: capture, store: store,
                             cameraManager: cameraManager, onDelete: onDelete
@@ -37,6 +37,7 @@ struct TimelineStripView: View {
                 }
                 .padding(.horizontal, 2)
             }
+            .defaultScrollAnchor(.trailing)
             .frame(height: 190)
         }
     }
@@ -110,7 +111,7 @@ private struct TimelineThumbnailView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             }
             if elaborationSource != nil {
-                Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
+                Button("Open in Siril…", systemImage: "wand.and.stars") { startElaborating() }
             }
             Button("Delete…", systemImage: "trash", role: .destructive) {
                 isConfirmingDelete = true

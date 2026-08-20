@@ -15,6 +15,28 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- A native Planetary/Lunar Post-Processing pipeline for `.ser` captures ("Post-Process…"):
+  quality-scoring & registration, median/mean stacking, à trous wavelet sharpening, RGB
+  channel alignment, and auto-stretch, all in-app — an alternative to sending the capture to
+  Siril. Interactive parameters with a live preview, a pre-stacking setup screen, background
+  cancellable processing with real progress feedback, GPU-accelerated debayering (falls back to
+  CPU where Metal isn't available), and an optional GraXpert pass without leaving the modal.
+- "Edit Image…" on any single FITS/PNG/TIFF capture: GPU-backed (Core Image) brightness,
+  contrast, saturation, a gamma curve, sharpen, rotate, and crop, plus a one-tap "Magic Wand"
+  auto-fix (the same auto-enhance analysis behind Photos.app), saved as a new Elaborated Image.
+  Lucky Imaging/Live Capture results become editable here too once saved as a capture.
+- "Live Capture": buffers a few seconds of the live feed (default 3, adjustable), then lets you
+  scrub through every frame it captured and export whichever one actually looked sharpest as
+  PNG/TIFF — an iPhone-Live-Photo-style alternative to timing one manual capture.
+- An always-visible "PNG" export button next to the RAW8/RAW16 picker — saves the current frame
+  exactly like Export > PNG, without opening the Export menu first.
+- A plain-English focus-quality readout ("Focus: Good/Fair/Poor") next to the live HFD trend,
+  with a manual guidance hint ("reverse the focuser" / "keep turning the same way") derived from
+  the live trend direction rather than any fixed clockwise/counterclockwise mapping — software
+  has no way to know which way a given focuser's knob actually turns.
+- Session pages now surface files sitting in a session's own folder that aren't tracked captures
+  (e.g. a result an external post-processing tool dropped straight into the folder) — viewable
+  and deletable in-app instead of only reachable via "Show in Finder."
 - A bundled `Fix Gatekeeper Warning.command` script alongside `skyformac.app` in both the
   `.zip` and a new `.dmg` release — moves the app into `/Applications` (avoiding macOS App
   Translocation, which otherwise silently breaks Camera permission prompts for the iPhone/
@@ -39,7 +61,34 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
   planetary stack-without-registration, or deep-sky register+stack) is auto-suggested from the
   session/capture's own target but always user-overridable before running.
 
+### Changed
+- The session Timeline strip now lays out oldest → newest, left to right — it previously
+  disagreed with the Home page's own Observation Timeline, which has always gone the same way.
+- The Home page's Observation Timeline compresses any gap longer than 6 hours between captures
+  instead of stretching it proportionally to how much real time actually passed — a quiet month
+  between sessions no longer pushes everything else off-screen.
+- Removed the "?" help-tip buttons next to the ROI/GPU/Night Mode/All-Sky Monitor toolbar
+  toggles.
+
 ### Fixed
+- Exporting an image (PNG/TIFF/FITS) froze the whole app and spun the pointer for a full-detail
+  write — the actual file encode now runs off the main actor instead of blocking it.
+- Capturing a dark or flat calibration frame left the live preview frozen/blank afterward, with
+  no way to recover short of restarting the app — live view now resumes automatically once the
+  calibration capture finishes, the same way it already did for a single exposure.
+- Changing the Capture ROI while a previous change was still being applied could repeatedly
+  tear/flash the live preview until the whole backlog of restarts finally drained — the ROI
+  controls now disable themselves while a restart is actually in flight.
+- Planetary Post-Processing: restacking showed no progress at all, the old preview vanished to
+  black during a restack, and cancelling left the CPU pegged at ~900% — progress now updates
+  continuously with periodic log lines, the old preview stays visible (dimmed) during a
+  restack, and cancelling now actually reaches the parallel per-pixel stacking step.
+- Planetary Post-Processing: the default wavelet-sharpening gains exactly reconstructed the
+  unsharpened stack (a no-op), so the result looked like "just a fog" no matter what — the
+  defaults now genuinely sharpen out of the box.
+- Planetary Post-Processing: nudging the stretch (black/white point, log toggle) re-ran the
+  entire sharpen/align pass instead of just re-rendering, making it feel unresponsive; it's
+  cached separately now so stretch changes are live.
 - FITS "Record to Disk" had no guard against a genuinely blank/flat frame reaching the file,
   unlike the `.ser` recorder — one such frame in a sequence was enough to trip Siril's "MAD is
   null. Statistics cannot be computed." during stacking. Now shares the same guard `.ser`

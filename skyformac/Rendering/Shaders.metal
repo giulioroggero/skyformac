@@ -647,6 +647,100 @@ kernel void debayerAndStretch(
     destination.write(float4(rgb, 1.0), gid);
 }
 
+/// GPU debayer + RGB→luma combination into a single-channel `r32Float` texture — the batch-
+/// pipeline counterpart to `debayerAndStretch` above (same bilinear demosaic math, no stretch,
+/// no RGBA output), used by `PlanetaryGPULuminanceConverter` to replace `Debayer.swift`'s CPU
+/// bilinear demosaic for planetary post-processing's registration stage. That CPU debayer is a
+/// branch-heavy scalar loop over every pixel, run once per frame for a burst that can be
+/// hundreds of multi-megapixel frames — the single biggest per-frame cost in that pipeline.
+kernel void debayerToLuma(
+    texture2d<float, access::read> source [[texture(0)]],
+    texture2d<float, access::write> destination [[texture(1)]],
+    constant uint &bayerPattern [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
+    int x = int(gid.x);
+    int y = int(gid.y);
+
+    float r, g, b;
+    float here = source.read(gid).r;
+
+    if (isRedAt(gid, bayerPattern)) {
+        r = here;
+        g = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)
+             + readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.25;
+        b = (readClamped(source, x - 1, y - 1) + readClamped(source, x + 1, y - 1)
+             + readClamped(source, x - 1, y + 1) + readClamped(source, x + 1, y + 1)) * 0.25;
+    } else if (isBlueAt(gid, bayerPattern)) {
+        b = here;
+        g = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)
+             + readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.25;
+        r = (readClamped(source, x - 1, y - 1) + readClamped(source, x + 1, y - 1)
+             + readClamped(source, x - 1, y + 1) + readClamped(source, x + 1, y + 1)) * 0.25;
+    } else {
+        g = here;
+        bool leftRightIsRed = isRedAt(uint2(uint(max(x - 1, 0)), gid.y), bayerPattern)
+            || isRedAt(uint2(uint(x + 1), gid.y), bayerPattern);
+        if (leftRightIsRed) {
+            r = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)) * 0.5;
+            b = (readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.5;
+        } else {
+            b = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)) * 0.5;
+            r = (readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.5;
+        }
+    }
+
+    float luma = r * 0.299 + g * 0.587 + b * 0.114;
+    destination.write(float4(luma, 0.0, 0.0, 1.0), gid);
+}
+
+/// Same GPU bilinear demosaic as `debayerToLuma`, but writing the full `(r, g, b)` triple to an
+/// `rgba32Float` texture instead of collapsing to luma — the batch-pipeline counterpart used by
+/// `PlanetaryPostProcessor.stack`'s per-selected-frame debayer (previously always CPU-only, the
+/// dominant cost — and the reason that stage burned CPU with the GPU sitting idle — even after
+/// `debayerToLuma` sped up registration's own debayer pass).
+kernel void debayerToRGB(
+    texture2d<float, access::read> source [[texture(0)]],
+    texture2d<float, access::write> destination [[texture(1)]],
+    constant uint &bayerPattern [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
+    int x = int(gid.x);
+    int y = int(gid.y);
+
+    float r, g, b;
+    float here = source.read(gid).r;
+
+    if (isRedAt(gid, bayerPattern)) {
+        r = here;
+        g = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)
+             + readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.25;
+        b = (readClamped(source, x - 1, y - 1) + readClamped(source, x + 1, y - 1)
+             + readClamped(source, x - 1, y + 1) + readClamped(source, x + 1, y + 1)) * 0.25;
+    } else if (isBlueAt(gid, bayerPattern)) {
+        b = here;
+        g = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)
+             + readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.25;
+        r = (readClamped(source, x - 1, y - 1) + readClamped(source, x + 1, y - 1)
+             + readClamped(source, x - 1, y + 1) + readClamped(source, x + 1, y + 1)) * 0.25;
+    } else {
+        g = here;
+        bool leftRightIsRed = isRedAt(uint2(uint(max(x - 1, 0)), gid.y), bayerPattern)
+            || isRedAt(uint2(uint(x + 1), gid.y), bayerPattern);
+        if (leftRightIsRed) {
+            r = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)) * 0.5;
+            b = (readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.5;
+        } else {
+            b = (readClamped(source, x - 1, y) + readClamped(source, x + 1, y)) * 0.5;
+            r = (readClamped(source, x, y - 1) + readClamped(source, x, y + 1)) * 0.5;
+        }
+    }
+
+    destination.write(float4(r, g, b, 1.0), gid);
+}
+
 /// Bilateral filter — a classical (non-ML), edge-preserving denoiser: averages neighboring
 /// pixels weighted by both spatial distance and intensity similarity, so it smooths flat noisy
 /// regions (sky background) while leaving sharp edges (star points, planetary detail) largely

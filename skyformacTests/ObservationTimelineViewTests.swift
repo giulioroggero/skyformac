@@ -38,39 +38,41 @@ struct ObservationTimelineViewTests {
         #expect(ObservationTimelineView.mergedEntries(from: []).isEmpty)
     }
 
-    @Test func dateRangeIsNilWhenThereAreNoEntries() {
-        #expect(ObservationTimelineView.dateRange(for: []) == nil)
-    }
-
-    @Test func dateRangeSpansFirstToLastEntry() throws {
-        var session = Session.newSession(name: "A")
-        session.captures = [makeCapture(date: date(1000)), makeCapture(date: date(5000))]
-        let entries = ObservationTimelineView.mergedEntries(from: [makeProject(name: "P", sessions: [session])])
-        let range = try #require(ObservationTimelineView.dateRange(for: entries))
-        #expect(range.lowerBound.timeIntervalSinceReferenceDate == 1000)
-        #expect(range.upperBound.timeIntervalSinceReferenceDate == 5000)
-    }
-
-    @Test func dateRangeIsAtLeastAMinuteWideForASingleCapture() throws {
+    @Test func compressedTotalHoursIsAtLeastTenthHourForFewerThanTwoEntries() {
+        #expect(ObservationTimelineView.compressedTotalHours(for: []) == 0.1)
         var session = Session.newSession(name: "A")
         session.captures = [makeCapture(date: date(1000))]
         let entries = ObservationTimelineView.mergedEntries(from: [makeProject(name: "P", sessions: [session])])
-        let range = try #require(ObservationTimelineView.dateRange(for: entries))
-        #expect(range.upperBound.timeIntervalSince(range.lowerBound) == 60)
+        #expect(ObservationTimelineView.compressedTotalHours(for: entries) == 0.1)
     }
 
-    @Test func defaultPixelsPerHourIsNilRangeFallback() {
-        #expect(ObservationTimelineView.defaultPixelsPerHour(for: nil) == 1400)
+    @Test func compressedTotalHoursSumsGapsBelowTheCap() {
+        // Two captures three hours apart — well under the 6-hour cap — should sum to exactly
+        // that real gap, not get compressed.
+        var session = Session.newSession(name: "A")
+        session.captures = [makeCapture(date: date(0)), makeCapture(date: date(3 * 3600))]
+        let entries = ObservationTimelineView.mergedEntries(from: [makeProject(name: "P", sessions: [session])])
+        #expect(ObservationTimelineView.compressedTotalHours(for: entries) == 3)
     }
 
-    @Test func defaultPixelsPerHourScalesDownForALongRange() {
-        // A one-year range should need far fewer pixels per hour than a one-hour range to land at
-        // roughly the same total on-screen width.
-        let oneHour = date(0)...date(3600)
-        let oneYear = date(0)...date(3600 * 24 * 365)
-        let hourly = ObservationTimelineView.defaultPixelsPerHour(for: oneHour)
-        let yearly = ObservationTimelineView.defaultPixelsPerHour(for: oneYear)
-        #expect(yearly < hourly)
-        #expect(yearly > 0)
+    @Test func compressedTotalHoursCapsALongQuietGap() {
+        // A one-year gap between two captures should compress down to the 6-hour cap instead of
+        // reporting ~8760 hours — the fix for "remove the empty spaces... compress the timeline
+        // dynamically if there is no observation."
+        var session = Session.newSession(name: "A")
+        session.captures = [makeCapture(date: date(0)), makeCapture(date: date(3600 * 24 * 365))]
+        let entries = ObservationTimelineView.mergedEntries(from: [makeProject(name: "P", sessions: [session])])
+        #expect(ObservationTimelineView.compressedTotalHours(for: entries) == 6)
+    }
+
+    @Test func compressedOffsetsInHoursCapsEachGapIndependently() {
+        // Three captures: a 2-hour gap, then a 10-hour (over-the-cap) gap — offsets should be
+        // [0, 2, 2 + 6], not [0, 2, 12].
+        var session = Session.newSession(name: "A")
+        session.captures = [
+            makeCapture(date: date(0)), makeCapture(date: date(2 * 3600)), makeCapture(date: date(12 * 3600)),
+        ]
+        let entries = ObservationTimelineView.mergedEntries(from: [makeProject(name: "P", sessions: [session])])
+        #expect(ObservationTimelineView.compressedOffsetsInHours(for: entries) == [0, 2, 8])
     }
 }

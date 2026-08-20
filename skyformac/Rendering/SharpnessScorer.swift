@@ -97,7 +97,10 @@ enum SharpnessScorer {
         }
     }
 
-    private static func downsample(
+    /// `internal`, not `private` — reused by `PlanetaryPostProcessor.scoreAndRegister` to score
+    /// an already-computed luminance array directly, rather than calling `score(for:...)` (which
+    /// would redo its own independent debayer + luminance pass on the same frame).
+    static func downsample(
         _ values: [Double],
         width: Int,
         height: Int,
@@ -120,7 +123,7 @@ enum SharpnessScorer {
 
     /// Variance of the discrete Laplacian over the interior of the grid (a 1-pixel border is
     /// excluded to avoid needing edge-clamping logic for this comparative-only metric).
-    private static func laplacianVariance(_ grid: (values: [Double], width: Int, height: Int)) -> Double {
+    static func laplacianVariance(_ grid: (values: [Double], width: Int, height: Int)) -> Double {
         let (values, width, height) = grid
         guard width > 2, height > 2 else { return 0 }
 

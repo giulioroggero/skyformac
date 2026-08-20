@@ -42,8 +42,33 @@ struct SessionDetailPane: View {
     @State private var isElaborating = false
     @State private var isPromptingSirilSettings = false
     @State private var isConfirmingDelete = false
+    /// Bumped after deleting a stray file so `strayFilesInSessionFolder` (a plain `FileManager`
+    /// directory listing, not something `ProjectsLibrary` tracks/republishes) re-reads the folder.
+    @State private var strayFilesRefreshTrigger = 0
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
+    /// Files sitting in this session's own folder that AREN'T one of its tracked
+    /// `CaptureRecord`s — e.g. `moon_00290.fit` left behind by an external post-processing tool
+    /// (Siril/AutoStakkert) pointed at this folder. Excludes the `Thumbnails` subfolder and
+    /// `session.json` (the folder's own always-present, non-capture entries) — everything else is
+    /// otherwise invisible in-app: not shown by `TimelineStripView` (which only ever lists
+    /// `session.captures`, never the folder's actual disk contents) and only reachable before
+    /// this via "Show in Finder."
+    private var strayFilesInSessionFolder: [URL] {
+        _ = strayFilesRefreshTrigger
+        let folder = cameraManager.projectStore.sessionFolderURL(for: session, in: project)
+        let trackedNames = Set(session.captures.map(\.fileName))
+        let contents = try? FileManager.default.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )
+        let unexpectedNames: Set<String> = ["Thumbnails", "session.json"]
+        let stray = (contents ?? []).filter { url in
+            let name = url.lastPathComponent
+            let isExpected = unexpectedNames.contains(name) || trackedNames.contains(name)
+            return !isExpected
+        }
+        return stray.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+    }
     /// "Move to Project…"'s own candidate list — every other active project, alphabetically;
     /// excludes the current one (nothing to move to) and archived/deleted projects (not
     /// realistically where anyone wants to relocate a session they're actively looking at).
@@ -209,6 +234,15 @@ struct SessionDetailPane: View {
                     )
                 }
 
+                if !strayFilesInSessionFolder.isEmpty {
+                    PageSection(title: "Other Files in This Folder") {
+                        SessionStrayFilesView(
+                            project: project, session: session, cameraManager: cameraManager, files: strayFilesInSessionFolder,
+                            onDeleted: { strayFilesRefreshTrigger &+= 1 }
+                        )
+                    }
+                }
+
                 // Row 4: Notes.
                 PageSection(title: "Notes") {
                     VStack(alignment: .leading, spacing: 8) {
@@ -241,7 +275,7 @@ struct SessionDetailPane: View {
                 // Row 5: Elaborate, Archive, Move, Delete.
                 PageSection {
                     HStack {
-                        Button("Elaborate Session…", systemImage: "wand.and.stars") { startElaborating() }
+                        Button("Open Session in Siril…", systemImage: "wand.and.stars") { startElaborating() }
                             .disabled(elaborationSource == nil)
                             .help(elaborationSource == nil
                                 ? "Nothing to elaborate — needs at least one FITS or SER capture in this session."
@@ -582,5 +616,73 @@ private struct MoveSessionToProjectSheet: View {
             .padding()
         }
         .frame(width: 360, height: 420)
+    }
+}
+
+/// One row per file the session folder actually contains that `session.captures` doesn't know
+/// about — e.g. a Siril/AutoStakkert result (`moon_00290.fit`) dropped straight into the folder
+/// by an external tool. "View" reuses the same in-app viewer `TimelineStripView`'s own "Show in
+/// Finder" context-menu item stops short of (`CameraManager.openExportedFile`/
+/// `ExportedFileViewerView`, presented app-wide from `ContentView` whenever
+/// `cameraManager.viewingExportedFile` is non-`nil` — no local sheet wiring needed here). Delete
+/// removes the file directly with `FileManager` since, unlike a tracked `CaptureRecord`, there's
+/// no catalog entry/thumbnail to also clean up.
+private struct SessionStrayFilesView: View {
+    let project: Project
+    let session: Session
+    var cameraManager: CameraManager
+    let files: [URL]
+    var onDeleted: () -> Void
+
+    @State private var pendingDeleteURL: URL?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("These aren't tracked captures — likely left behind by an external tool (Siril, AutoStakkert) pointed at this folder.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            ForEach(files, id: \.self) { url in
+                HStack {
+                    Image(systemName: "doc")
+                        .foregroundStyle(.secondary)
+                    Text(url.lastPathComponent)
+                        .font(.caption)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(fileSizeText(for: url))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Button("View") { cameraManager.openExportedFile(url) }
+                        .font(.caption)
+                        .buttonStyle(.borderless)
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                        .font(.caption)
+                        .buttonStyle(.borderless)
+                    Button(role: .destructive) { pendingDeleteURL = url } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .confirmationDialog(
+            "Delete this file?", isPresented: Binding(get: { pendingDeleteURL != nil }, set: { if !$0 { pendingDeleteURL = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let url = pendingDeleteURL {
+                Button("Delete \(url.lastPathComponent)", role: .destructive) {
+                    try? FileManager.default.removeItem(at: url)
+                    pendingDeleteURL = nil
+                    onDeleted()
+                }
+            }
+        } message: {
+            Text("This removes the file from disk — this can't be undone.")
+        }
+    }
+
+    private func fileSizeText(for url: URL) -> String {
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? nil
+        return ByteCountFormatter.string(fromByteCount: Int64(size ?? 0), countStyle: .file)
     }
 }

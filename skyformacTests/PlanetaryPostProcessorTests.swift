@@ -1,0 +1,271 @@
+import Foundation
+import Testing
+@testable import skyformac
+
+struct PlanetaryPostProcessorTests {
+    private func monoFrame(width: Int, height: Int, value: (Int, Int) -> UInt8) -> CapturedFrame {
+        var bytes = [UInt8](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                bytes[y * width + x] = value(x, y)
+            }
+        }
+        return CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: Data(bytes))
+    }
+
+    // MARK: - centroid / registration
+
+    @Test func centroidFindsABrightBlobOffCenter() throws {
+        // An 8x8 dark field with one bright 2x2 block near (5, 2) — the centroid should land
+        // close to the middle of that block, not the frame's own geometric center.
+        let frame = monoFrame(width: 8, height: 8) { x, y in
+            (x >= 5 && x <= 6 && y >= 2 && y <= 3) ? 255 : 0
+        }
+        let centroid = try #require(PlanetaryPostProcessor.centroid(of: frame, isColorCamera: false, bayerPattern: ASI_BAYER_RG, roi: nil))
+        #expect(abs(centroid.x - 5.5) < 0.6)
+        #expect(abs(centroid.y - 2.5) < 0.6)
+    }
+
+    @Test func centroidIsNilForAnEmptyFrame() {
+        let frame = monoFrame(width: 8, height: 8) { _, _ in 0 }
+        #expect(PlanetaryPostProcessor.centroid(of: frame, isColorCamera: false, bayerPattern: ASI_BAYER_RG, roi: nil) == nil)
+    }
+
+    @Test func scoreAndRegisterPicksTheSharpestFrameAsReferenceWithZeroShift() {
+        // Two identical-brightness blobs, one sharp (hard edge), one blurred (soft edge) —
+        // the sharp one should be picked as the registration reference, so its own shift is zero.
+        let sharp = monoFrame(width: 16, height: 16) { x, y in (x >= 7 && x <= 8 && y >= 7 && y <= 8) ? 255 : 0 }
+        let blurred = monoFrame(width: 16, height: 16) { x, y in (x >= 6 && x <= 9 && y >= 6 && y <= 9) ? 60 : 0 }
+        let registered = PlanetaryPostProcessor.scoreAndRegister(
+            frames: [blurred, sharp], isColorCamera: false, bayerPattern: ASI_BAYER_RG
+        )
+        #expect(registered.count == 2)
+        let sharpFrame = registered[1]
+        #expect(sharpFrame.shift.x == 0)
+        #expect(sharpFrame.shift.y == 0)
+        #expect(sharpFrame.quality > registered[0].quality)
+    }
+
+    // MARK: - bilinear shift
+
+    @Test func bilinearShiftBySingleWholePixelMovesContentAsExpected() {
+        // A single bright pixel at (2, 2) in a 5x5 field. Shifting by dx=1 should sample the
+        // source one pixel to the right of each output position, i.e. output[1,2] == source[2,2].
+        var values = [Float](repeating: 0, count: 25)
+        values[2 * 5 + 2] = 1.0
+        let shifted = PlanetaryPostProcessor.bilinearShift(values, width: 5, height: 5, channels: 1, dx: 1, dy: 0)
+        #expect(shifted[2 * 5 + 1] == 1.0)
+        #expect(shifted[2 * 5 + 2] == 0.0)
+    }
+
+    @Test func bilinearShiftByZeroIsIdentity() {
+        let values: [Float] = [0.1, 0.2, 0.3, 0.4]
+        let shifted = PlanetaryPostProcessor.bilinearShift(values, width: 2, height: 2, channels: 1, dx: 0, dy: 0)
+        #expect(shifted == values)
+    }
+
+    // MARK: - stacking (mean / median)
+
+    private func makeStackedFrames(width: Int, height: Int, pixelValues: [UInt8]) -> [CapturedFrame] {
+        pixelValues.map { value in
+            CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: Data(repeating: value, count: width * height))
+        }
+    }
+
+    @Test func meanStackAveragesFlatFrames() throws {
+        let frames = makeStackedFrames(width: 4, height: 4, pixelValues: [100, 150, 200])
+        let registered = frames.indices.map { PlanetaryPostProcessor.RegisteredFrame(index: $0, quality: Double($0 + 1), shift: .zero) }
+        let result = try #require(PlanetaryPostProcessor.stack(
+            frames: frames, registered: registered, isColorCamera: false, bayerPattern: ASI_BAYER_RG,
+            keepBestPercent: 100, method: .mean
+        ))
+        let expected = Float(100 + 150 + 200) / 3 / 255
+        #expect(abs(result.values[0] - expected) < 0.001)
+    }
+
+    @Test func medianStackRejectsAnOutlierFrame() throws {
+        // Two normal frames and one wildly-off outlier — the median should sit with the normal
+        // pair, unlike a mean, which the outlier would drag noticeably away from them.
+        let frames = makeStackedFrames(width: 4, height: 4, pixelValues: [100, 102, 250])
+        let registered = frames.indices.map { PlanetaryPostProcessor.RegisteredFrame(index: $0, quality: Double($0 + 1), shift: .zero) }
+        let result = try #require(PlanetaryPostProcessor.stack(
+            frames: frames, registered: registered, isColorCamera: false, bayerPattern: ASI_BAYER_RG,
+            keepBestPercent: 100, method: .median
+        ))
+        let medianValue = result.values[0] * 255
+        #expect(abs(medianValue - 102) < 1)
+    }
+
+    @Test func stackKeepBestPercentOnlyUsesTheSharpestFraction() throws {
+        // Three frames at very different brightness; quality ranks frame 2 highest. Keeping only
+        // the top 34% (1 of 3) should produce exactly that one frame's own value, not a blend.
+        let frames = makeStackedFrames(width: 2, height: 2, pixelValues: [10, 20, 200])
+        let registered = [
+            PlanetaryPostProcessor.RegisteredFrame(index: 0, quality: 1, shift: .zero),
+            PlanetaryPostProcessor.RegisteredFrame(index: 1, quality: 2, shift: .zero),
+            PlanetaryPostProcessor.RegisteredFrame(index: 2, quality: 100, shift: .zero),
+        ]
+        let result = try #require(PlanetaryPostProcessor.stack(
+            frames: frames, registered: registered, isColorCamera: false, bayerPattern: ASI_BAYER_RG,
+            keepBestPercent: 34, method: .mean
+        ))
+        #expect(abs(result.values[0] - Float(200) / 255) < 0.001)
+    }
+
+    // MARK: - wavelet sharpening
+
+    @Test func waveletSharpenIncreasesEdgeContrastOnAStepEdge() {
+        let width = 32, height = 8
+        var values = [Float](repeating: 0.2, count: width * height)
+        for y in 0..<height {
+            for x in 16..<width {
+                values[y * width + x] = 0.8
+            }
+        }
+        let image = PlanetaryPostProcessor.StackedImage(width: width, height: height, channels: 1, values: values)
+        let layers = [
+            PlanetaryPostProcessor.WaveletLayer(id: 0, gain: 2.0),
+            PlanetaryPostProcessor.WaveletLayer(id: 1, gain: 1.0),
+        ]
+        let sharpened = PlanetaryPostProcessor.waveletSharpen(image, layers: layers, denoise: 0)
+
+        let leftIndex = 4 * width + 15
+        let rightIndex = 4 * width + 16
+        let originalContrast = values[rightIndex] - values[leftIndex]
+        let sharpenedContrast = sharpened.values[rightIndex] - sharpened.values[leftIndex]
+        #expect(sharpenedContrast >= originalContrast)
+    }
+
+    @Test func waveletSharpenWithNoLayersIsIdentity() {
+        let image = PlanetaryPostProcessor.StackedImage(width: 4, height: 4, channels: 1, values: [Float](repeating: 0.5, count: 16))
+        let result = PlanetaryPostProcessor.waveletSharpen(image, layers: [], denoise: 0)
+        #expect(result.values == image.values)
+    }
+
+    @Test func waveletSharpenClampsOutputToValidRange() {
+        let image = PlanetaryPostProcessor.StackedImage(width: 4, height: 4, channels: 1, values: [Float](repeating: 0.9, count: 16))
+        let layers = [PlanetaryPostProcessor.WaveletLayer(id: 0, gain: 50)]
+        let result = PlanetaryPostProcessor.waveletSharpen(image, layers: layers, denoise: 0)
+        #expect(result.values.allSatisfy { $0 >= 0 && $0 <= 1 })
+    }
+
+    // MARK: - RGB channel alignment
+
+    @Test func alignRGBChannelsIsANoOpForMonoImages() {
+        let image = PlanetaryPostProcessor.StackedImage(width: 4, height: 4, channels: 1, values: [Float](repeating: 0.5, count: 16))
+        let result = PlanetaryPostProcessor.alignRGBChannels(image)
+        #expect(result.values == image.values)
+    }
+
+    @Test func alignRGBChannelsShiftsAnOffsetRedChannelOntoGreen() {
+        let width = 12, height = 12
+        var values = [Float](repeating: 0, count: width * height * 3)
+        // Green blob centered at (6, 6); red blob (same shape) offset by +1 in x.
+        for y in 5...7 {
+            for x in 5...7 {
+                values[(y * width + x) * 3 + 1] = 1.0 // green
+            }
+        }
+        for y in 5...7 {
+            for x in 6...8 {
+                values[(y * width + x) * 3] = 1.0 // red, shifted +1 in x
+            }
+        }
+        let image = PlanetaryPostProcessor.StackedImage(width: width, height: height, channels: 3, values: values)
+        let aligned = PlanetaryPostProcessor.alignRGBChannels(image)
+
+        var redCentroidX: Float = 0
+        var weight: Float = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let v = aligned.values[(y * width + x) * 3]
+                redCentroidX += v * Float(x)
+                weight += v
+            }
+        }
+        redCentroidX /= max(weight, 0.001)
+        // Before alignment the red blob's own centroid sits at x = 7; after aligning onto green
+        // (centroid x = 6) it should have moved measurably closer to 6.
+        #expect(abs(redCentroidX - 6) < abs(7 - 6))
+    }
+
+    // MARK: - GPU debayer/luma
+
+    /// Cross-checks `PlanetaryGPULuminanceConverter`'s Metal `debayerToLuma` kernel against
+    /// `Debayer.swift`'s existing CPU bilinear demosaic + a manual RGB→luma combination,
+    /// independent of `PlanetaryPostProcessor.luminance`'s own GPU/CPU routing — a real
+    /// pixel-for-pixel parity check, not just "doesn't crash." Skips (returns early) when this
+    /// environment has no usable `MTLDevice` (e.g. a sandboxed CI runner) — nothing to compare.
+    @Test func gpuDebayerLumaMatchesCPUDebayerForAColorFrame() throws {
+        let width = 16, height = 16
+        var bytes = [UInt8](repeating: 20, count: width * height)
+        for y in 6..<10 {
+            for x in 6..<10 {
+                bytes[y * width + x] = 200
+            }
+        }
+        let frame = CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: Data(bytes))
+        guard let gpu = PlanetaryGPULuminanceConverter() else { return }
+        let gpuValues = try #require(gpu.luminance(of: frame, bayerPattern: ASI_BAYER_RG))
+
+        let cpuRGB = try #require(Debayer.debayerRAW8(frame, pattern: ASI_BAYER_RG))
+        var cpuLuma = [Float](repeating: 0, count: width * height)
+        cpuRGB.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            let base = raw.bindMemory(to: UInt8.self).baseAddress!
+            for i in 0..<(width * height) {
+                let o = i * 3
+                cpuLuma[i] = (Float(base[o]) * 0.299 + Float(base[o + 1]) * 0.587 + Float(base[o + 2]) * 0.114) / 255
+            }
+        }
+        #expect(gpuValues.count == cpuLuma.count)
+        for i in gpuValues.indices {
+            #expect(abs(gpuValues[i] - cpuLuma[i]) < 0.02)
+        }
+    }
+
+    /// Same cross-check as `gpuDebayerLumaMatchesCPUDebayerForAColorFrame`, for the full-RGB
+    /// `debayerToRGB` kernel `PlanetaryPostProcessor.stack` now relies on.
+    @Test func gpuDebayerRGBMatchesCPUDebayerForAColorFrame() throws {
+        let width = 16, height = 16
+        var bytes = [UInt8](repeating: 20, count: width * height)
+        for y in 6..<10 {
+            for x in 6..<10 {
+                bytes[y * width + x] = 200
+            }
+        }
+        let frame = CapturedFrame(width: width, height: height, imageType: ASI_IMG_RAW8, data: Data(bytes))
+        guard let gpu = PlanetaryGPULuminanceConverter() else { return }
+        let gpuRGB = try #require(gpu.rgb(of: frame, bayerPattern: ASI_BAYER_RG))
+
+        let cpuRGB = try #require(Debayer.debayerRAW8(frame, pattern: ASI_BAYER_RG))
+        #expect(gpuRGB.count == width * height * 3)
+        cpuRGB.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            let base = raw.bindMemory(to: UInt8.self).baseAddress!
+            for i in 0..<gpuRGB.count {
+                #expect(abs(gpuRGB[i] - Float(base[i]) / 255) < 0.02)
+            }
+        }
+    }
+
+    @Test func gpuLuminanceConverterReturnsNilForAnUnsupportedImageType() {
+        guard let gpu = PlanetaryGPULuminanceConverter() else { return }
+        let frame = CapturedFrame(width: 4, height: 4, imageType: ASI_IMG_RGB24, data: Data(repeating: 100, count: 48))
+        #expect(gpu.luminance(of: frame, bayerPattern: ASI_BAYER_RG) == nil)
+    }
+
+    // MARK: - rendering / histogram
+
+    @Test func histogramOfAFlatImageIsAllInOneBucket() {
+        let image = PlanetaryPostProcessor.StackedImage(width: 4, height: 4, channels: 1, values: [Float](repeating: 0.5, count: 16))
+        let histogram = PlanetaryPostProcessor.histogram(of: image)
+        #expect(histogram[Int(0.5 * 255)] == 16)
+        #expect(histogram.reduce(0, +) == 16)
+    }
+
+    @Test func renderImageProducesACGImageWithMatchingDimensions() throws {
+        let image = PlanetaryPostProcessor.StackedImage(width: 8, height: 6, channels: 3, values: [Float](repeating: 0.5, count: 8 * 6 * 3))
+        let cgImage = try #require(PlanetaryPostProcessor.renderImage(image, blackPoint: 0, whitePoint: 1, logStretchIntensity: nil))
+        #expect(cgImage.width == 8)
+        #expect(cgImage.height == 6)
+    }
+}

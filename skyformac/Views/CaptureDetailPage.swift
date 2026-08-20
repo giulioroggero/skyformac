@@ -21,6 +21,8 @@ struct CaptureDetailPage: View {
     var onNextCapture: (() -> Void)?
 
     @State private var isElaborating = false
+    @State private var isPostProcessing = false
+    @State private var isEditingImage = false
     @State private var isPromptingSirilSettings = false
     @State private var isConfirmingDelete = false
     @State private var isMovingToSession = false
@@ -132,7 +134,13 @@ struct CaptureDetailPage: View {
                                 NSWorkspace.shared.activateFileViewerSelecting([fileURL])
                             }
                             if elaborationSource != nil {
-                                Button("Elaborate…", systemImage: "wand.and.stars") { startElaborating() }
+                                Button("Open in Siril…", systemImage: "wand.and.stars") { startElaborating() }
+                            }
+                            if capture.kind == .serVideo {
+                                Button("Post-Process…", systemImage: "sparkles.tv") { isPostProcessing = true }
+                            }
+                            if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
+                                Button("Edit Image…", systemImage: "slider.horizontal.3") { isEditingImage = true }
                             }
                             Button("Move to Session…", systemImage: "folder") {
                                 isMovingToSession = true
@@ -253,6 +261,38 @@ struct CaptureDetailPage: View {
                     )
                 }
             }
+        }
+        .sheet(isPresented: $isPostProcessing) {
+            PlanetaryPostProcessingView(
+                sourceURL: fileURL,
+                sourceDescription: "Post-processing \(capture.fileName).",
+                onSave: { cgImage in
+                    try cameraManager.savePlanetaryPostProcessingResult(
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project
+                    )
+                },
+                resolveGraXpertInputURL: { image in
+                    store.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
+                },
+                onSendToGraXpert: { inputURL, operation, parameters, onLog in
+                    try await cameraManager.sendToGraXpert(
+                        inputURL: inputURL, operation: operation, sourceSessionIDs: [session.id],
+                        sourceCaptureID: capture.id, project: project, parameters: parameters, onLog: onLog
+                    )
+                },
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
+            )
+        }
+        .sheet(isPresented: $isEditingImage) {
+            SingleImagePostProcessingView(
+                sourceURL: fileURL,
+                sourceDescription: "Editing \(capture.fileName).",
+                onSave: { cgImage in
+                    try cameraManager.saveImageEditResult(
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project
+                    )
+                }
+            )
         }
         .confirmationDialog(
             "Delete this capture?", isPresented: $isConfirmingDelete, titleVisibility: .visible
