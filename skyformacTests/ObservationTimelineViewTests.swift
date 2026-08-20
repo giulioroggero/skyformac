@@ -65,26 +65,27 @@ struct ObservationTimelineViewTests {
         #expect(ObservationTimelineView.compressedTotalHours(for: entries) == 6)
     }
 
-    @Test func lanesPutsWidelySpacedEntriesInOneLane() {
-        // At 10 px/hour with a 20-point column, offsets 0h and 10h are 100pt apart — nowhere
-        // near overlapping — so both should land in the same (first) lane.
-        let lanes = ObservationTimelineView.lanes(offsetsInHours: [0, 10], pixelsPerHour: 10, columnWidth: 20)
-        #expect(lanes == [[0, 1]])
+    @Test func showsTextIsAlwaysTrueForTheFirstEntry() {
+        #expect(ObservationTimelineView.showsText(offsetsInHours: [0], pixelsPerHour: 10) == [true])
     }
 
-    @Test func lanesSplitsOverlappingEntriesIntoSeparateLanes() {
-        // At 10 px/hour with a 20-point column, offsets 0h and 1h are only 10pt apart — well
-        // inside the 20pt column width — so the second entry must move to a new lane instead of
-        // overlapping the first.
-        let lanes = ObservationTimelineView.lanes(offsetsInHours: [0, 1], pixelsPerHour: 10, columnWidth: 20)
-        #expect(lanes == [[0], [1]])
+    @Test func showsTextIsTrueWhenEntriesAreWellSpacedApart() {
+        // At 10 px/hour, a 10-hour gap is 100pt — comfortably past the ~88pt column width — so
+        // both entries should show their text.
+        #expect(ObservationTimelineView.showsText(offsetsInHours: [0, 10], pixelsPerHour: 10) == [true, true])
     }
 
-    @Test func lanesReusesAnEarlierLaneOnceItsLastEntryClearsTheColumnWidth() {
-        // Entry 1 overlaps entry 0 (forced into lane 1), but entry 2 is far enough past entry 0
-        // that lane 0 is free again — it should reuse lane 0 rather than opening a third lane.
-        let lanes = ObservationTimelineView.lanes(offsetsInHours: [0, 1, 10], pixelsPerHour: 10, columnWidth: 20)
-        #expect(lanes == [[0, 2], [1]])
+    @Test func showsTextIsFalseWhenTwoEntriesWouldCollide() {
+        // At 10 px/hour, a 1-hour gap is only 10pt — well inside the column width — so the
+        // second entry's text (the one that would land on top of the first's) is suppressed,
+        // while its thumbnail image still renders (just without the label underneath).
+        #expect(ObservationTimelineView.showsText(offsetsInHours: [0, 1], pixelsPerHour: 10) == [true, false])
+    }
+
+    @Test func showsTextChainsSoAFarEnoughEntryShowsAgainEvenAfterACrowdedRun() {
+        // Entry 1 is too close to entry 0 (hidden), but entry 2 is far enough past entry 0 (and
+        // therefore also far enough past entry 1, since positions only increase) to show again.
+        #expect(ObservationTimelineView.showsText(offsetsInHours: [0, 1, 10], pixelsPerHour: 10) == [true, false, true])
     }
 
     @Test func compressedOffsetsInHoursCapsEachGapIndependently() {

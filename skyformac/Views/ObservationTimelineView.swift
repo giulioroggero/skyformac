@@ -173,91 +173,73 @@ struct ObservationTimelineView: View {
         .help("Zooms the timeline horizontally — captures close together in time spread apart as you zoom in, so a dense session's captures become individually tappable instead of overlapping.")
     }
 
-    /// A thumbnail column's total footprint (`thumbnailView`'s own `.frame(width:)` below) —
-    /// two entries whose x-positions are closer together than this would otherwise render on
-    /// top of each other, their date/object labels overlapping into illegible text. `lanes(...)`
-    /// below exists specifically to avoid that.
+    /// A thumbnail column's total footprint (`thumbnailView`'s own `.frame(width:)` below) — the
+    /// threshold `showsText(offsetsInHours:pixelsPerHour:)` compares each entry's gap from its
+    /// predecessor against.
     private static let columnWidth: CGFloat = thumbnailSize + 16
 
-    /// Greedily packs entries into rows ("lanes") so that no two entries sharing a lane are
-    /// closer together (in actual pixels, at the current zoom) than `columnWidth` — the classic
-    /// calendar-event lane-packing algorithm. Entries are visited in chronological order and each
-    /// one joins the first lane whose most-recently-placed entry doesn't overlap it, or starts a
-    /// new lane otherwise. Without this, two captures close in time (worse, two *different*
-    /// sessions' captures landing near each other after `compressedOffsetsInHours`' gap-capping)
-    /// rendered directly on top of one another.
-    private func lanes(offsetsInHours: [Double]) -> [[Int]] {
-        Self.lanes(offsetsInHours: offsetsInHours, pixelsPerHour: pixelsPerHour, columnWidth: Self.columnWidth)
-    }
-
-    /// Pure core of the lane-packing algorithm — `nonisolated static` (see `mergedEntries`'s own
-    /// doc comment for why) so it's directly unit-testable without constructing a whole view.
-    nonisolated static func lanes(offsetsInHours: [Double], pixelsPerHour: Double, columnWidth: CGFloat) -> [[Int]] {
-        var laneRightEdges: [CGFloat] = []
-        var laneAssignments: [[Int]] = []
-        for i in offsetsInHours.indices {
-            let x = CGFloat(offsetsInHours[i]) * pixelsPerHour
-            if let laneIndex = laneRightEdges.firstIndex(where: { x >= $0 }) {
-                laneAssignments[laneIndex].append(i)
-                laneRightEdges[laneIndex] = x + columnWidth
-            } else {
-                laneAssignments.append([i])
-                laneRightEdges.append(x + columnWidth)
-            }
+    /// Real thumbnails are still allowed to overlap (restoring the original, denser look — a
+    /// crowded session's frames genuinely do stack visually, same as before lane-splitting was
+    /// tried and made the whole strip taller than the timeline's own frame) — only each entry's
+    /// *text* (object name + date, the part that actually became unreadable when two captures
+    /// landed close together) gets suppressed. `nonisolated static` — see `mergedEntries`'s own
+    /// doc comment for why — so it's directly unit-testable.
+    ///
+    /// Chained against the immediately-previous entry only (not "the previous entry that still
+    /// shows text"), which is suffient on its own: if entry `i`'s gap from `i-1` already clears
+    /// `columnWidth`, its gap from any earlier entry `i-2`, `i-3`, ... is at least as large too
+    /// (positions only increase), so there's no way its text can collide with an earlier one
+    /// that's still showing.
+    nonisolated static func showsText(offsetsInHours: [Double], pixelsPerHour: Double) -> [Bool] {
+        offsetsInHours.indices.map { i in
+            guard i > 0 else { return true }
+            let gap = CGFloat(offsetsInHours[i] - offsetsInHours[i - 1]) * pixelsPerHour
+            return gap >= columnWidth
         }
-        return laneAssignments
     }
 
-    /// Real `HStack`s with computed leading padding between entries, not a `ZStack` of
-    /// `.offset()`-positioned children — `.offset()` is a purely visual transform that doesn't
-    /// change what the layout system (and, critically, `ScrollViewReader.scrollTo`) believes a
-    /// view's own position actually is, which is exactly why "jump to most recent" could scroll
-    /// to the wrong place: every absolutely-offset thumbnail reported the *same* pre-offset
-    /// layout frame to the scroll view. Padding-based layout doesn't have that problem — each
-    /// view's real position matches where it's actually drawn.
+    /// A real `HStack` with computed (possibly negative) leading padding between entries, not a
+    /// `ZStack` of `.offset()`-positioned children — `.offset()` is a purely visual transform
+    /// that doesn't change what the layout system (and, critically, `ScrollViewReader.scrollTo`)
+    /// believes a view's own position actually is, which is exactly why "jump to most recent"
+    /// could scroll to the wrong place: every absolutely-offset thumbnail reported the *same*
+    /// pre-offset layout frame to the scroll view. Padding-based layout doesn't have that
+    /// problem, and — unlike `.offset()` — still allows genuine visual overlap when the padding
+    /// works out negative (two captures close enough in time that their columns would collide).
     @ViewBuilder
     private var timelineCanvas: some View {
         if !entries.isEmpty {
             let offsetsInHours = Self.compressedOffsetsInHours(for: entries)
             let totalWidth = CGFloat(offsetsInHours.last ?? 0) * pixelsPerHour + Self.thumbnailSize + 40
-            let laneAssignments = lanes(offsetsInHours: offsetsInHours)
+            let showsText = Self.showsText(offsetsInHours: offsetsInHours, pixelsPerHour: pixelsPerHour)
             ZStack(alignment: .topLeading) {
                 Rectangle()
                     .fill(.quaternary)
                     .frame(width: totalWidth, height: 2)
                     .padding(.leading, 20)
                     .padding(.top, Self.thumbnailSize / 2 + 24)
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(laneAssignments.indices, id: \.self) { laneIndex in
-                        laneRow(indices: laneAssignments[laneIndex], offsetsInHours: offsetsInHours)
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                        let x = CGFloat(offsetsInHours[index]) * pixelsPerHour
+                        let previousX = index == 0 ? nil : CGFloat(offsetsInHours[index - 1]) * pixelsPerHour
+                        let leadingPadding = index == 0 ? x + 20 : x - previousX!
+                        thumbnailView(for: entry, showsText: showsText[index])
+                            .padding(.leading, leadingPadding)
+                            .id(entry.id)
+                            // Later (visually rightmost/more-recent) thumbnails draw on top of
+                            // whatever they overlap, same as `zIndex` ordering elsewhere in this
+                            // app — reads more naturally than an earlier capture covering a later
+                            // one.
+                            .zIndex(Double(index))
                     }
                 }
-                .padding(.leading, 20)
             }
-            .frame(width: totalWidth, height: Self.laneHeight * CGFloat(max(laneAssignments.count, 1)), alignment: .topLeading)
-        }
-    }
-
-    /// One lane's own row — a plain `HStack` where each entry after the first is placed via
-    /// `.padding(.leading:)` equal to the real pixel gap since the previous entry *in this same
-    /// lane* (not the previous entry overall, since lane-packing may have skipped entries into
-    /// other lanes in between).
-    private func laneRow(indices: [Int], offsetsInHours: [Double]) -> some View {
-        HStack(alignment: .top, spacing: 0) {
-            ForEach(Array(indices.enumerated()), id: \.element) { position, entryIndex in
-                let x = CGFloat(offsetsInHours[entryIndex]) * pixelsPerHour
-                let previousRightEdge = position == 0
-                    ? 0
-                    : CGFloat(offsetsInHours[indices[position - 1]]) * pixelsPerHour + Self.columnWidth
-                thumbnailView(for: entries[entryIndex])
-                    .padding(.leading, max(0, x - previousRightEdge))
-                    .id(entries[entryIndex].id)
-            }
+            .frame(width: totalWidth, height: Self.laneHeight, alignment: .topLeading)
         }
     }
 
     @ViewBuilder
-    private func thumbnailView(for entry: TimelineEntry) -> some View {
+    private func thumbnailView(for entry: TimelineEntry, showsText: Bool) -> some View {
         VStack(spacing: 4) {
             ZStack {
                 RoundedRectangle(cornerRadius: 6).fill(.quaternary)
@@ -273,18 +255,23 @@ struct ObservationTimelineView: View {
             }
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
             .clipped()
-
-            if let object = entry.capture.object, !object.isEmpty {
-                Text(object)
-                    .font(.system(size: 9, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            // A crowded run of captures shows no text under any of them rather than text that
+            // collides into illegible overlapping characters — the full detail (object, session,
+            // filename) is always still one hover away via `.help` below.
+            if showsText {
+                if let object = entry.capture.object, !object.isEmpty {
+                    Text(object)
+                        .font(.system(size: 9, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Text(entry.capture.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
             }
-            Text(entry.capture.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
-                .font(.system(size: 8))
-                .foregroundStyle(.secondary)
         }
         .frame(width: Self.thumbnailSize + 16)
+        .background(.background)
         .contentShape(Rectangle())
         .onTapGesture { onSelect(entry.project, entry.session, entry.capture) }
         .help("\(entry.project.name.isEmpty ? "Untitled Project" : entry.project.name) — \(entry.session.name)\n\(entry.capture.fileName)")
