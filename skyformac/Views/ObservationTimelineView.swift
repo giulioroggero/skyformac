@@ -107,6 +107,15 @@ struct ObservationTimelineView: View {
     private var minPixelsPerHour: Double { defaultPixelsPerHour * 0.05 }
     private var maxPixelsPerHour: Double { max(defaultPixelsPerHour * 300, 3000) }
 
+    /// "MM.dd.yy" — the big-number date header above the timeline, styled like a calendar page
+    /// heading rather than a plain sentence date, matching the literal ask ("show the date in
+    /// large number eg 08.14.26").
+    private static let bigDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM.dd.yy"
+        return formatter
+    }()
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if entries.isEmpty {
@@ -114,6 +123,11 @@ struct ObservationTimelineView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
+                if let mostRecentDate = entries.last?.capture.date {
+                    Text(Self.bigDateFormatter.string(from: mostRecentDate))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
                 ScrollViewReader { proxy in
                     zoomControl(proxy: proxy)
                     ScrollView(.horizontal) {
@@ -159,29 +173,86 @@ struct ObservationTimelineView: View {
         .help("Zooms the timeline horizontally — captures close together in time spread apart as you zoom in, so a dense session's captures become individually tappable instead of overlapping.")
     }
 
-    /// A `ZStack` with every capture positioned by an explicit `.offset`, not a `HStack` — the
-    /// whole point is real time becoming real horizontal distance, which a stack's own "one after
-    /// another" layout can't express. `.offset` doesn't itself grow the `ZStack`'s reported size
-    /// (it only moves a view visually), so the outer `.frame(width:height:alignment: .topLeading)`
-    /// below is what actually gives `ScrollView` the right scrollable width — the offsets alone
-    /// would silently render past the stack's bounds without it.
+    /// A thumbnail column's total footprint (`thumbnailView`'s own `.frame(width:)` below) —
+    /// two entries whose x-positions are closer together than this would otherwise render on
+    /// top of each other, their date/object labels overlapping into illegible text. `lanes(...)`
+    /// below exists specifically to avoid that.
+    private static let columnWidth: CGFloat = thumbnailSize + 16
+
+    /// Greedily packs entries into rows ("lanes") so that no two entries sharing a lane are
+    /// closer together (in actual pixels, at the current zoom) than `columnWidth` — the classic
+    /// calendar-event lane-packing algorithm. Entries are visited in chronological order and each
+    /// one joins the first lane whose most-recently-placed entry doesn't overlap it, or starts a
+    /// new lane otherwise. Without this, two captures close in time (worse, two *different*
+    /// sessions' captures landing near each other after `compressedOffsetsInHours`' gap-capping)
+    /// rendered directly on top of one another.
+    private func lanes(offsetsInHours: [Double]) -> [[Int]] {
+        Self.lanes(offsetsInHours: offsetsInHours, pixelsPerHour: pixelsPerHour, columnWidth: Self.columnWidth)
+    }
+
+    /// Pure core of the lane-packing algorithm — `nonisolated static` (see `mergedEntries`'s own
+    /// doc comment for why) so it's directly unit-testable without constructing a whole view.
+    nonisolated static func lanes(offsetsInHours: [Double], pixelsPerHour: Double, columnWidth: CGFloat) -> [[Int]] {
+        var laneRightEdges: [CGFloat] = []
+        var laneAssignments: [[Int]] = []
+        for i in offsetsInHours.indices {
+            let x = CGFloat(offsetsInHours[i]) * pixelsPerHour
+            if let laneIndex = laneRightEdges.firstIndex(where: { x >= $0 }) {
+                laneAssignments[laneIndex].append(i)
+                laneRightEdges[laneIndex] = x + columnWidth
+            } else {
+                laneAssignments.append([i])
+                laneRightEdges.append(x + columnWidth)
+            }
+        }
+        return laneAssignments
+    }
+
+    /// Real `HStack`s with computed leading padding between entries, not a `ZStack` of
+    /// `.offset()`-positioned children — `.offset()` is a purely visual transform that doesn't
+    /// change what the layout system (and, critically, `ScrollViewReader.scrollTo`) believes a
+    /// view's own position actually is, which is exactly why "jump to most recent" could scroll
+    /// to the wrong place: every absolutely-offset thumbnail reported the *same* pre-offset
+    /// layout frame to the scroll view. Padding-based layout doesn't have that problem — each
+    /// view's real position matches where it's actually drawn.
     @ViewBuilder
     private var timelineCanvas: some View {
         if !entries.isEmpty {
             let offsetsInHours = Self.compressedOffsetsInHours(for: entries)
             let totalWidth = CGFloat(offsetsInHours.last ?? 0) * pixelsPerHour + Self.thumbnailSize + 40
+            let laneAssignments = lanes(offsetsInHours: offsetsInHours)
             ZStack(alignment: .topLeading) {
                 Rectangle()
                     .fill(.quaternary)
                     .frame(width: totalWidth, height: 2)
-                    .offset(x: 20, y: Self.thumbnailSize / 2 + 24)
-                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                    thumbnailView(for: entry)
-                        .offset(x: CGFloat(offsetsInHours[index]) * pixelsPerHour + 20, y: 0)
-                        .id(entry.id)
+                    .padding(.leading, 20)
+                    .padding(.top, Self.thumbnailSize / 2 + 24)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(laneAssignments.indices, id: \.self) { laneIndex in
+                        laneRow(indices: laneAssignments[laneIndex], offsetsInHours: offsetsInHours)
+                    }
                 }
+                .padding(.leading, 20)
             }
-            .frame(width: totalWidth, height: Self.laneHeight, alignment: .topLeading)
+            .frame(width: totalWidth, height: Self.laneHeight * CGFloat(max(laneAssignments.count, 1)), alignment: .topLeading)
+        }
+    }
+
+    /// One lane's own row — a plain `HStack` where each entry after the first is placed via
+    /// `.padding(.leading:)` equal to the real pixel gap since the previous entry *in this same
+    /// lane* (not the previous entry overall, since lane-packing may have skipped entries into
+    /// other lanes in between).
+    private func laneRow(indices: [Int], offsetsInHours: [Double]) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(Array(indices.enumerated()), id: \.element) { position, entryIndex in
+                let x = CGFloat(offsetsInHours[entryIndex]) * pixelsPerHour
+                let previousRightEdge = position == 0
+                    ? 0
+                    : CGFloat(offsetsInHours[indices[position - 1]]) * pixelsPerHour + Self.columnWidth
+                thumbnailView(for: entries[entryIndex])
+                    .padding(.leading, max(0, x - previousRightEdge))
+                    .id(entries[entryIndex].id)
+            }
         }
     }
 

@@ -37,6 +37,9 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
 - Session pages now surface files sitting in a session's own folder that aren't tracked captures
   (e.g. a result an external post-processing tool dropped straight into the folder) — viewable
   and deletable in-app instead of only reachable via "Show in Finder."
+- The Home page's Observation Timeline now shows a big "MM.DD.YY"-style date header above the
+  strip, and packs captures into extra rows ("lanes") whenever two would otherwise land close
+  enough together to overlap, instead of letting their date/object labels collide illegibly.
 - A bundled `Fix Gatekeeper Warning.command` script alongside `skyformac.app` in both the
   `.zip` and a new `.dmg` release — moves the app into `/Applications` (avoiding macOS App
   Translocation, which otherwise silently breaks Camera permission prompts for the iPhone/
@@ -71,6 +74,11 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
   toggles.
 
 ### Fixed
+- The Observation Timeline's "jump to most recent capture" button could scroll to the wrong
+  spot — every thumbnail was positioned with `.offset()`, a purely visual transform that doesn't
+  change what the scroll view believes a view's actual position is. Positioning is now done
+  with real layout (padding-based), which fixes this and is also what makes lane-packing (above)
+  possible.
 - Exporting an image (PNG/TIFF/FITS) froze the whole app and spun the pointer for a full-detail
   write — the actual file encode now runs off the main actor instead of blocking it.
 - Capturing a dark or flat calibration frame left the live preview frozen/blank afterward, with

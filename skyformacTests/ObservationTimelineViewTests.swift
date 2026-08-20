@@ -65,6 +65,28 @@ struct ObservationTimelineViewTests {
         #expect(ObservationTimelineView.compressedTotalHours(for: entries) == 6)
     }
 
+    @Test func lanesPutsWidelySpacedEntriesInOneLane() {
+        // At 10 px/hour with a 20-point column, offsets 0h and 10h are 100pt apart — nowhere
+        // near overlapping — so both should land in the same (first) lane.
+        let lanes = ObservationTimelineView.lanes(offsetsInHours: [0, 10], pixelsPerHour: 10, columnWidth: 20)
+        #expect(lanes == [[0, 1]])
+    }
+
+    @Test func lanesSplitsOverlappingEntriesIntoSeparateLanes() {
+        // At 10 px/hour with a 20-point column, offsets 0h and 1h are only 10pt apart — well
+        // inside the 20pt column width — so the second entry must move to a new lane instead of
+        // overlapping the first.
+        let lanes = ObservationTimelineView.lanes(offsetsInHours: [0, 1], pixelsPerHour: 10, columnWidth: 20)
+        #expect(lanes == [[0], [1]])
+    }
+
+    @Test func lanesReusesAnEarlierLaneOnceItsLastEntryClearsTheColumnWidth() {
+        // Entry 1 overlaps entry 0 (forced into lane 1), but entry 2 is far enough past entry 0
+        // that lane 0 is free again — it should reuse lane 0 rather than opening a third lane.
+        let lanes = ObservationTimelineView.lanes(offsetsInHours: [0, 1, 10], pixelsPerHour: 10, columnWidth: 20)
+        #expect(lanes == [[0, 2], [1]])
+    }
+
     @Test func compressedOffsetsInHoursCapsEachGapIndependently() {
         // Three captures: a 2-hour gap, then a 10-hour (over-the-cap) gap — offsets should be
         // [0, 2, 2 + 6], not [0, 2, 12].
