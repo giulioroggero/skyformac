@@ -31,12 +31,17 @@ Screens of the app itself, rather than a captured target — shown in the README
 | File | Page | Notes |
 | --- | --- | --- |
 | [`Home Page.png`](<examples/Home Page.png>) | Dashboard/Home | "Resume Where You Left Off," Common Tasks, Recent Projects, Highlighted Sessions. |
+| [`New Timeline.png`](<examples/New Timeline.png>) | Dashboard/Home (Observation Timeline) | The Home page's own zoomable timeline — big date header, count-based spacing (not proportional to real elapsed time), and a zoom slider. |
 | [`Quick Start.png`](<examples/Quick Start.png>) | Quick Start picker | Over the Projects grid — Planets & Moon and Deep Sky target lists. |
 | [`Project.png`](examples/Project.png) | Project Detail | Stats, the zoomable Activity Timeline chart, Equipment, Tags. |
 | [`Sessions.png`](examples/Sessions.png) | Project Detail (session list) | Tags/Notes, and every session with a one-click Resume. |
 | [`Sessions Details.ong.png`](<examples/Sessions Details.ong.png>) | Session Detail | Aim/Objects/Location, Run/Recall Parameters/New Session Like This/Ask AI, History, Stats. |
-| [`Session Capture Timeline.png`](<examples/Session Capture Timeline.png>) | Session Detail (timeline) | The capture filmstrip, newest first, each with its own plain-English note. |
+| [`Session Capture Timeline.png`](<examples/Session Capture Timeline.png>) | Session Detail (timeline) | The capture filmstrip, oldest to most recent, each with its own plain-English note. |
+| [`New Project  Home.png`](<examples/New Project  Home.png>) | Session Detail | Cover, Session Summary, History/Equipment/Stats/Tags, and the capture Timeline together on one page (M110 session). |
 | [`Nebula Capture.png`](<examples/Nebula Capture.png>) | Capture Detail | Full preview with Prev/Next overlay buttons, plus the per-capture Camera Settings (mode/gain/exposure). |
+| [`Direct Edit SIngle Capture Image.png`](<examples/Direct Edit SIngle Capture Image.png>) | Capture Detail | The "Edit Image…" action alongside Open/Show in Finder/Move/Split/Delete. |
+| [`Edit Image And Save in project.png`](<examples/Edit Image And Save in project.png>) | Edit Image | GPU-backed crop/rotate/color/curves, Magic Wand auto-fix, denoise, hot-pixel clean-up, and the astronomy-specific tools (green-cast removal, star-size reduction, shadow/highlight recovery). |
+| [`Send to Siril via CLI or UI.png`](<examples/Send to Siril via CLI or UI.png>) | Elaborate with Siril | Planetary vs. Deep Sky recipe, crop-to-region, and Siril's own stacking-rejection parameters, for a Moon `.ser` recording. |
 | [`Stats.png`](examples/Stats.png) | Insights | Overview, Activity Over Time, Most Captured Objects, Most Used Equipment, Most Common Acquisition Mode. |
 | [`Equipment.png`](examples/Equipment.png) | Equipment system detail | Camera/Mount/Optical Tube sections for one named system. |
 

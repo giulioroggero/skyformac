@@ -430,10 +430,14 @@ session persistence design and the browser-as-main-window architecture)
   Capture pages show the same breakdown scoped to that one session
   (`StatsGridView`, shared across all three).
 - **Timelines with thumbnails** — every session shows its captures as a
-  filmstrip, most recent on the left, each thumbnail wide enough to show the
+  filmstrip, oldest to most recent left to right (matching the Home page's
+  own Observation Timeline), each thumbnail wide enough to show the
   capture kind (FITS/PNG/TIFF/SER Video/Recording) and, if present, its own
   plain-English note underneath the date — the iMovie-style browsing this
-  feature is built around.
+  feature is built around. The Home page's own Observation Timeline merges
+  every session's captures across every project into one zoomable strip,
+  spaced by capture count rather than real elapsed time so a quiet week
+  between sessions never eats screen space.
 - **Plain-English capture notes, and a full record for later analysis** —
   every capture automatically gets a short human-readable note of what
   actually happened when it was taken — "Captured Saturn in Live Stack as

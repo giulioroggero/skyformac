@@ -366,8 +366,9 @@ Clicking any session — run or not — opens its own full-width Session page (a
 Project Detail and Capture pages — no capped/centered `Form` margins
 anywhere in the browser); the camera view only ever opens via an explicit
 Run/Resume button, never just by tapping a row. Each session gets its own
-folder for captures and settings, a timeline of thumbnails (most recent on
-the left, each with its capture kind and, if present, a note underneath),
+folder for captures and settings, a timeline of thumbnails (oldest to most
+recent, left to right, matching the Home page's own Observation Timeline;
+each with its capture kind and, if present, a note underneath),
 tags, notes, and GPS or hand-entered location, plus a full History
 (date/time, position, aim, objects) and a capture-count Stats breakdown
 shown in a real resizable/auto-sizing `Table`, not a cramped fixed grid.
@@ -406,6 +407,43 @@ table: an **Atlas** — every session across every project plotted on a
 right-ascension/declination sky chart by its planned target's real position
 (matched against the app's own bundled Messier/Caldwell/bright-star catalog), filterable
 by project, object, or date range, with a tap to jump straight to that session.
+
+### Post-processing and editing
+
+Every capture's context menu (Session timeline, Capture Detail page) offers
+tools for turning a raw capture into a finished image, without leaving the
+app:
+
+- **Post-Process…**, on any `.ser` recording — a native planetary/lunar
+  lucky-imaging pipeline: quality-scoring and registration against the
+  sharpest frame, median/mean stacking of whichever fraction scored best,
+  à trous multi-scale wavelet sharpening, RGB channel alignment, and
+  auto-stretch. Runs as a background, cancellable job with live progress,
+  GPU-accelerated where available, with an optional pass through
+  [GraXpert](https://www.graxpert.com) (star reduction/deconvolution/
+  background extraction) without leaving the modal.
+- **Edit Image…**, on any single FITS/PNG/TIFF capture — brightness,
+  contrast, saturation, a gamma curve, crop, rotate, sharpen, denoise, and
+  three astrophotography-specific tools: green color-cast removal (SCNR),
+  star-size reduction, and shadow/highlight recovery. A one-tap **Magic
+  Wand** auto-fix picks a starting point, every slider has its own reset,
+  and a zoom/pan control checks the result at real pixel scale. Saves as a
+  new **Elaborated Image** alongside the original.
+- **Live Capture** — like an iPhone Live Photo: buffers a few seconds of
+  the live feed, then scrub through every frame it captured and export
+  whichever one actually looked sharpest, instead of timing one manual
+  capture.
+- **Open in Siril…**, on a session or a raw FITS/`.ser` capture — hands it
+  to a locally-installed copy of [Siril](https://siril.org)'s command-line
+  tool for stacking/registration/stretching (single-frame debayer+stretch,
+  planetary stack-without-registration, or deep-sky register+stack,
+  auto-suggested from the target but always overridable), bringing the
+  result back into the project's own **Elaborated** section. Off by
+  default — enable it in Settings, since Siril itself is a separate app,
+  not bundled.
+
+See the [Screenshots](#screenshots) section below for Edit Image and Siril
+in action.
 
 ### AI panel
 
@@ -462,14 +500,15 @@ first time each is used; declining either leaves the rest of the app unaffected.
 ## Screenshots
 
 A quick visual tour of the app itself, following the same path as
-[Using Skyformac](#using-skyformac) above — the Dashboard, Quick Start, a
-project's own page (with its zoomable Activity Timeline), a session's page and
-capture timeline, a single capture's detail page (Camera Settings, Prev/Next),
-Insights, and an Equipment system.
+[Using Skyformac](#using-skyformac) above — the Dashboard and its
+Observation Timeline, Quick Start, a project's own page (with its zoomable
+Activity Timeline), a session's page and capture timeline, a single
+capture's detail page (Camera Settings, Prev/Next), Edit Image, sending a
+capture to Siril, Insights, and an Equipment system.
 
 <table>
 <tr>
-<td width="50%"><img src="examples/Home Page.png" alt="Dashboard/Home page"></td>
+<td width="50%"><img src="examples/New Timeline.png" alt="Dashboard/Home page with the Observation Timeline"></td>
 <td width="50%"><img src="examples/Quick Start.png" alt="Quick Start target picker"></td>
 </tr>
 <tr>
@@ -482,11 +521,15 @@ Insights, and an Equipment system.
 </tr>
 <tr>
 <td width="50%"><img src="examples/Nebula Capture.png" alt="Capture Detail page with Camera Settings and Prev/Next"></td>
-<td width="50%"><img src="examples/Stats.png" alt="Insights page"></td>
+<td width="50%"><img src="examples/Direct Edit SIngle Capture Image.png" alt="Capture Detail page with the Edit Image button"></td>
 </tr>
 <tr>
+<td width="50%"><img src="examples/Edit Image And Save in project.png" alt="Edit Image — crop, rotate, color, clean-up, and astronomy tools"></td>
+<td width="50%"><img src="examples/Send to Siril via CLI or UI.png" alt="Sending a Moon SER recording to Siril for planetary stacking"></td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/Stats.png" alt="Insights page"></td>
 <td width="50%"><img src="examples/Equipment.png" alt="An equipment system's detail page"></td>
-<td width="50%"></td>
 </tr>
 </table>
 
