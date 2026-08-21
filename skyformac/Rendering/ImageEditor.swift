@@ -65,7 +65,10 @@ enum ImageEditor {
 
     /// A shared `CIContext` — cheap to reuse across renders (it owns the Metal command queue/
     /// pipeline cache Core Image builds under the hood), expensive to recreate per call.
-    private static let context = CIContext()
+    /// `nonisolated(unsafe)` — `CIContext` isn't `Sendable`-annotated by Core Image despite being
+    /// documented as safe to use concurrently from multiple threads; this is the same kind of
+    /// annotated-but-actually-safe case as elsewhere in this codebase (e.g. `CGImage`).
+    private nonisolated(unsafe) static let context = CIContext()
 
     /// Renders `image` with `adjustments` applied. `nil` only if Core Image itself fails to
     /// produce a bitmap (e.g. a degenerate zero-size crop).
