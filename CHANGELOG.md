@@ -22,7 +22,8 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   (⌘/⇧-click) driving a bulk action bar (Archive, Delete) above the list.
 - Session pages: the same **Table** view treatment for the capture Timeline, alongside the
   existing filmstrip — sortable columns (date, file, kind, object, disk usage, note) with
-  native multi-select driving a bulk Delete action above the list.
+  native multi-select driving a bulk Delete action above the list, behind a confirmation
+  dialog (this deletes the actual files, not a 30-day-grace-period soft delete).
 
 ## [0.5.0] - 2026-08-21
 

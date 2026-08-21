@@ -55,6 +55,7 @@ struct SessionDetailPane: View {
     /// directory listing, not something `ProjectsLibrary` tracks/republishes) re-reads the folder.
     @State private var strayFilesRefreshTrigger = 0
     @State private var isBrowsingStrayFiles = false
+    @State private var isConfirmingBulkCaptureDelete = false
     /// Persisted like `ProjectDetailPane`'s own Cards/Table toggle for sessions — a view mode
     /// picked once shouldn't reset back to the default every relaunch.
     @AppStorage("sessionCapturesViewMode") private var capturesViewModeRaw = CapturesViewMode.filmstrip.rawValue
@@ -542,22 +543,35 @@ struct SessionDetailPane: View {
     }
 
     /// Shown above the capture Timeline the moment the table's selection is non-empty — "N
-    /// selected," Delete acting on the whole set at once, and Clear. Loops the same
-    /// single-capture `ProjectsLibrary.deleteCapture` the filmstrip's own per-thumbnail context
-    /// menu already uses.
+    /// selected," Delete acting on the whole set at once (behind a confirmation — this deletes
+    /// the actual files, not a 30-day-grace-period soft delete the way a session/project's own
+    /// Danger Zone works), and Clear. Loops the same single-capture
+    /// `ProjectsLibrary.deleteCapture` the filmstrip's own per-thumbnail context menu already
+    /// uses (which asks per-capture rather than needing this dialog, since there's only ever one
+    /// capture in play there).
     private var capturesBulkActionBar: some View {
         HStack {
             Text("\(selectedCaptureIDs.count) selected").font(.subheadline)
             Spacer()
             Button("Delete", systemImage: "trash", role: .destructive) {
+                isConfirmingBulkCaptureDelete = true
+            }
+            Button("Clear") { selectedCaptureIDs.removeAll() }
+        }
+        .padding(.vertical, 6)
+        .confirmationDialog(
+            "Delete \(selectedCaptureIDs.count) capture\(selectedCaptureIDs.count == 1 ? "" : "s")?",
+            isPresented: $isConfirmingBulkCaptureDelete, titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
                 for id in selectedCaptureIDs {
                     try? library.deleteCapture(id, fromSessionID: session.id, in: project)
                 }
                 selectedCaptureIDs.removeAll()
             }
-            Button("Clear") { selectedCaptureIDs.removeAll() }
+        } message: {
+            Text("This removes the file(s) and their thumbnails from disk — this can't be undone.")
         }
-        .padding(.vertical, 6)
     }
 
     /// The historical record this page is actually for — when it was planned/created/captured,
