@@ -112,6 +112,50 @@ struct PlanetaryPostProcessorTests {
         #expect(abs(result.values[0] - Float(200) / 255) < 0.001)
     }
 
+    // MARK: - combine's chunk-splitting math
+
+    @Test func chunkPlanNeverLeavesATrailingChunkPastCount() {
+        // The exact case that crashed on CI (a core count producing a mismatch that never
+        // occurs on a dev machine with enough cores that `count` itself caps the requested
+        // chunk count): a requested chunk count that doesn't divide `count` evenly must not
+        // still report a `chunkCount` whose last chunk would start at or past `count`.
+        for count in 1...40 {
+            for requested in 1...40 {
+                let (chunkSize, chunkCount) = PlanetaryPostProcessor.chunkPlan(count: count, requestedChunkCount: requested)
+                #expect(chunkSize > 0, "count=\(count) requested=\(requested)")
+                #expect(chunkCount > 0, "count=\(count) requested=\(requested)")
+                let lastChunkStart = (chunkCount - 1) * chunkSize
+                #expect(lastChunkStart < count, "count=\(count) requested=\(requested) produced lastChunkStart=\(lastChunkStart)")
+            }
+        }
+    }
+
+    @Test func chunkPlanCoversEveryIndexExactlyOnce() {
+        // Every pixel 0..<count must fall in exactly one chunk — no gaps, no overlaps.
+        for count in [1, 5, 7, 16, 17, 33] {
+            for requested in [1, 3, 5, 12, 16, 32] {
+                let (chunkSize, chunkCount) = PlanetaryPostProcessor.chunkPlan(count: count, requestedChunkCount: requested)
+                var covered = [Bool](repeating: false, count: count)
+                for chunkIndex in 0..<chunkCount {
+                    let start = chunkIndex * chunkSize
+                    let end = min(start + chunkSize, count)
+                    guard start < end else { continue }
+                    for pixel in start..<end {
+                        #expect(!covered[pixel], "pixel \(pixel) covered twice (count=\(count) requested=\(requested))")
+                        covered[pixel] = true
+                    }
+                }
+                #expect(covered.allSatisfy { $0 }, "count=\(count) requested=\(requested) left a gap")
+            }
+        }
+    }
+
+    @Test func chunkPlanIsEmptyForZeroCount() {
+        let (chunkSize, chunkCount) = PlanetaryPostProcessor.chunkPlan(count: 0, requestedChunkCount: 8)
+        #expect(chunkSize == 0)
+        #expect(chunkCount == 0)
+    }
+
     // MARK: - wavelet sharpening
 
     @Test func waveletSharpenIncreasesEdgeContrastOnAStepEdge() {

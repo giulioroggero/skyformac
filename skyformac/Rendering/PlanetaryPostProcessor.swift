@@ -402,14 +402,39 @@ enum PlanetaryPostProcessor {
     /// `false` no matter what the *actual* calling task's cancellation state is. Cancelling the
     /// surrounding work would then never reach these closures, leaving them to run to completion
     /// regardless — exactly the "CPU stays pegged after Cancel" bug this fixes.
+    /// `chunkSize` is derived from a *requested* chunk count (`combine`'s caller scales this by
+    /// `activeProcessorCount`, capped at `count`), then `chunkCount` itself is recomputed as
+    /// however many chunks of that size `count` actually needs. Using the *requested* count
+    /// directly as `combine`'s `DispatchQueue.concurrentPerform` iteration count instead (as an
+    /// earlier version of this function did) could leave trailing chunks with nothing left to
+    /// cover once `chunkSize` — a ceiling division — didn't divide `count` evenly: e.g. count=16
+    /// with a requested 12 chunks gives chunkSize=2, but 12×2=24 overshoots 16, so chunks 9-11
+    /// would start past `count` entirely, at which point clamping their `end` to `count` put it
+    /// *before* their own `start` and crashed with "Range requires lowerBound <= upperBound"
+    /// (only ever observed on a CI runner whose core count produced exactly this mismatch — never
+    /// reproduced on a dev machine with enough cores that `count` itself capped the requested
+    /// chunk count below any risk of overshoot). Recomputing `chunkCount` this way guarantees the
+    /// last chunk always starts before `count`, so no trailing chunk is ever empty — pulled out
+    /// as its own `nonisolated` pure function (rather than inlined in `combine`) specifically so
+    /// this invariant is directly unit-testable across arbitrary `count`/`requestedChunkCount`
+    /// pairs, decoupled from whatever `ProcessInfo.processInfo.activeProcessorCount` actually is
+    /// on the machine running the test.
+    nonisolated static func chunkPlan(count: Int, requestedChunkCount: Int) -> (chunkSize: Int, chunkCount: Int) {
+        guard count > 0 else { return (0, 0) }
+        let requested = min(count, max(1, requestedChunkCount))
+        let chunkSize = (count + requested - 1) / requested
+        let chunkCount = (count + chunkSize - 1) / chunkSize
+        return (chunkSize, chunkCount)
+    }
+
     private static func combine(
         _ buffers: [[Float]], method: StackMethod, isCancelled: @escaping () -> Bool, progress: ((Float) -> Void)? = nil
     ) -> [Float] {
         let count = buffers[0].count
+        guard count > 0 else { return [] }
         var result = [Float](repeating: 0, count: count)
         let frameCount = buffers.count
-        let chunkCount = min(count, max(1, ProcessInfo.processInfo.activeProcessorCount * 4))
-        let chunkSize = (count + chunkCount - 1) / chunkCount
+        let (chunkSize, chunkCount) = chunkPlan(count: count, requestedChunkCount: ProcessInfo.processInfo.activeProcessorCount * 4)
         let progressLock = NSLock()
         var completedChunks = 0
 
