@@ -26,6 +26,12 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   dialog (this deletes the actual files, not a 30-day-grace-period soft delete).
 
 ### Fixed
+- Live preview multi-second delay for real ASI cameras: `CaptureEngine.frames()` used the
+  default *unbounded* `AsyncStream` buffer, unlike `WebcamCaptureEngine.frames()` (already
+  `.bufferingNewest(1)`). Any stretch where per-frame processing on `@MainActor` took even
+  slightly longer than the camera's real frame interval let the backlog grow without bound —
+  the preview fell further and further behind real time the longer streaming ran, instead of
+  just dropping frames it couldn't keep up with. Now matches the webcam path.
 - Live preview latency regression: the preview image itself was wrapped in `.colorMultiply`
   unconditionally (even with Night Mode off), forcing an extra compositing pass on every
   incoming frame. Now only applied when the tint is actually active.

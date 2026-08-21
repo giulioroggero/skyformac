@@ -143,7 +143,16 @@ actor CaptureEngine {
     ) -> AsyncStream<CapturedFrame> {
         self.onCameraRemoved = onCameraRemoved
         self.onStreamError = onStreamError
-        return AsyncStream { continuation in
+        // `.bufferingNewest(1)`, not the default unbounded buffer — matches
+        // `WebcamCaptureEngine.frames()`. A live preview should always show the *latest* frame,
+        // dropping stale ones, not queue every frame the consumer hasn't gotten to yet: with the
+        // default policy, any stretch where `ingest()` (on `@MainActor`) takes even slightly
+        // longer per frame than the camera's actual frame interval let the backlog grow without
+        // bound — the preview kept falling further and further behind real time (reported as
+        // "seconds of delay" that a plain per-frame cost fix couldn't explain, since it kept
+        // compounding for as long as streaming ran) instead of just dropping the frames it
+        // couldn't keep up with.
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             self.continuation = continuation
         }
     }
