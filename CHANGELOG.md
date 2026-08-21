@@ -98,6 +98,11 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   toggles.
 
 ### Fixed
+- Planetary Post-Processing: on a machine whose core count produced a specific mismatch in the
+  final stacking step's chunk-splitting math, a trailing chunk could start past the pixel
+  array's end and crash. Never reproduced on every machine tested, but fixed at the source
+  (verified against every count/requested-chunk-count pairing, not just the one that crashed)
+  rather than left as a latent risk.
 - The Observation Timeline's "jump to most recent capture" button could scroll to the wrong
   spot — every thumbnail was positioned with `.offset()`, a purely visual transform that doesn't
   change what the scroll view believes a view's actual position is. Positioning is now done
