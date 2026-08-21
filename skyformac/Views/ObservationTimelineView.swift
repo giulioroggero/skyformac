@@ -41,13 +41,19 @@ struct ObservationTimelineView: View {
     private static let thumbnailSize: CGFloat = 72
     private static let laneHeight: CGFloat = thumbnailSize + 88
     /// A thumbnail column's total footprint (`thumbnailView`'s own `.frame(width:)` below) — the
-    /// spacing `showsText(count:pixelsPerThumbnail:columnWidth:)` compares against to decide how
-    /// many thumbnails apart a text label can safely appear.
+    /// spacing `showsText(forVisibleIndices:pixelsPerThumbnail:columnWidth:)` compares against to
+    /// decide how many thumbnails apart a text label can safely appear.
     private static let columnWidth: CGFloat = thumbnailSize + 16
     /// The whole strip is scaled to roughly this many points wide at the default zoom, however
     /// many captures there are — wide enough to read as a real timeline without opening already
     /// fully zoomed in.
     private static let targetInitialWidth: CGFloat = 1400
+    /// Below this per-thumbnail spacing, `visibleIndices(count:pixelsPerThumbnail:minVisibleWidth:)`
+    /// starts hiding some thumbnails entirely (not just their text) so every thumbnail that *is*
+    /// shown still gets at least this many points — packing them any tighter than this stops
+    /// reading as individual images at all. Zooming back in re-reveals them, since which indices
+    /// are visible is recomputed fresh from `pixelsPerThumbnail` on every render.
+    private static let minVisibleThumbnailWidth: CGFloat = 25
 
     init(projects: [Project], cameraManager: CameraManager, onSelect: @escaping (Project, Session, CaptureRecord) -> Void) {
         self.projects = projects
@@ -182,29 +188,53 @@ struct ObservationTimelineView: View {
         .help("Zooms the timeline horizontally — captures spread apart as you zoom in, so a dense session's captures become individually tappable instead of overlapping.")
     }
 
-    /// Real thumbnails are allowed to overlap when zoomed out (a crowded run of captures visually
-    /// stacks, rather than reserving empty space to keep every one fully apart) — only each
-    /// entry's *text* (object name + date, the part that actually becomes unreadable when two
-    /// captures land close together) gets suppressed, on a fixed stride so it's evenly spaced out
-    /// rather than by real time gaps. `nonisolated static` — see `mergedEntries`'s own doc
-    /// comment for why — so it's directly unit-testable; `columnWidth` is threaded through as a
-    /// parameter (rather than reading the `private` constant directly) for that same reason.
-    nonisolated static func showsText(count: Int, pixelsPerThumbnail: Double, columnWidth: Double) -> [Bool] {
+    /// Below `minVisibleThumbnailWidth` per-thumbnail spacing, not every thumbnail gets shown at
+    /// all — packed any tighter and they'd stop reading as individual images regardless of text.
+    /// Picks a fixed stride (every Nth index) rather than hiding by real time gaps, always
+    /// keeping the very first and last (most recent) index so "jump to most recent" and the
+    /// leading edge always have something real to land on. `nonisolated static` — see
+    /// `mergedEntries`'s own doc comment for why — so it's directly unit-testable.
+    nonisolated static func visibleIndices(count: Int, pixelsPerThumbnail: Double, minVisibleWidth: Double) -> [Int] {
         guard count > 0 else { return [] }
+        let stride = max(1, Int((minVisibleWidth / max(pixelsPerThumbnail, 1)).rounded(.up)))
+        var indices = Swift.stride(from: 0, to: count, by: stride).map { $0 }
+        if indices.last != count - 1 {
+            indices.append(count - 1)
+        }
+        return indices
+    }
+
+    /// Real thumbnails are allowed to overlap when zoomed out just short of
+    /// `minVisibleThumbnailWidth` (a crowded run of captures visually stacks, rather than
+    /// reserving empty space to keep every one fully apart) — only each *shown* entry's text
+    /// (object name + date, the part that actually becomes unreadable when two captures land
+    /// close together) gets suppressed, on a fixed stride evaluated against each entry's own
+    /// absolute index (not its position within `indices`) so it stays a stable, periodic pattern
+    /// regardless of which indices `visibleIndices` happens to have hidden. Parallel to
+    /// `indices`, not to every entry. `columnWidth` is threaded through as a parameter (rather
+    /// than reading the `private` constant directly) for the same testability reason as
+    /// `mergedEntries`.
+    nonisolated static func showsText(forVisibleIndices indices: [Int], pixelsPerThumbnail: Double, columnWidth: Double) -> [Bool] {
         let stride = max(1, Int((columnWidth / max(pixelsPerThumbnail, 1)).rounded(.up)))
-        return (0..<count).map { $0 % stride == 0 }
+        return indices.map { $0 % stride == 0 }
     }
 
     /// A real `HStack`, not a `ZStack` of `.offset()`-positioned children — `.offset()` is a
     /// purely visual transform that doesn't change what the layout system (and, critically,
     /// `ScrollViewReader.scrollTo`/`.scrollPosition(id:)`) believes a view's own position
-    /// actually is. Every entry gets the same fixed `pixelsPerThumbnail` spacing regardless of
-    /// its actual capture date — see this type's own doc comment for why.
+    /// actually is. Every entry's *absolute* position is still `index * pixelsPerThumbnail`
+    /// regardless of its actual capture date (see this type's own doc comment for why) — only
+    /// which entries actually render (`visibleIndices` above) responds to zoom.
     @ViewBuilder
     private var timelineCanvas: some View {
         if !entries.isEmpty {
             let totalWidth = CGFloat(entries.count - 1) * pixelsPerThumbnail + Self.thumbnailSize + 40
-            let showsText = Self.showsText(count: entries.count, pixelsPerThumbnail: pixelsPerThumbnail, columnWidth: Double(Self.columnWidth))
+            let visibleIndices = Self.visibleIndices(
+                count: entries.count, pixelsPerThumbnail: pixelsPerThumbnail, minVisibleWidth: Double(Self.minVisibleThumbnailWidth)
+            )
+            let showsText = Self.showsText(
+                forVisibleIndices: visibleIndices, pixelsPerThumbnail: pixelsPerThumbnail, columnWidth: Double(Self.columnWidth)
+            )
             ZStack(alignment: .topLeading) {
                 Rectangle()
                     .fill(.quaternary)
@@ -212,15 +242,19 @@ struct ObservationTimelineView: View {
                     .padding(.leading, 20)
                     .padding(.top, Self.thumbnailSize / 2 + 24)
                 HStack(alignment: .top, spacing: 0) {
-                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                        thumbnailView(for: entry, showsText: showsText[index])
-                            .padding(.leading, index == 0 ? 20 : pixelsPerThumbnail - Double(Self.columnWidth))
-                            .id(entry.id)
+                    ForEach(Array(visibleIndices.enumerated()), id: \.element) { position, entryIndex in
+                        let previousEntryIndex = position == 0 ? 0 : visibleIndices[position - 1]
+                        let gap = position == 0
+                            ? CGFloat(entryIndex) * pixelsPerThumbnail
+                            : CGFloat(entryIndex - previousEntryIndex) * pixelsPerThumbnail - Self.columnWidth
+                        thumbnailView(for: entries[entryIndex], showsText: showsText[position])
+                            .padding(.leading, position == 0 ? gap + 20 : gap)
+                            .id(entries[entryIndex].id)
                             // Later (visually rightmost/more-recent) thumbnails draw on top of
                             // whatever they overlap, same as `zIndex` ordering elsewhere in this
                             // app — reads more naturally than an earlier capture covering a later
                             // one.
-                            .zIndex(Double(index))
+                            .zIndex(Double(entryIndex))
                     }
                 }
                 .scrollTargetLayout()

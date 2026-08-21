@@ -51,7 +51,12 @@ actually tagged. Tags on GitHub: [v0.4.0](https://github.com/giulioroggero/skyfo
   hidden (the thumbnail itself, and its tooltip, stay fully there), instead of letting two labels
   collide into illegible overlapping text. Spacing between thumbnails is now purely index-based
   (how many captures there are), not proportional to real elapsed time, so there's never dead
-  empty space between two thumbnails just because a lot of quiet time passed between them.
+  empty space between two thumbnails just because a lot of quiet time passed between them. Below
+  25pt of spacing per thumbnail, some thumbnails now hide entirely (not just their text) so every
+  one still shown gets a real 25pt — zooming back in reveals them again.
+- "Edit Image" now has a zoom control (pinch, or the slider under the preview) with drag-to-pan
+  once zoomed in, for checking a sharpen/denoise/star-size result at real pixel scale instead of
+  only ever seeing the whole image shrunk to fit the pane.
 - Session pages: **Other Files in This Folder** now also shows their combined disk usage right
   in the "Browse…" button, and moved to sit directly above the session's own
   Elaborate/Archive/Move/Delete action row; **Elaborated** moved up to sit directly under

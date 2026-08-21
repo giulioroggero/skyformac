@@ -39,6 +39,12 @@ struct SingleImagePostProcessingView: View {
     @State private var cropTop: Double = 0
     @State private var cropBottom: Double = 0
 
+    // Preview zoom/pan — lets a sharpen/denoise/star-size result be checked at real pixel scale
+    // instead of only ever seeing the whole image shrunk to fit the pane.
+    @State private var zoomScale: CGFloat = 1
+    @State private var zoomOffset: CGSize = .zero
+    @State private var dragStartOffset: CGSize = .zero
+
     @State private var isApplyingMagicWand = false
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
@@ -142,17 +148,80 @@ struct SingleImagePostProcessingView: View {
     }
 
     private var previewPane: some View {
-        ZStack {
-            Color.black
-            if let previewImage {
-                Image(decorative: previewImage, scale: 1)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .padding(12)
-            } else {
-                ProgressView()
+        VStack(spacing: 0) {
+            ZStack {
+                Color.black
+                if let previewImage {
+                    Image(decorative: previewImage, scale: 1)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .padding(12)
+                        .scaleEffect(zoomScale)
+                        .offset(zoomOffset)
+                        // Pinch-to-zoom (trackpad) and the slider below both drive the same
+                        // `zoomScale` — checking a sharpen/denoise/star-size result at real pixel
+                        // scale needs more than "fit the whole image in the pane."
+                        .gesture(
+                            MagnificationGesture()
+                                .onChanged { value in zoomScale = min(max(1, value), Self.maxZoomScale) }
+                        )
+                        // Only actually pans once zoomed in — at 1x there's nothing to pan to,
+                        // and a plain drag shouldn't fight with anything else on the page.
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    guard zoomScale > 1 else { return }
+                                    zoomOffset = CGSize(
+                                        width: dragStartOffset.width + value.translation.width,
+                                        height: dragStartOffset.height + value.translation.height
+                                    )
+                                }
+                                .onEnded { _ in dragStartOffset = zoomOffset }
+                        )
+                } else {
+                    ProgressView()
+                }
+            }
+            .clipped()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            zoomControlBar
+        }
+    }
+
+    private static let maxZoomScale: CGFloat = 8
+
+    private var zoomControlBar: some View {
+        HStack {
+            Text("Zoom").font(.caption)
+            Button {
+                withAnimation { resetZoom() }
+            } label: {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .disabled(zoomScale <= 1)
+            Slider(value: $zoomScale, in: 1...Self.maxZoomScale)
+            Button {
+                withAnimation { zoomScale = Self.maxZoomScale }
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            Text(String(format: "%.1fx", zoomScale))
+                .font(.caption.monospacedDigit())
+                .frame(width: 36, alignment: .trailing)
+            if zoomScale != 1 {
+                Button("Reset") { withAnimation { resetZoom() } }
+                    .font(.caption)
+                    .controlSize(.small)
             }
         }
+        .padding(10)
+        .help("Pinch, or drag this slider, to zoom into the preview — drag the image itself to pan once zoomed in.")
+    }
+
+    private func resetZoom() {
+        zoomScale = 1
+        zoomOffset = .zero
+        dragStartOffset = .zero
     }
 
     private var magicWandSection: some View {

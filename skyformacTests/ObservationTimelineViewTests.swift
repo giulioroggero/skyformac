@@ -53,13 +53,13 @@ struct ObservationTimelineViewTests {
         #expect(many > 0)
     }
 
-    @Test func showsTextIsAlwaysTrueForTheFirstEntry() {
-        #expect(ObservationTimelineView.showsText(count: 1, pixelsPerThumbnail: 10, columnWidth: 20) == [true])
+    @Test func showsTextIsAlwaysTrueForTheFirstVisibleEntry() {
+        #expect(ObservationTimelineView.showsText(forVisibleIndices: [0], pixelsPerThumbnail: 10, columnWidth: 20) == [true])
     }
 
     @Test func showsTextIsTrueForEveryEntryWhenSpacingClearsTheColumnWidth() {
         #expect(
-            ObservationTimelineView.showsText(count: 3, pixelsPerThumbnail: 30, columnWidth: 20) == [true, true, true]
+            ObservationTimelineView.showsText(forVisibleIndices: [0, 1, 2], pixelsPerThumbnail: 30, columnWidth: 20) == [true, true, true]
         )
     }
 
@@ -67,11 +67,33 @@ struct ObservationTimelineViewTests {
         // At half the column width per thumbnail, every other entry's text would collide with
         // its neighbor's — text shows on every 2nd entry (a fixed stride, not tied to real time).
         #expect(
-            ObservationTimelineView.showsText(count: 5, pixelsPerThumbnail: 10, columnWidth: 20) == [true, false, true, false, true]
+            ObservationTimelineView.showsText(forVisibleIndices: [0, 1, 2, 3, 4], pixelsPerThumbnail: 10, columnWidth: 20)
+                == [true, false, true, false, true]
         )
     }
 
-    @Test func showsTextIsEmptyForNoEntries() {
-        #expect(ObservationTimelineView.showsText(count: 0, pixelsPerThumbnail: 10, columnWidth: 20).isEmpty)
+    @Test func showsTextIsEmptyForNoVisibleIndices() {
+        #expect(ObservationTimelineView.showsText(forVisibleIndices: [], pixelsPerThumbnail: 10, columnWidth: 20).isEmpty)
+    }
+
+    @Test func visibleIndicesShowsEveryEntryWhenSpacingClearsTheMinimum() {
+        #expect(ObservationTimelineView.visibleIndices(count: 5, pixelsPerThumbnail: 30, minVisibleWidth: 25) == [0, 1, 2, 3, 4])
+    }
+
+    @Test func visibleIndicesHidesSomeThumbnailsWhenSpacingDropsBelowTheMinimum() {
+        // At 5pt per thumbnail (well under the 25pt minimum), only every 5th thumbnail can get
+        // its own real 25pt of space — the fix for "hide some images ... in order to keep the
+        // min width of 25px."
+        #expect(ObservationTimelineView.visibleIndices(count: 11, pixelsPerThumbnail: 5, minVisibleWidth: 25) == [0, 5, 10])
+    }
+
+    @Test func visibleIndicesAlwaysIncludesTheMostRecentEntry() {
+        // 12 entries at a stride of 5 would naturally land on 0, 5, 10 — 11 (the most recent)
+        // needs to be added on top so "jump to most recent" always has something real to select.
+        #expect(ObservationTimelineView.visibleIndices(count: 12, pixelsPerThumbnail: 5, minVisibleWidth: 25) == [0, 5, 10, 11])
+    }
+
+    @Test func visibleIndicesIsEmptyForZeroEntries() {
+        #expect(ObservationTimelineView.visibleIndices(count: 0, pixelsPerThumbnail: 5, minVisibleWidth: 25).isEmpty)
     }
 }
