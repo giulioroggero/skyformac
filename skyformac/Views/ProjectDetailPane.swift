@@ -1,6 +1,15 @@
 import AppKit
 import SwiftUI
 
+/// A project's own Sessions list, same "recognize it visually" vs. "compare a lot of them by
+/// their actual numbers" tradeoff as `ProjectsBrowserView`'s Thumbnails/Table toggle for
+/// projects — cards for browsing, a table for seeing disk usage/capture counts side by side and
+/// multi-selecting for bulk actions.
+private enum SessionsViewMode: String {
+    case cards
+    case table
+}
+
 /// The Projects browser's "Project Detail" page — pushed onto the browser's `NavigationStack`
 /// when a project is tapped on the Home page. A plain full-width `ScrollView`, not a `Form` (see
 /// `PageSection`), same as the Session/Capture pages. Shows the project's own metadata (name/
@@ -39,6 +48,13 @@ struct ProjectDetailPane: View {
     @State private var goal: String
     @State private var isPlanningProject = false
     @State private var isDescribingProject = false
+    /// Persisted like `ProjectsBrowserView`'s own Thumbnails/Table toggle — a view mode picked
+    /// once shouldn't reset back to the default every relaunch.
+    @AppStorage("projectSessionsViewMode") private var sessionsViewModeRaw = SessionsViewMode.cards.rawValue
+    private var sessionsViewMode: SessionsViewMode { SessionsViewMode(rawValue: sessionsViewModeRaw) ?? .cards }
+    /// A `Table`'s own selection — multi-select out of the box (click/⌘-click/shift-click) with
+    /// a `Set` binding, same as `ProjectsBrowserView`'s own project table.
+    @State private var selectedSessionIDs: Set<Session.ID> = []
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
@@ -155,36 +171,60 @@ struct ProjectDetailPane: View {
                     HStack {
                         Text("Sessions").font(.headline)
                         Spacer()
+                        Picker("View", selection: $sessionsViewModeRaw) {
+                            Label("Cards", systemImage: "list.bullet").tag(SessionsViewMode.cards.rawValue)
+                            Label("Table", systemImage: "tablecells").tag(SessionsViewMode.table.rawValue)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelStyle(.iconOnly)
+                        .frame(width: 90)
                         Button("Ask AI to Plan…", systemImage: "sparkles") { isPlanningProject = true }
                         Button("Add Session", systemImage: "plus") { addSession() }
                     }
-                    // Favorites first — "keep them on top" — ties broken by each session's own
-                    // existing order otherwise (a stable sort, so non-favorites don't get
-                    // needlessly reshuffled amongst themselves).
-                    ForEach(favoritesFirst(project.sessions, isFavorite: \.isFavorite)) { session in
-                        SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
-                            .contentShape(Rectangle())
-                            // Tapping a session always opens its own Session page (detail/history)
-                            // — the camera view only ever opens via an explicit "Run"/"Resume"/
-                            // "Run This Session" button (on the card itself, or on the Session
-                            // page), never just by tapping the row.
-                            .onTapGesture { onShowSessionHistory(session) }
-                            .contextMenu {
-                                Button(session.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
-                                    var updated = session
-                                    updated.isFavorite.toggle()
-                                    applyAndSaveSession(updated)
+
+                    if !selectedSessionIDs.isEmpty {
+                        sessionsBulkActionBar
+                    }
+
+                    switch sessionsViewMode {
+                    case .cards:
+                        // Favorites first — "keep them on top" — ties broken by each session's
+                        // own existing order otherwise (a stable sort, so non-favorites don't get
+                        // needlessly reshuffled amongst themselves).
+                        ForEach(favoritesFirst(project.sessions, isFavorite: \.isFavorite)) { session in
+                            SessionCard(project: project, session: session, cameraManager: cameraManager, store: cameraManager.projectStore)
+                                .contentShape(Rectangle())
+                                // Tapping a session always opens its own Session page (detail/
+                                // history) — the camera view only ever opens via an explicit
+                                // "Run"/"Resume"/"Run This Session" button (on the card itself,
+                                // or on the Session page), never just by tapping the row.
+                                .onTapGesture { onShowSessionHistory(session) }
+                                .contextMenu {
+                                    Button(session.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
+                                        var updated = session
+                                        updated.isFavorite.toggle()
+                                        applyAndSaveSession(updated)
+                                    }
+                                    Button(session.isArchived ? "Unarchive" : "Archive") {
+                                        try? library.setArchived(!session.isArchived, forSessionID: session.id, in: project)
+                                    }
+                                    Button("Delete", role: .destructive) {
+                                        try? library.deleteSession(session.id, in: project)
+                                    }
                                 }
-                                Button(session.isArchived ? "Unarchive" : "Archive") {
-                                    try? library.setArchived(!session.isArchived, forSessionID: session.id, in: project)
-                                }
-                                Button("Delete", role: .destructive) {
-                                    try? library.deleteSession(session.id, in: project)
-                                }
+                            if session.id != project.sessions.last?.id {
+                                Divider()
                             }
-                        if session.id != project.sessions.last?.id {
-                            Divider()
                         }
+                    case .table:
+                        // The data-dense alternative — every session's disk usage/capture count/
+                        // last-activity side by side, sortable, with native multi-select for the
+                        // bulk action bar above instead of one context menu at a time.
+                        SessionsTableView(
+                            project: project, store: cameraManager.projectStore, selectedIDs: $selectedSessionIDs,
+                            onSelect: onShowSessionHistory
+                        )
+                        .frame(minHeight: 240, idealHeight: 360)
                     }
                 }
 
@@ -320,6 +360,31 @@ struct ProjectDetailPane: View {
         try? library.save(updatedProject)
     }
 
+    /// Shown above the session list the moment the table's selection is non-empty — "N
+    /// selected," Archive/Delete acting on the whole set at once, and Clear. Loops the existing
+    /// single-session `ProjectsLibrary` calls (the same ones the card view's own context menu
+    /// uses) rather than needing a dedicated bulk API.
+    private var sessionsBulkActionBar: some View {
+        HStack {
+            Text("\(selectedSessionIDs.count) selected").font(.subheadline)
+            Spacer()
+            Button("Archive", systemImage: "archivebox") {
+                for id in selectedSessionIDs {
+                    try? library.setArchived(true, forSessionID: id, in: project)
+                }
+                selectedSessionIDs.removeAll()
+            }
+            Button("Delete", systemImage: "trash", role: .destructive) {
+                for id in selectedSessionIDs {
+                    try? library.deleteSession(id, in: project)
+                }
+                selectedSessionIDs.removeAll()
+            }
+            Button("Clear") { selectedSessionIDs.removeAll() }
+        }
+        .padding(.vertical, 6)
+    }
+
     /// Sessions count (split active/archived) plus a per-kind capture breakdown — "how much has
     /// actually happened on this project," not just its name and goal.
     private var projectStats: [StatItem] {
@@ -443,6 +508,64 @@ private struct SessionCard: View {
             Text("Not Run Yet")
                 .font(.caption2)
                 .foregroundStyle(.orange)
+        }
+    }
+}
+
+/// The data-dense alternative to `SessionCard` — every session in this project as a table row,
+/// sortable by any column, for comparing disk usage/capture counts side by side and
+/// multi-selecting for the bulk action bar above (`ProjectDetailPane.sessionsBulkActionBar`)
+/// instead of one context menu at a time. Mirrors `ProjectsBrowserView`'s own `ProjectsTableView`
+/// for projects.
+private struct SessionsTableView: View {
+    let project: Project
+    let store: ProjectStore
+    /// A `Table`'s own selection is multi-select out of the box with a `Set` binding (click,
+    /// ⌘-click, shift-click) — no separate "select mode" needed the way `SessionCard`'s plain
+    /// taps do, since a single click here already just selects rather than opening.
+    @Binding var selectedIDs: Set<Session.ID>
+    var onSelect: (Session) -> Void
+
+    @State private var sortOrder = [KeyPathComparator(\Session.name)]
+
+    private var sortedSessions: [Session] {
+        project.sessions.sorted(using: sortOrder)
+    }
+
+    var body: some View {
+        Table(sortedSessions, selection: $selectedIDs, sortOrder: $sortOrder) {
+            TableColumn("Name", value: \.name) { session in
+                HStack(spacing: 4) {
+                    if session.isFavorite {
+                        Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption2)
+                    }
+                    Text(session.name)
+                        .opacity(session.isArchived ? 0.5 : 1)
+                }
+            }
+            TableColumn("Goal", value: \.goal)
+            TableColumn("Captures") { Text("\($0.captures.count)") }
+                .width(70)
+            TableColumn("Disk Usage") { session in
+                Text(ByteCountFormatter.string(fromByteCount: store.diskUsage(for: session, in: project), countStyle: .file))
+            }
+            .width(90)
+            TableColumn("Location") { Text($0.effectiveLocation(inProject: project)?.displayName ?? "—") }
+            TableColumn("Tags") { Text($0.tags.joined(separator: ", ")) }
+            TableColumn("Last Activity") { session in
+                if let date = session.firstCaptureDate ?? session.plannedDate {
+                    Text(date, format: .relative(presentation: .named))
+                } else {
+                    Text("—")
+                }
+            }
+        }
+        .contextMenu(forSelectionType: Session.ID.self) { _ in
+            // No per-row menu items yet — Favorite/Archive/Delete live on the card view's own
+            // context menu, and the bulk action bar above covers Archive/Delete for a selection.
+        } primaryAction: { ids in
+            guard let id = ids.first, let session = project.sessions.first(where: { $0.id == id }) else { return }
+            onSelect(session)
         }
     }
 }

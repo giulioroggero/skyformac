@@ -15,6 +15,12 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- Project pages: a **Table** view for a project's Sessions list, alongside the existing card
+  list — same Thumbnails/Table tradeoff as the Home page's own project view toggle. Sortable
+  columns include disk usage and capture count per session, with native multi-select
+  (⌘/⇧-click) driving a bulk action bar (Archive, Delete) above the list.
+
 ## [0.5.0] - 2026-08-21
 
 ### Added
