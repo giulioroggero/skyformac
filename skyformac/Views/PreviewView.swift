@@ -81,9 +81,24 @@ struct PreviewView: View {
         cameraManager.isNightModeEnabled && cameraManager.isNightModePreviewTinted ? .red : .white
     }
 
+    /// `.colorMultiply` forces SwiftUI to composite its content through an extra color-filter
+    /// pass on every single paint — including a `.white` multiply, which is mathematically a
+    /// no-op but not a *free* one. Applying it unconditionally to the live image meant every
+    /// incoming frame paid that compositing cost even with Night Mode off entirely (the vast
+    /// majority of the time), which showed up as added live-preview latency. Only wrapping
+    /// `preview` in the modifier when the tint is actually non-white keeps the fast path for
+    /// everyone not using the red-tinted-preview option.
+    @ViewBuilder
+    private var tintedPreview: some View {
+        if cameraManager.isNightModeEnabled && cameraManager.isNightModePreviewTinted {
+            preview.colorMultiply(imageNightTint)
+        } else {
+            preview
+        }
+    }
+
     var body: some View {
-        preview
-            .colorMultiply(imageNightTint)
+        tintedPreview
             .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
             .overlay { Color.white.opacity(captureFlashOpacity).allowsHitTesting(false) }
             .overlay(alignment: .bottomLeading) { zoomBadge.colorMultiply(nightTint) }

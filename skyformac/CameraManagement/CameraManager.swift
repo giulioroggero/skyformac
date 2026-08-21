@@ -2586,6 +2586,14 @@ final class CameraManager {
     /// selected `AVCaptureDevice.Format` already is.
     func changeCaptureROI(width: Int?, height: Int?, centerX: Int? = nil, centerY: Int? = nil, binning: Int = 1) {
         guard let engine = captureEngine, connectedCamera != nil else { return }
+        // No-op guard (matching `changeImageType`'s) — without it, requesting the exact same ROI/
+        // binning already in effect (e.g. "Reset to Default" when the ROI is already full-sensor,
+        // unbinned) still tore the live stream down and rebuilt it: a visible flash/CPU spike and
+        // a brief window of every `currentFrame == nil`-gated control going disabled, for no
+        // actual change.
+        guard width != captureROIWidth || height != captureROIHeight
+            || centerX != captureROICenterX || centerY != captureROICenterY
+            || binning != captureBinning else { return }
         frameConsumerTask?.cancel()
         currentFrame = nil
         currentImage = nil
@@ -4036,12 +4044,27 @@ final class CameraManager {
     }
 
     /// Returns to continuous video streaming after `captureSingleExposure`.
+    ///
+    /// Routed through `restartCapturePipeline` (rather than a bare `Task { await startPreview
+    /// (...) }`, as this used to do) for the same reason `changeImageType`/`changeCaptureROI`
+    /// are: an untracked `Task` here raced with any restart already in flight (e.g. one queued
+    /// by a ROI change right as this fired) without cancelling the *existing*
+    /// `frameConsumerTask` first — the exact "two overlapping restarts" failure
+    /// `restartCapturePipeline`'s own doc comment describes, just reached from this call site
+    /// instead. The symptom was a stream nothing feeds coexisting with an orphaned one still
+    /// polling/decoding: `currentFrame` stops updating (so anything gated on it, e.g. most of
+    /// the Controls panel, looks stuck disabled) while CPU usage stays elevated from the
+    /// abandoned side still running.
     func resumeLiveView() {
         isLiveViewActive = true
         if let engine = webcamEngine {
             consumeWebcamFrames(engine.frames())
         } else if let camera = connectedCamera, let engine = captureEngine, camera.cameraID >= 0 {
-            Task { await startPreview(using: engine, imageType: selectedImageType) }
+            frameConsumerTask?.cancel()
+            let imageType = selectedImageType
+            restartCapturePipeline { [weak self] in
+                await self?.startPreview(using: engine, imageType: imageType)
+            }
         }
     }
 

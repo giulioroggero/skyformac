@@ -25,6 +25,21 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   native multi-select driving a bulk Delete action above the list, behind a confirmation
   dialog (this deletes the actual files, not a 30-day-grace-period soft delete).
 
+### Fixed
+- Live preview latency regression: the preview image itself was wrapped in `.colorMultiply`
+  unconditionally (even with Night Mode off), forcing an extra compositing pass on every
+  incoming frame. Now only applied when the tint is actually active.
+- "Reset to Default" (and any other ROI/binning change requesting settings already in
+  effect) always tore the live stream down and rebuilt it, briefly disabling every control
+  gated on a live frame and spiking CPU — `changeCaptureROI` now no-ops when nothing is
+  actually changing, matching `changeImageType`'s existing guard.
+- `resumeLiveView()` (after a single exposure or dark-frame capture) could race an
+  in-flight ROI/image-type restart: it started a fresh preview without cancelling the
+  previous frame consumer or serializing behind other restarts, which could leave one
+  stream feeding nothing (controls stuck disabled) while an orphaned one kept polling
+  (elevated CPU). It now goes through the same serialized restart path as ROI/image-type
+  changes.
+
 ## [0.5.0] - 2026-08-21
 
 ### Added
