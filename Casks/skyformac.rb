@@ -1,8 +1,12 @@
 cask "skyformac" do
-  version "0.3.0"
-  sha256 "REPLACE_WITH_REAL_SHA256_OF_THE_DMG" # shasum -a 256 build/release/Skyformac-<version>.dmg
+  version "0.5.0"
+  sha256 "1c90a114b94f33b90550db0fcc96ea7f328a90d8a97da257fb851a757c41e2a4"
 
-  url "https://github.com/giulioroggero/skyformac/releases/download/v#{version}/Skyformac-#{version}.dmg"
+  # Matches the actual asset name `gh release create`/the release workflow produces
+  # (`skyformac-v<version>-macOS.dmg`), not `scripts/release.sh`'s own
+  # `Skyformac-<version>.dmg` — update this line too if that script's naming is ever
+  # actually used for a real release instead.
+  url "https://github.com/giulioroggero/skyformac/releases/download/v#{version}/skyformac-v#{version}-macOS.dmg"
   name "Skyformac"
   desc "Native macOS ZWO ASI astrophotography camera control app"
   homepage "https://github.com/giulioroggero/skyformac"
