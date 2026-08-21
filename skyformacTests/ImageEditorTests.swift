@@ -17,6 +17,49 @@ struct ImageEditorTests {
         return context.makeImage()!
     }
 
+    /// A deterministically "noisy" gray image — every pixel jitters around 128 by a
+    /// pseudo-random amount derived from its own coordinates (no `Math.random`, so the test
+    /// stays reproducible) — real enough texture for `CINoiseReduction` to have something to
+    /// actually smooth out.
+    private func makeNoisyImage(width: Int, height: Int) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let jitter = (x * 928_371 + y * 123_457) % 41 - 20 // -20...20, small per-pixel wobble
+                let value = UInt8(min(max(128 + jitter, 0), 255))
+                let offset = (y * width + x) * 4
+                pixels[offset] = value
+                pixels[offset + 1] = value
+                pixels[offset + 2] = value
+            }
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    /// Standard deviation of every red-channel sample in `image` — a plain measure of how much
+    /// pixel-to-pixel texture/noise is left, for comparing two denoise strengths against each
+    /// other.
+    private func redChannelStandardDeviation(of image: CGImage) -> Double {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let reds = stride(from: 0, to: pixels.count, by: 4).map { Double(pixels[$0]) }
+        let mean = reds.reduce(0, +) / Double(reds.count)
+        let variance = reds.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(reds.count)
+        return variance.squareRoot()
+    }
+
     /// Reads back the top-left pixel's RGB (0...255) — enough to check a color-level effect
     /// (like SCNR's green cap) actually happened, on a known-flat test image.
     private func topLeftPixel(of image: CGImage) -> (red: UInt8, green: UInt8, blue: UInt8) {
@@ -61,6 +104,25 @@ struct ImageEditorTests {
         let fixed = try #require(ImageEditor.autoFixed(image))
         #expect(fixed.width == 60)
         #expect(fixed.height == 60)
+    }
+
+    @Test func denoiseAtFullStrengthSmoothsMoreThanAtLowStrength() throws {
+        let noisy = makeNoisyImage(width: 48, height: 48)
+
+        var light = ImageEditor.Adjustments.identity
+        light.denoiseAmount = 0.2
+        let lightlyDenoised = try #require(ImageEditor.render(noisy, with: light))
+
+        var strong = ImageEditor.Adjustments.identity
+        strong.denoiseAmount = 1
+        let stronglyDenoised = try #require(ImageEditor.render(noisy, with: strong))
+
+        let lightStdDev = redChannelStandardDeviation(of: lightlyDenoised)
+        let strongStdDev = redChannelStandardDeviation(of: stronglyDenoised)
+
+        // The strong setting should smooth out noticeably more per-pixel wobble than the light
+        // one — confirming the top of the slider is genuinely stronger, not just marginally so.
+        #expect(strongStdDev < lightStdDev)
     }
 
     @Test func renderWithDenoisePreservesDimensions() throws {

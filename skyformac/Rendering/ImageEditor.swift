@@ -96,11 +96,23 @@ enum ImageEditor {
         }
 
         if adjustments.denoiseAmount > 0 {
-            let noiseReduction = CIFilter.noiseReduction()
-            noiseReduction.inputImage = ciImage
-            noiseReduction.noiseLevel = Float(adjustments.denoiseAmount) * 0.1
-            noiseReduction.sharpness = 0.4
-            if let output = noiseReduction.outputImage { ciImage = output }
+            // `CINoiseReduction`'s own `inputNoiseLevel` tops out doing much beyond ~0.1 in a
+            // single pass before `inputSharpness` (detail retention) starts fighting it back to
+            // a standstill — mapping the slider's full `0...1` to that alone left "max denoise"
+            // barely stronger than "a little." Widening the noise-level range to 0.3, easing
+            // sharpness down as the slider goes up (less detail retention fights the smoothing
+            // less), and compounding a second pass in the top half of the range all push the
+            // achievable strength well past what a single default-sharpness pass could ever do.
+            let passes = adjustments.denoiseAmount > 0.5 ? 2 : 1
+            let noiseLevel = Float(0.02 + adjustments.denoiseAmount * 0.28)
+            let sharpness = Float(max(0.05, 0.4 - adjustments.denoiseAmount * 0.35))
+            for _ in 0..<passes {
+                let noiseReduction = CIFilter.noiseReduction()
+                noiseReduction.inputImage = ciImage
+                noiseReduction.noiseLevel = noiseLevel
+                noiseReduction.sharpness = sharpness
+                if let output = noiseReduction.outputImage { ciImage = output }
+            }
         }
 
         let colorControls = CIFilter.colorControls()
