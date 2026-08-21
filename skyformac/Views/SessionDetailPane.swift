@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// A session's own capture Timeline — same "recognize it visually" vs. "compare a lot of them
+/// by their actual numbers" tradeoff as `ProjectDetailPane`'s Cards/Table toggle for sessions —
+/// the filmstrip for browsing thumbnails, a table for seeing disk usage/kind side by side and
+/// multi-selecting for bulk actions.
+private enum CapturesViewMode: String {
+    case filmstrip
+    case table
+}
+
 /// The Projects browser's Session page: one session's metadata, its capture timeline, and the
 /// controls that make it the active recording destination (`CameraManager.activeSession`). A
 /// plain full-width `ScrollView`, not a `Form` — a `Form`'s `.formStyle(.grouped)` centers/caps
@@ -46,6 +55,13 @@ struct SessionDetailPane: View {
     /// directory listing, not something `ProjectsLibrary` tracks/republishes) re-reads the folder.
     @State private var strayFilesRefreshTrigger = 0
     @State private var isBrowsingStrayFiles = false
+    /// Persisted like `ProjectDetailPane`'s own Cards/Table toggle for sessions — a view mode
+    /// picked once shouldn't reset back to the default every relaunch.
+    @AppStorage("sessionCapturesViewMode") private var capturesViewModeRaw = CapturesViewMode.filmstrip.rawValue
+    private var capturesViewMode: CapturesViewMode { CapturesViewMode(rawValue: capturesViewModeRaw) ?? .filmstrip }
+    /// A `Table`'s own selection — multi-select out of the box (click/⌘-click/shift-click) with
+    /// a `Set` binding, same as `ProjectDetailPane`'s own sessions table.
+    @State private var selectedCaptureIDs: Set<CaptureRecord.ID> = []
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// Files sitting in this session's own folder that AREN'T one of its tracked
@@ -234,15 +250,43 @@ struct SessionDetailPane: View {
                 }
 
                 // Row 3: Timeline.
-                PageSection(title: "Timeline") {
-                    TimelineStripView(
-                        project: project, session: session, store: cameraManager.projectStore,
-                        cameraManager: cameraManager,
-                        onSelect: onSelectCapture,
-                        onDelete: { capture in
-                            try? library.deleteCapture(capture.id, fromSessionID: session.id, in: project)
+                PageSection {
+                    HStack {
+                        Text("Timeline").font(.headline)
+                        Spacer()
+                        Picker("View", selection: $capturesViewModeRaw) {
+                            Label("Filmstrip", systemImage: "square.stack").tag(CapturesViewMode.filmstrip.rawValue)
+                            Label("Table", systemImage: "tablecells").tag(CapturesViewMode.table.rawValue)
                         }
-                    )
+                        .pickerStyle(.segmented)
+                        .labelStyle(.iconOnly)
+                        .frame(width: 90)
+                    }
+
+                    if !selectedCaptureIDs.isEmpty {
+                        capturesBulkActionBar
+                    }
+
+                    switch capturesViewMode {
+                    case .filmstrip:
+                        TimelineStripView(
+                            project: project, session: session, store: cameraManager.projectStore,
+                            cameraManager: cameraManager,
+                            onSelect: onSelectCapture,
+                            onDelete: { capture in
+                                try? library.deleteCapture(capture.id, fromSessionID: session.id, in: project)
+                            }
+                        )
+                    case .table:
+                        // The data-dense alternative — every capture's disk usage/kind/object
+                        // side by side, sortable, with native multi-select for the bulk action
+                        // bar above instead of one context menu at a time.
+                        CapturesTableView(
+                            project: project, session: session, store: cameraManager.projectStore,
+                            selectedIDs: $selectedCaptureIDs, onSelect: onSelectCapture
+                        )
+                        .frame(minHeight: 240, idealHeight: 360)
+                    }
                 }
 
                 if !sessionElaboratedImages.isEmpty {
@@ -495,6 +539,25 @@ struct SessionDetailPane: View {
         guard let index = updatedProject.sessions.firstIndex(where: { $0.id == session.id }) else { return }
         updatedProject.sessions[index] = updatedSession
         try? library.save(updatedProject)
+    }
+
+    /// Shown above the capture Timeline the moment the table's selection is non-empty — "N
+    /// selected," Delete acting on the whole set at once, and Clear. Loops the same
+    /// single-capture `ProjectsLibrary.deleteCapture` the filmstrip's own per-thumbnail context
+    /// menu already uses.
+    private var capturesBulkActionBar: some View {
+        HStack {
+            Text("\(selectedCaptureIDs.count) selected").font(.subheadline)
+            Spacer()
+            Button("Delete", systemImage: "trash", role: .destructive) {
+                for id in selectedCaptureIDs {
+                    try? library.deleteCapture(id, fromSessionID: session.id, in: project)
+                }
+                selectedCaptureIDs.removeAll()
+            }
+            Button("Clear") { selectedCaptureIDs.removeAll() }
+        }
+        .padding(.vertical, 6)
     }
 
     /// The historical record this page is actually for — when it was planned/created/captured,
@@ -815,5 +878,55 @@ struct SessionStrayFilesBrowserView: View {
     private func fileSizeText(for url: URL) -> String {
         let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? nil
         return ByteCountFormatter.string(fromByteCount: Int64(size ?? 0), countStyle: .file)
+    }
+}
+
+/// The data-dense alternative to `TimelineStripView`'s filmstrip — every capture in this session
+/// as a table row, sortable by any column, for comparing disk usage/kind side by side and
+/// multi-selecting for the bulk action bar above (`SessionDetailPane.capturesBulkActionBar`)
+/// instead of one context menu at a time. Mirrors `ProjectDetailPane`'s own `SessionsTableView`
+/// (which itself mirrors `ProjectsBrowserView`'s `ProjectsTableView`) for the same
+/// Cards/Table-style tradeoff one level down.
+private struct CapturesTableView: View {
+    let project: Project
+    let session: Session
+    let store: ProjectStore
+    /// A `Table`'s own selection is multi-select out of the box with a `Set` binding (click,
+    /// ⌘-click, shift-click) — no separate "select mode" needed the way a filmstrip thumbnail's
+    /// plain tap does, since a single click here already just selects rather than opening.
+    @Binding var selectedIDs: Set<CaptureRecord.ID>
+    var onSelect: (CaptureRecord) -> Void
+
+    @State private var sortOrder = [KeyPathComparator(\CaptureRecord.date, order: .reverse)]
+
+    private var sortedCaptures: [CaptureRecord] {
+        session.captures.sorted(using: sortOrder)
+    }
+
+    var body: some View {
+        Table(sortedCaptures, selection: $selectedIDs, sortOrder: $sortOrder) {
+            TableColumn("Date", value: \.date) { capture in
+                Text(capture.date.formatted(date: .abbreviated, time: .shortened))
+            }
+            .width(150)
+            TableColumn("File", value: \.fileName)
+            TableColumn("Kind") { Text($0.kind.displayName) }
+                .width(80)
+            TableColumn("Object") { Text($0.object ?? "—") }
+                .width(100)
+            TableColumn("Disk Usage") { capture in
+                Text(ByteCountFormatter.string(fromByteCount: store.diskUsage(for: capture, in: session, project: project), countStyle: .file))
+            }
+            .width(90)
+            TableColumn("Note") { Text($0.note ?? "—") }
+        }
+        .contextMenu(forSelectionType: CaptureRecord.ID.self) { _ in
+            // No per-row menu items yet — Show in Finder/Open in Siril/Delete live on the
+            // filmstrip's own context menu, and the bulk action bar above covers Delete for a
+            // selection.
+        } primaryAction: { ids in
+            guard let id = ids.first, let capture = session.captures.first(where: { $0.id == id }) else { return }
+            onSelect(capture)
+        }
     }
 }

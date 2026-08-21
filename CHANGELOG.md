@@ -20,6 +20,9 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   list — same Thumbnails/Table tradeoff as the Home page's own project view toggle. Sortable
   columns include disk usage and capture count per session, with native multi-select
   (⌘/⇧-click) driving a bulk action bar (Archive, Delete) above the list.
+- Session pages: the same **Table** view treatment for the capture Timeline, alongside the
+  existing filmstrip — sortable columns (date, file, kind, object, disk usage, note) with
+  native multi-select driving a bulk Delete action above the list.
 
 ## [0.5.0] - 2026-08-21
 
