@@ -38,22 +38,29 @@ struct ObservationTimelineView: View {
     /// absolute scroll offset to — previously, that was usually the very first, oldest thumbnail.
     @State private var visibleEntryID: CaptureRecord.ID?
 
-    private static let thumbnailSize: CGFloat = 72
-    private static let laneHeight: CGFloat = thumbnailSize + 88
+    /// `nonisolated` on these plain constants (not just the functions that read them) — `View`
+    /// conformance infers this whole type's static members as `@MainActor` by default, and
+    /// `defaultPixelsPerThumbnail(count:)` below (itself `nonisolated` so it's callable from
+    /// `init`/off the main actor) reads `columnWidth`/`targetInitialWidth` directly. Xcode 16.4's
+    /// Swift 6 checker flags that cross-isolation read even though these are just constants with
+    /// no actual actor affinity — a newer toolchain's checker apparently doesn't require this,
+    /// which is why it didn't reproduce locally.
+    private nonisolated static let thumbnailSize: CGFloat = 72
+    private nonisolated static let laneHeight: CGFloat = thumbnailSize + 88
     /// A thumbnail column's total footprint (`thumbnailView`'s own `.frame(width:)` below) — the
     /// spacing `showsText(forVisibleIndices:pixelsPerThumbnail:columnWidth:)` compares against to
     /// decide how many thumbnails apart a text label can safely appear.
-    private static let columnWidth: CGFloat = thumbnailSize + 16
+    private nonisolated static let columnWidth: CGFloat = thumbnailSize + 16
     /// The whole strip is scaled to roughly this many points wide at the default zoom, however
     /// many captures there are — wide enough to read as a real timeline without opening already
     /// fully zoomed in.
-    private static let targetInitialWidth: CGFloat = 1400
+    private nonisolated static let targetInitialWidth: CGFloat = 1400
     /// Below this per-thumbnail spacing, `visibleIndices(count:pixelsPerThumbnail:minVisibleWidth:)`
     /// starts hiding some thumbnails entirely (not just their text) so every thumbnail that *is*
     /// shown still gets at least this many points — packing them any tighter than this stops
     /// reading as individual images at all. Zooming back in re-reveals them, since which indices
     /// are visible is recomputed fresh from `pixelsPerThumbnail` on every render.
-    private static let minVisibleThumbnailWidth: CGFloat = 25
+    private nonisolated static let minVisibleThumbnailWidth: CGFloat = 25
 
     init(projects: [Project], cameraManager: CameraManager, onSelect: @escaping (Project, Session, CaptureRecord) -> Void) {
         self.projects = projects
