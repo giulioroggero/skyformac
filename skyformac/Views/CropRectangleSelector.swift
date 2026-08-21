@@ -59,7 +59,7 @@ struct CropRectangleSelector: View {
             .position(x: rect.midX, y: rect.midY)
     }
 
-    private static func normalized(from start: CGPoint, to end: CGPoint) -> CGRect {
+    private nonisolated static func normalized(from start: CGPoint, to end: CGPoint) -> CGRect {
         CGRect(
             x: min(start.x, end.x), y: min(start.y, end.y),
             width: abs(end.x - start.x), height: abs(end.y - start.y)
@@ -71,7 +71,13 @@ struct CropRectangleSelector: View {
     /// aspect ratio, in practice `imageRect` always exactly fills `containerSize` with zero
     /// letterboxing; computed properly anyway (rather than just returning the full container)
     /// so the coordinate math stays correct if that ever changes.
-    static func fittedImageRect(containerSize: CGSize, pixelSize: (width: Int, height: Int)) -> CGRect {
+    ///
+    /// `nonisolated` on this and the three geometry helpers below — pure `CGRect` math with no
+    /// view state, but `View` conformance otherwise infers every static member as `@MainActor`
+    /// by default, which broke calling them synchronously from `SirilElaborationTests` (a plain,
+    /// non-actor-isolated test type). A stricter Xcode/Swift toolchain (CI's, older than this
+    /// machine's) enforces that cross-isolation call as a hard error where a newer one doesn't.
+    nonisolated static func fittedImageRect(containerSize: CGSize, pixelSize: (width: Int, height: Int)) -> CGRect {
         guard pixelSize.width > 0, pixelSize.height > 0, containerSize.width > 0, containerSize.height > 0 else {
             return CGRect(origin: .zero, size: containerSize)
         }
@@ -90,7 +96,7 @@ struct CropRectangleSelector: View {
     /// pixel-space crop rect, clamped to the frame's actual bounds. `nil` for a degenerate
     /// selection (fully outside the image, or smaller than 4px in either dimension once mapped —
     /// an accidental click/tiny drag, not a real crop intent).
-    static func pixelRect(forViewRect viewRect: CGRect, imageRect: CGRect, pixelSize: (width: Int, height: Int)) -> SirilElaborationService.PixelRect? {
+    nonisolated static func pixelRect(forViewRect viewRect: CGRect, imageRect: CGRect, pixelSize: (width: Int, height: Int)) -> SirilElaborationService.PixelRect? {
         guard imageRect.width > 0, imageRect.height > 0 else { return nil }
         let clamped = viewRect.intersection(imageRect)
         guard !clamped.isNull, !clamped.isEmpty else { return nil }
@@ -110,7 +116,7 @@ struct CropRectangleSelector: View {
     /// The inverse of `pixelRect(forViewRect:imageRect:pixelSize:)` — used to redraw a
     /// previously-set crop rect's outline (e.g. still showing after `ElaborateSheet` re-derives
     /// its preview).
-    static func viewRect(for pixelRect: SirilElaborationService.PixelRect, imageRect: CGRect, pixelSize: (width: Int, height: Int)) -> CGRect {
+    nonisolated static func viewRect(for pixelRect: SirilElaborationService.PixelRect, imageRect: CGRect, pixelSize: (width: Int, height: Int)) -> CGRect {
         guard pixelSize.width > 0, pixelSize.height > 0 else { return .zero }
         let scaleX = imageRect.width / CGFloat(pixelSize.width)
         let scaleY = imageRect.height / CGFloat(pixelSize.height)
