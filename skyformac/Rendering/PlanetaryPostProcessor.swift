@@ -91,70 +91,24 @@ enum PlanetaryPostProcessor {
     /// (a planet or the Moon) against a dark background, unlike a star-field multi-point
     /// registration. `progress` fires from `0` to `1` as frames are processed — always on the
     /// calling context, not hopped to `@MainActor`, since this whole type has no actor affinity.
-    ///
-    /// Pipelines this stage's two genuinely independent costs — per-frame GPU (or CPU-fallback)
-    /// luminance conversion, which `PlanetaryGPULuminanceConverter`'s own doc comment requires
-    /// stays strictly one-frame-at-a-time (a shared texture cache), and the CPU quality/centroid
-    /// math on that luminance, which has no such constraint — instead of running them as two
-    /// disjoint phases the way a plain serial loop would. The loop below stays serial and moves
-    /// on to the *next* frame's conversion as soon as it hands this frame's luminance off; the
-    /// CPU math for however many frames are currently in flight runs concurrently on GCD's global
-    /// queue, which sizes its worker pool to the machine's actual core count on its own — nothing
-    /// here hardcodes a thread count, so a machine with more cores (or none of this overlap
-    /// benefit needed because conversion itself is the bottleneck) both just work.
     static func scoreAndRegister(
         frames: [CapturedFrame], isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN, roi: CGRect? = nil,
-        progress: ((Float) -> Void)? = nil, isCancelled: @escaping () -> Bool = { Task.isCancelled }
+        progress: ((Float) -> Void)? = nil, isCancelled: () -> Bool = { Task.isCancelled }
     ) -> [RegisteredFrame] {
         guard !frames.isEmpty else { return [] }
         var qualities = [Double](repeating: 0, count: frames.count)
         var centroids = [SIMD2<Float>?](repeating: nil, count: frames.count)
-        let group = DispatchGroup()
-        let cpuQueue = DispatchQueue.global(qos: .userInitiated)
-        let progressLock = NSLock()
-        var completedCount = 0
-        func reportOneCompleted() {
-            progressLock.lock()
-            completedCount += 1
-            let fraction = Float(completedCount) / Float(frames.count)
-            progressLock.unlock()
-            progress?(fraction)
-        }
-
-        qualities.withUnsafeMutableBufferPointer { qualitiesBuffer in
-            centroids.withUnsafeMutableBufferPointer { centroidsBuffer in
-                // `withUnsafeMutableBufferPointer`'s own parameter is `inout`, which an escaping
-                // closure (`cpuQueue.async`'s, below) can't capture — pulling out the plain base
-                // pointers first (same pattern `combine`'s own `resultBase` already uses) gives
-                // each async closure something it's actually allowed to hold onto until the
-                // `group.wait()` below guarantees they've all finished and the buffers are safe
-                // to let go of.
-                let qualitiesBase = qualitiesBuffer.baseAddress!
-                let centroidsBase = centroidsBuffer.baseAddress!
-                for i in frames.indices {
-                    if isCancelled() { break }
-                    // One debayer + luminance conversion per frame, shared by both the quality
-                    // score and the centroid — `SharpnessScorer.score(for:...)` would otherwise
-                    // redo its own independent debayer/luminance pass on the exact same frame,
-                    // doubling the (expensive, full-resolution) per-frame cost for no benefit.
-                    guard let luminance = luminance(of: frames[i], isColorCamera: isColorCamera, bayerPattern: bayerPattern) else {
-                        reportOneCompleted()
-                        continue
-                    }
-                    group.enter()
-                    cpuQueue.async {
-                        defer { group.leave() }
-                        if !isCancelled() {
-                            qualitiesBase[i] = quality(ofLuminance: luminance.values, width: luminance.width, height: luminance.height)
-                            centroidsBase[i] = centroid(
-                                ofLuminance: luminance.values, width: luminance.width, height: luminance.height, roi: roi
-                            )
-                        }
-                        reportOneCompleted()
-                    }
-                }
-                group.wait()
-            }
+        // One debayer + luminance conversion per frame, shared by both the quality score and the
+        // centroid — `SharpnessScorer.score(for:...)` would otherwise redo its own independent
+        // debayer/luminance pass on the exact same frame, doubling the (expensive, full-resolution)
+        // per-frame cost for no benefit. `isCancelled` bails out promptly if the surrounding
+        // `.task { }`/UI cancels this work — this loop has no other yield point of its own.
+        for i in frames.indices {
+            if isCancelled() { break }
+            defer { progress?(Float(i + 1) / Float(frames.count)) }
+            guard let luminance = luminance(of: frames[i], isColorCamera: isColorCamera, bayerPattern: bayerPattern) else { continue }
+            qualities[i] = quality(ofLuminance: luminance.values, width: luminance.width, height: luminance.height)
+            centroids[i] = centroid(ofLuminance: luminance.values, width: luminance.width, height: luminance.height, roi: roi)
         }
         let referenceIndex = qualities.indices.max { qualities[$0] < qualities[$1] } ?? 0
         let referenceCentroid = centroids[referenceIndex] ?? SIMD2<Float>(repeating: 0)
@@ -351,62 +305,43 @@ enum PlanetaryPostProcessor {
         let height = first.height
         var channels = 1
 
-        // Debayer (serial — `gpuLuminanceConverter`'s texture cache is only safe for one frame at
-        // a time, see its own doc comment) and bilinear resample (embarrassingly parallel — each
-        // selected frame's shift is completely independent of every other's) are pipelined
-        // rather than run as two disjoint phases: as soon as a frame's debayer hands off its
-        // normalized pixels, its (real per-core CPU work) resample is handed to GCD's global
-        // queue and the loop immediately moves on to debayering the *next* frame — so the GPU (or
-        // CPU-fallback) debayer step and the CPU resample step overlap in time instead of the
-        // resample step sitting entirely idle-GPU/one-core-CPU after debayering finishes. GCD's
-        // global queue sizes its worker pool to the machine's actual core count on its own —
-        // nothing here hardcodes a thread count. Written through `withUnsafeMutableBufferPointer`
-        // so each worker's disjoint-index write doesn't trigger a copy-on-write race on the shared
-        // array storage.
-        var alignedBuffers: [[Float]?] = Array(repeating: nil, count: selected.count)
-        let group = DispatchGroup()
-        let cpuQueue = DispatchQueue.global(qos: .userInitiated)
-        let progressLock = NSLock()
-        var completedCount = 0
-        func reportOneCompleted() {
-            progressLock.lock()
-            completedCount += 1
-            let fraction = Float(completedCount) / Float(selected.count) * 0.5
-            progressLock.unlock()
-            progress?(fraction)
-        }
-
-        alignedBuffers.withUnsafeMutableBufferPointer { buffer in
-            // See `scoreAndRegister`'s identical pattern for why the plain base pointer (not the
-            // `inout` buffer parameter itself) is what an escaping `cpuQueue.async` closure needs
-            // to capture here.
-            let bufferBase = buffer.baseAddress!
-            for (i, reg) in selected.enumerated() {
-                if isCancelled() { break }
-                guard let normalized = normalizedRGB(of: frames[reg.index], isColorCamera: isColorCamera, bayerPattern: bayerPattern)
-                else {
-                    reportOneCompleted()
-                    continue
-                }
-                channels = normalized.channels
-                let values = normalized.values
-                let frameChannels = normalized.channels
-                let dx = reg.shift.x
-                let dy = reg.shift.y
-                group.enter()
-                cpuQueue.async {
-                    defer { group.leave() }
-                    if !isCancelled() {
-                        bufferBase[i] = bilinearShift(values, width: width, height: height, channels: frameChannels, dx: dx, dy: dy)
-                    }
-                    reportOneCompleted()
-                }
-            }
-            group.wait()
+        // Pass 1 (serial — debayer): `gpuLuminanceConverter`'s texture cache is only safe for one
+        // frame at a time (see its own doc comment), so this stays a plain loop; it's also the
+        // pass the GPU debayer path above already speeds up, so it's rarely the bottleneck anymore.
+        var normalizedFrames: [[Float]?] = Array(repeating: nil, count: selected.count)
+        for (i, reg) in selected.enumerated() {
+            if isCancelled() { break }
+            defer { progress?(Float(i + 1) / Float(selected.count) * 0.3) }
+            guard let normalized = normalizedRGB(of: frames[reg.index], isColorCamera: isColorCamera, bayerPattern: bayerPattern)
+            else { continue }
+            channels = normalized.channels
+            normalizedFrames[i] = normalized.values
         }
         guard !isCancelled() else { return nil }
         let fixedChannels = channels
 
+        // Pass 2 (parallel — bilinear resample): unlike the debayer step above, each selected
+        // frame's shift is completely independent of every other's, so this full-resolution
+        // interpolation — real per-core work, previously the single-threaded chunk of this stage
+        // that burned one core while the rest sat idle — spreads across every performance core via
+        // `DispatchQueue.concurrentPerform`, same reasoning as `combine`'s own doc comment. Written
+        // through `withUnsafeMutableBufferPointer` so each worker's disjoint-index write doesn't
+        // trigger a copy-on-write race on the shared array storage.
+        var alignedBuffers: [[Float]?] = Array(repeating: nil, count: selected.count)
+        let shiftProgressLock = NSLock()
+        var shiftedCount = 0
+        alignedBuffers.withUnsafeMutableBufferPointer { buffer in
+            DispatchQueue.concurrentPerform(iterations: selected.count) { i in
+                guard !isCancelled(), let values = normalizedFrames[i] else { return }
+                let reg = selected[i]
+                buffer[i] = bilinearShift(values, width: width, height: height, channels: fixedChannels, dx: reg.shift.x, dy: reg.shift.y)
+                shiftProgressLock.lock()
+                shiftedCount += 1
+                let fraction = 0.3 + Float(shiftedCount) / Float(selected.count) * 0.2
+                shiftProgressLock.unlock()
+                progress?(fraction)
+            }
+        }
         let compactedBuffers = alignedBuffers.compactMap { $0 }
         guard !compactedBuffers.isEmpty, !isCancelled() else { return nil }
 
