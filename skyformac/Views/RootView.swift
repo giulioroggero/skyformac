@@ -18,8 +18,27 @@ struct RootView: View {
     /// Persisted like `ControlsPanelView`'s own sidebar-tab choice — a width the user drags to
     /// should stick across relaunches, not reset back to the default every time.
     @AppStorage("assistantPanelWidth") private var assistantPanelWidth: Double = 320
+    /// True for a short fixed stretch right after launch — see `LaunchSplashView`'s own doc
+    /// comment for why this is a fixed duration rather than gated on real loading finishing
+    /// (`CameraManager`'s startup work is already done, synchronously, by the time this view's
+    /// `body` even runs the first time).
+    @State private var isShowingSplash = true
 
     var body: some View {
+        ZStack {
+            mainContent
+            if isShowingSplash {
+                LaunchSplashView()
+                    .transition(.opacity)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(2.2))
+            withAnimation(.easeOut(duration: 0.4)) { isShowingSplash = false }
+        }
+    }
+
+    private var mainContent: some View {
         HStack(spacing: 0) {
             Group {
                 if cameraManager.activeSession == nil {

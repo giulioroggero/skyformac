@@ -116,6 +116,7 @@
 		8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */; };
 		8B1322B1E666F768A6045695 /* ImageEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6B1E929FEE960BA808F516 /* ImageEditorTests.swift */; };
 		8B63FF69E0600CE9493DCC9C /* LiveCaptureBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F125C29C77E8314CF5836D04 /* LiveCaptureBrowserView.swift */; };
+		729D60C9AC7A40C18CAA0964 /* LaunchSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFF34D661A4463A9FB53FAA /* LaunchSplashView.swift */; };
 		8BC13D3DD60D7F595F418CE3 /* FITSReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1842F26D7B76C34083DD829 /* FITSReader.swift */; };
 		8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */; };
 		8E8362BFEC2F249B164B418F /* GPUFrameCalibratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A8BA528FBB8FF8C513CEFCD /* GPUFrameCalibratorTests.swift */; };
@@ -483,6 +484,7 @@
 		EFD51D5A6E4252634C1B4B1A /* FrameArithmetic.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrameArithmetic.swift; sourceTree = "<group>"; };
 		EFEE87CD4961B04418AE9312 /* CameraManagerActiveSessionLocationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerActiveSessionLocationTests.swift; sourceTree = "<group>"; };
 		F125C29C77E8314CF5836D04 /* LiveCaptureBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveCaptureBrowserView.swift; sourceTree = "<group>"; };
+		5DFF34D661A4463A9FB53FAA /* LaunchSplashView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LaunchSplashView.swift; sourceTree = "<group>"; };
 		F1268AC14C8DB94BC5F57BE9 /* SERWriterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SERWriterTests.swift; sourceTree = "<group>"; };
 		F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyformacCommands.swift; sourceTree = "<group>"; };
 		F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreLocationProvider.swift; sourceTree = "<group>"; };
@@ -812,6 +814,7 @@
 				2E813AEB385426A777F99203 /* NightModeTint.swift */,
 				6358545A6DF31B791F4AC348 /* PlanetaryPostProcessingView.swift */,
 				F125C29C77E8314CF5836D04 /* LiveCaptureBrowserView.swift */,
+				5DFF34D661A4463A9FB53FAA /* LaunchSplashView.swift */,
 				925930A83DAE89A9082C9FD0 /* SingleImagePostProcessingView.swift */,
 			);
 			name = Views;
@@ -1219,6 +1222,7 @@
 				B321B7D959BF7882314F092B /* PlanetaryPostProcessingView.swift in Sources */,
 				34ADC5FC3B72545D90A47FA3 /* PlanetaryGPULuminanceConverter.swift in Sources */,
 				8B63FF69E0600CE9493DCC9C /* LiveCaptureBrowserView.swift in Sources */,
+				729D60C9AC7A40C18CAA0964 /* LaunchSplashView.swift in Sources */,
 				1944C736A34F20D7A125646C /* ImageEditor.swift in Sources */,
 				F2B3478B710F4275B56EBF0E /* SingleImagePostProcessingView.swift in Sources */,
 			);

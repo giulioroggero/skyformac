@@ -29,6 +29,10 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
 - Home's "Resume Where You Left Off" row now shows the session's own cover thumbnail (same
   custom-thumbnail-wins-else-most-recent-capture rule every other session cover already
   follows), instead of no image at all.
+- A brief launch splash (`LaunchSplashView`) — the app icon, a rotating loading-status line,
+  and a rotating set of short real facts about common observing targets (the Orion Nebula,
+  Saturn's rings, Albireo, and the like) — covers `RootView` for its first couple of seconds
+  instead of snapping straight to a populated Home page.
 
 ### Fixed
 - "Open Siril Directly…" handed Siril the raw FITS/SER file as-is, with no debayer step —
