@@ -21,8 +21,15 @@ struct RootView: View {
     /// True for a short fixed stretch right after launch — see `LaunchSplashView`'s own doc
     /// comment for why this is a fixed duration rather than gated on real loading finishing
     /// (`CameraManager`'s startup work is already done, synchronously, by the time this view's
-    /// `body` even runs the first time).
-    @State private var isShowingSplash = true
+    /// `body` even runs the first time). Starts `false` under `AppSettings.isRunningUITests` —
+    /// the splash sits on top in the `ZStack` and, for its whole fixed duration, actually
+    /// intercepts hit-testing the same way any topmost view would (unlike the accessibility tree,
+    /// which still exposes the covered content underneath) — a UI test tapping a tile the instant
+    /// it finds it in the accessibility hierarchy, well before the splash's timer clears it, had
+    /// its synthesized click silently swallowed by the splash instead of reaching the real
+    /// button. Every other timing-sensitive one-time-on-launch affordance in this app is already
+    /// skipped the same way under UI tests, for the same reason.
+    @State private var isShowingSplash = !AppSettings.isRunningUITests
 
     var body: some View {
         ZStack {
@@ -33,6 +40,7 @@ struct RootView: View {
             }
         }
         .task {
+            guard isShowingSplash else { return }
             try? await Task.sleep(for: .seconds(2.2))
             withAnimation(.easeOut(duration: 0.4)) { isShowingSplash = false }
         }
