@@ -85,11 +85,15 @@ struct ProjectsBrowserView: View {
         )
     }
 
-    /// Newest first — matches `TimelineStripView`'s own display order.
+    /// Oldest first — matches `TimelineStripView`'s own left-to-right display order, so "Previous"
+    /// (and the left arrow key) steps toward an older capture and "Next" (right arrow) toward a
+    /// more recent one, the same direction the filmstrip itself reads in. This used to sort
+    /// newest-first, which put the most recent capture on the *left* — backwards from the
+    /// filmstrip and from the on-image chevrons' own left=back/right=forward convention.
     private func captureSiblingNavigation(
         projectID: Project.ID, sessionID: Session.ID, session: Session, around captureID: CaptureRecord.ID
     ) -> (previous: (() -> Void)?, next: (() -> Void)?) {
-        let siblings = session.captures.sorted { $0.date > $1.date }
+        let siblings = session.captures.sorted { $0.date < $1.date }
         guard let index = siblings.firstIndex(where: { $0.id == captureID }) else { return (nil, nil) }
         let previousID = index > 0 ? siblings[index - 1].id : nil
         let nextID = index + 1 < siblings.count ? siblings[index + 1].id : nil

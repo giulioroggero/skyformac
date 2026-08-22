@@ -15,11 +15,6 @@ struct ContentView: View {
     @AppStorage("controlsPanelWidth") private var controlsPanelWidth: Double = 170
     private let controlsPanelWidthRange: ClosedRange<Double> = 170...600
 
-    /// Applied individually to every part of the window *except* the live preview (which tints
-    /// only its own overlay chrome, not the image itself — see `PreviewView.nightTint`'s doc
-    /// comment) — sidebar, Controls panel, Histogram/Curves all get the red dark-adaptation tint;
-    /// the actual sensor image never does.
-    private var nightTint: Color { cameraManager.isNightModeEnabled ? .red : .white }
 
     /// The open project's (and, if one's active, session's) name — shown in the window's own
     /// title bar. Falls back to a generic title only in the (never actually reachable, since
@@ -233,7 +228,7 @@ struct ContentView: View {
                     .frame(minHeight: 150, maxHeight: 260)
                 }
             }
-            .colorMultiply(nightTint)
+            .nightModeTint(cameraManager)
         }
         .frame(maxHeight: .infinity)
     }
@@ -244,7 +239,7 @@ struct ContentView: View {
             set: { cameraManager.isCameraListSidebarVisible = $0 != .detailOnly }
         )) {
             CameraListView(cameraManager: cameraManager)
-                .colorMultiply(nightTint)
+                .nightModeTint(cameraManager)
                 // `max` matters here, not just `min`/`ideal` — the "detail" side (`PreviewView`
                 // plus the resizable Controls panel below) has its own real minimum width
                 // (480 + `controlsPanelWidthRange.lowerBound`). Without a cap here, dragging this
@@ -267,7 +262,7 @@ struct ContentView: View {
                 ControlsPanelView(cameraManager: cameraManager)
                     .frame(width: controlsPanelWidth)
                     .frame(maxHeight: .infinity)
-                    .colorMultiply(nightTint)
+                    .nightModeTint(cameraManager)
             }
         }
         .compositingGroup()

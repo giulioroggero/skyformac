@@ -364,7 +364,11 @@ struct CaptureDetailPage: View {
                 .filter { !$0.isArchived && $0.id != session.id }
                 .map { SessionCandidate(project: candidateProject, session: $0) }
         }
-        .sorted { ($0.project.name, $0.session.name) < ($1.project.name, $1.session.name) }
+        // By session name first — that's the prominent label `MoveCaptureToSessionSheet` actually
+        // shows (project name is only the small secondary caption underneath), so sorting by
+        // project name first left the visible session names looking unsorted, only alphabetical
+        // within each project's own run.
+        .sorted { ($0.session.name, $0.project.name) < ($1.session.name, $1.project.name) }
     }
 
     /// `nil` when this capture's `kind` isn't something Siril can process further — see

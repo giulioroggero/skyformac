@@ -76,7 +76,6 @@ struct PreviewView: View {
     /// back to true color ("normal") on demand without leaving Night Mode altogether.
     /// `ContentView` applies the chrome-only tint to everything else in the window individually
     /// rather than as one blanket modifier over the whole content area, for the identical reason.
-    private var nightTint: Color { cameraManager.isNightModeEnabled ? .red : .white }
     private var imageNightTint: Color {
         cameraManager.isNightModeEnabled && cameraManager.isNightModePreviewTinted ? .red : .white
     }
@@ -101,11 +100,11 @@ struct PreviewView: View {
         tintedPreview
             .clipShape(isFullScreenPresentation ? AnyShape(Rectangle()) : AnyShape(RoundedRectangle(cornerRadius: 8)))
             .overlay { Color.white.opacity(captureFlashOpacity).allowsHitTesting(false) }
-            .overlay(alignment: .bottomLeading) { zoomBadge.colorMultiply(nightTint) }
-            .overlay(alignment: .topTrailing) { cornerControls.colorMultiply(nightTint) }
-            .overlay(alignment: .top) { exposureCountdownBadge.colorMultiply(nightTint) }
-            .overlay(alignment: .top) { liveViewCountdownBadge.colorMultiply(nightTint) }
-            .overlay(alignment: .bottom) { zoomControlBar.colorMultiply(nightTint) }
+            .overlay(alignment: .bottomLeading) { zoomBadge.nightModeTint(cameraManager) }
+            .overlay(alignment: .topTrailing) { cornerControls.nightModeTint(cameraManager) }
+            .overlay(alignment: .top) { exposureCountdownBadge.nightModeTint(cameraManager) }
+            .overlay(alignment: .top) { liveViewCountdownBadge.nightModeTint(cameraManager) }
+            .overlay(alignment: .bottom) { zoomControlBar.nightModeTint(cameraManager) }
             .onExitCommand { onExitFullScreen?() }
             .onChange(of: cameraManager.captureFeedbackTrigger) {
                 captureFlashOpacity = 0.6

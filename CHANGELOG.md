@@ -26,6 +26,20 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   dialog (this deletes the actual files, not a 30-day-grace-period soft delete).
 
 ### Fixed
+- Sidebar/breadcrumb looked "not fully dark" with washed-out white text: `nightModeTint(_:)`
+  applied `.colorMultiply` unconditionally, even the `.white` "no Night Mode" value — that
+  forces an offscreen compositing pass that defeats macOS's native sidebar/toolbar vibrancy
+  material, same class of bug as the live-preview latency fix below. Now only applies the
+  modifier when Night Mode is actually on.
+- Capture page: Previous/Next (and the left/right arrow keys) sorted captures newest-first,
+  opposite `TimelineStripView`'s own oldest-first, left-to-right filmstrip order — so the left
+  arrow moved to a *more* recent capture and the right arrow to an *older* one, backwards from
+  the filmstrip and from the on-image chevrons' own convention. Now sorts the same way the
+  filmstrip does.
+- "Move to Session…" sorted candidates by project name first, but the picker's prominent label
+  is the session name (project name is only the small secondary caption) — so the visible list
+  of session names wasn't actually in alphabetical order, only alphabetical within each
+  project's own run. Now sorts by session name first.
 - Live preview multi-second delay for real ASI cameras: `CaptureEngine.frames()` used the
   default *unbounded* `AsyncStream` buffer, unlike `WebcamCaptureEngine.frames()` (already
   `.bufferingNewest(1)`). Any stretch where per-frame processing on `@MainActor` took even
