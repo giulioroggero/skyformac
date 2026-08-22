@@ -20,6 +20,7 @@ struct ElaborateSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var recipe: ElaborationRecipe
     @State private var isRunning = false
+    @State private var isPreparingDirectOpen = false
     @State private var errorMessage: String?
     @State private var completedImage: ElaboratedImage?
     @State fileprivate var logText = ""
@@ -113,8 +114,17 @@ struct ElaborateSheet: View {
             }
 
             HStack {
-                Button("Open Siril Directly…", systemImage: "arrow.up.forward.app") { openInSiril() }
-                    .help("Opens Siril's own app with the source file loaded, for full manual control — alignment, rejection, curves, PixelMath — beyond what this automated recipe covers.")
+                Button {
+                    openInSiril()
+                } label: {
+                    if isPreparingDirectOpen {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Open Siril Directly…", systemImage: "arrow.up.forward.app")
+                    }
+                }
+                .disabled(isPreparingDirectOpen)
+                .help("Debayers the source, then opens Siril's own app with it loaded, for full manual control — alignment, rejection, curves, PixelMath — beyond what this automated recipe covers.")
                 Spacer()
                 if completedImage != nil {
                     Button("Done") { dismiss() }
@@ -264,8 +274,17 @@ struct ElaborateSheet: View {
     }
 
     private func openInSiril() {
-        guard let url = primarySourceURL else { return }
-        try? SirilAppLauncher.open(url)
+        isPreparingDirectOpen = true
+        errorMessage = nil
+        Task {
+            do {
+                let url = try await SirilElaborationService.prepareForDirectOpen(source: source)
+                try SirilAppLauncher.open(url)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isPreparingDirectOpen = false
+        }
     }
 
     private func run() async {

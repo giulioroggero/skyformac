@@ -24,8 +24,31 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   existing filmstrip — sortable columns (date, file, kind, object, disk usage, note) with
   native multi-select driving a bulk Delete action above the list, behind a confirmation
   dialog (this deletes the actual files, not a 30-day-grace-period soft delete).
+- Edit Image: a "Compare to Original" toggle next to Reset — splits the preview vertically,
+  the untouched original above the live edit below, instead of only ever showing the edit.
 
 ### Fixed
+- "Open Siril Directly…" handed Siril the raw FITS/SER file as-is, with no debayer step —
+  Siril's GUI doesn't auto-debayer a raw file on load even when its `BAYERPAT` header says
+  it's color, so color captures came in as black & white. Now runs the same
+  `calibrate_single`/`convert -debayer` conversion the automated recipes already use before
+  opening Siril, the same way opening a whole burst does for a "Post-Process…" run.
+- Magic Wand (Edit Image) bakes its auto-enhance result directly into the image's pixels but
+  never touched the `Adjustments` sliders below it, so they kept showing stale pre-wand
+  values — looking like the wand did nothing or the values were wrong. Now resets them to
+  identity so they honestly reflect the new baseline.
+- "Hardware Bin" (an on-sensor `ASI_HARDWARE_BIN` toggle) and the separate 2×2 ROI/pixel
+  binning were two uncoordinated binning mechanisms — active together, the sensor's already
+  on-chip-binned data got averaged a second time and no longer had a clean Bayer mosaic, but
+  the debayer step fed it through unchanged, producing scattered green/blue dot artifacts.
+  Now enforces a single binning source: turning either on turns the other off first.
+- Live Capture could look permanently stuck "Capturing…": `startLiveCapture`'s delayed timer
+  had no way to tell if the burst it was scheduled for had since been superseded by a new
+  Lucky Imaging/Live Capture burst (they share one session) — the stale timer still fired and
+  froze the *new* session's frame intake before it ever reached completion. Now checks a
+  generation counter before acting. Separately, `LiveCaptureBrowserView`'s preview could stay
+  on a spinner forever if the user never touched the scrubber (it only ever requested frame 0,
+  before the burst had one) — now re-requests a frame once the burst actually finishes.
 - Sidebar/breadcrumb looked "not fully dark" with washed-out white text: `nightModeTint(_:)`
   applied `.colorMultiply` unconditionally, even the `.white` "no Night Mode" value — that
   forces an offscreen compositing pass that defeats macOS's native sidebar/toolbar vibrancy

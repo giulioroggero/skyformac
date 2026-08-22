@@ -2363,7 +2363,13 @@ struct ControlsPanelView: View {
         HStack {
             Toggle(cap.name, isOn: Binding(
                 get: { isOn },
-                set: { cameraManager.setControlValue(cap.controlType, value: $0 ? 1 : 0) }
+                set: { newValue in
+                    if cap.controlType == ASI_HARDWARE_BIN {
+                        cameraManager.setHardwareBinEnabled(newValue)
+                    } else {
+                        cameraManager.setControlValue(cap.controlType, value: newValue ? 1 : 0)
+                    }
+                }
             ))
             .disabled(!cap.isWritable)
             .help(cap.controlDescription)

@@ -45,6 +45,13 @@ struct SingleImagePostProcessingView: View {
     @State private var zoomOffset: CGSize = .zero
     @State private var dragStartOffset: CGSize = .zero
 
+    /// "Split View" compare — stacks the untouched `originalImage` above the live `previewImage`
+    /// instead of showing only the edited result, so a subtle adjustment (a touch of denoise, a
+    /// small gamma nudge) is actually visible against the source rather than trusted from memory.
+    /// Vertical (original on top, edited below), not side-by-side — the preview pane itself is
+    /// usually wider than it is tall, so a vertical split keeps each half at a more useful size
+    /// than halving the width would.
+    @State private var isComparingToOriginal = false
     @State private var isApplyingMagicWand = false
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
@@ -149,43 +156,78 @@ struct SingleImagePostProcessingView: View {
 
     private var previewPane: some View {
         VStack(spacing: 0) {
-            ZStack {
-                Color.black
-                if let previewImage {
-                    Image(decorative: previewImage, scale: 1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .padding(12)
-                        .scaleEffect(zoomScale)
-                        .offset(zoomOffset)
-                        // Pinch-to-zoom (trackpad) and the slider below both drive the same
-                        // `zoomScale` — checking a sharpen/denoise/star-size result at real pixel
-                        // scale needs more than "fit the whole image in the pane."
-                        .gesture(
-                            MagnificationGesture()
-                                .onChanged { value in zoomScale = min(max(1, value), Self.maxZoomScale) }
-                        )
-                        // Only actually pans once zoomed in — at 1x there's nothing to pan to,
-                        // and a plain drag shouldn't fight with anything else on the page.
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    guard zoomScale > 1 else { return }
-                                    zoomOffset = CGSize(
-                                        width: dragStartOffset.width + value.translation.width,
-                                        height: dragStartOffset.height + value.translation.height
-                                    )
-                                }
-                                .onEnded { _ in dragStartOffset = zoomOffset }
-                        )
-                } else {
-                    ProgressView()
+            if isComparingToOriginal {
+                VStack(spacing: 2) {
+                    labeledComparisonImage("Original", image: originalImage)
+                    labeledComparisonImage("Edited", image: previewImage)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ZStack {
+                    Color.black
+                    if let previewImage {
+                        Image(decorative: previewImage, scale: 1)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .padding(12)
+                            .scaleEffect(zoomScale)
+                            .offset(zoomOffset)
+                            // Pinch-to-zoom (trackpad) and the slider below both drive the same
+                            // `zoomScale` — checking a sharpen/denoise/star-size result at real
+                            // pixel scale needs more than "fit the whole image in the pane."
+                            .gesture(
+                                MagnificationGesture()
+                                    .onChanged { value in zoomScale = min(max(1, value), Self.maxZoomScale) }
+                            )
+                            // Only actually pans once zoomed in — at 1x there's nothing to pan to,
+                            // and a plain drag shouldn't fight with anything else on the page.
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        guard zoomScale > 1 else { return }
+                                        zoomOffset = CGSize(
+                                            width: dragStartOffset.width + value.translation.width,
+                                            height: dragStartOffset.height + value.translation.height
+                                        )
+                                    }
+                                    .onEnded { _ in dragStartOffset = zoomOffset }
+                            )
+                    } else {
+                        ProgressView()
+                    }
+                }
+                .clipped()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .clipped()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             zoomControlBar
         }
+    }
+
+    /// One half of the vertical compare split — no zoom/pan gesture of its own (unlike the
+    /// single-image pane above): comparing two images at a glance is the point, and each already
+    /// gets roughly half the pane's height, which is plenty to judge "did this actually help."
+    @ViewBuilder
+    private func labeledComparisonImage(_ label: String, image: CGImage?) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color.black
+            if let image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding(8)
+            } else {
+                ProgressView()
+            }
+            Text(label)
+                .font(.caption2.bold())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.black.opacity(0.6), in: Capsule())
+                .foregroundStyle(.white)
+                .padding(6)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 
     private static let maxZoomScale: CGFloat = 8
@@ -243,6 +285,9 @@ struct SingleImagePostProcessingView: View {
                 .disabled(isApplyingMagicWand)
                 Button("Reset") { reset() }
                     .disabled(isApplyingMagicWand)
+                Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
+                    .toggleStyle(.button)
+                    .help("Show the untouched original stacked above the current edit, instead of only the edit.")
             }
         }
     }
@@ -400,6 +445,16 @@ struct SingleImagePostProcessingView: View {
             isApplyingMagicWand = false
             guard let fixed else { return }
             workingImage = fixed
+            // Magic Wand bakes Core Image's own scene-analysis auto-enhance directly into
+            // `workingImage`'s pixels — there's no `Adjustments` slot that corresponds to what it
+            // actually computed (per-channel exposure, vibrance, tone curve), so the sliders
+            // below can't *show* the change. But leaving `adjustments` at whatever it was before
+            // is worse: it keeps displaying values that no longer describe anything real (measured
+            // against the pre-wand image, now silently stale), which reads as "the wand did
+            // nothing" or "these values are wrong." Resetting to identity means the sliders
+            // honestly reflect the new baseline — no adjustment on top of it yet — and any further
+            // slider tweak still layers on top of the wand's result via `workingImage`.
+            adjustments = .identity
             scheduleRender()
         }
     }

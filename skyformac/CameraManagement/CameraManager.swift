@@ -2621,8 +2621,33 @@ final class CameraManager {
     /// the full binned sensor, i.e. no custom ROI at all, but this doesn't force that) and just
     /// changes `binning` — kept separate from `changeCaptureROI` itself since binning is a plain
     /// on/off switch in the UI, not a width/height/center picker.
+    /// `ASI_HARDWARE_BIN` (a generic on/off camera control, toggled from the dynamic controls
+    /// list — see `controlRow`'s `case ASI_HARDWARE_BIN` in `ControlsPanelView`) and this ROI
+    /// binning are two independent, uncoordinated binning mechanisms. With both active, the
+    /// sensor delivers data already reduced once on-chip, and `ASISetROIFormat`'s own `binning`
+    /// then averages that again — the result no longer has a clean, period-2 Bayer mosaic aligned
+    /// the way `camera.bayerPattern` still assumes, but the debayer step (`Debayer`/
+    /// `MetalFrameRenderer`) feeds it through unchanged, as if it were still raw unbinned data.
+    /// That misaligned demosaic is exactly the scattered green/blue dot artifact reported when
+    /// "Hardware Bin and 2×2 are both set." Rather than trying to make the debayer step handle
+    /// doubly-binned data correctly (lossy/ambiguous), enforce a single binning source: turning
+    /// this ROI binning on turns Hardware Bin off first.
     func changeCaptureBinning(_ binning: Int) {
+        if binning > 1, let hardwareBinCap = controlCap(ASI_HARDWARE_BIN, in: controls),
+           (controlValues[hardwareBinCap.id]?.value ?? 0) != 0 {
+            setControlValue(ASI_HARDWARE_BIN, value: 0)
+        }
         changeCaptureROI(width: captureROIWidth, height: captureROIHeight, centerX: captureROICenterX, centerY: captureROICenterY, binning: binning)
+    }
+
+    /// The other half of `changeCaptureBinning`'s invariant: turning Hardware Bin on turns this
+    /// ROI binning off first, so the two mechanisms are never active together. See
+    /// `changeCaptureBinning`'s doc comment for why.
+    func setHardwareBinEnabled(_ enabled: Bool) {
+        if enabled, captureBinning > 1 {
+            changeCaptureBinning(1)
+        }
+        setControlValue(ASI_HARDWARE_BIN, value: enabled ? 1 : 0)
     }
 
     // MARK: - ST4 guide port (pulse guiding)
@@ -3420,7 +3445,18 @@ final class CameraManager {
     func startLuckyImagingBurst(frameCount: Int) {
         luckyImagingSession = LuckyImagingSession(targetFrameCount: frameCount)
         isLuckyImagingPaused = false
+        luckyBurstGeneration += 1
     }
+
+    /// Bumped by `startLuckyImagingBurst`/`startLiveCapture`/`discardLuckyImagingSession` —
+    /// `startLiveCapture`'s own delayed timer checks this before acting, so a *stale* timer left
+    /// over from a Live Capture burst that was superseded (a Lucky Imaging burst started before
+    /// the timer fired, or Live Capture tapped again) can't reach into whatever burst is running
+    /// now and stomp on it. Without this, the stale timer still fired `isLuckyImagingPaused =
+    /// true` on the new session, permanently blocking `ingest`'s frame-adding guard before that
+    /// session ever reached its own target frame count — the Lucky Imaging UI's "Capturing…"
+    /// state then never clears, looking exactly like a hang.
+    private var luckyBurstGeneration = 0
 
     /// Stacks the sharpest `fraction` of the current burst and shows it as `currentFrame`.
     /// Can be called repeatedly with different fractions without recapturing.
@@ -3434,6 +3470,8 @@ final class CameraManager {
     func discardLuckyImagingSession() {
         luckyImagingSession = nil
         isLuckyImagingPaused = false
+        isLiveCaptureBurstActive = false
+        luckyBurstGeneration += 1
     }
 
     /// Shows one specific captured frame from the current burst (by its rank when sorted
@@ -3476,9 +3514,11 @@ final class CameraManager {
         luckyImagingSession = LuckyImagingSession(targetFrameCount: 100_000)
         isLuckyImagingPaused = false
         isLiveCaptureBurstActive = true
+        luckyBurstGeneration += 1
+        let generation = luckyBurstGeneration
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(durationSeconds))
-            guard let self else { return }
+            guard let self, self.luckyBurstGeneration == generation else { return }
             self.isLuckyImagingPaused = true
             self.isLiveCaptureBurstActive = false
         }

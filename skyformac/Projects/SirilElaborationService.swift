@@ -202,6 +202,78 @@ enum SirilElaborationService {
         return finalURL
     }
 
+    /// Prepares `source` for "Open Siril Directly…" — the manual-workflow counterpart to
+    /// `elaborate(...)`'s fully-automated recipes, opening Siril's own GUI for full manual control
+    /// instead of running one of the fixed recipes above. Debayers first, the same way every
+    /// automated recipe already does (`calibrate_single -debayer`/`convert -debayer`) — handing
+    /// Siril the *raw* file directly used to come in as black & white, because Siril's GUI `load`
+    /// doesn't auto-debayer on its own even when the file's `BAYERPAT` header says it's color; it
+    /// only demosaics through an off-by-default "Bayer" display toggle the user would otherwise
+    /// have to notice and turn on themselves. Running the conversion first means what Siril opens
+    /// is already real color data, no GUI toggle required.
+    ///
+    /// Unlike `elaborate(...)`, the staged/converted output here is deliberately NOT cleaned up
+    /// when this returns — Siril's GUI reads it asynchronously, well after control comes back to
+    /// this app, so deleting it immediately would race that read. It's left behind in its own
+    /// subdirectory of the system temporary directory instead (the OS reclaims that eventually);
+    /// nothing in this app re-reads or depends on it afterward.
+    static func prepareForDirectOpen(source: Source) async throws -> URL {
+        guard AppSettings.isSirilIntegrationEnabled else { throw SirilError.notEnabled }
+        let cliPath = resolvedCLIPath()
+        guard isCLIAvailable(at: cliPath) else { throw SirilError.cliNotFound(cliPath) }
+
+        let fileManager = FileManager.default
+        let scratchDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("skyformac-siril-open-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
+
+        let script: String
+        let resultURL: URL
+        switch source {
+        case .singleFITS(let fileURL):
+            let basename = fileURL.deletingPathExtension().lastPathComponent
+            try stageFITS(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: nil)
+            script = """
+            requires 1.2.0
+            cd "\(scratchDirectory.path)"
+            calibrate_single "\(basename)" -debayer -prefix=deb_
+            """
+            resultURL = scratchDirectory.appendingPathComponent("deb_\(basename).fits")
+        case .serVideo(let fileURL):
+            let basename = fileURL.deletingPathExtension().lastPathComponent
+            try stageSER(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: nil)
+            script = """
+            requires 1.2.0
+            cd "\(scratchDirectory.path)"
+            convert "\(basename)" -debayer -out=converted
+            """
+            // `convert <name> -out=<dir>` writes `<dir>/<name>_.seq` alongside the individual
+            // debayered frames — opening the `.seq` (not a single frame) is what lets the user
+            // keep working with the whole burst as a sequence in Siril's GUI, same as if they'd
+            // opened the original `.ser` themselves.
+            resultURL = scratchDirectory.appendingPathComponent("converted/\(basename)_.seq")
+        case .fitsFrames(let fileURLs):
+            for fileURL in fileURLs {
+                try stageFITS(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: nil)
+            }
+            script = """
+            requires 1.2.0
+            cd "\(scratchDirectory.path)"
+            convert light -debayer -out=process
+            """
+            resultURL = scratchDirectory.appendingPathComponent("process/light_.seq")
+        }
+
+        let scriptURL = scratchDirectory.appendingPathComponent("prepare.ssf")
+        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        let log = try await runProcess(cliPath: cliPath, scriptURL: scriptURL)
+        guard log.contains("Script execution finished successfully") else {
+            throw SirilError.scriptFailed(log)
+        }
+        guard fileManager.fileExists(atPath: resultURL.path) else { throw SirilError.outputMissing }
+        return resultURL
+    }
+
     /// Launches `siril-cli` and blocks (on a background dispatch queue, not the calling task's
     /// own thread) until it exits, returning everything it printed. Output streams incrementally
     /// via `readabilityHandler` when `onLog` is given — that closure can be invoked from more than

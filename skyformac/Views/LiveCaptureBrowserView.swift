@@ -116,5 +116,16 @@ struct LiveCaptureBrowserView: View {
         }
         .frame(minWidth: 520, idealWidth: 640, minHeight: 460, idealHeight: 560)
         .onAppear { cameraManager.showLiveCaptureFrame(atIndex: 0) }
+        // `onAppear`'s call above almost always no-ops — the sheet shows right as the burst
+        // starts, before frame 0 even exists yet (`showLiveCaptureFrame` silently does nothing
+        // for an out-of-range index) — leaving the preview on `ProgressView()` with nothing else
+        // ever re-requesting a frame once the burst actually has one. Re-request the moment the
+        // burst finishes, so the picker doesn't look permanently stuck on a spinner for anyone
+        // who doesn't happen to touch the scrubber themselves.
+        .onChange(of: cameraManager.isLiveCaptureBurstActive) { _, isActive in
+            guard !isActive else { return }
+            selectedIndex = min(selectedIndex, max(frameCount - 1, 0))
+            cameraManager.showLiveCaptureFrame(atIndex: selectedIndex)
+        }
     }
 }
