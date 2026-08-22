@@ -131,6 +131,10 @@ struct DashboardHomeView: View {
                 if let lastActive {
                     PageSection(title: "Resume Where You Left Off") {
                         HStack {
+                            ResumeThumbnail(
+                                project: lastActive.project, session: lastActive.session,
+                                store: cameraManager.projectStore
+                            )
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("\(lastActive.project.name) — \(lastActive.session.name)").font(.headline)
                                 if let date = lastActive.session.lastCaptureDate {
@@ -323,5 +327,35 @@ struct DashboardHomeView: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.body)
         }
+    }
+}
+
+/// "Resume Where You Left Off"'s own cover image — same `ProjectStore.mostRecentThumbnailURL(for:
+/// in:)` every other session cover already uses (`SessionCard` on the Project Detail page), so it
+/// automatically follows the same rule everywhere a cover shows: a user-chosen custom thumbnail
+/// always wins, and un-setting one falls straight back to the session's own most recent capture
+/// with no separate refresh step needed — `mostRecentThumbnailURL` is computed fresh from current
+/// state on every call, not cached, so this row picks up either change the next time it renders.
+private struct ResumeThumbnail: View {
+    let project: Project
+    let session: Session
+    let store: ProjectStore
+
+    private var thumbnailURL: URL? { store.mostRecentThumbnailURL(for: session, in: project) }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8).fill(.quaternary)
+            if let thumbnailURL, let image = ThumbnailCache.image(at: thumbnailURL) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                Image(systemName: "calendar").font(.title2).foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 72, height: 72)
+        .clipped()
     }
 }

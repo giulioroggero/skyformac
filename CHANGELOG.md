@@ -26,6 +26,9 @@ actually tagged. Tags on GitHub: [v0.5.0](https://github.com/giulioroggero/skyfo
   dialog (this deletes the actual files, not a 30-day-grace-period soft delete).
 - Edit Image: a "Compare to Original" toggle next to Reset — splits the preview vertically,
   the untouched original above the live edit below, instead of only ever showing the edit.
+- Home's "Resume Where You Left Off" row now shows the session's own cover thumbnail (same
+  custom-thumbnail-wins-else-most-recent-capture rule every other session cover already
+  follows), instead of no image at all.
 
 ### Fixed
 - "Open Siril Directly…" handed Siril the raw FITS/SER file as-is, with no debayer step —
