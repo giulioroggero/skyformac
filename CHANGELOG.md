@@ -16,6 +16,14 @@ actually tagged. Tags on GitHub: [v0.5.1](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- "Publish to AstroBin…" on any capture (FITS/PNG/TIFF), elaborated image, and freshly-saved
+  Edit Image result — reveals the file in Finder and opens AstroBin's uploader in the default
+  browser, already signed in via the user's own session. Not a real in-app upload: AstroBin's
+  only public API is documented as read-only with no upload endpoint and no OAuth/write
+  credentials issued, so this hands off to the browser instead of reverse-engineering their
+  private session/upload calls — see `AstroBinPublisher`'s own doc comment.
+
 ## [0.5.1] - 2026-08-22
 
 ### Added

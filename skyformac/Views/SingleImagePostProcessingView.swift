@@ -10,6 +10,10 @@ import SwiftUI
 struct SingleImagePostProcessingView: View {
     let sourceURL: URL
     let sourceDescription: String
+    /// Where `onSave`'s result actually lands on disk — just enough for the "Saved as…" banner's
+    /// own "Publish to AstroBin…" button to point at the right file, without this view needing to
+    /// know about `CameraManager`/`Project` at all.
+    let elaboratedImagesFolderURL: URL
     var onSave: (CGImage) async throws -> ElaboratedImage
 
     @Environment(\.dismiss) private var dismiss
@@ -105,6 +109,9 @@ struct SingleImagePostProcessingView: View {
                 Label("Saved as \(savedImage.fileName)", systemImage: "checkmark.seal.fill")
                     .font(.callout)
                     .foregroundStyle(.green)
+                Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") {
+                    AstroBinPublisher.publish(elaboratedImagesFolderURL.appendingPathComponent(savedImage.fileName))
+                }
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
             } else {

@@ -133,6 +133,12 @@ struct CaptureDetailPage: View {
                             Button("Show in Finder", systemImage: "folder") {
                                 NSWorkspace.shared.activateFileViewerSelecting([fileURL])
                             }
+                            if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
+                                Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") {
+                                    AstroBinPublisher.publish(fileURL)
+                                }
+                                .help("Reveals the file in Finder and opens AstroBin's uploader in your browser — see AstroBinPublisher's own doc comment for why this isn't a direct in-app upload.")
+                            }
                             if elaborationSource != nil {
                                 Button("Open in Siril…", systemImage: "wand.and.stars") { startElaborating() }
                             }
@@ -287,6 +293,7 @@ struct CaptureDetailPage: View {
             SingleImagePostProcessingView(
                 sourceURL: fileURL,
                 sourceDescription: "Editing \(capture.fileName).",
+                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
                 onSave: { cgImage in
                     try cameraManager.saveImageEditResult(
                         cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project

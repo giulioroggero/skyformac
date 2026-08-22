@@ -985,6 +985,7 @@ struct ElaboratedImageCard: View {
         .contextMenu {
             Button("Info…", systemImage: "info.circle") { isShowingDetail = true }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+            Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
             if image.recipe != nil, reElaborationSource != nil {
                 Button("Re-elaborate…", systemImage: "arrow.clockwise") { isReElaborating = true }
             }
@@ -1121,6 +1122,7 @@ private struct ElaboratedImageDetailSheet: View {
 
             HStack {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+                Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
                 Button("Delete…", systemImage: "trash", role: .destructive, action: onDelete)
                 Spacer()
                 if canReElaborate {

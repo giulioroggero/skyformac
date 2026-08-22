@@ -59,6 +59,7 @@
 		4356247B24614D5F9FD7F857 /* WebcamCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */; };
 		4527E949643DEA91F18F3AC3 /* EquipmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F697DCCE35D7667955614A48 /* EquipmentModels.swift */; };
 		478066C07F1C9EFF100C0719 /* PixInsightAppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC667EE7A66F65B70E0C9F5 /* PixInsightAppLauncher.swift */; };
+		32A221DA34824A4797233ACC /* AstroBinPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F559202BC8594D7BB8C548C9 /* AstroBinPublisher.swift */; };
 		47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */; };
 		485AF8771F6E408011E20220 /* AllSkyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7300188FBB4F3D4964CD94C8 /* AllSkyMonitor.swift */; };
 		49C4DD08273A13C3E8025DAD /* GraXpertSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9BB677FD43BE6A044E9AA63 /* GraXpertSheet.swift */; };
@@ -415,6 +416,7 @@
 		9A25CEB13ECF6CE729D5560D /* SERWriter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SERWriter.swift; sourceTree = "<group>"; };
 		9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerRecallParametersTests.swift; sourceTree = "<group>"; };
 		9DC667EE7A66F65B70E0C9F5 /* PixInsightAppLauncher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PixInsightAppLauncher.swift; sourceTree = "<group>"; };
+		F559202BC8594D7BB8C548C9 /* AstroBinPublisher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstroBinPublisher.swift; sourceTree = "<group>"; };
 		A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerCaptureNoteTests.swift; sourceTree = "<group>"; };
 		A1C1927858D0564ECE3183F6 /* ObservationModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationModels.swift; sourceTree = "<group>"; };
 		A58B778D665C2941AEAB0293 /* StreakDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreakDetectorTests.swift; sourceTree = "<group>"; };
@@ -876,6 +878,7 @@
 				FCCA70F18F611E169B87C6F0 /* GraXpertElaborationService.swift */,
 				238549CA84E6FC23DEB5860A /* StarNetElaborationService.swift */,
 				9DC667EE7A66F65B70E0C9F5 /* PixInsightAppLauncher.swift */,
+				F559202BC8594D7BB8C548C9 /* AstroBinPublisher.swift */,
 			);
 			name = Projects;
 			path = Projects;
@@ -1213,6 +1216,7 @@
 				49C4DD08273A13C3E8025DAD /* GraXpertSheet.swift in Sources */,
 				CCF0728B4862D30DFC88CE0F /* StarNetElaborationService.swift in Sources */,
 				478066C07F1C9EFF100C0719 /* PixInsightAppLauncher.swift in Sources */,
+				32A221DA34824A4797233ACC /* AstroBinPublisher.swift in Sources */,
 				A006B5C70327444FB8FC66B7 /* StarNetSettingsView.swift in Sources */,
 				1B07C172F1B14326FA01BFB9 /* StarNetSheet.swift in Sources */,
 				422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */,
