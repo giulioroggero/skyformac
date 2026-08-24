@@ -167,7 +167,7 @@ enum SirilElaborationService {
             script = planetaryScript(
                 basename: basename, workingDirectory: scratchDirectory, outputBaseName: outputBaseName, parameters: parameters
             )
-            outputSubpath = "converted/\(outputBaseName).tif"
+            outputSubpath = "\(outputBaseName).tif"
         case (.fitsFrames(let fileURLs), .planetary):
             for fileURL in fileURLs {
                 try stageFITS(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: parameters.cropRect)
@@ -204,13 +204,24 @@ enum SirilElaborationService {
 
     /// Prepares `source` for "Open Siril Directly…" — the manual-workflow counterpart to
     /// `elaborate(...)`'s fully-automated recipes, opening Siril's own GUI for full manual control
-    /// instead of running one of the fixed recipes above. Debayers first, the same way every
-    /// automated recipe already does (`calibrate_single -debayer`/`convert -debayer`) — handing
-    /// Siril the *raw* file directly used to come in as black & white, because Siril's GUI `load`
-    /// doesn't auto-debayer on its own even when the file's `BAYERPAT` header says it's color; it
-    /// only demosaics through an off-by-default "Bayer" display toggle the user would otherwise
-    /// have to notice and turn on themselves. Running the conversion first means what Siril opens
-    /// is already real color data, no GUI toggle required.
+    /// instead of running one of the fixed recipes above. Debayers loose FITS frames first, the
+    /// same way the automated recipes already do (`calibrate_single -debayer`/`convert -debayer`)
+    /// — handing Siril a raw FITS directly used to come in as black & white, because Siril's GUI
+    /// `load` doesn't auto-debayer on its own even when the file's `BAYERPAT` header says it's
+    /// color; it only demosaics through an off-by-default "Bayer" display toggle the user would
+    /// otherwise have to notice and turn on themselves. Running the conversion first means what
+    /// Siril opens is already real color data, no GUI toggle required.
+    ///
+    /// `.serVideo` doesn't get the same treatment: `convert`'s own docs describe it as converting
+    /// loose frame images (FITS/TIFF/PNG/...) already sitting in the working directory into a
+    /// *new* sequence, not re-processing a sequence container that already exists — confirmed
+    /// against Siril 1.4.4, which fails a `.ser` input with "No files were found for conversion"
+    /// rather than debayering it. There's no equivalent per-frame debayer path for an existing
+    /// `.ser` short of fully stacking it first (which changes what's being opened entirely, and
+    /// is exactly what `elaborate(...)`'s own planetary recipe already does for anyone who wants
+    /// that). So a `.ser` is just staged and opened as-is — Siril's own GUI reads the container's
+    /// embedded Bayer pattern and offers a "Bayer" display toggle for it, same as opening the
+    /// original file directly would.
     ///
     /// Unlike `elaborate(...)`, the staged/converted output here is deliberately NOT cleaned up
     /// when this returns — Siril's GUI reads it asynchronously, well after control comes back to
@@ -219,18 +230,24 @@ enum SirilElaborationService {
     /// nothing in this app re-reads or depends on it afterward.
     static func prepareForDirectOpen(source: Source) async throws -> URL {
         guard AppSettings.isSirilIntegrationEnabled else { throw SirilError.notEnabled }
-        let cliPath = resolvedCLIPath()
-        guard isCLIAvailable(at: cliPath) else { throw SirilError.cliNotFound(cliPath) }
 
         let fileManager = FileManager.default
         let scratchDirectory = fileManager.temporaryDirectory
             .appendingPathComponent("skyformac-siril-open-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
 
+        if case .serVideo(let fileURL) = source {
+            let destination = scratchDirectory.appendingPathComponent(fileURL.lastPathComponent)
+            try stageSER(from: fileURL, to: destination, cropRect: nil)
+            return destination
+        }
+
+        let cliPath = resolvedCLIPath()
+        guard isCLIAvailable(at: cliPath) else { throw SirilError.cliNotFound(cliPath) }
+
         let script: String
         let resultURL: URL
-        switch source {
-        case .singleFITS(let fileURL):
+        if case .singleFITS(let fileURL) = source {
             let basename = fileURL.deletingPathExtension().lastPathComponent
             try stageFITS(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: nil)
             script = """
@@ -239,20 +256,7 @@ enum SirilElaborationService {
             calibrate_single "\(basename)" -debayer -prefix=deb_
             """
             resultURL = scratchDirectory.appendingPathComponent("deb_\(basename).fits")
-        case .serVideo(let fileURL):
-            let basename = fileURL.deletingPathExtension().lastPathComponent
-            try stageSER(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: nil)
-            script = """
-            requires 1.2.0
-            cd "\(scratchDirectory.path)"
-            convert "\(basename)" -debayer -out=converted
-            """
-            // `convert <name> -out=<dir>` writes `<dir>/<name>_.seq` alongside the individual
-            // debayered frames — opening the `.seq` (not a single frame) is what lets the user
-            // keep working with the whole burst as a sequence in Siril's GUI, same as if they'd
-            // opened the original `.ser` themselves.
-            resultURL = scratchDirectory.appendingPathComponent("converted/\(basename)_.seq")
-        case .fitsFrames(let fileURLs):
+        } else if case .fitsFrames(let fileURLs) = source {
             for fileURL in fileURLs {
                 try stageFITS(from: fileURL, to: scratchDirectory.appendingPathComponent(fileURL.lastPathComponent), cropRect: nil)
             }
@@ -262,6 +266,10 @@ enum SirilElaborationService {
             convert light -debayer -out=process
             """
             resultURL = scratchDirectory.appendingPathComponent("process/light_.seq")
+        } else {
+            // `.serVideo` already returned above — unreachable, but a thrown error here is safer
+            // than `fatalError` if this ever gets refactored oddly.
+            throw SirilError.outputMissing
         }
 
         let scriptURL = scratchDirectory.appendingPathComponent("prepare.ssf")
@@ -394,21 +402,25 @@ enum SirilElaborationService {
         """
     }
 
-    /// `stack` (unlike `calibrate_single`) is one of Siril's *sequence* commands — it needs a
-    /// real Siril sequence (a `.seq` file plus its indexed frames), not a bare `.ser` file
-    /// referenced by name, which is what this used to do directly. That silently produced a
-    /// mono/grayscale result instead of an error: Siril still ran `stack` against *something*
-    /// (apparently falling back to reading the raw video without any Bayer awareness at all)
-    /// rather than failing outright, so nothing here caught it before a real run surfaced the bad
-    /// color output. The fix is the same explicit `convert` step `planetaryFromFramesScript`
-    /// below already has — deliberately without `-debayer` here too, preserving the "debayer the
-    /// stacked result once at the end, not every input frame" cost saving this recipe exists for.
+    /// `stack` can reference a `.ser` file directly by name — Siril auto-generates the `.seq`
+    /// index it needs the first time it's referenced (confirmed against Siril 1.4.4: `stack
+    /// <basename> rej ...` on a bare `.ser` sitting in the working directory, with no `convert`
+    /// step first, writes `<basename>.seq` and stacks correctly). This used to run an explicit
+    /// `convert "<basename>" -out=converted` step first instead — necessary (per this function's
+    /// git history) against an older Siril version, but against 1.4.4 `convert` fails outright on
+    /// a `.ser` input with "No files were found for conversion": `convert`'s own docs describe it
+    /// as converting loose frame images (FITS/TIFF/PNG/...) sitting in the working directory into
+    /// a *new* sequence, not re-processing a sequence container (`.ser`/"Film") that already
+    /// exists — so it never had real `.ser` input support to begin with, and whatever made the
+    /// direct-`stack` path unsafe before appears to have been fixed in Siril itself since. Stack
+    /// still runs on the raw Bayer data (one mono channel per pixel, pre-debayer) — the same
+    /// "debayer the stacked result once at the end, not every input frame" cost saving this
+    /// recipe exists for; only the intermediate `convert`/`cd converted` step is gone, so
+    /// `outputSubpath` in `elaborate(...)` no longer has a `converted/` prefix either.
     private static func planetaryScript(basename: String, workingDirectory: URL, outputBaseName: String, parameters: ElaborationParameters) -> String {
         """
         requires 1.2.0
         cd "\(workingDirectory.path)"
-        convert "\(basename)" -out=converted
-        cd converted
         stack "\(basename)" rej \(rejectionArgs(parameters)) -norm=no -out=stacked_raw
         calibrate_single stacked_raw -debayer -prefix=deb_
         load deb_stacked_raw

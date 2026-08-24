@@ -27,6 +27,20 @@ actually tagged. Tags on GitHub: [v0.5.1](https://github.com/giulioroggero/skyfo
   `brew install --cask skyformac`, published from
   [giulioroggero/homebrew-skyformac](https://github.com/giulioroggero/homebrew-skyformac).
   `Casks/skyformac.rb` in this repo was previously a template only, with no real tap behind it.
+- Capture page: the "Camera Settings" section now also shows the equipment system actually in
+  use at capture time (`capture.equipmentSystemID`, the same snapshot-not-live-reference the
+  gain/exposure/ROI fields there already are), matching what the Session page's own stats
+  already show for the session as a whole.
+
+### Fixed
+- "Open in Siril…"/"Elaborate…" on a `.ser` capture failed outright with "No files were found
+  for conversion": against Siril 1.4.4, `convert` only picks up loose frame images (FITS/TIFF/
+  PNG/...) sitting in the working directory, not an existing sequence container like a `.ser` —
+  confirmed by reproducing the exact failure directly against Siril's CLI. `stack` can reference
+  a `.ser` directly by name instead (Siril auto-generates the `.seq` index it needs), so the
+  now-unnecessary `convert` step is gone from the planetary/lunar recipe. "Open Siril Directly…"
+  on a `.ser` no longer attempts (and fails) the same broken conversion either — a `.ser` is
+  staged and opened as-is, the same as before this integration existed.
 
 ## [0.5.1] - 2026-08-22
 

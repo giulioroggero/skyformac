@@ -454,6 +454,12 @@ struct CaptureDetailPage: View {
         if let serDurationSeconds = preset.serDurationSeconds {
             stats.append(StatItem(label: "SER Duration", value: "\(Int(serDurationSeconds))s"))
         }
+        // `capture.equipmentSystemID`, not `session.effectiveEquipmentSystemID(inProject:)` — a
+        // snapshot of what was actually in use *at capture time* (see its own doc comment), same
+        // as every other field here already reflects the moment of capture, not the session's
+        // current (possibly since-changed) assignment.
+        let equipmentName = cameraManager.equipmentLibrary.system(withID: capture.equipmentSystemID)?.name
+        stats.append(StatItem(label: "Equipment", value: equipmentName ?? "None"))
         return stats
     }
 
