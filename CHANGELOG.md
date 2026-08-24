@@ -23,6 +23,10 @@ actually tagged. Tags on GitHub: [v0.5.1](https://github.com/giulioroggero/skyfo
   only public API is documented as read-only with no upload endpoint and no OAuth/write
   credentials issued, so this hands off to the browser instead of reverse-engineering their
   private session/upload calls — see `AstroBinPublisher`'s own doc comment.
+- Homebrew installation is actually live now: `brew tap giulioroggero/skyformac` /
+  `brew install --cask skyformac`, published from
+  [giulioroggero/homebrew-skyformac](https://github.com/giulioroggero/homebrew-skyformac).
+  `Casks/skyformac.rb` in this repo was previously a template only, with no real tap behind it.
 
 ## [0.5.1] - 2026-08-22
 

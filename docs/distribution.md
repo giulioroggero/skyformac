@@ -62,16 +62,17 @@ compatibility concern the way Store distribution might.
    ```
 5. Create the GitHub Release for that tag (`gh release create v<version> build/release/Skyformac-<version>.dmg --title "..." --notes-file ...`, or via the web UI) and attach the `.dmg` as a release asset.
 6. Update the Homebrew Cask (`Casks/skyformac.rb`) with the new `version` and the `.dmg`'s real
-   SHA-256 (`shasum -a 256 build/release/Skyformac-<version>.dmg`), then push that to wherever the
-   actual tap repository lives (see below — it's not this repo).
+   SHA-256 (`shasum -a 256 build/release/Skyformac-<version>.dmg`), then copy that same file into
+   the tap repo (see below) and push it there too.
 
 ## Homebrew Cask
 
-`Casks/skyformac.rb` in this repo is a **template/reference**, not a live formula Homebrew reads
-from directly — Homebrew Casks are normally published in a "tap" repository (e.g.
-`giulioroggero/homebrew-cask` or a submission to the main `homebrew/cask` repo once the project is
-established enough). Once a tap repo exists, copy this file there and keep both in sync, or drop
-the copy here and treat the tap repo as the source of truth — whichever is easier to maintain.
+`Casks/skyformac.rb` in this repo is kept in sync with the live formula, not read by Homebrew
+directly — the actual tap Homebrew installs from is
+[giulioroggero/homebrew-skyformac](https://github.com/giulioroggero/homebrew-skyformac). After
+updating the version/SHA-256 here, copy the same file to that repo's own `Casks/skyformac.rb` and
+push it there; `brew tap giulioroggero/skyformac` / `brew install --cask skyformac` won't see a
+new version until that copy lands.
 
 ## What `scripts/release.sh` deliberately does NOT do
 

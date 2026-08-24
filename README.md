@@ -94,6 +94,20 @@ can't do as directly:
 
 ## Installing a downloaded release
 
+### Via Homebrew
+
+```
+brew tap giulioroggero/skyformac
+brew install --cask skyformac
+```
+
+This installs from the [giulioroggero/homebrew-skyformac](https://github.com/giulioroggero/homebrew-skyformac)
+tap and handles the Gatekeeper quarantine flag for you automatically (Homebrew
+casks always do, regardless of notarization) — no manual `Fix Gatekeeper
+Warning.command` step needed. To upgrade later: `brew upgrade --cask skyformac`.
+
+### Manually
+
 The [GitHub releases](https://github.com/giulioroggero/skyformac/releases) and
 the [website](https://giulioroggero.github.io/skyformac-website/) both ship a
 `skyformac-vX.Y.Z-macOS.dmg` (recommended — a standard drag-to-Applications
@@ -108,7 +122,7 @@ download, "is damaged and can't be opened").
 Both the `.dmg` and the `.zip` include a `Fix Gatekeeper Warning.command`
 file alongside `skyformac.app` to clear this automatically:
 
-### From the `.dmg`
+#### From the `.dmg`
 
 1. Open the `.dmg` and drag `skyformac.app` onto the `Applications` shortcut
    inside it, like any normal Mac app install.
@@ -117,7 +131,7 @@ file alongside `skyformac.app` to clear this automatically:
    done.
 3. Open `skyformac.app` from `/Applications` — it now opens normally.
 
-### From the `.zip`
+#### From the `.zip`
 
 1. Unzip the download.
 2. Double-click `Fix Gatekeeper Warning.command` (it opens a Terminal window
