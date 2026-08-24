@@ -106,6 +106,11 @@ tap and handles the Gatekeeper quarantine flag for you automatically (Homebrew
 casks always do, regardless of notarization) — no manual `Fix Gatekeeper
 Warning.command` step needed. To upgrade later: `brew upgrade --cask skyformac`.
 
+Recent Homebrew versions require trusting a third-party tap once before its
+casks will install — if `brew install` refuses with "Refusing to load cask
+... from untrusted tap," run the command it prints
+(`brew trust --cask giulioroggero/skyformac/skyformac`) and try again.
+
 ### Manually
 
 The [GitHub releases](https://github.com/giulioroggero/skyformac/releases) and
