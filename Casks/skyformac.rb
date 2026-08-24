@@ -11,8 +11,9 @@ cask "skyformac" do
   desc "Native macOS ZWO ASI astrophotography camera control app"
   homepage "https://github.com/giulioroggero/skyformac"
 
-  # Matches Info.plist's own LSMinimumSystemVersion.
-  depends_on macos: ">= :ventura"
+  # Matches Info.plist's own LSMinimumSystemVersion. A bare symbol already means ">=" —
+  # the old ">= :ventura" string form is deprecated by Homebrew.
+  depends_on macos: :ventura
 
   app "skyformac.app"
 
