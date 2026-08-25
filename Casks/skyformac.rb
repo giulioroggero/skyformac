@@ -1,6 +1,6 @@
 cask "skyformac" do
-  version "0.5.1"
-  sha256 "69d3c0e59e4ef66af46a055558f80f7e34aae9cf24278ae4e036d15d490d6d8f"
+  version "0.5.2"
+  sha256 "3d18f464911395753b5dc4da5f408c1052675bdfbb80ceb14311b9deff5c9620"
 
   # Matches the actual asset name `gh release create`/the release workflow produces
   # (`skyformac-v<version>-macOS.dmg`), not `scripts/release.sh`'s own
