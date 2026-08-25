@@ -7,7 +7,8 @@ single-developer app, not a library with a public API.
 
 **[Unreleased]** is the `master`/dev branch — updated continuously as work lands,
 with everything folded under a proper version heading (and dated) only once it's
-actually tagged. Tags on GitHub: [v0.5.1](https://github.com/giulioroggero/skyformac/releases/tag/v0.5.1),
+actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyformac/releases/tag/v0.5.2),
+[v0.5.1](https://github.com/giulioroggero/skyformac/releases/tag/v0.5.1),
 [v0.5.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.5.0),
 [v0.4.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.4.0),
 [v0.3.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.3.0),
@@ -15,6 +16,8 @@ actually tagged. Tags on GitHub: [v0.5.1](https://github.com/giulioroggero/skyfo
 [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12).
 
 ## [Unreleased]
+
+## [0.5.2] - 2026-08-25
 
 ### Added
 - "Publish to AstroBin…" on any capture (FITS/PNG/TIFF), elaborated image, and freshly-saved
