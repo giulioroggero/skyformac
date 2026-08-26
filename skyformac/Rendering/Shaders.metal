@@ -1182,3 +1182,131 @@ kernel void histogramReduceBayerChannels(
         if (b > 0) { atomic_fetch_add_explicit(&blueBuckets[localIndex], b, memory_order_relaxed); }
     }
 }
+
+// MARK: - Planetary registration (PlanetaryGPURegistrar)
+
+/// A general (non-square) pixel rectangle — `CentroidROI` above is square-only (fine for drift
+/// reduction's fixed search window; the planetary "Object to Track" selector is a user-drawn box
+/// of arbitrary aspect ratio). `originX`/`originY < 0` or a `width`/`height` past the texture edge
+/// is fine — every kernel below clips against the texture's own bounds per pixel, the same way
+/// `CentroidROI`'s consumers already do.
+struct PlanetaryRect {
+    int originX;
+    int originY;
+    int width;
+    int height;
+};
+
+/// Per-threadgroup `(sum, sumOfSquares, count)` of a 5-point discrete Laplacian over the whole
+/// luma texture — `PlanetaryGPURegistrar.quality(...)`'s GPU counterpart to
+/// `PlanetaryPostProcessor.quality(ofLuminance:...)`'s CPU Laplacian-variance sharpness score.
+/// Runs on the full-resolution luma directly rather than that CPU path's downsampled-to-512 grid
+/// (downsampling exists there purely to keep a *CPU* scalar loop affordable; a GPU pass over the
+/// full frame costs about the same as one over a smaller one) — a different absolute scale, but
+/// quality here only ever drives a relative sort (pick the sharpest frame as reference, keep the
+/// sharpest N%), which a full-resolution measurement serves at least as well.
+kernel void laplacianVariancePartial(
+    texture2d<float, access::read> source [[texture(0)]],
+    device float3 *partials [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    uint2 groupId [[threadgroup_position_in_grid]],
+    uint2 groupsPerGrid [[threadgroups_per_grid]],
+    threadgroup float *localSum [[threadgroup(0)]],
+    threadgroup float *localSumSq [[threadgroup(1)]],
+    threadgroup float *localCount [[threadgroup(2)]]
+) {
+    uint localFlatIndex = tid.y * 16 + tid.x;
+    float sum = 0;
+    float sumSq = 0;
+    float count = 0;
+    int width = int(source.get_width());
+    int height = int(source.get_height());
+    int x = int(gid.x);
+    int y = int(gid.y);
+    // A 1px border sits out of every dispatch's bounds check here so the 5-point stencil below
+    // never has to branch on reading past the texture edge.
+    if (x >= 1 && y >= 1 && x < width - 1 && y < height - 1) {
+        float center = source.read(uint2(uint(x), uint(y))).r;
+        float left = source.read(uint2(uint(x - 1), uint(y))).r;
+        float right = source.read(uint2(uint(x + 1), uint(y))).r;
+        float up = source.read(uint2(uint(x), uint(y - 1))).r;
+        float down = source.read(uint2(uint(x), uint(y + 1))).r;
+        float laplacian = -4.0 * center + left + right + up + down;
+        sum = laplacian;
+        sumSq = laplacian * laplacian;
+        count = 1;
+    }
+    localSum[localFlatIndex] = sum;
+    localSumSq[localFlatIndex] = sumSq;
+    localCount[localFlatIndex] = count;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localFlatIndex == 0) {
+        float totalSum = 0;
+        float totalSumSq = 0;
+        float totalCount = 0;
+        for (uint i = 0; i < 256; i++) {
+            totalSum += localSum[i];
+            totalSumSq += localSumSq[i];
+            totalCount += localCount[i];
+        }
+        uint groupIndex = groupId.y * groupsPerGrid.x + groupId.x;
+        partials[groupIndex] = float3(totalSum, totalSumSq, totalCount);
+    }
+}
+
+/// Per-threadgroup `(sumI, sumIx, sumIy, count)`, plain intensity-weighted (no background
+/// subtraction/threshold, unlike `centroidPartial` above — the planetary registration centroid
+/// this feeds, `PlanetaryPostProcessor.centroid(ofLuminance:...)`, has never gated on one either)
+/// — `PlanetaryGPURegistrar.centroid(...)`'s GPU counterpart to that CPU function, restricted to
+/// `roi` (the "Object to Track" selection) when the caller has one.
+kernel void planetaryCentroidPartial(
+    texture2d<float, access::read> source [[texture(0)]],
+    constant PlanetaryRect &roi [[buffer(0)]],
+    device float4 *partials [[buffer(1)]],
+    uint2 gid [[thread_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    uint2 groupId [[threadgroup_position_in_grid]],
+    uint2 groupsPerGrid [[threadgroups_per_grid]],
+    threadgroup float *localSumI [[threadgroup(0)]],
+    threadgroup float *localSumIx [[threadgroup(1)]],
+    threadgroup float *localSumIy [[threadgroup(2)]],
+    threadgroup float *localCount [[threadgroup(3)]]
+) {
+    uint localFlatIndex = tid.y * 16 + tid.x;
+    float sumI = 0;
+    float sumIx = 0;
+    float sumIy = 0;
+    float count = 0;
+    int px = roi.originX + int(gid.x);
+    int py = roi.originY + int(gid.y);
+    if (int(gid.x) < roi.width && int(gid.y) < roi.height
+        && px >= 0 && py >= 0 && px < int(source.get_width()) && py < int(source.get_height())) {
+        float value = source.read(uint2(uint(px), uint(py))).r;
+        sumI = value;
+        sumIx = value * float(px);
+        sumIy = value * float(py);
+        count = 1;
+    }
+    localSumI[localFlatIndex] = sumI;
+    localSumIx[localFlatIndex] = sumIx;
+    localSumIy[localFlatIndex] = sumIy;
+    localCount[localFlatIndex] = count;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    if (localFlatIndex == 0) {
+        float totalSumI = 0;
+        float totalSumIx = 0;
+        float totalSumIy = 0;
+        float totalCount = 0;
+        for (uint i = 0; i < 256; i++) {
+            totalSumI += localSumI[i];
+            totalSumIx += localSumIx[i];
+            totalSumIy += localSumIy[i];
+            totalCount += localCount[i];
+        }
+        uint groupIndex = groupId.y * groupsPerGrid.x + groupId.x;
+        partials[groupIndex] = float4(totalSumI, totalSumIx, totalSumIy, totalCount);
+    }
+}

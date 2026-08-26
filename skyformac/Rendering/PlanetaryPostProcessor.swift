@@ -44,6 +44,9 @@ enum PlanetaryPostProcessor {
     /// pipeline stays pure CPU/Accelerate. `nil` (falls back to the CPU `Debayer` path below)
     /// when there's no usable `MTLDevice`, e.g. a sandboxed CI or headless test runner.
     private static let gpuLuminanceConverter = PlanetaryGPULuminanceConverter()
+    /// Same "GPU when available, CPU fallback otherwise" shape for `scoreAndRegister`'s own
+    /// quality-scoring/centroid math — see `PlanetaryGPURegistrar`'s own doc comment.
+    private static let gpuRegistrar = PlanetaryGPURegistrar()
 
     // MARK: - Stage 1: Ingestion
 
@@ -91,6 +94,10 @@ enum PlanetaryPostProcessor {
     /// (a planet or the Moon) against a dark background, unlike a star-field multi-point
     /// registration. `progress` fires from `0` to `1` as frames are processed — always on the
     /// calling context, not hopped to `@MainActor`, since this whole type has no actor affinity.
+    /// Both the quality score and the centroid run on `gpuRegistrar` when one's available (see
+    /// its own doc comment) — debayering was the first per-frame bottleneck GPU-accelerated here;
+    /// these two full-resolution scalar passes were the two CPU loops left in this stage
+    /// afterward.
     static func scoreAndRegister(
         frames: [CapturedFrame], isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN, roi: CGRect? = nil,
         progress: ((Float) -> Void)? = nil, isCancelled: () -> Bool = { Task.isCancelled }
@@ -107,8 +114,15 @@ enum PlanetaryPostProcessor {
             if isCancelled() { break }
             defer { progress?(Float(i + 1) / Float(frames.count)) }
             guard let luminance = luminance(of: frames[i], isColorCamera: isColorCamera, bayerPattern: bayerPattern) else { continue }
-            qualities[i] = quality(ofLuminance: luminance.values, width: luminance.width, height: luminance.height)
-            centroids[i] = centroid(ofLuminance: luminance.values, width: luminance.width, height: luminance.height, roi: roi)
+            if let scored = gpuRegistrar?.scoreAndCentroid(
+                ofLuminance: luminance.values, width: luminance.width, height: luminance.height, roi: roi
+            ) {
+                qualities[i] = scored.quality
+                centroids[i] = scored.centroid
+            } else {
+                qualities[i] = quality(ofLuminance: luminance.values, width: luminance.width, height: luminance.height)
+                centroids[i] = centroid(ofLuminance: luminance.values, width: luminance.width, height: luminance.height, roi: roi)
+            }
         }
         let referenceIndex = qualities.indices.max { qualities[$0] < qualities[$1] } ?? 0
         let referenceCentroid = centroids[referenceIndex] ?? SIMD2<Float>(repeating: 0)

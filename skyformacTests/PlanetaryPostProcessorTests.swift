@@ -262,6 +262,73 @@ struct PlanetaryPostProcessorTests {
         #expect(aligned.values == image.values)
     }
 
+    // MARK: - GPU registration (PlanetaryGPURegistrar)
+
+    private func luminanceGrid(width: Int, height: Int, value: (Int, Int) -> Float) -> [Float] {
+        var values = [Float](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                values[y * width + x] = value(x, y)
+            }
+        }
+        return values
+    }
+
+    /// Cross-checks `PlanetaryGPURegistrar`'s centroid kernel against
+    /// `PlanetaryPostProcessor.centroid(ofLuminance:...)`'s CPU implementation — both compute the
+    /// exact same intensity-weighted-sum formula (unlike quality/variance below, which
+    /// deliberately runs at a different scale on GPU), so real numeric parity is expected here,
+    /// not just "in the right neighborhood." Skips when this environment has no usable
+    /// `MTLDevice`.
+    @Test func gpuRegistrarCentroidMatchesCPUCentroid() throws {
+        let width = 32, height = 32
+        let values = luminanceGrid(width: width, height: height) { x, y in
+            (x >= 20 && x <= 23 && y >= 8 && y <= 11) ? 1.0 : 0.02
+        }
+        guard let gpu = PlanetaryGPURegistrar() else { return }
+        let gpuResult = try #require(gpu.scoreAndCentroid(ofLuminance: values, width: width, height: height, roi: nil))
+        let gpuCentroid = try #require(gpuResult.centroid)
+        let cpuCentroid = try #require(PlanetaryPostProcessor.centroid(ofLuminance: values, width: width, height: height, roi: nil))
+        #expect(abs(gpuCentroid.x - cpuCentroid.x) < 0.05)
+        #expect(abs(gpuCentroid.y - cpuCentroid.y) < 0.05)
+    }
+
+    /// The actual property the "duplicated images" fix depends on: restricting the GPU centroid
+    /// to `roi` should land on the blob *inside* it, ignoring an equally-bright blob outside —
+    /// not the whole-frame weighted average of both (which is exactly the failure mode being
+    /// fixed). Skips when this environment has no usable `MTLDevice`.
+    @Test func gpuRegistrarCentroidRespectsROI() throws {
+        let width = 40, height = 40
+        let values = luminanceGrid(width: width, height: height) { x, y in
+            let inTopLeft = x >= 4 && x <= 6 && y >= 4 && y <= 6
+            let inBottomRight = x >= 30 && x <= 32 && y >= 30 && y <= 32
+            return (inTopLeft || inBottomRight) ? 1.0 : 0.0
+        }
+        guard let gpu = PlanetaryGPURegistrar() else { return }
+        let roi = CGRect(x: 2, y: 2, width: 8, height: 8) // covers only the top-left blob
+        let result = try #require(gpu.scoreAndCentroid(ofLuminance: values, width: width, height: height, roi: roi))
+        let centroid = try #require(result.centroid)
+        #expect(abs(centroid.x - 5) < 1)
+        #expect(abs(centroid.y - 5) < 1)
+    }
+
+    /// `quality` deliberately runs at full resolution on GPU rather than matching the CPU path's
+    /// downsampled-to-512 scale (see `PlanetaryGPURegistrar`'s own doc comment) — so this checks
+    /// the property that actually matters (a sharper image scores higher, the same relative
+    /// ranking `scoreAndRegister` sorts by), not exact parity with the CPU number. Skips when
+    /// this environment has no usable `MTLDevice`.
+    @Test func gpuRegistrarQualityRanksASharperImageHigher() throws {
+        let width = 16, height = 16
+        let sharp = luminanceGrid(width: width, height: height) { x, _ in x < 8 ? 0.0 : 1.0 }
+        let blurred = luminanceGrid(width: width, height: height) { x, _ in
+            Float(x) / Float(width - 1) // a smooth ramp — no hard edge anywhere
+        }
+        guard let gpu = PlanetaryGPURegistrar() else { return }
+        let sharpResult = try #require(gpu.scoreAndCentroid(ofLuminance: sharp, width: width, height: height, roi: nil))
+        let blurredResult = try #require(gpu.scoreAndCentroid(ofLuminance: blurred, width: width, height: height, roi: nil))
+        #expect(sharpResult.quality > blurredResult.quality)
+    }
+
     // MARK: - GPU debayer/luma
 
     /// Cross-checks `PlanetaryGPULuminanceConverter`'s Metal `debayerToLuma` kernel against

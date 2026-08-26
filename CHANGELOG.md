@@ -33,6 +33,11 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   flat stack of buttons with nothing separating "just look at this" from "reprocess this."
 - Planetary Post-Processing: an "Object to Track" crop selector on the "Set Up Stacking"
   screen, restricting registration's centroid search to just the drawn box.
+- Planetary Post-Processing registration now runs on the GPU when one's available
+  (`PlanetaryGPURegistrar`, mirroring the debayer step's own existing Metal path) — the
+  per-frame sharpness score and centroid, the two full-resolution CPU scalar passes left in
+  that stage after debayering moved to Metal. Falls back to the identical CPU path with no
+  behavior change wherever there's no usable GPU (e.g. sandboxed CI).
 
 ### Fixed
 - Planetary Post-Processing could stack into a ghosted/duplicated-looking result whenever the
