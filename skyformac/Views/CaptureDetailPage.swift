@@ -115,57 +115,7 @@ struct CaptureDetailPage: View {
                             updatedProject.sessions[sessionIndex] = updatedSession
                             try? cameraManager.projectsLibrary.save(updatedProject)
                         }
-                        VStack(alignment: .leading, spacing: 6) {
-                            // FITS gets the app's own real viewer (black/white-point stretch,
-                            // debayer) — nicer than whatever (if anything) the system associates
-                            // with the extension. Every other kind (SER, a continuous-recording
-                            // folder, PNG/TIFF) opens in whatever the system already handles it
-                            // with — "if it's not a capture image ... I want to see it" without
-                            // this app needing its own SER/video player.
-                            if capture.kind == .fits {
-                                Button("Open in Viewer", systemImage: "eye") {
-                                    cameraManager.openExportedFile(fileURL)
-                                }
-                            } else {
-                                Button("Open", systemImage: "arrow.up.forward.app") {
-                                    NSWorkspace.shared.open(fileURL)
-                                }
-                            }
-                            Button("Show in Finder", systemImage: "folder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                            }
-                            if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
-                                Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") {
-                                    AstroBinPublisher.publish(fileURL)
-                                }
-                                .help("Reveals the file in Finder and opens AstroBin's uploader in your browser — see AstroBinPublisher's own doc comment for why this isn't a direct in-app upload.")
-                            }
-                            if elaborationSource != nil {
-                                Button("Open in Siril…", systemImage: "wand.and.stars") { startElaborating() }
-                            }
-                            if capture.kind == .serVideo {
-                                Button("Post-Process…", systemImage: "sparkles.tv") { isPostProcessing = true }
-                            }
-                            if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
-                                Button("Edit Image…", systemImage: "slider.horizontal.3") { isEditingImage = true }
-                            }
-                            Button("Move to Session…", systemImage: "folder") {
-                                isMovingToSession = true
-                            }
-                            .disabled(moveSessionCandidates.isEmpty)
-                            Button("Split into New Session…", systemImage: "scissors") {
-                                isSplittingSession = true
-                            }
-                            Divider()
-                            Button("Copy All Details", systemImage: "doc.on.doc") {
-                                copyToClipboard(copyAllDetailsText)
-                            }
-                            .help("Copies File, Camera Settings, Session, and Stats — everything on this page — as one block of plain text.")
-                            Divider()
-                            Button("Delete…", systemImage: "trash", role: .destructive) {
-                                isConfirmingDelete = true
-                            }
-                        }
+                        actionsList
                     }
 
                     if let cameraSettingsStats {
@@ -493,6 +443,89 @@ struct CaptureDetailPage: View {
             }
         }
         return stats
+    }
+
+    /// Every action this page offers on the capture itself, grouped under small labeled
+    /// sub-headers instead of one long flat stack of buttons — "View", "Process", "Share",
+    /// "Organize", then Delete on its own. A flat list here had grown to 8-9 buttons (Open, Show
+    /// in Finder, Publish to AstroBin, Open in Siril, Post-Process, Edit Image, Move to Session,
+    /// Split into New Session, Copy All Details, Delete, depending on `capture.kind`) with
+    /// nothing to visually separate "where do I click to just look at this" from "where do I
+    /// click to reprocess it" — grouping by what each action actually *does*, the same way a
+    /// Finder/Preview sidebar groups its own actions, makes scanning for one specific action
+    /// faster than reading top-to-bottom every time.
+    @ViewBuilder
+    private var actionsList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            actionGroupLabel("View")
+            // FITS gets the app's own real viewer (black/white-point stretch, debayer) — nicer
+            // than whatever (if anything) the system associates with the extension. Every other
+            // kind (SER, a continuous-recording folder, PNG/TIFF) opens in whatever the system
+            // already handles it with — "if it's not a capture image ... I want to see it"
+            // without this app needing its own SER/video player.
+            if capture.kind == .fits {
+                Button("Open in Viewer", systemImage: "eye") {
+                    cameraManager.openExportedFile(fileURL)
+                }
+            } else {
+                Button("Open", systemImage: "arrow.up.forward.app") {
+                    NSWorkspace.shared.open(fileURL)
+                }
+            }
+            Button("Show in Finder", systemImage: "folder") {
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+            }
+
+            if elaborationSource != nil || capture.kind == .serVideo
+                || capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
+                Divider()
+                actionGroupLabel("Process")
+                if elaborationSource != nil {
+                    Button("Open in Siril…", systemImage: "wand.and.stars") { startElaborating() }
+                }
+                if capture.kind == .serVideo {
+                    Button("Post-Process…", systemImage: "sparkles.tv") { isPostProcessing = true }
+                }
+                if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
+                    Button("Edit Image…", systemImage: "slider.horizontal.3") { isEditingImage = true }
+                }
+            }
+
+            Divider()
+            actionGroupLabel("Share")
+            if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
+                Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") {
+                    AstroBinPublisher.publish(fileURL)
+                }
+                .help("Reveals the file in Finder and opens AstroBin's uploader in your browser — see AstroBinPublisher's own doc comment for why this isn't a direct in-app upload.")
+            }
+            Button("Copy All Details", systemImage: "doc.on.doc") {
+                copyToClipboard(copyAllDetailsText)
+            }
+            .help("Copies File, Camera Settings, Session, and Stats — everything on this page — as one block of plain text.")
+
+            Divider()
+            actionGroupLabel("Organize")
+            Button("Move to Session…", systemImage: "folder") {
+                isMovingToSession = true
+            }
+            .disabled(moveSessionCandidates.isEmpty)
+            Button("Split into New Session…", systemImage: "scissors") {
+                isSplittingSession = true
+            }
+
+            Divider()
+            Button("Delete…", systemImage: "trash", role: .destructive) {
+                isConfirmingDelete = true
+            }
+        }
+    }
+
+    private func actionGroupLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2.bold())
+            .foregroundStyle(.secondary)
+            .padding(.top, 2)
     }
 
     /// One section's own `title` + its `StatsGridView` header row — a Copy button next to the

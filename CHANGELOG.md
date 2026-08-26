@@ -26,6 +26,11 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   Stacking" screen too, not only after a stack exists — the same sliders/state the ready
   screen's own copy binds to, so whatever's dialed in before "Start Processing" is already
   applied to the very first result instead of needing a second pass to fix.
+- Capture page: the File section's actions (up to 9-10 depending on capture kind — Open, Show
+  in Finder, Publish to AstroBin, Open in Siril, Post-Process, Edit Image, Move to Session,
+  Split into New Session, Copy All Details, Delete) are now grouped under small labeled
+  sub-headers — View, Process, Share, Organize, then Delete on its own — instead of one long
+  flat stack of buttons with nothing separating "just look at this" from "reprocess this."
 
 ### Fixed
 - The v0.5.2 (and, in the `.zip`'s case, v0.5.0/v0.5.1 too) release assets shipped with real
