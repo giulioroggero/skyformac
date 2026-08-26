@@ -37,6 +37,12 @@ struct PlanetaryPostProcessingView: View {
     /// background work currently running, however many stages deep `loadAndProcess` is.
     @State private var cancelCurrentWork: (() -> Void)?
 
+    /// Restricts `scoreAndRegister`'s intensity-weighted centroid to just the selected object —
+    /// see `roiSection`'s own doc comment for why this genuinely matters, not just a nice-to-have
+    /// crop. `nil` (the default) registers against the whole frame, same as before this existed.
+    @State private var roiRect: SirilElaborationService.PixelRect?
+    @State private var sourcePreview: (image: NSImage, pixelSize: (width: Int, height: Int))?
+
     @State private var loadedSequence: PlanetaryPostProcessor.LoadedSequence?
     @State private var registeredFrames: [PlanetaryPostProcessor.RegisteredFrame] = []
     @State private var baseStack: PlanetaryPostProcessor.StackedImage?
@@ -121,6 +127,7 @@ struct PlanetaryPostProcessingView: View {
         .frame(width: fullScreenSize.width, height: fullScreenSize.height)
         .background(.background)
         .onDisappear { cancelCurrentWork?() }
+        .task { sourcePreview = Self.loadSourcePreview(sourceURL) }
         .sheet(isPresented: $isPromptingGraXpertSettings) {
             GraXpertDisabledPrompt(onOpenSettings: onOpenGraXpertSettings)
         }
@@ -151,18 +158,22 @@ struct PlanetaryPostProcessingView: View {
     private var setupBody: some View {
         VStack {
             Spacer()
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Set Up Stacking").font(.title2.bold())
-                Text("Every frame in \(sourceURL.lastPathComponent) gets scored and registered first, regardless of these settings — they only decide how the sharpest frames get combined afterwards. You can re-stack with different values later without reloading.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                stackingSection
-                Divider()
-                waveletSection
+            HStack(alignment: .top, spacing: 24) {
+                roiSection
+                    .frame(width: 420)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Set Up Stacking").font(.title2.bold())
+                    Text("Every frame in \(sourceURL.lastPathComponent) gets scored and registered first, regardless of these settings — they only decide how the sharpest frames get combined afterwards. You can re-stack with different values later without reloading.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    stackingSection
+                    Divider()
+                    waveletSection
+                }
+                .padding(24)
+                .frame(width: 440)
+                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding(24)
-            .frame(width: 440)
-            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
             Button("Start Processing") {
                 stage = .loading
                 Task { await loadAndProcess() }
@@ -171,6 +182,42 @@ struct PlanetaryPostProcessingView: View {
             .controlSize(.large)
             .padding(.top, 20)
             Spacer()
+        }
+    }
+
+    /// "Select the object before stacking, otherwise it duplicates the images" — registration
+    /// (`scoreAndRegister`'s intensity-weighted centroid, the spec's "1-Point/Anchor Box"
+    /// technique) is built for a *single* bright, compact target. Left unconstrained, it weighs
+    /// every bright thing in the frame at once — a companion star, a moon, a sensor reflection —
+    /// and the centroid it lands on can shift from frame to frame as those objects' relative
+    /// brightness/position changes, registering each frame against a slightly different point
+    /// instead of the same one. Stacking frames that were each nudged toward a different bright
+    /// spot produces exactly the ghosted/doubled look reported — not a bug in the stack itself,
+    /// a bug in what registration was even trying to lock onto. Drawing a box around just the
+    /// intended object restricts the centroid search to it, the same fix `ElaborateSheet`'s own
+    /// `cropSection` already uses for Siril's crop-to-region. Hidden until the preview's loaded —
+    /// nothing to draw a box on yet.
+    @ViewBuilder
+    private var roiSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Object to Track").font(.title3.bold())
+                Spacer()
+                if roiRect != nil {
+                    Button("Clear") { roiRect = nil }
+                        .buttonStyle(.borderless)
+                }
+            }
+            if let sourcePreview {
+                CropRectangleSelector(image: sourcePreview.image, pixelSize: sourcePreview.pixelSize, cropRect: $roiRect)
+                Text(roiRect == nil
+                    ? "If there's more than one bright thing in frame (a moon, a companion star, a reflection), draw a box around the object you actually want — otherwise registration can lock onto a different one from frame to frame and the stack comes out ghosted/duplicated instead of sharp."
+                    : "Registering against \(roiRect!.width)×\(roiRect!.height)px.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView("Loading preview…").controlSize(.small)
+            }
         }
     }
 
@@ -490,11 +537,14 @@ struct PlanetaryPostProcessingView: View {
             appendLog("Loaded \(sequence.frames.count) frames (\(cameraDescription)).")
 
             progressFraction = 0
-            appendLog("Scoring & registering \(sequence.frames.count) frames against the sharpest frame's own position…")
+            let roi = roiRect.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+            appendLog(roi == nil
+                ? "Scoring & registering \(sequence.frames.count) frames against the sharpest frame's own position…"
+                : "Scoring & registering \(sequence.frames.count) frames against the selected object…")
             let frameCount = sequence.frames.count
             let registered = await runDetached { isCancelled in
                 PlanetaryPostProcessor.scoreAndRegister(
-                    frames: sequence.frames, isColorCamera: sequence.isColorCamera, bayerPattern: sequence.bayerPattern,
+                    frames: sequence.frames, isColorCamera: sequence.isColorCamera, bayerPattern: sequence.bayerPattern, roi: roi,
                     progress: { fraction in sink.reportProgress(fraction, phase: "Registering", total: frameCount) },
                     isCancelled: isCancelled
                 )
@@ -651,6 +701,18 @@ struct PlanetaryPostProcessingView: View {
         } else {
             isPromptingGraXpertSettings = true
         }
+    }
+
+    /// A quick auto-stretched preview of the source `.ser`'s first frame, just for `roiSection`'s
+    /// crop selector to draw over — same idea as `ElaborateSheet.loadSERPreview`, kept separate
+    /// since that one's `private` to its own file and this view has no other reason to depend on
+    /// `ElaborateSheet` at all.
+    private static func loadSourcePreview(_ url: URL) -> (NSImage, (width: Int, height: Int))? {
+        guard let (frame, isColorCamera, bayerPattern) = try? SERReader.readFirstFrame(from: url),
+              let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: frame)),
+              let cgImage = CGImageRenderer.makeDisplayImage(from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: auto)
+        else { return nil }
+        return (NSImage(cgImage: cgImage, size: NSSize(width: frame.width, height: frame.height)), (frame.width, frame.height))
     }
 }
 

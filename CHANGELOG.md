@@ -31,8 +31,17 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   Split into New Session, Copy All Details, Delete) are now grouped under small labeled
   sub-headers — View, Process, Share, Organize, then Delete on its own — instead of one long
   flat stack of buttons with nothing separating "just look at this" from "reprocess this."
+- Planetary Post-Processing: an "Object to Track" crop selector on the "Set Up Stacking"
+  screen, restricting registration's centroid search to just the drawn box.
 
 ### Fixed
+- Planetary Post-Processing could stack into a ghosted/duplicated-looking result whenever the
+  frame had more than one bright thing in it (a moon, a companion star, a reflection) —
+  registration's intensity-weighted centroid weighed all of them at once, and which point it
+  landed on could shift frame to frame as their relative brightness/position changed, so frames
+  ended up registered against different points instead of the same one. The new "Object to
+  Track" selector (see Added) fixes this by letting registration search only the selected
+  region; leaving it empty keeps the previous whole-frame behavior.
 - The v0.5.2 (and, in the `.zip`'s case, v0.5.0/v0.5.1 too) release assets shipped with real
   packaging bugs, not app bugs — re-uploaded corrected `v0.5.2` assets and updated the Homebrew
   Cask's sha256 to match, no app-code or version change needed:
