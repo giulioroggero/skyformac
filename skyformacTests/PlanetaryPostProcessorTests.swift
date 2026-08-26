@@ -233,6 +233,35 @@ struct PlanetaryPostProcessorTests {
         #expect(abs(redCentroidX - 6) < abs(7 - 6))
     }
 
+    /// Regression test for the exact failure reported: a whole-frame centroid on a small, faint
+    /// target against a mostly-empty frame can be dominated by noise/background rather than the
+    /// target, computing an implausibly large "correction" that moves a channel's blob somewhere
+    /// else entirely instead of the few-pixel nudge real atmospheric dispersion would need —
+    /// stacking R/G/B into three separate, non-overlapping blobs instead of one aligned image.
+    /// `alignRGBChannels` should recognize a shift far larger than real dispersion could ever be
+    /// and leave that channel alone rather than applying it.
+    @Test func alignRGBChannelsSkipsAnImplausiblyLargeShift() {
+        let width = 40, height = 40
+        var values = [Float](repeating: 0, count: width * height * 3)
+        // Green blob near the top-left...
+        for y in 4...6 {
+            for x in 4...6 {
+                values[(y * width + x) * 3 + 1] = 1.0
+            }
+        }
+        // ...red blob near the bottom-right — nowhere close to a real dispersion-fringing offset.
+        for y in 33...35 {
+            for x in 33...35 {
+                values[(y * width + x) * 3] = 1.0
+            }
+        }
+        let image = PlanetaryPostProcessor.StackedImage(width: width, height: height, channels: 3, values: values)
+        let aligned = PlanetaryPostProcessor.alignRGBChannels(image)
+
+        // Unchanged: the huge, clearly-wrong shift should have been skipped, not applied.
+        #expect(aligned.values == image.values)
+    }
+
     // MARK: - GPU debayer/luma
 
     /// Cross-checks `PlanetaryGPULuminanceConverter`'s Metal `debayerToLuma` kernel against

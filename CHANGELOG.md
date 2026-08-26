@@ -42,6 +42,16 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   ended up registered against different points instead of the same one. The new "Object to
   Track" selector (see Added) fixes this by letting registration search only the selected
   region; leaving it empty keeps the previous whole-frame behavior.
+- Planetary Post-Processing: "Align RGB Channels" could stack R/G/B into three entirely
+  separate, non-overlapping colored blobs instead of one aligned image — the same whole-frame
+  intensity-centroid weakness as the ghosting fix above, applied per color channel with no
+  bound on the resulting shift, so a small/faint target against a mostly-empty frame could have
+  its per-channel centroid dominated by noise/background rather than the target itself,
+  computing an implausibly large "correction" instead of the few-pixel nudge real atmospheric
+  dispersion needs. Now uses the same "Object to Track" region when one's selected, and clamps
+  the maximum shift to a small fraction of that region's size — a channel whose computed shift
+  exceeds it is left unaligned (visible fringing, at worst) rather than moved somewhere else
+  entirely.
 - The v0.5.2 (and, in the `.zip`'s case, v0.5.0/v0.5.1 too) release assets shipped with real
   packaging bugs, not app bugs — re-uploaded corrected `v0.5.2` assets and updated the Homebrew
   Cask's sha256 to match, no app-code or version change needed:

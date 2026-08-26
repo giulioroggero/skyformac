@@ -561,7 +561,23 @@ enum PlanetaryPostProcessor {
     /// spec Stage 5 describes (a planet's red/blue channels visibly offset from green after
     /// passing through more atmosphere off-zenith). No cross-correlation/dispersion-alignment
     /// code existed anywhere in this codebase before this.
-    static func alignRGBChannels(_ image: StackedImage) -> StackedImage {
+    ///
+    /// - Parameter roi: Same pixel region `scoreAndRegister`'s own `roi` restricts registration
+    ///   to (the "Object to Track" selector, in the stacked image's coordinate space — valid
+    ///   since stacking registers every frame to the same reference position, so the object stays
+    ///   roughly where it was in the original frames). `nil` weighs the whole image, same as
+    ///   before this parameter existed.
+    /// - Important: **Real atmospheric dispersion is always a small effect** — a few pixels, even
+    ///   under bad seeing, never a large fraction of the frame. A whole-frame (no `roi`)
+    ///   intensity centroid on a small, faint target against a mostly-black frame is dominated by
+    ///   whatever noise/background/vignetting happens to sit off to one side, not the target
+    ///   itself — reported as R/G/B stacking into three entirely separate, non-overlapping blobs
+    ///   instead of subtle edge fringing. `maxShiftFraction` bounds the correction to a sane
+    ///   fraction of the search region's own size and simply skips a channel whose computed shift
+    ///   exceeds it, on the theory that a huge "correction" is a noise-dominated centroid
+    ///   miscomputing itself, not a real optical effect — leaving that channel unaligned (visible
+    ///   fringing, at worst) is far less destructive than applying it anyway.
+    static func alignRGBChannels(_ image: StackedImage, roi: CGRect? = nil, maxShiftFraction: Float = 0.05) -> StackedImage {
         guard image.channels == 3 else { return image }
         let count = image.width * image.height
         var red = [Float](repeating: 0, count: count)
@@ -572,12 +588,16 @@ enum PlanetaryPostProcessor {
             green[i] = image.values[i * 3 + 1]
             blue[i] = image.values[i * 3 + 2]
         }
-        guard let greenCentroid = centroid(ofLuminance: green, width: image.width, height: image.height, roi: nil) else { return image }
+        guard let greenCentroid = centroid(ofLuminance: green, width: image.width, height: image.height, roi: roi) else { return image }
+
+        let searchDimension = roi.map { Float(min($0.width, $0.height)) } ?? Float(min(image.width, image.height))
+        let maxShiftMagnitude = max(2, searchDimension * maxShiftFraction)
 
         func aligned(_ channel: [Float]) -> [Float] {
-            guard let channelCentroid = centroid(ofLuminance: channel, width: image.width, height: image.height, roi: nil)
+            guard let channelCentroid = centroid(ofLuminance: channel, width: image.width, height: image.height, roi: roi)
             else { return channel }
             let shift = DriftAligner.shift(current: channelCentroid, reference: greenCentroid)
+            guard (shift * shift).sum().squareRoot() <= maxShiftMagnitude else { return channel }
             return bilinearShift(channel, width: image.width, height: image.height, channels: 1, dx: shift.x, dy: shift.y)
         }
         let alignedRed = aligned(red)

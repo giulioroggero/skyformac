@@ -433,7 +433,7 @@ struct PlanetaryPostProcessingView: View {
             if loadedSequence?.isColorCamera == true {
                 Toggle("Align RGB Channels", isOn: $alignRGBChannels)
                     .onChange(of: alignRGBChannels) { _, _ in scheduleSharpen() }
-                Text("Cross-correlates R/G/B to fix atmospheric-dispersion fringing at the disk's edge.")
+                Text("Aligns R/G/B to fix atmospheric-dispersion fringing at the disk's edge — most accurate with an \"Object to Track\" box drawn on the setup screen, so it isn't thrown off by noise/background elsewhere in the frame.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             } else {
@@ -634,10 +634,15 @@ struct PlanetaryPostProcessingView: View {
         let layers = waveletLayers
         let denoiseAmount = denoise
         let align = alignRGBChannels
+        // Same region the "Object to Track" selector restricted registration to — narrowing the
+        // per-channel centroid to just the object is what keeps this stage from being fooled by
+        // background/noise the way a whole-frame centroid was; see `alignRGBChannels`'s own doc
+        // comment for the failure mode this fixes.
+        let roi = roiRect.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
         sharpenTask = Task {
             let sharpened = await Task.detached(priority: .userInitiated) {
                 var image = PlanetaryPostProcessor.waveletSharpen(baseStack, layers: layers, denoise: denoiseAmount)
-                if align { image = PlanetaryPostProcessor.alignRGBChannels(image) }
+                if align { image = PlanetaryPostProcessor.alignRGBChannels(image, roi: roi) }
                 return image
             }.value
             if Task.isCancelled { return }
