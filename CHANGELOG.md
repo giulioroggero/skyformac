@@ -17,6 +17,12 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- Capture page: a Copy button next to File, Camera Settings, Session, and Stats — copies that
+  section as plain "Label: Value" text, ready to paste into a forum post or bug report. Also a
+  "Copy All Details" action (in File's action list) that combines every section on the page
+  into one block.
+
 ### Fixed
 - The v0.5.2 (and, in the `.zip`'s case, v0.5.0/v0.5.1 too) release assets shipped with real
   packaging bugs, not app bugs — re-uploaded corrected `v0.5.2` assets and updated the Homebrew

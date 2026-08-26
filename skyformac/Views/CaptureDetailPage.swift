@@ -100,7 +100,8 @@ struct CaptureDetailPage: View {
                 // Row 2: everything else about this capture — File, Camera Settings, Session, and
                 // Stats side by side, instead of each taking a full-width row of their own.
                 HStack(alignment: .top, spacing: 16) {
-                    PageSection(title: "File") {
+                    PageSection {
+                        sectionHeader("File", copying: fileStats)
                         StatsGridView(stats: fileStats)
                         if let note = capture.note, !note.isEmpty {
                             Text(note).font(.callout)
@@ -155,6 +156,12 @@ struct CaptureDetailPage: View {
                             Button("Split into New Session…", systemImage: "scissors") {
                                 isSplittingSession = true
                             }
+                            Divider()
+                            Button("Copy All Details", systemImage: "doc.on.doc") {
+                                copyToClipboard(copyAllDetailsText)
+                            }
+                            .help("Copies File, Camera Settings, Session, and Stats — everything on this page — as one block of plain text.")
+                            Divider()
                             Button("Delete…", systemImage: "trash", role: .destructive) {
                                 isConfirmingDelete = true
                             }
@@ -162,7 +169,8 @@ struct CaptureDetailPage: View {
                     }
 
                     if let cameraSettingsStats {
-                        PageSection(title: "Camera Settings") {
+                        PageSection {
+                            sectionHeader("Camera Settings", copying: cameraSettingsStats)
                             StatsGridView(stats: cameraSettingsStats)
                             if let preset = capture.preset {
                                 Button("Use These Settings & Open Live", systemImage: "video.fill") {
@@ -174,12 +182,14 @@ struct CaptureDetailPage: View {
                         }
                     }
 
-                    PageSection(title: "Session") {
+                    PageSection {
+                        sectionHeader("Session", copying: sessionContextStats)
                         StatsGridView(stats: sessionContextStats)
                     }
 
                     if !session.captures.isEmpty {
-                        PageSection(title: "Stats") {
+                        PageSection {
+                            sectionHeader("Stats", copying: sessionCaptureStats)
                             StatsGridView(stats: sessionCaptureStats)
                         }
                     }
@@ -483,6 +493,55 @@ struct CaptureDetailPage: View {
             }
         }
         return stats
+    }
+
+    /// One section's own `title` + its `StatsGridView` header row — a Copy button next to the
+    /// title, matching `ProjectDetailPane`'s own "title-less `PageSection` + manual header
+    /// `HStack`" pattern for whenever a section needs a trailing control the plain `title:`
+    /// convenience initializer has no room for.
+    @ViewBuilder
+    private func sectionHeader(_ title: String, copying stats: [StatItem]) -> some View {
+        HStack {
+            Text(title).font(.headline)
+            Spacer()
+            Button {
+                copyToClipboard(Self.plainText(title: title, stats: stats))
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .buttonStyle(.plain)
+            .help("Copy \(title)")
+        }
+    }
+
+    /// "Label: Value" per line, a leading title line — plain enough to paste straight into a
+    /// forum post, a Discord message, or a bug report, which is the actual point of copying any
+    /// of this rather than a screenshot.
+    private static func plainText(title: String, stats: [StatItem]) -> String {
+        ([title] + stats.map { "\($0.label): \($0.value)" }).joined(separator: "\n")
+    }
+
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    /// "Copy All Details" — every section on the page in one paste-able block, blank-line
+    /// separated, in the same top-to-bottom order they're shown. Includes the capture's own note
+    /// (not a `StatsGridView` field) since that's real shareable content too.
+    private var copyAllDetailsText: String {
+        var blocks = [Self.plainText(title: "File", stats: fileStats)]
+        if let note = capture.note, !note.isEmpty {
+            blocks.append("Note: \(note)")
+        }
+        if let cameraSettingsStats {
+            blocks.append(Self.plainText(title: "Camera Settings", stats: cameraSettingsStats))
+        }
+        blocks.append(Self.plainText(title: "Session", stats: sessionContextStats))
+        if !session.captures.isEmpty {
+            blocks.append(Self.plainText(title: "Stats", stats: sessionCaptureStats))
+        }
+        return blocks.joined(separator: "\n\n")
     }
 }
 
