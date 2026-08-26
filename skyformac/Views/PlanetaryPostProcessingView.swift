@@ -139,12 +139,15 @@ struct PlanetaryPostProcessingView: View {
         }
     }
 
-    /// Shown first, before any file I/O or computation starts — lets the user pick the two
-    /// parameters that actually shape *what gets loaded/stacked* (`keepBestPercent`/`stackMethod`)
-    /// up front, rather than silently running with hardcoded defaults nobody chose and only
-    /// letting them override after the fact via "Restack". The heavier wavelet/color/stretch
-    /// parameters stay adjustable live after stacking, same as before — those are cheap to re-run
-    /// and benefit from seeing the actual stacked image first.
+    /// Shown first, before any file I/O or computation starts — lets the user pick the
+    /// parameters up front rather than silently running with hardcoded defaults nobody chose.
+    /// `keepBestPercent`/`stackMethod` are the two that actually shape *what gets loaded/
+    /// stacked*; `waveletSection` below is here too so the sharpening you want is already dialed
+    /// in for the very first result — same `@State` the ready screen's own copy binds to, so
+    /// whatever's set here just carries straight through to `scheduleSharpen()`'s first real run
+    /// once a stacked image actually exists (that function itself no-ops with nothing to sharpen
+    /// yet, so touching these sliders now is harmless). Still adjustable live after stacking too,
+    /// same as before — cheap to re-run and easier to judge against the real stacked image.
     private var setupBody: some View {
         VStack {
             Spacer()
@@ -154,6 +157,8 @@ struct PlanetaryPostProcessingView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 stackingSection
+                Divider()
+                waveletSection
             }
             .padding(24)
             .frame(width: 440)

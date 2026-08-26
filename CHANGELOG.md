@@ -22,6 +22,10 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   section as plain "Label: Value" text, ready to paste into a forum post or bug report. Also a
   "Copy All Details" action (in File's action list) that combines every section on the page
   into one block.
+- Planetary Post-Processing: Wavelet Sharpening is now adjustable on the initial "Set Up
+  Stacking" screen too, not only after a stack exists — the same sliders/state the ready
+  screen's own copy binds to, so whatever's dialed in before "Start Processing" is already
+  applied to the very first result instead of needing a second pass to fix.
 
 ### Fixed
 - The v0.5.2 (and, in the `.zip`'s case, v0.5.0/v0.5.1 too) release assets shipped with real
