@@ -626,14 +626,24 @@ enum PlanetaryPostProcessor {
             green[i] = image.values[i * 3 + 1]
             blue[i] = image.values[i * 3 + 2]
         }
-        guard let greenCentroid = centroid(ofLuminance: green, width: image.width, height: image.height, roi: roi) else { return image }
+        // Reuses `gpuRegistrar` (registration's own GPU centroid, same doc comment/formula) when
+        // one's available rather than a third centroid implementation — this is the same
+        // intensity-weighted-sum math `centroid(ofLuminance:...)` computes on CPU, just run once
+        // per channel here instead of once per frame.
+        func channelCentroid(_ channel: [Float]) -> SIMD2<Float>? {
+            if let gpuRegistrar {
+                return gpuRegistrar.scoreAndCentroid(ofLuminance: channel, width: image.width, height: image.height, roi: roi)?.centroid
+            }
+            return centroid(ofLuminance: channel, width: image.width, height: image.height, roi: roi)
+        }
+
+        guard let greenCentroid = channelCentroid(green) else { return image }
 
         let searchDimension = roi.map { Float(min($0.width, $0.height)) } ?? Float(min(image.width, image.height))
         let maxShiftMagnitude = max(2, searchDimension * maxShiftFraction)
 
         func aligned(_ channel: [Float]) -> [Float] {
-            guard let channelCentroid = centroid(ofLuminance: channel, width: image.width, height: image.height, roi: roi)
-            else { return channel }
+            guard let channelCentroid = channelCentroid(channel) else { return channel }
             let shift = DriftAligner.shift(current: channelCentroid, reference: greenCentroid)
             guard (shift * shift).sum().squareRoot() <= maxShiftMagnitude else { return channel }
             return bilinearShift(channel, width: image.width, height: image.height, channels: 1, dx: shift.x, dy: shift.y)

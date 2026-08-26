@@ -27,6 +27,7 @@ struct CaptureDetailPage: View {
     @State private var isConfirmingDelete = false
     @State private var isMovingToSession = false
     @State private var isSplittingSession = false
+    @State private var isViewingFullScreen = false
     @State private var actionErrorMessage: String?
     /// Keyed to a focusable modifier on the page itself — arrow-key stepping (`onKeyPress` below)
     /// only receives events while this view actually holds keyboard focus, which nothing else on
@@ -261,6 +262,11 @@ struct CaptureDetailPage: View {
                 }
             )
         }
+        .sheet(isPresented: $isViewingFullScreen) {
+            if let image = NSImage(contentsOf: fileURL) {
+                FullScreenImageViewer(image: image, fileURL: fileURL, onSetAsThumbnail: setSessionThumbnailFromThisCapture)
+            }
+        }
         .confirmationDialog(
             "Delete this capture?", isPresented: $isConfirmingDelete, titleVisibility: .visible
         ) {
@@ -359,6 +365,20 @@ struct CaptureDetailPage: View {
         } else {
             isPromptingSirilSettings = true
         }
+    }
+
+    /// `FullScreenImageViewer`'s "Set as Thumbnail" for a capture — session-scoped (not
+    /// project-scoped), matching `SessionDetailPane`'s own `CoverThumbnailEditor`, since this is
+    /// exactly what that editor already writes, just triggered from the viewer instead of a file
+    /// picker.
+    private func setSessionThumbnailFromThisCapture() {
+        guard let name = try? store.importCustomThumbnail(from: fileURL, for: session, in: project) else { return }
+        var updatedSession = session
+        updatedSession.customThumbnailFileName = name
+        var updatedProject = project
+        guard let index = updatedProject.sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        updatedProject.sessions[index] = updatedSession
+        try? cameraManager.projectsLibrary.save(updatedProject)
     }
 
     @ViewBuilder
@@ -466,6 +486,12 @@ struct CaptureDetailPage: View {
             if capture.kind == .fits {
                 Button("Open in Viewer", systemImage: "eye") {
                     cameraManager.openExportedFile(fileURL)
+                }
+            } else if capture.kind == .png || capture.kind == .tiff {
+                // A real image `NSImage` can decode — opens in-app, full screen, with zoom,
+                // rather than handing off to whatever the system associates with the extension.
+                Button("Open", systemImage: "arrow.up.left.and.arrow.down.right") {
+                    isViewingFullScreen = true
                 }
             } else {
                 Button("Open", systemImage: "arrow.up.forward.app") {

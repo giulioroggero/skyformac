@@ -18,6 +18,12 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- A full-screen, zoomable image viewer (pinch/scroll-wheel zoom, pan) shared by every "Open" on
+  a viewable image: the Capture page's "Open" (PNG/TIFF captures) and tapping an elaborated
+  image both open it now, instead of handing off to an external app or a small non-zoomable
+  sheet. Its toolbar adds Save As…, Save to Photos, Share, and Set as Thumbnail (session-scoped
+  from a capture, project-scoped from an elaborated image) — actions that weren't reachable from
+  either "Open" path before.
 - Capture page: a Copy button next to File, Camera Settings, Session, and Stats — copies that
   section as plain "Label: Value" text, ready to paste into a forum post or bug report. Also a
   "Copy All Details" action (in File's action list) that combines every section on the page
@@ -44,6 +50,10 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   at once like the CPU path does. Median stacking (which needs every sample resident to pick a
   middle value from) is unaffected and stays on the existing multi-core CPU path. Falls back to
   the identical CPU path with no behavior change wherever there's no usable GPU.
+- "Align RGB Channels" now reuses `PlanetaryGPURegistrar`'s GPU centroid (the same math
+  `scoreAndRegister` already runs on the GPU) for its own per-channel centroid instead of a third
+  CPU implementation — the last CPU-only registration-style math left in the pipeline. Falls back
+  to the identical CPU path with no behavior change wherever there's no usable GPU.
 
 ### Fixed
 - Planetary Post-Processing could stack into a ghosted/duplicated-looking result whenever the

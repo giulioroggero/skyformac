@@ -32,5 +32,7 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Used to tag a project or session with your observing location — recorded once per request, not tracked continuously, and only when you tap "Use Current Location."</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Used only when you tap "Save to Photos" on an image — adds that one file to your library, never reads or modifies your existing photos.</string>
 </dict>
 </plist>

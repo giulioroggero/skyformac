@@ -909,6 +909,7 @@ struct ElaboratedImageCard: View {
 
     @State private var isConfirmingDelete = false
     @State private var isShowingDetail = false
+    @State private var isViewingFullScreen = false
     @State private var isReElaborating = false
     @State private var isSendingToGraXpert = false
     @State private var isPromptingGraXpertSettings = false
@@ -976,12 +977,10 @@ struct ElaboratedImageCard: View {
         }
         .frame(width: 150, alignment: .leading)
         .contentShape(Rectangle())
-        // Opens the same detail sheet the context menu's "Info…" does — the plain generic
-        // `ExportedFileViewerView` (what `cameraManager.openExportedFile(fileURL)` shows) has no
-        // way to know this file is an elaborated image at all, so it could never offer Delete/
-        // Re-elaborate/Info; a click landing there left exactly the "no info, can't delete"
-        // report this replaces.
-        .onTapGesture { isShowingDetail = true }
+        // Tapping opens the same full-screen zoom viewer "Open" uses everywhere else in the app
+        // (`FullScreenImageViewer`) — metadata/Delete/Re-elaborate move to the context menu's
+        // "Info…", which still opens the old detail sheet below.
+        .onTapGesture { isViewingFullScreen = true }
         .contextMenu {
             Button("Info…", systemImage: "info.circle") { isShowingDetail = true }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
@@ -995,6 +994,11 @@ struct ElaboratedImageCard: View {
                 Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
             }
             Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
+        }
+        .sheet(isPresented: $isViewingFullScreen) {
+            if let nsImage = NSImage(contentsOf: fileURL) {
+                FullScreenImageViewer(image: nsImage, fileURL: fileURL, onSetAsThumbnail: setProjectThumbnailFromThisImage)
+            }
         }
         .sheet(isPresented: $isShowingDetail) {
             ElaboratedImageDetailSheet(
@@ -1061,6 +1065,18 @@ struct ElaboratedImageCard: View {
         } message: {
             Text("This removes the file from disk — this can't be undone.")
         }
+    }
+
+    /// `FullScreenImageViewer`'s "Set as Thumbnail" for an elaborated image — project-scoped
+    /// (not session-scoped): an elaborated image can come from a whole session or span multiple
+    /// sources (`sourceSessionIDs`), so the project — the one thing every elaborated image
+    /// unambiguously belongs to — is the natural cover-image target, matching
+    /// `ProjectDetailPane`'s own `CoverThumbnailEditor`.
+    private func setProjectThumbnailFromThisImage() {
+        guard let name = try? cameraManager.projectStore.importCustomThumbnail(from: fileURL, for: project) else { return }
+        var updated = project
+        updated.customThumbnailFileName = name
+        try? cameraManager.projectsLibrary.save(updated)
     }
 
     private func startSendingToGraXpert() {
