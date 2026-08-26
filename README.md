@@ -156,11 +156,17 @@ file alongside `skyformac.app` to clear this automatically:
 
 If macOS still won't run the script itself, right-click it, choose **Open**,
 then confirm **Open** in the dialog — the same one-time trust step as any
-unsigned app. You can also do the fix by hand from Terminal:
+unsigned app. You can also do the fix by hand from Terminal (run this from
+`/Applications`, or wherever `skyformac.app` actually is):
 
 ```
-xattr -dr com.apple.quarantine skyformac.app
+xattr -d com.apple.quarantine skyformac.app
 ```
+
+(Not `-dr` — some `xattr` builds, including the one some Macs ship with, don't
+recognize `-r` and just print a usage error. `-d` alone is enough: the
+quarantine flag that actually blocks Gatekeeper lives on the `.app` bundle
+itself, not on every file inside it.)
 
 ## Building and running
 

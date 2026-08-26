@@ -65,6 +65,54 @@ compatibility concern the way Store distribution might.
    SHA-256 (`shasum -a 256 build/release/Skyformac-<version>.dmg`), then copy that same file into
    the tap repo (see below) and push it there too.
 
+## Ad-hoc manual releases (no Developer ID certificate available)
+
+Every release through v0.5.2 was actually built this way, not via `scripts/release.sh` above —
+there's no Developer ID Application certificate or notarytool profile set up. The app is still
+usable (ad-hoc signed, matching what "Fix Gatekeeper Warning.command" is for), but building this
+way instead of via `xcodebuild archive` hits two real gotchas worth knowing about:
+
+- **Strip the XCTest/Testing frameworks before signing/packaging.** `xcodebuild build -scheme
+  skyformac` builds every target in the shared scheme, and the `skyformac` app target ends up
+  with `Testing.framework`, `XCTest.framework`, `XCUIAutomation.framework`, and several more
+  Apple testing frameworks embedded in `Contents/Frameworks` — dead weight the main executable
+  never links against (confirmed via `otool -L` — none of them show up), roughly doubling the
+  shipped app's size. Remove everything in `Contents/Frameworks` except `libASICamera2.dylib`
+  before signing.
+- **Use `zip`, not `ditto -c -k`, to build the `.zip` asset.** `ditto`'s zip archiver scatters
+  AppleDouble resource-fork sidecar files (`._Info.plist`, `._skyformac`, ...) *inside* the app
+  bundle's own directory tree, not just alongside it — extracting that zip elsewhere and running
+  `codesign --verify` on the result fails with "a sealed resource is missing or invalid" (Gatekeeper
+  would refuse to launch it too), because those extra files aren't in the bundle's sealed resource
+  manifest. `hdiutil create -srcfolder` for the `.dmg` doesn't have this problem — only the zip
+  path does. Confirmed by actually extracting the built zip and running `codesign --verify --deep
+  --strict` against the result, not just checking the pre-zip `.app`.
+- **The `.zip` needs `Fix Gatekeeper Warning.command` copied in too**, same as the `.dmg` — it's
+  easy to package just the `.app` alone by mistake (this shipped broken in the v0.5.0–v0.5.1
+  `.zip` release assets: no script at all, so the README's own zip instructions had nothing to
+  run).
+
+Roughly:
+```
+xcodebuild build -scheme skyformac -configuration Release -destination 'platform=macOS' \
+  CONFIGURATION_BUILD_DIR="$PWD/build/release-app"
+APP="build/release-app/skyformac.app"
+rm -rf "$APP/Contents/PlugIns"
+# Strip everything except libASICamera2.dylib from Contents/Frameworks (see above)
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP"
+
+mkdir -p build/zip-staging && cp -R "$APP" build/zip-staging/ && cp "scripts/Fix Gatekeeper Warning.command" build/zip-staging/
+(cd build/zip-staging && zip -r -X -y "../release-assets/skyformac-v<version>-macOS.zip" skyformac.app "Fix Gatekeeper Warning.command")
+
+mkdir -p build/dmg-staging && cp -R "$APP" build/dmg-staging/ && ln -s /Applications build/dmg-staging/Applications && cp "scripts/Fix Gatekeeper Warning.command" build/dmg-staging/
+hdiutil create -volname "Skyformac <version>" -srcfolder build/dmg-staging -ov -format UDZO build/release-assets/skyformac-v<version>-macOS.dmg
+```
+
+Before uploading either asset, extract it fresh into a scratch directory and run `codesign
+--verify --deep --strict` on the result — checking the pre-packaging `.app` isn't enough, since
+packaging itself is exactly what can break the seal.
+
 ## Homebrew Cask
 
 `Casks/skyformac.rb` in this repo is kept in sync with the live formula, not read by Homebrew

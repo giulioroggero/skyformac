@@ -17,6 +17,29 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Fixed
+- The v0.5.2 (and, in the `.zip`'s case, v0.5.0/v0.5.1 too) release assets shipped with real
+  packaging bugs, not app bugs — re-uploaded corrected `v0.5.2` assets and updated the Homebrew
+  Cask's sha256 to match, no app-code or version change needed:
+  - The `.zip` asset was missing `Fix Gatekeeper Warning.command` entirely — packaging only
+    ditto'd the `.app`, so the README's own "unzip, then run the script" instructions had
+    nothing to run (`./Fix Gatekeeper Warning.command: zsh: exec format error` when a shell
+    tried to execute the nonexistent path some other way).
+  - Both assets' `skyformac.app` had Apple's XCTest/Testing frameworks embedded in
+    `Contents/Frameworks` — dead weight from the shared build scheme that the app never
+    actually links against, confirmed via `otool -L`, but still roughly doubling the shipped
+    size. Stripped.
+  - The `.zip` specifically (not the `.dmg`) was built with `ditto -c -k`, which scatters
+    AppleDouble resource-fork sidecar files *inside* the app bundle's own directory tree —
+    extracting that zip and running `codesign --verify` on the result failed with "a sealed
+    resource is missing or invalid" (Gatekeeper would refuse to launch it). Switched to plain
+    `zip`, which doesn't have this problem; confirmed by actually extracting the rebuilt zip
+    and re-verifying the signature. See `docs/distribution.md`'s new "Ad-hoc manual releases"
+    section for the full writeup.
+- README's manual quarantine-removal fallback used `xattr -dr com.apple.quarantine
+  skyformac.app` — some `xattr` builds don't recognize `-r` and just print a usage error. `-d`
+  alone is enough; the flag that blocks Gatekeeper lives on the `.app` bundle itself.
+
 ## [0.5.2] - 2026-08-25
 
 ### Added
