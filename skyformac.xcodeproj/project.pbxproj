@@ -48,6 +48,7 @@
 		336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */; };
 		34ADC5FC3B72545D90A47FA3 /* PlanetaryGPULuminanceConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F990EF1378818CE22BE575 /* PlanetaryGPULuminanceConverter.swift */; };
 		1555B194C0614E778477B924 /* PlanetaryGPURegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7643E7F974064883BBCB5C12 /* PlanetaryGPURegistrar.swift */; };
+		A1570B9B304D4595B3D50FF2 /* PlanetaryGPUStacker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B73FC507ABE4C7FA9CA975F /* PlanetaryGPUStacker.swift */; };
 		37A64BE1A4544856BD8BC4A5 /* WCSProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390BD552FE334BDBA04A7447 /* WCSProjection.swift */; };
 		3879D4A9450B9B00DAB4F839 /* StarNetElaborationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC653B9CD6FB08FB1E5AC0F /* StarNetElaborationTests.swift */; };
 		39C4C19C83FD07F8D3A01A57 /* AstronomyKnowledgeBaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */; };
@@ -438,6 +439,7 @@
 		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
 		B7F990EF1378818CE22BE575 /* PlanetaryGPULuminanceConverter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryGPULuminanceConverter.swift; sourceTree = "<group>"; };
 		7643E7F974064883BBCB5C12 /* PlanetaryGPURegistrar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryGPURegistrar.swift; sourceTree = "<group>"; };
+		1B73FC507ABE4C7FA9CA975F /* PlanetaryGPUStacker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryGPUStacker.swift; sourceTree = "<group>"; };
 		B8A44408D853D33E940C1CF7 /* StackSNREstimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimator.swift; sourceTree = "<group>"; };
 		BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SmartLiveStackGateTests.swift; sourceTree = "<group>"; };
 		BAC872B515085B7D11644CA5 /* AllSkyAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AllSkyAnalyzerTests.swift; sourceTree = "<group>"; };
@@ -965,6 +967,7 @@
 				5BC866224EC9559952B3E257 /* PlanetaryPostProcessor.swift */,
 				B7F990EF1378818CE22BE575 /* PlanetaryGPULuminanceConverter.swift */,
 				7643E7F974064883BBCB5C12 /* PlanetaryGPURegistrar.swift */,
+				1B73FC507ABE4C7FA9CA975F /* PlanetaryGPUStacker.swift */,
 				265930E532F78AC24D8C75BB /* ImageEditor.swift */,
 			);
 			name = Rendering;
@@ -1229,6 +1232,7 @@
 				B321B7D959BF7882314F092B /* PlanetaryPostProcessingView.swift in Sources */,
 				34ADC5FC3B72545D90A47FA3 /* PlanetaryGPULuminanceConverter.swift in Sources */,
 				1555B194C0614E778477B924 /* PlanetaryGPURegistrar.swift in Sources */,
+				A1570B9B304D4595B3D50FF2 /* PlanetaryGPUStacker.swift in Sources */,
 				8B63FF69E0600CE9493DCC9C /* LiveCaptureBrowserView.swift in Sources */,
 				729D60C9AC7A40C18CAA0964 /* LaunchSplashView.swift in Sources */,
 				1944C736A34F20D7A125646C /* ImageEditor.swift in Sources */,

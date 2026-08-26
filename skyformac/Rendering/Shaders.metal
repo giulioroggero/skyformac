@@ -1310,3 +1310,30 @@ kernel void planetaryCentroidPartial(
         partials[groupIndex] = float4(totalSumI, totalSumIx, totalSumIy, totalCount);
     }
 }
+
+// MARK: - Planetary mean-stacking (PlanetaryGPUStacker)
+
+/// RGBA counterpart of `accumulateMonoAligned` above — same single-shift bilinear-sampled
+/// shift-and-add, just carrying all 4 channels through instead of only `.r`, so one kernel
+/// covers both a mono debayered frame (channels 1-3 unused, left at whatever `clearMono` zeroed
+/// them to) and a color one (channels 1-3 = G, B, unused alpha) without a second copy of this
+/// kernel per channel count. `PlanetaryGPUStacker.meanStack` is the Swift side: it streams one
+/// already-debayered/normalized frame through this per call, discarding the source texture
+/// afterward, so unlike `PlanetaryPostProcessor.stack`'s existing CPU mean path (which holds
+/// every shifted frame in memory simultaneously before combining) this never has more than one
+/// input frame resident at a time — the divide-by-count that turns this running sum into a true
+/// average happens back on the CPU when the caller reads the accumulator out, exactly like
+/// `MetalFrameRenderer`'s own live-stack `divisor` handling.
+kernel void accumulateRGBAAligned(
+    texture2d<float, access::sample> source [[texture(0)]],
+    texture2d<float, access::read_write> accumulator [[texture(1)]],
+    constant float2 &shift [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= accumulator.get_width() || gid.y >= accumulator.get_height()) { return; }
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    float2 uv = (float2(gid) + 0.5 + shift) / float2(source.get_width(), source.get_height());
+    float4 newValue = source.sample(s, uv);
+    float4 current = accumulator.read(gid);
+    accumulator.write(current + newValue, gid);
+}

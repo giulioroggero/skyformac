@@ -38,6 +38,12 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   per-frame sharpness score and centroid, the two full-resolution CPU scalar passes left in
   that stage after debayering moved to Metal. Falls back to the identical CPU path with no
   behavior change wherever there's no usable GPU (e.g. sandboxed CI).
+- Planetary Post-Processing Mean stacking now runs on the GPU too (`PlanetaryGPUStacker`) —
+  each selected frame's bilinear shift and its accumulation into the running average happen in
+  one Metal pass, streamed one frame at a time instead of holding every shifted frame in memory
+  at once like the CPU path does. Median stacking (which needs every sample resident to pick a
+  middle value from) is unaffected and stays on the existing multi-core CPU path. Falls back to
+  the identical CPU path with no behavior change wherever there's no usable GPU.
 
 ### Fixed
 - Planetary Post-Processing could stack into a ghosted/duplicated-looking result whenever the

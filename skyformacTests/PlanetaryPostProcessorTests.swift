@@ -329,6 +329,84 @@ struct PlanetaryPostProcessorTests {
         #expect(sharpResult.quality > blurredResult.quality)
     }
 
+    // MARK: - GPU mean-stacking (PlanetaryGPUStacker)
+
+    /// Cross-checks `PlanetaryGPUStacker.meanStack` against the CPU path it replaces for
+    /// `.mean` — `bilinearShift` per frame, then a plain per-pixel average — for a mono
+    /// (`channels == 1`) burst. Tight tolerance is expected: both sides do the exact same
+    /// bilinear-interpolation math, just on GPU vs CPU. Skips when this environment has no
+    /// usable `MTLDevice`.
+    @Test func gpuMeanStackMatchesCPUBilinearShiftAndAverageForMono() throws {
+        let width = 24, height = 24, channels = 1
+        let frames: [[Float]] = (0..<5).map { seed in
+            luminanceGrid(width: width, height: height) { x, y in
+                let cx = 10 + seed, cy = 12 - seed
+                return (x >= cx && x <= cx + 2 && y >= cy && y <= cy + 2) ? 0.9 : 0.1
+            }
+        }
+        let shifts: [SIMD2<Float>] = (0..<5).map { SIMD2<Float>(Float($0) * 0.4 - 0.6, Float($0) * -0.3 + 0.5) }
+
+        guard let gpu = PlanetaryGPUStacker() else { return }
+        let gpuResult = try #require(
+            gpu.meanStack(frames, shifts: shifts, width: width, height: height, channels: channels, isCancelled: { false })
+        )
+
+        let cpuShifted = zip(frames, shifts).map {
+            PlanetaryPostProcessor.bilinearShift($0, width: width, height: height, channels: channels, dx: $1.x, dy: $1.y)
+        }
+        var cpuAverage = [Float](repeating: 0, count: width * height * channels)
+        for shifted in cpuShifted {
+            for i in cpuAverage.indices { cpuAverage[i] += shifted[i] }
+        }
+        for i in cpuAverage.indices { cpuAverage[i] /= Float(cpuShifted.count) }
+
+        #expect(gpuResult.count == cpuAverage.count)
+        for i in gpuResult.indices {
+            #expect(abs(gpuResult[i] - cpuAverage[i]) < 0.01)
+        }
+    }
+
+    /// Same cross-check as above, for a debayered RGB (`channels == 3`) burst — the path
+    /// `accumulateRGBAAligned` (as opposed to the pre-existing mono-only `accumulateMonoAligned`)
+    /// exists for. Skips when this environment has no usable `MTLDevice`.
+    @Test func gpuMeanStackMatchesCPUBilinearShiftAndAverageForRGB() throws {
+        let width = 20, height = 20, channels = 3
+        func rgbGrid(seed: Int) -> [Float] {
+            var values = [Float](repeating: 0, count: width * height * channels)
+            for y in 0..<height {
+                for x in 0..<width {
+                    let base = (y * width + x) * channels
+                    let inBlob = x >= 8 + seed && x <= 10 + seed && y >= 8 && y <= 10
+                    values[base] = inBlob ? 0.8 : 0.05 // R
+                    values[base + 1] = inBlob ? 0.6 : 0.1 // G
+                    values[base + 2] = inBlob ? 0.4 : 0.15 // B
+                }
+            }
+            return values
+        }
+        let frames: [[Float]] = (0..<4).map { rgbGrid(seed: $0) }
+        let shifts: [SIMD2<Float>] = (0..<4).map { SIMD2<Float>(Float($0) * -0.5, Float($0) * 0.2) }
+
+        guard let gpu = PlanetaryGPUStacker() else { return }
+        let gpuResult = try #require(
+            gpu.meanStack(frames, shifts: shifts, width: width, height: height, channels: channels, isCancelled: { false })
+        )
+
+        let cpuShifted = zip(frames, shifts).map {
+            PlanetaryPostProcessor.bilinearShift($0, width: width, height: height, channels: channels, dx: $1.x, dy: $1.y)
+        }
+        var cpuAverage = [Float](repeating: 0, count: width * height * channels)
+        for shifted in cpuShifted {
+            for i in cpuAverage.indices { cpuAverage[i] += shifted[i] }
+        }
+        for i in cpuAverage.indices { cpuAverage[i] /= Float(cpuShifted.count) }
+
+        #expect(gpuResult.count == cpuAverage.count)
+        for i in gpuResult.indices {
+            #expect(abs(gpuResult[i] - cpuAverage[i]) < 0.01)
+        }
+    }
+
     // MARK: - GPU debayer/luma
 
     /// Cross-checks `PlanetaryGPULuminanceConverter`'s Metal `debayerToLuma` kernel against

@@ -47,6 +47,9 @@ enum PlanetaryPostProcessor {
     /// Same "GPU when available, CPU fallback otherwise" shape for `scoreAndRegister`'s own
     /// quality-scoring/centroid math — see `PlanetaryGPURegistrar`'s own doc comment.
     private static let gpuRegistrar = PlanetaryGPURegistrar()
+    /// Same shape again for `stack`'s `.mean` shift+combine — see `PlanetaryGPUStacker`'s own
+    /// doc comment for why `.median` doesn't use this and stays on the CPU `combine` path.
+    private static let gpuStacker = PlanetaryGPUStacker()
 
     // MARK: - Stage 1: Ingestion
 
@@ -333,6 +336,27 @@ enum PlanetaryPostProcessor {
         }
         guard !isCancelled() else { return nil }
         let fixedChannels = channels
+
+        // GPU mean-stack path: streams shift+accumulate straight through `gpuStacker` instead of
+        // running Pass 2 (CPU bilinearShift) + `combine` below — see `PlanetaryGPUStacker`'s own
+        // doc comment for why this only covers `.mean` (a true `.median` needs every sample
+        // resident to select from, defeating this path's whole streaming-memory advantage, so
+        // `.median` always falls through to the existing CPU passes further down).
+        if method == .mean, let gpuStacker {
+            let framesAndShifts = selected.indices.compactMap { i -> ([Float], SIMD2<Float>)? in
+                normalizedFrames[i].map { ($0, selected[i].shift) }
+            }
+            if !framesAndShifts.isEmpty, !isCancelled(),
+               let combined = gpuStacker.meanStack(
+                   framesAndShifts.map(\.0), shifts: framesAndShifts.map(\.1),
+                   width: width, height: height, channels: fixedChannels, isCancelled: isCancelled,
+                   progress: { fraction in progress?(0.3 + fraction * 0.7) }
+               ) {
+                return StackedImage(width: width, height: height, channels: fixedChannels, values: combined)
+            }
+            // GPU unavailable/failed for this burst — fall through to the CPU passes below.
+        }
+        guard !isCancelled() else { return nil }
 
         // Pass 2 (parallel — bilinear resample): unlike the debayer step above, each selected
         // frame's shift is completely independent of every other's, so this full-resolution
