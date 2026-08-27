@@ -186,6 +186,16 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   unifies the menu's shape, not what any button actually does. No user-visible change.
 
 ### Fixed
+- Live Capture's own frame browser (the "iPhone Live Photo"-style scrubber shown after a Live
+  Capture burst) stayed stuck on a loading spinner forever when the Metal (GPU) renderer was
+  active — confirmed live: a frame was selected and scored ("Frame 3 of 10 · sharpness 415.6"),
+  but the preview pane stayed black. `refreshCurrentImage()` deliberately only renders
+  `currentImage` in CPU mode (`MetalPreviewView` reads `currentFrame` directly in GPU mode instead,
+  for the *live streaming* preview) — but `LiveCaptureBrowserView` has its own separate preview
+  pane that only ever reads `currentImage`, so browsing an already-captured burst's frames in GPU
+  mode had nothing to show. `showLiveCaptureFrame(atIndex:)` now renders on demand in GPU mode too
+  — the same "rare, user-initiated action" fallback `currentDisplayImage()` already uses for
+  export/polar alignment, costing nothing like what makes the live per-frame path skip it.
 - Project thumbnails on the Projects browser's own grid didn't render at a consistent size — the
   grid's `GridItem(.adaptive(minimum: 220, maximum: 280))` let each card's own width *stretch* to
   fill leftover space in its row, so two cards in the same row could land at genuinely different

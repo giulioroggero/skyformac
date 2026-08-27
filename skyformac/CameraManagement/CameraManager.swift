@@ -3583,6 +3583,19 @@ final class CameraManager {
         currentFrame = frames[index].frame
         frameID &+= 1
         refreshCurrentImage()
+        // `refreshCurrentImage()` only actually renders `currentImage` in CPU mode (see its own
+        // doc comment) — fine for the live per-frame stream (`MetalPreviewView` reads
+        // `currentFrame` directly in GPU mode, never `currentImage`), but `LiveCaptureBrowserView`
+        // has its own separate preview pane that only ever reads `currentImage`, so browsing a
+        // captured burst's frames in GPU mode left that preview stuck on a loading spinner
+        // forever — confirmed live (GPU mode active, a frame selected and scored, preview still
+        // black). This is exactly the kind of rare, user-initiated action `currentDisplayImage()`'s
+        // own on-demand fallback already exists for (export, polar alignment); rendering
+        // unconditionally here, once per scrub (not once per live frame), costs nothing like what
+        // makes `refreshCurrentImage()` skip it for the streaming path.
+        if useMetalRenderer, let frame = currentFrame, let camera = connectedCamera {
+            currentImage = renderedCurrentImage(frame: frame, camera: camera)
+        }
     }
 
     // MARK: - Export
