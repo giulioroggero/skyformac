@@ -13,15 +13,23 @@ import Metal
 ///
 /// `init?` fails — callers fall back to the CPU path — when there's no usable `MTLDevice`/Metal
 /// library/pipeline, e.g. a sandboxed CI or headless test runner.
-/// `@unchecked Sendable`: the mutable texture cache is only ever touched from whichever single
-/// background thread `PlanetaryPostProcessor`'s registration loop runs on for a given burst — that
-/// loop processes frames strictly one at a time, never concurrently, so there's no actual shared
-/// mutable access to race on despite the compiler having no way to see that.
+/// `@unchecked Sendable`: this is one `static let` instance shared across every call site (see
+/// `PlanetaryPostProcessor.gpuLuminanceConverter`), and while any *one* burst's own
+/// registration/stacking loop only ever calls it from a single thread at a time, nothing stops
+/// two different bursts — or, as actually observed, two Swift Testing tests running in
+/// parallel — from calling it concurrently from two different threads. `lock` serializes those:
+/// each `luminance(of:)`/`rgb(of:)` call holds it for its whole texture-upload → dispatch →
+/// readback sequence, so a second concurrent call blocks instead of corrupting the first's
+/// cached `sourceTexture`/`lumaDestinationTexture`/`rgbDestinationTexture` state — the actual bug
+/// (traced to this same shared-instance pattern in the sibling `PlanetaryGPUStacker`) that
+/// intermittently made `PlanetaryPostProcessorTests` fail only when run as part of the full
+/// suite, never in isolation.
 final class PlanetaryGPULuminanceConverter: @unchecked Sendable {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let lumaPipelineState: MTLComputePipelineState
     private let rgbPipelineState: MTLComputePipelineState
+    private let lock = NSLock()
 
     private var sourceTexture: MTLTexture?
     private var lumaDestinationTexture: MTLTexture?
@@ -49,6 +57,8 @@ final class PlanetaryGPULuminanceConverter: @unchecked Sendable {
     /// else) and returns its full-resolution luma, normalized `[0, 1]`, row-major — the exact
     /// same shape `PlanetaryPostProcessor.luminance(of:...)`'s CPU path returns.
     func luminance(of frame: CapturedFrame, bayerPattern: ASI_BAYER_PATTERN) -> [Float]? {
+        lock.lock()
+        defer { lock.unlock() }
         guard let (sourceTexture, _) = uploadedSourceTexture(for: frame) else { return nil }
         ensureLumaDestinationTexture(width: frame.width, height: frame.height)
         guard let lumaDestinationTexture,
@@ -80,6 +90,8 @@ final class PlanetaryGPULuminanceConverter: @unchecked Sendable {
     /// (previously the one part of the pipeline still entirely CPU-bound after `luminance(of:)`
     /// above sped up registration — the reason that stage burned CPU with the GPU idle).
     func rgb(of frame: CapturedFrame, bayerPattern: ASI_BAYER_PATTERN) -> [Float]? {
+        lock.lock()
+        defer { lock.unlock() }
         guard let (sourceTexture, _) = uploadedSourceTexture(for: frame) else { return nil }
         ensureRGBDestinationTexture(width: frame.width, height: frame.height)
         guard let rgbDestinationTexture,

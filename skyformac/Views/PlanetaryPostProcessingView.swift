@@ -39,9 +39,16 @@ struct PlanetaryPostProcessingView: View {
 
     /// Restricts `scoreAndRegister`'s intensity-weighted centroid to just the selected object —
     /// see `roiSection`'s own doc comment for why this genuinely matters, not just a nice-to-have
-    /// crop. `nil` (the default) registers against the whole frame, same as before this existed.
+    /// crop. Required (see "Start Processing"'s `.disabled`) precisely because leaving it `nil`
+    /// is what used to produce the ghosted/duplicated stacks this exists to prevent.
     @State private var roiRect: SirilElaborationService.PixelRect?
     @State private var sourcePreview: (image: NSImage, pixelSize: (width: Int, height: Int))?
+    /// Distinguishes "still loading" (`sourcePreview == nil`, `false`) from "loading finished but
+    /// failed" (`sourcePreview == nil`, `true`) — without this, a preview that fails to decode
+    /// left `roiSection` showing "Loading preview…" forever, and now also permanently blocked
+    /// "Start Processing" behind a box nothing exists to draw. On failure, the object-to-track
+    /// requirement below is waived instead, so the burst can still be registered whole-frame.
+    @State private var sourcePreviewFailed = false
 
     @State private var loadedSequence: PlanetaryPostProcessor.LoadedSequence?
     @State private var registeredFrames: [PlanetaryPostProcessor.RegisteredFrame] = []
@@ -127,7 +134,10 @@ struct PlanetaryPostProcessingView: View {
         .frame(width: fullScreenSize.width, height: fullScreenSize.height)
         .background(.background)
         .onDisappear { cancelCurrentWork?() }
-        .task { sourcePreview = Self.loadSourcePreview(sourceURL) }
+        .task {
+            sourcePreview = Self.loadSourcePreview(sourceURL)
+            sourcePreviewFailed = sourcePreview == nil
+        }
         .sheet(isPresented: $isPromptingGraXpertSettings) {
             GraXpertDisabledPrompt(onOpenSettings: onOpenGraXpertSettings)
         }
@@ -180,7 +190,13 @@ struct PlanetaryPostProcessingView: View {
             }
             .keyboardShortcut(.defaultAction)
             .controlSize(.large)
+            .disabled(!canStartProcessing)
             .padding(.top, 20)
+            if !canStartProcessing {
+                Text("Draw a box around the object to track above before starting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
         }
     }
@@ -211,14 +227,25 @@ struct PlanetaryPostProcessingView: View {
             if let sourcePreview {
                 CropRectangleSelector(image: sourcePreview.image, pixelSize: sourcePreview.pixelSize, cropRect: $roiRect)
                 Text(roiRect == nil
-                    ? "If there's more than one bright thing in frame (a moon, a companion star, a reflection), draw a box around the object you actually want — otherwise registration can lock onto a different one from frame to frame and the stack comes out ghosted/duplicated instead of sharp."
+                    ? "Draw a box around the object you want to track — required before processing starts. If there's more than one bright thing in frame (a moon, a companion star, a reflection), registration can lock onto a different one from frame to frame without this, and the stack comes out ghosted/duplicated instead of sharp."
                     : "Registering against \(roiRect!.width)×\(roiRect!.height)px.")
+                    .font(.caption2)
+                    .foregroundStyle(roiRect == nil ? .orange : .secondary)
+            } else if sourcePreviewFailed {
+                Text("Couldn't load a preview to draw a box on — processing will register against the whole frame instead.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             } else {
                 ProgressView("Loading preview…").controlSize(.small)
             }
         }
+    }
+
+    /// "Start Processing" needs an object-to-track box drawn first — unless the preview itself
+    /// couldn't load (`sourcePreviewFailed`), in which case there's nothing to draw one on and
+    /// this waives the requirement rather than leaving the button permanently disabled.
+    private var canStartProcessing: Bool {
+        roiRect != nil || sourcePreviewFailed
     }
 
     private var header: some View {

@@ -43,6 +43,15 @@ struct CropRectangleSelector: View {
                         cropRect = Self.pixelRect(forViewRect: viewSelection, imageRect: imageRect, pixelSize: pixelSize)
                     }
             )
+            // The default arrow pointer reads as "nothing to do here" — a crosshair signals
+            // "draw a box" the moment the pointer enters this view, before the first drag.
+            .onHover { isHovering in
+                if isHovering {
+                    NSCursor.crosshair.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
         }
         .aspectRatio(CGFloat(pixelSize.width) / CGFloat(max(pixelSize.height, 1)), contentMode: .fit)
         .frame(maxHeight: 320)

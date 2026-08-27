@@ -17,20 +17,26 @@ import Metal
 /// `init?` fails — callers fall back to the CPU path — when there's no usable `MTLDevice`/Metal
 /// library/pipeline, e.g. a sandboxed CI or headless test runner.
 /// `@unchecked Sendable`: the mutable texture/buffer cache is only ever touched from whichever
-/// single background thread `PlanetaryPostProcessor.scoreAndRegister`'s loop runs on for a given
-/// burst — that loop processes frames strictly one at a time, never concurrently (see
-/// `scoreAndRegister`'s own doc comment), so there's no actual shared mutable access to race on
-/// despite the compiler having no way to see that. Deliberately synchronous
-/// (`waitUntilCompleted()`, not a completion handler/async pipeline) for the same reason
-/// `PlanetaryGPULuminanceConverter` is: this codebase already hit a real thread-pool-exhaustion
-/// deadlock once from trying to pipeline GPU work with a blocking CPU wait elsewhere in this
-/// exact pipeline (see git history around `PlanetaryPostProcessor.combine`) — a plain synchronous
-/// round trip per frame has no such failure mode.
+/// single background thread `PlanetaryPostProcessor.scoreAndRegister`'s loop runs on *within one
+/// burst* — that loop processes frames strictly one at a time, never concurrently (see
+/// `scoreAndRegister`'s own doc comment). But `PlanetaryPostProcessor.gpuRegistrar` is one
+/// `static let` shared across every burst/call site, and nothing stops two different bursts — or
+/// two Swift Testing tests — from calling in concurrently on two different threads; `lock`
+/// serializes those so a second concurrent call blocks instead of corrupting the first's cached
+/// `luminanceTexture`/partials-buffer state (the same class of bug this fixes in
+/// `PlanetaryGPUStacker`/`PlanetaryGPULuminanceConverter` — see their own doc comments).
+/// Deliberately synchronous (`waitUntilCompleted()`, not a completion handler/async pipeline) for
+/// the same reason `PlanetaryGPULuminanceConverter` is: this codebase already hit a real
+/// thread-pool-exhaustion deadlock once from trying to pipeline GPU work with a blocking CPU wait
+/// elsewhere in this exact pipeline (see git history around `PlanetaryPostProcessor.combine`) —
+/// a plain synchronous round trip per frame (now serialized with a plain mutex, not a blocking
+/// wait across a shared thread pool) has no such failure mode.
 final class PlanetaryGPURegistrar: @unchecked Sendable {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let laplacianPipelineState: MTLComputePipelineState
     private let centroidPipelineState: MTLComputePipelineState
+    private let lock = NSLock()
 
     private var luminanceTexture: MTLTexture?
     private var textureWidth = 0
@@ -66,6 +72,8 @@ final class PlanetaryGPURegistrar: @unchecked Sendable {
     func scoreAndCentroid(
         ofLuminance values: [Float], width: Int, height: Int, roi: CGRect?
     ) -> (quality: Double, centroid: SIMD2<Float>?)? {
+        lock.lock()
+        defer { lock.unlock() }
         guard width > 0, height > 0, values.count == width * height else { return nil }
         ensureLuminanceTexture(width: width, height: height)
         guard let luminanceTexture else { return nil }

@@ -18,6 +18,11 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Planetary Post-Processing: drawing an "Object to Track" box is now required before "Start
+  Processing" is enabled (unless the preview itself failed to load, in which case there's
+  nothing to draw a box on). The pointer also switches to a crosshair while it's over the
+  selector, on both this screen and Siril's own crop-to-region — previously nothing signaled
+  "draw a box here" until you actually started dragging.
 - A full-screen, zoomable image viewer (pinch/scroll-wheel zoom, pan) shared by every "Open" on
   a viewable image: the Capture page's "Open" (PNG/TIFF captures) and tapping an elaborated
   image both open it now, instead of handing off to an external app or a small non-zoomable
@@ -56,6 +61,11 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
   to the identical CPU path with no behavior change wherever there's no usable GPU.
 
 ### Fixed
+- The three GPU wrapper classes (`PlanetaryGPULuminanceConverter`, `PlanetaryGPURegistrar`,
+  `PlanetaryGPUStacker`) each share one instance across every call site; two concurrent calls
+  from different threads (surfaced as an intermittent, full-suite-only test failure) could race
+  on that shared instance's cached textures and corrupt each other's result. Each now serializes
+  its own calls with a lock instead of assuming they'll never overlap.
 - Planetary Post-Processing could stack into a ghosted/duplicated-looking result whenever the
   frame had more than one bright thing in it (a moon, a companion star, a reflection) —
   registration's intensity-weighted centroid weighed all of them at once, and which point it

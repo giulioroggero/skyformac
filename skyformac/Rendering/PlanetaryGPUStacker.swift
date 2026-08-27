@@ -32,6 +32,15 @@ final class PlanetaryGPUStacker: @unchecked Sendable {
     private let commandQueue: MTLCommandQueue
     private let accumulatePipelineState: MTLComputePipelineState
     private let clearPipelineState: MTLComputePipelineState
+    /// `PlanetaryPostProcessor.gpuStacker` is one `static let` shared across every burst/call
+    /// site — nothing stops two different bursts, or two Swift Testing tests, from calling
+    /// `meanStack` concurrently on two different threads. Without this, that's a real race on
+    /// `sourceTexture`/`accumulatorTexture` (traced, via an intermittent full-suite-only test
+    /// failure, to exactly this): one call's `ensureTextures`/`clearAccumulator`/upload/dispatch
+    /// sequence interleaving with another's mid-flight, corrupting both results. `meanStack`
+    /// holds this for its entire body, so a second concurrent call simply blocks until the first
+    /// finishes instead.
+    private let lock = NSLock()
 
     private var sourceTexture: MTLTexture?
     private var accumulatorTexture: MTLTexture?
@@ -65,6 +74,8 @@ final class PlanetaryGPUStacker: @unchecked Sendable {
         _ buffers: [[Float]], shifts: [SIMD2<Float>], width: Int, height: Int, channels: Int,
         isCancelled: () -> Bool, progress: ((Float) -> Void)? = nil
     ) -> [Float]? {
+        lock.lock()
+        defer { lock.unlock() }
         guard !buffers.isEmpty, buffers.count == shifts.count, channels == 1 || channels == 3,
               width > 0, height > 0
         else { return nil }
