@@ -399,10 +399,46 @@ struct CaptureDetailPage: View {
         ) {
             FullScreenImageViewer(
                 image: image, fileURL: fileURL, onSetAsThumbnail: setSessionThumbnailFromThisCapture,
+                moreMenuItems: { AnyView(fullScreenMoreMenuItems) },
                 onDismiss: { viewingFullScreenWindowController?.close() }
             )
         }
         viewingFullScreenWindowController?.showWindow(nil)
+    }
+
+    /// This viewer only ever opens for `.png`/`.tiff` captures (see `startViewingFullScreen`'s own
+    /// call site in `actionsList`), so this doesn't need to gate on `capture.kind` the way
+    /// `actionsList` itself does. "Edit Image…" leads, matching the elaborated-image preview's own
+    /// "More" menu ordering (`ProjectDetailPane.fullScreenMoreMenuItems`) — previously this menu
+    /// wasn't wired up at all here, so a raw capture's own full-screen preview had no "More" button,
+    /// and no way to jump straight to Edit Image from it.
+    @ViewBuilder
+    private var fullScreenMoreMenuItems: some View {
+        Button("Edit Image…", systemImage: "slider.horizontal.3") {
+            viewingFullScreenWindowController?.close()
+            startEditingImage()
+        }
+        Divider()
+        Button("Show in Finder", systemImage: "folder") {
+            viewingFullScreenWindowController?.close()
+            NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+        }
+        Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") {
+            viewingFullScreenWindowController?.close()
+            AstroBinPublisher.publish(fileURL)
+        }
+        if elaborationSource != nil {
+            Divider()
+            Button("Open in Siril…", systemImage: "wand.and.stars") {
+                viewingFullScreenWindowController?.close()
+                startElaborating()
+            }
+        }
+        Divider()
+        Button("Delete…", systemImage: "trash", role: .destructive) {
+            viewingFullScreenWindowController?.close()
+            isConfirmingDelete = true
+        }
     }
 
     /// `FullScreenImageViewer`'s "Set as Thumbnail" for a capture — session-scoped (not

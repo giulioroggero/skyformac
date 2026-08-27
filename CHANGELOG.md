@@ -106,6 +106,12 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   Tools" group/menu instead of mixed in with Skyformac's own actions.
 
 ### Fixed
+- A raw capture's own full-screen preview (opened from a Timeline thumbnail's "Open," or a
+  capture's detail page) had no "More" menu at all, unlike an elaborated image's own preview —
+  `moreMenuItems` was never passed at that call site, so "Edit Image…" (along with Show in
+  Finder/Publish to AstroBin/Open in Siril/Delete) had no way to be reached from the preview
+  itself. Wired up the same menu, with "Edit Image…" leading, matching the elaborated-image
+  preview's own ordering.
 - The Chroma Noise Reduction slider (and every other slider using the same two helpers) was
   squeezed down to a sliver by its own label sitting beside it — `LabeledContent`'s side-by-side
   layout gave a long label like "Chroma Noise Reduction" most of the row's width, leaving barely
