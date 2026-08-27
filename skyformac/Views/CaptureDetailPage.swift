@@ -27,6 +27,9 @@ struct CaptureDetailPage: View {
     /// independently), so a plain optional controller replaces what used to be a `Bool` +
     /// `.sheet(isPresented:)`.
     @State private var postProcessingWindowController: DetachedContentWindowController?
+    /// "Show a loader until the modal is shown — for GB files it takes some time" — the
+    /// prominent "Post-Process…" button's own busy state while its window opens.
+    @State private var isOpeningPostProcessingWindow = false
     @State private var editingImageWindowController: DetachedContentWindowController?
     @State private var viewingFullScreenWindowController: DetachedContentWindowController?
     @State private var isPromptingSirilSettings = false
@@ -336,6 +339,19 @@ struct CaptureDetailPage: View {
     }
 
     private func startPostProcessing() {
+        // A GB-scale `.ser` capture's own load can take a visible moment — this state change
+        // (and the deferred dispatch below) exists purely to guarantee the button's spinner
+        // actually gets one real render frame *before* window construction starts, rather than
+        // both happening within the same synchronous call and SwiftUI coalescing away the
+        // intermediate "loading" state with nothing ever drawn.
+        isOpeningPostProcessingWindow = true
+        DispatchQueue.main.async {
+            startPostProcessingWindow()
+            isOpeningPostProcessingWindow = false
+        }
+    }
+
+    private func startPostProcessingWindow() {
         postProcessingWindowController = DetachedContentWindowController(
             title: "Planetary Post-Processing — \(capture.fileName)", contentSize: PlanetaryPostProcessingView.fullScreenSize,
             minSize: PlanetaryPostProcessingView.minWindowSize,
@@ -544,9 +560,18 @@ struct CaptureDetailPage: View {
     @ViewBuilder
     private var primaryActionButton: some View {
         if capture.kind == .serVideo {
-            Button("Post-Process…", systemImage: "sparkles.tv") { startPostProcessing() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+            Button {
+                startPostProcessing()
+            } label: {
+                if isOpeningPostProcessingWindow {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Post-Process…", systemImage: "sparkles.tv")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(isOpeningPostProcessingWindow)
         } else if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
             Button("Edit Image…", systemImage: "slider.horizontal.3") { startEditingImage() }
                 .buttonStyle(.borderedProminent)

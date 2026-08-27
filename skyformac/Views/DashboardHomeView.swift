@@ -84,9 +84,20 @@ struct DashboardHomeView: View {
     /// than reading `lastActive` itself: `lastActive` re-scans every project's every session, so
     /// calling it once per session considered here (as this used to) turned an O(P·S) scan into an
     /// effectively O((P·S)²) one — `body` now computes `lastActive` exactly once and passes it in.
+    ///
+    /// Also excludes a *single-session* project's own session once that project already has a
+    /// card in `recentProjects` — for that common case (which is exactly what Quick Start always
+    /// creates), the two sections used to show the same underlying activity twice: a "Recent
+    /// Projects" card and a "Highlighted Sessions" row pointing at nearly the same place, one
+    /// landing on Project Detail, the other straight on the Session. A *multi*-session project
+    /// still shows its other sessions here even once it has a Recent Projects card — that's real,
+    /// distinct value (*which* session, not just which project) the card alone can't give.
     private func highlightedSessions(excludingSessionID: Session.ID?) -> [(project: Project, session: Session)] {
+        let recentProjectIDs = Set(recentProjects.map(\.id))
         var entries: [(project: Project, session: Session, date: Date)] = []
         for project in projects {
+            let isRedundantWithRecentProjects = project.sessions.count == 1 && recentProjectIDs.contains(project.id)
+            guard !isRedundantWithRecentProjects else { continue }
             for session in project.sessions where !session.isArchived {
                 guard let date = session.lastCaptureDate, session.id != excludingSessionID else { continue }
                 entries.append((project, session, date))
@@ -194,7 +205,7 @@ struct DashboardHomeView: View {
                     .accessibilityIdentifier("CommonTasksScrollView")
                 }
 
-                dashboardCluster("Explore", isExpanded: $isExploreClusterExpanded) {
+                PageSectionCluster(title: "Explore", isExpanded: $isExploreClusterExpanded) {
                     PageSection(title: "Observation Timeline") {
                         ObservationTimelineView(
                             projects: projects, cameraManager: cameraManager,
@@ -241,7 +252,7 @@ struct DashboardHomeView: View {
                 }
 
                 if insights.totalCaptures > 0 || suggestedSession != nil {
-                    dashboardCluster("Insights", isExpanded: $isInsightsClusterExpanded) {
+                    PageSectionCluster(title: "Insights", isExpanded: $isInsightsClusterExpanded) {
                         if insights.totalCaptures > 0 {
                             PageSection(title: "Activity") {
                                 // Per-day, last 30 days — a fixed, immediately-legible "what have I
@@ -300,24 +311,6 @@ struct DashboardHomeView: View {
                         }
                     }
                 }
-        }
-    }
-
-    /// A named, collapsible group of `PageSection`s — see `isExploreClusterExpanded`'s own doc
-    /// comment for why. A plain `DisclosureGroup` rather than another `PageSection` wrapping
-    /// these: the point is fewer independently-scannable top-level cards, not one more card
-    /// nested around the ones already there.
-    @ViewBuilder
-    private func dashboardCluster<Content: View>(
-        _ title: String, isExpanded: Binding<Bool>, @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        DisclosureGroup(isExpanded: isExpanded) {
-            VStack(alignment: .leading, spacing: 16) {
-                content()
-            }
-            .padding(.top, 8)
-        } label: {
-            Text(title).font(.title3.bold())
         }
     }
 

@@ -19,6 +19,16 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Post-Process buttons (the Capture page's prominent one, and the session Timeline's bulk "Post-
+  Process Together…") now show a spinner and disable themselves the instant they're clicked,
+  until their window actually opens — "show a loader until the modal is shown, for GB files it
+  takes some time to load."
+- Session page follow-up to the earlier Dashboard density fix: History/Equipment/Stats/Tags/Notes
+  group into a "Details" cluster, Elaborated/stray-files into "Extras" (both collapsible, both
+  reusing the same `PageSectionCluster` the Dashboard's own clusters use — extracted as a shared
+  component instead of a second copy). "Recent Projects" and "Highlighted Sessions" no longer show
+  the same single-session project's activity twice. "New Project…" gets the same hover tooltip
+  every other Projects-browser toolbar button already had.
 - Sky Atlas improvements: points are now grouped by object (not one dot per session — every
   session on the same object shares one point), sized by how many sessions have targeted it — a
   quick "where have I actually spent my time" read instead of stacked identical dots with no way
@@ -176,6 +186,13 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   unifies the menu's shape, not what any button actually does. No user-visible change.
 
 ### Fixed
+- Project thumbnails on the Projects browser's own grid didn't render at a consistent size — the
+  grid's `GridItem(.adaptive(minimum: 220, maximum: 280))` let each card's own width *stretch* to
+  fill leftover space in its row, so two cards in the same row could land at genuinely different
+  pixel widths depending on how many happened to fit. Pinned `maximum` to the same 220 the
+  Dashboard's own "Recent Projects" row already uses, so every `ProjectCard` is exactly 220×130
+  everywhere it appears, not just self-consistent within one grid. (Session and capture thumbnails
+  were already consistent everywhere they're shown — no bug found there.)
 - **Projects could silently vanish from "All Projects."** Confirmed live on real, otherwise-valid
   projects: adding `posterizeLevels` to `ImageEditor.Adjustments` this session, without a custom
   decoder, meant any *already-saved* elaborated image's `planetarySettings.singleShotAdjustments`

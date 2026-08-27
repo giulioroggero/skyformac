@@ -56,6 +56,13 @@ struct SessionDetailPane: View {
     @State private var strayFilesRefreshTrigger = 0
     @State private var isBrowsingStrayFiles = false
     @State private var isConfirmingBulkCaptureDelete = false
+    /// Grouping History/Equipment/Stats/Tags/Notes into "Details" and Elaborated/stray-files into
+    /// "Extras" is what keeps this page from stacking 9 independently-scannable sections at once
+    /// — the same density issue the Dashboard had, fixed the same way (`PageSectionCluster`). The
+    /// Cover/Session Summary row and the Timeline itself stay top-level, ungrouped — those are
+    /// what someone actually reaches for first on this page.
+    @State private var isDetailsClusterExpanded = true
+    @State private var isExtrasClusterExpanded = true
     /// Persisted like `ProjectDetailPane`'s own Cards/Table toggle for sessions — a view mode
     /// picked once shouldn't reset back to the default every relaunch.
     @AppStorage("sessionCapturesViewMode") private var capturesViewModeRaw = CapturesViewMode.filmstrip.rawValue
@@ -72,6 +79,9 @@ struct SessionDetailPane: View {
     /// `CaptureDetailPage`'s identical property doc comment for why this is a
     /// `DetachedContentWindowController?` rather than the `Bool` + `.sheet` it used to be.
     @State private var postProcessingSelectionWindowController: DetachedContentWindowController?
+    /// "Show a loader until the modal is shown — for GB files it takes some time" — the bulk
+    /// "Post-Process Together…" button's own busy state while its window opens.
+    @State private var isOpeningPostProcessingWindow = false
     /// "Compose Mosaic…" — same windowing reasoning as `postProcessingSelectionWindowController`
     /// above.
     @State private var mosaicComposerWindowController: DetachedContentWindowController?
@@ -218,6 +228,7 @@ struct SessionDetailPane: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                PageSectionCluster(title: "Details", isExpanded: $isDetailsClusterExpanded) {
                 // Row 2: History, Equipment, Stats, and Tags side by side — four short reference
                 // panels that each used to take a full-width row of their own for a handful of
                 // lines.
@@ -260,6 +271,7 @@ struct SessionDetailPane: View {
                                 .buttonStyle(.borderless)
                         }
                     }
+                }
                 }
 
                 // Row 3: Timeline.
@@ -313,6 +325,7 @@ struct SessionDetailPane: View {
                     }
                 }
 
+                PageSectionCluster(title: "Extras", isExpanded: $isExtrasClusterExpanded) {
                 if !sessionElaboratedImages.isEmpty {
                     PageSection(title: "Elaborated") {
                         ScrollView(.horizontal) {
@@ -358,6 +371,7 @@ struct SessionDetailPane: View {
                             }
                         }
                     }
+                }
                 }
 
                 // Row 5: Elaborate, Archive, Move, Delete.
@@ -514,6 +528,16 @@ struct SessionDetailPane: View {
     }
 
     private func openPostProcessingSelectionWindow() {
+        // See `CaptureDetailPage.startPostProcessing`'s identical doc comment — same "give the
+        // button's spinner one real render frame before window construction starts" reasoning.
+        isOpeningPostProcessingWindow = true
+        DispatchQueue.main.async {
+            openPostProcessingSelectionWindowNow()
+            isOpeningPostProcessingWindow = false
+        }
+    }
+
+    private func openPostProcessingSelectionWindowNow() {
         let urls = selectedSERCaptures.map {
             cameraManager.projectStore.sessionFolderURL(for: session, in: project).appendingPathComponent($0.fileName)
         }
@@ -626,7 +650,16 @@ struct SessionDetailPane: View {
             // disabling the button outright — deleting captures works fine on a mixed-kind
             // selection, no reason post-processing needs an all-or-nothing kind match either.
             if !selectedSERCaptures.isEmpty {
-                Button("Post-Process Together…", systemImage: "sparkles.tv") { openPostProcessingSelectionWindow() }
+                Button {
+                    openPostProcessingSelectionWindow()
+                } label: {
+                    if isOpeningPostProcessingWindow {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Post-Process Together…", systemImage: "sparkles.tv")
+                    }
+                }
+                .disabled(isOpeningPostProcessingWindow)
             }
             // "Different parts of the Moon to get a full Moon, or different captures of Andromeda,
             // composed together" — real star-pattern tile registration (`MosaicComposer`), not

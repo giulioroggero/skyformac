@@ -570,6 +570,7 @@ private struct ProjectsHomeView: View {
             }
             ToolbarItem {
                 Button("New Project…", systemImage: "plus", action: onNewProject)
+                    .help("Start a blank project — name it, then add sessions to it as you go")
             }
         }
     }
@@ -671,7 +672,15 @@ private struct ProjectsThumbnailGrid: View {
     var onQuickStart: () -> Void
     var onToggleFavorite: (Project) -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 16)]
+    /// `maximum: 220` (not the wider range this used to allow) is the actual fix for "project
+    /// thumbnails aren't the same size" — `.adaptive`'s own job is letting *how many* columns fit
+    /// change with the window's width, but a `maximum` above `minimum` also lets each individual
+    /// card *stretch* to fill whatever's left over in a row, so two cards in the same row could
+    /// end up genuinely different pixel widths depending on how many happened to fit. Pinning
+    /// `maximum` to the same 220 the Dashboard's own "Recent Projects" row already uses
+    /// (`ProjectCard(...).frame(width: 220)` there) makes every card exactly 220×130 everywhere
+    /// `ProjectCard` appears, not just self-consistent within this one grid.
+    private let columns = [GridItem(.adaptive(minimum: 220, maximum: 220), spacing: 16)]
 
     var body: some View {
         ScrollView {

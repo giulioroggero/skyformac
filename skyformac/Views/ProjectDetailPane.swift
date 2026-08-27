@@ -702,6 +702,32 @@ struct PageSection<Content: View>: View {
     }
 }
 
+/// A named, collapsible group of `PageSection`s (or `PageSection`-containing rows) — first built
+/// for the Dashboard, whose 7 independently-stacked sections left a returning user with a full
+/// history scrolling past every one of them at once with nothing to group or collapse; the same
+/// density issue showed up on the Session page once it had grown 9 sections of its own. A plain
+/// `DisclosureGroup` rather than another `PageSection` wrapping the ones already there — the
+/// point is fewer independently-scannable top-level cards, not one more card nested around the
+/// ones already there. Defaults to expanded (`isExpanded`'s own binding decides, not this view) —
+/// nothing is hidden by using this, only organized; collapsing is a per-caller-state option for a
+/// user who wants less scrolling.
+struct PageSectionCluster<Content: View>: View {
+    var title: String
+    @Binding var isExpanded: Bool
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 16) {
+                content()
+            }
+            .padding(.top, 8)
+        } label: {
+            Text(title).font(.title3.bold())
+        }
+    }
+}
+
 /// A compact grid of label/value pairs — shared by the Project Detail and Session History
 /// pages' Stats sections, so "how much has actually happened" always looks the same regardless
 /// of which level it's summarizing.
