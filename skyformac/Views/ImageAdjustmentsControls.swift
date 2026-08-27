@@ -63,6 +63,8 @@ struct ImageAdjustmentsControls: View {
             sharpenSection
             Divider()
             astronomyToolsSection
+            Divider()
+            stylizeSection
         }
     }
 
@@ -122,6 +124,21 @@ struct ImageAdjustmentsControls: View {
                 .foregroundStyle(.secondary)
             slider("Highlight Recovery", value: $adjustments.highlightRecovery, range: 0...1, defaultValue: 0)
             Text("Pulls back a blown-out planetary disk or bright core.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// A stylistic finishing effect, not a restoration tool like everything above — its own
+    /// section so it doesn't read as "part of cleaning the image up."
+    private var stylizeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Stylize").font(.title3.bold())
+            ResettableAdjustmentSlider(
+                label: "Posterize", value: $adjustments.posterizeLevels, range: 0...32, defaultValue: 0,
+                step: 1, format: "%.0f", onChange: onChange
+            )
+            Text("Flattens each color channel to a handful of discrete bands — a stylized look, off (0) by default.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

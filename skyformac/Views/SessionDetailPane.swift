@@ -72,6 +72,9 @@ struct SessionDetailPane: View {
     /// `CaptureDetailPage`'s identical property doc comment for why this is a
     /// `DetachedContentWindowController?` rather than the `Bool` + `.sheet` it used to be.
     @State private var postProcessingSelectionWindowController: DetachedContentWindowController?
+    /// "Compose Mosaic…" — same windowing reasoning as `postProcessingSelectionWindowController`
+    /// above.
+    @State private var mosaicComposerWindowController: DetachedContentWindowController?
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// Files sitting in this session's own folder that AREN'T one of its tracked
@@ -624,6 +627,12 @@ struct SessionDetailPane: View {
             if !selectedSERCaptures.isEmpty {
                 Button("Post-Process Together…", systemImage: "sparkles.tv") { openPostProcessingSelectionWindow() }
             }
+            // "Different parts of the Moon to get a full Moon, or different captures of Andromeda,
+            // composed together" — real star-pattern tile registration (`MosaicComposer`), not
+            // same-field-of-view stacking, so this only makes sense for 2+ finished stills.
+            if selectedImageCaptures.count >= 2 {
+                Button("Compose Mosaic…", systemImage: "square.grid.3x3") { openMosaicComposerWindow() }
+            }
             Button("Delete", systemImage: "trash", role: .destructive) {
                 isConfirmingBulkCaptureDelete = true
             }
@@ -647,6 +656,39 @@ struct SessionDetailPane: View {
 
     private var selectedSERCaptures: [CaptureRecord] {
         session.captures.filter { selectedCaptureIDs.contains($0.id) && $0.kind == .serVideo }
+    }
+
+    /// A mosaic tile is always a finished still (the same three kinds `CaptureDetailPage`'s own
+    /// full-screen preview opens for) — a `.serVideo`/`.recording` isn't a single image at all,
+    /// nothing to detect stars in directly.
+    private var selectedImageCaptures: [CaptureRecord] {
+        session.captures.filter {
+            selectedCaptureIDs.contains($0.id) && ($0.kind == .png || $0.kind == .tiff || $0.kind == .fits)
+        }
+    }
+
+    private func openMosaicComposerWindow() {
+        let captures = selectedImageCaptures
+        let urls = captures.map {
+            cameraManager.projectStore.sessionFolderURL(for: session, in: project).appendingPathComponent($0.fileName)
+        }
+        guard urls.count >= 2 else { return }
+        mosaicComposerWindowController = DetachedContentWindowController(
+            title: "Mosaic Composer", contentSize: MosaicComposerView.fullScreenSize,
+            minSize: MosaicComposerView.minWindowSize,
+            onClose: { mosaicComposerWindowController = nil }
+        ) {
+            MosaicComposerView(
+                sourceURLs: urls,
+                sourceDescription: "Composing \(urls.count) captures into a mosaic.",
+                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
+                onSave: { cgImage in
+                    try cameraManager.saveMosaicResult(cgImage, sourceSessionIDs: [session.id], project: project)
+                },
+                onDismiss: { mosaicComposerWindowController?.close() }
+            )
+        }
+        mosaicComposerWindowController?.showWindow(nil)
     }
 
     /// The historical record this page is actually for — when it was planned/created/captured,

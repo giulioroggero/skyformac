@@ -1891,6 +1891,23 @@ final class CameraManager {
         )
     }
 
+    /// `MosaicComposerView`'s own save — same "write a PNG into this project's Elaborated folder,
+    /// catalog it" shape as `saveImageEditResult`/`savePlanetaryPostProcessingResult` above, under
+    /// its own tool label. `sourceCaptureID` is always `nil` here (never a single representative
+    /// capture — a mosaic result never has just one, same reasoning `savePlanetaryPostProcessingResult`'s
+    /// own multi-capture call sites already use `nil` for).
+    func saveMosaicResult(_ image: CGImage, sourceSessionIDs: [UUID], project: Project) throws -> ElaboratedImage {
+        let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        let fileName = "Mosaic-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970)).png"
+        let resultURL = outputDirectory.appendingPathComponent(fileName)
+        try ImageExporter.writePNG(image, to: resultURL)
+        return try projectsLibrary.addElaboratedImage(
+            fileName: fileName, sourceSessionIDs: sourceSessionIDs,
+            sourceCaptureID: nil, toolLabel: "Mosaic Composer", to: project
+        )
+    }
+
     // MARK: - Lucky imaging (burst capture + sharpness-ranked stacking — see `LuckyImagingSession`)
 
     private(set) var luckyImagingSession: LuckyImagingSession?

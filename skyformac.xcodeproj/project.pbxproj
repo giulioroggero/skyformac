@@ -79,6 +79,7 @@
 		58C8C84D2D082EFED7F1BE93 /* LuckyImagingFrameBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B75D3B271F9C06ECB3BB9B6 /* LuckyImagingFrameBrowserView.swift */; };
 		59012F0493E0A68CC0C0C8A2 /* FrameBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE7DA51F7B4CABA4250F23B /* FrameBuffer.swift */; };
 		5A96263746F17899DF2DAAA6 /* StarPatternRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36AD0E9120D1B73D98FDCCC /* StarPatternRecognizer.swift */; };
+		72590AC2A5D34250B98F5EFE /* MosaicComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF24A4AB94194CBA82E36353 /* MosaicComposer.swift */; };
 		5AA29BA6F6D16D2662BE036F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */; };
 		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
 		5C2442ADD1A7C168C808C1F0 /* FITSWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129AC416223DEE62CE827BBB /* FITSWriterTests.swift */; };
@@ -123,6 +124,7 @@
 		890021C06EE5390F034AFAC1 /* CalibrationLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EBFCB3EEF2743F5F87DBE0 /* CalibrationLibrary.swift */; };
 		8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */; };
 		8B1322B1E666F768A6045695 /* ImageEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6B1E929FEE960BA808F516 /* ImageEditorTests.swift */; };
+		57BA8F7E0BAA4CAAB1622BE7 /* MosaicComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */; };
 		8B63FF69E0600CE9493DCC9C /* LiveCaptureBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F125C29C77E8314CF5836D04 /* LiveCaptureBrowserView.swift */; };
 		729D60C9AC7A40C18CAA0964 /* LaunchSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFF34D661A4463A9FB53FAA /* LaunchSplashView.swift */; };
 		8BC13D3DD60D7F595F418CE3 /* FITSReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1842F26D7B76C34083DD829 /* FITSReader.swift */; };
@@ -230,6 +232,7 @@
 		F1600F77CE94E505118DEE85 /* DisplayStretchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48947D4C4B2C34F7C9881290 /* DisplayStretchTests.swift */; };
 		F213EE2729A1D49EEA15D710 /* CloudDriftSentinelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CAFD2D6898CDC7637053BAA /* CloudDriftSentinelTests.swift */; };
 		F2B3478B710F4275B56EBF0E /* SingleImagePostProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 925930A83DAE89A9082C9FD0 /* SingleImagePostProcessingView.swift */; };
+		2B060A7D578F4BE988832EB2 /* MosaicComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3F99054CE7482AB21EDD18 /* MosaicComposerView.swift */; };
 		F3FC65FA9FFF187050939ED1 /* DiskSpaceCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F59753779FC35A72F9CDAE /* DiskSpaceCheckerTests.swift */; };
 		F46DF222992C699FFBC87D77 /* ActivePipelinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8785A8BD20F061A304645DCA /* ActivePipelinesView.swift */; };
 		F78A81BFBB8A33B86D6827DD /* TimelineStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */; };
@@ -358,6 +361,7 @@
 		5BC866224EC9559952B3E257 /* PlanetaryPostProcessor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryPostProcessor.swift; sourceTree = "<group>"; };
 		5CAFD2D6898CDC7637053BAA /* CloudDriftSentinelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudDriftSentinelTests.swift; sourceTree = "<group>"; };
 		5D6B1E929FEE960BA808F516 /* ImageEditorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorTests.swift; sourceTree = "<group>"; };
+		E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicComposerTests.swift; sourceTree = "<group>"; };
 		5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectDetailPane.swift; sourceTree = "<group>"; };
 		60759144D69321A911094B7E /* ExposureOptimizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExposureOptimizer.swift; sourceTree = "<group>"; };
 		60C57C29672EDA8B570AC83B /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
@@ -420,6 +424,7 @@
 		911CAA0A46D80891F24A47EE /* SkyCatalogTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalogTests.swift; sourceTree = "<group>"; };
 		91720C9F05AC7107B1BDD0B1 /* AppSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		925930A83DAE89A9082C9FD0 /* SingleImagePostProcessingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SingleImagePostProcessingView.swift; sourceTree = "<group>"; };
+		1F3F99054CE7482AB21EDD18 /* MosaicComposerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicComposerView.swift; sourceTree = "<group>"; };
 		927F74D973300405CE8F799C /* StreakDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreakDetector.swift; sourceTree = "<group>"; };
 		93F59753779FC35A72F9CDAE /* DiskSpaceCheckerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiskSpaceCheckerTests.swift; sourceTree = "<group>"; };
 		94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerSessionLifecycleTests.swift; sourceTree = "<group>"; };
@@ -444,6 +449,7 @@
 		B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectsBrowserView.swift; sourceTree = "<group>"; };
 		B2BCC1BF45D0CE9438E957E4 /* ProjectStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectStoreTests.swift; sourceTree = "<group>"; };
 		B36AD0E9120D1B73D98FDCCC /* StarPatternRecognizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarPatternRecognizer.swift; sourceTree = "<group>"; };
+		FF24A4AB94194CBA82E36353 /* MosaicComposer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicComposer.swift; sourceTree = "<group>"; };
 		B3E429C8F7CA250F8AA00FA6 /* FrameCropperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrameCropperTests.swift; sourceTree = "<group>"; };
 		B4B6388ED3A137828CD46D07 /* AstronomyFilter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyFilter.swift; sourceTree = "<group>"; };
 		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
@@ -725,6 +731,7 @@
 				8A54ADD2F542116B5B980EE0 /* ObservationTimelineViewTests.swift */,
 				8F3FC08CDD4148AFCC861DD0 /* PlanetaryPostProcessorTests.swift */,
 				5D6B1E929FEE960BA808F516 /* ImageEditorTests.swift */,
+				E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */,
 			);
 			name = skyformacTests;
 			path = skyformacTests;
@@ -843,6 +850,7 @@
 				F125C29C77E8314CF5836D04 /* LiveCaptureBrowserView.swift */,
 				5DFF34D661A4463A9FB53FAA /* LaunchSplashView.swift */,
 				925930A83DAE89A9082C9FD0 /* SingleImagePostProcessingView.swift */,
+				1F3F99054CE7482AB21EDD18 /* MosaicComposerView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -971,6 +979,7 @@
 				9A25CEB13ECF6CE729D5560D /* SERWriter.swift */,
 				DF88ABFAA4C72053B6232F1F /* ImageExporter.swift */,
 				B36AD0E9120D1B73D98FDCCC /* StarPatternRecognizer.swift */,
+				FF24A4AB94194CBA82E36353 /* MosaicComposer.swift */,
 				60759144D69321A911094B7E /* ExposureOptimizer.swift */,
 				D1F88E93C902EBE287E07893 /* HFDCalculator.swift */,
 				E14B676FB83C3E9370D129CF /* FocusTracker.swift */,
@@ -1199,6 +1208,7 @@
 				AA5B34C3D87DDFE2E9B8D6D5 /* LuckyImagingSession.swift in Sources */,
 				268E153AB6EDCBE25D96C62F /* SkyCatalog.swift in Sources */,
 				5A96263746F17899DF2DAAA6 /* StarPatternRecognizer.swift in Sources */,
+				72590AC2A5D34250B98F5EFE /* MosaicComposer.swift in Sources */,
 				C90D5CA058CED548ED517BD3 /* ExposureOptimizer.swift in Sources */,
 				666012D86E930AA46CE6CF1A /* HFDCalculator.swift in Sources */,
 				290DC68D0C0CA132626D597C /* FocusTracker.swift in Sources */,
@@ -1264,6 +1274,7 @@
 				729D60C9AC7A40C18CAA0964 /* LaunchSplashView.swift in Sources */,
 				1944C736A34F20D7A125646C /* ImageEditor.swift in Sources */,
 				F2B3478B710F4275B56EBF0E /* SingleImagePostProcessingView.swift in Sources */,
+				2B060A7D578F4BE988832EB2 /* MosaicComposerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1351,6 +1362,7 @@
 				649C77EA40CEFB753A5AD1FD /* ObservationTimelineViewTests.swift in Sources */,
 				1FD7A4223786CDA55A11681F /* PlanetaryPostProcessorTests.swift in Sources */,
 				8B1322B1E666F768A6045695 /* ImageEditorTests.swift in Sources */,
+				57BA8F7E0BAA4CAAB1622BE7 /* MosaicComposerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

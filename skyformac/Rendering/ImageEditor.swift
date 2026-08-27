@@ -64,6 +64,10 @@ enum ImageEditor {
         /// The same filter's `inputHighlightAmount`, inverted (0 = untouched, 1 = highlights
         /// pulled all the way down) — recovers a blown-out planetary disk/bright core.
         var highlightRecovery: Double = 0
+        /// `CIColorPosterize`'s `inputLevels` — a stylistic finishing effect (flattens each
+        /// channel to a handful of discrete bands, the classic "posterize" look), not a
+        /// restoration tool like everything else here. `0` = off; otherwise `2...32` bands.
+        var posterizeLevels: Double = 0
 
         static let identity = Adjustments()
     }
@@ -187,6 +191,13 @@ enum ImageEditor {
             sharpen.radius = Float(1.5 + adjustments.sharpenIntensity)
             sharpen.intensity = Float(adjustments.sharpenIntensity)
             if let output = sharpen.outputImage { ciImage = output }
+        }
+
+        if adjustments.posterizeLevels > 0 {
+            let posterize = CIFilter.colorPosterize()
+            posterize.inputImage = ciImage
+            posterize.levels = Float(adjustments.posterizeLevels)
+            if let output = posterize.outputImage { ciImage = output }
         }
 
         // `cropped(to:)`/the morphology filters above only change `extent`, not the pixel origin

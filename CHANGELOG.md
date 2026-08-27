@@ -19,6 +19,25 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Mosaic capture and composition — "different parts of the Moon to get a full Moon, or different
+  captures of Andromeda, composed together." A new "Capture Mosaic Tile" button (Capture page,
+  right next to FITS/PNG/TIFF export — reuses the exact same `exportCurrentFrame(as: .png)` every
+  other export button already calls) captures each overlapping tile; multi-selecting 2+ of them in
+  the session's Timeline and choosing "Compose Mosaic…" stitches them into one larger image via
+  real star-pattern (asterism) tile registration — genuinely different from
+  `PlanetaryPostProcessor`'s own registration, which assumes every frame shares the *same* field of
+  view and would actively reject a real tile offset as noise. Detects each tile's stars
+  (`StarDetector`, already used for live focus-assist), matches them between adjacent tiles via
+  triangle-similarity voting (the same technique `StarPatternRecognizer` already uses to match
+  detected stars against a named catalog, generalized here to two anonymous point sets), fits a
+  similarity transform (rotation/scale/translation) via closed-form least squares (the same OLS
+  spirit as `LiveWCSSolver`'s own pixel<->sky fit), then composites the tiles with feathered edges
+  for a smooth seam. New "Mosaic Composer" window reuses `ImageAdjustmentsControls` for the same
+  touch-up pass every other post-processing screen offers, and saves into the project's Elaborated
+  gallery like everything else there.
+- A "Posterize" slider in Edit Image/Planetary Post-Processing's Single Shot tab (`CIColorPosterize`)
+  — a stylistic finishing effect, off by default, in its own "Stylize" section since it's not a
+  restoration tool like everything else there.
 - A "Window" menu now offers "Tile Windows" and "Cascade Windows" — with Planetary
   Post-Processing/Edit Image/the full-screen preview each opening in a real, independently
   movable/resizable window now, having several open at once is common, and macOS has no built-in

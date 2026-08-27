@@ -2180,6 +2180,21 @@ struct ControlsPanelView: View {
                 Button("TIFF") { cameraManager.exportCurrentFrame(as: .tiff) }
             }
             .disabled(cameraManager.currentFrame == nil)
+
+            Divider()
+
+            // Same underlying capture `exportCurrentFrame(as: .png)` already does — a distinct,
+            // purpose-named button (not just "PNG" above) so sweeping across a target one tile at
+            // a time reads as its own deliberate action, not an ordinary export. Composing the
+            // resulting tiles back together happens afterward, from the session's own Timeline —
+            // multi-select 2+ of them and "Compose Mosaic…" (`SessionDetailPane`).
+            Button("Capture Mosaic Tile", systemImage: "square.grid.3x3") {
+                cameraManager.exportCurrentFrame(as: .png)
+            }
+            .disabled(cameraManager.currentFrame == nil)
+            Text("For a Moon mosaic or a wide object like Andromeda — capture each overlapping tile with this, then select them in the Timeline below and \"Compose Mosaic…\" once you've got them all.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
