@@ -977,6 +977,35 @@ struct ElaboratedImageCard: View {
             .appendingPathComponent(sourceCapture.fileName)
     }
 
+    /// "All the right-click menu items on post processed images must be visible also in preview
+    /// of the image" — the same actions `.contextMenu` above offers, reachable from
+    /// `FullScreenImageViewer`'s own "More" menu too. Each action closes `isViewingFullScreen`
+    /// first (unlike the context menu's own actions) since two `.sheet`s can't be presented at
+    /// once — the same "close this sheet first, not just alongside" reasoning
+    /// `ElaboratedImageDetailSheet`'s own button handlers already use.
+    @ViewBuilder
+    private var fullScreenMoreMenuItems: some View {
+        Button("Info…", systemImage: "info.circle") { isViewingFullScreen = false; isShowingDetail = true }
+        Button("Show in Finder") { isViewingFullScreen = false; NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+        Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { isViewingFullScreen = false; AstroBinPublisher.publish(fileURL) }
+        Divider()
+        if originalSERCaptureURL != nil {
+            Button("Redo from Original…", systemImage: "arrow.counterclockwise") { isViewingFullScreen = false; isRedoingFromOriginal = true }
+        }
+        Button("Edit Image…", systemImage: "slider.horizontal.3") { isViewingFullScreen = false; isEditingImage = true }
+        Divider()
+        Menu("Third-Party Tools") {
+            if image.recipe != nil, reElaborationSource != nil {
+                Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise") { isViewingFullScreen = false; isReElaborating = true }
+            }
+            Button("Send to GraXpert…", systemImage: "sparkles") { isViewingFullScreen = false; startSendingToGraXpert() }
+            Button("Remove Stars (StarNet)…", systemImage: "star.slash") { isViewingFullScreen = false; startSendingToStarNet() }
+            Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
+        }
+        Divider()
+        Button("Delete…", systemImage: "trash", role: .destructive) { isViewingFullScreen = false; isConfirmingDelete = true }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             ZStack {
@@ -1032,7 +1061,10 @@ struct ElaboratedImageCard: View {
         }
         .sheet(isPresented: $isViewingFullScreen) {
             if let nsImage = NSImage(contentsOf: fileURL) {
-                FullScreenImageViewer(image: nsImage, fileURL: fileURL, onSetAsThumbnail: setProjectThumbnailFromThisImage)
+                FullScreenImageViewer(
+                    image: nsImage, fileURL: fileURL, onSetAsThumbnail: setProjectThumbnailFromThisImage,
+                    moreMenuItems: { AnyView(fullScreenMoreMenuItems) }
+                )
             }
         }
         .sheet(isPresented: $isShowingDetail) {

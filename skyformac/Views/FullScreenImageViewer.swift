@@ -64,6 +64,14 @@ struct FullScreenImageViewer: View {
     /// `nil` hides the "Set as Thumbnail" button entirely — not every caller has a
     /// project/session to set one on (e.g. a bare exported file with no project association).
     var onSetAsThumbnail: (() -> Void)?
+    /// "All the right-click menu items on post processed images must be visible also in preview
+    /// of the image" — an elaborated image's own context menu (Info…, Show in Finder, Publish to
+    /// AstroBin…, Redo from Original…, Edit Image…, Third-Party Tools, Delete…) previously had no
+    /// equivalent here at all once this viewer replaced the old tap-to-open metadata sheet. `nil`
+    /// (every other caller — a bare capture PNG has none of these concepts) hides the "More"
+    /// button entirely rather than showing an empty menu. `AnyView`, not a second generic
+    /// parameter, so every existing call site keeps compiling unchanged.
+    var moreMenuItems: (() -> AnyView)? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var isSavingToPhotos = false
@@ -119,6 +127,14 @@ struct FullScreenImageViewer: View {
                     didSetThumbnail = true
                 } label: {
                     Label(didSetThumbnail ? "Thumbnail Set" : "Set as Thumbnail", systemImage: didSetThumbnail ? "checkmark" : "photo.badge.checkmark")
+                }
+            }
+
+            if let moreMenuItems {
+                Menu {
+                    moreMenuItems()
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
                 }
             }
 

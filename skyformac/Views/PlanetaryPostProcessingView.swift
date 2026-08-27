@@ -142,13 +142,15 @@ struct PlanetaryPostProcessingView: View {
     private static let defaultLayers: [PlanetaryPostProcessor.WaveletLayer] = [1.6, 1.35, 1.15, 1.0]
         .enumerated().map { .init(id: $0.offset, gain: $0.element) }
 
-    /// The screen's whole visible area (menu bar/Dock already excluded by `visibleFrame` itself),
-    /// not that minus a margin — "the post processing view window must be larger, full width and
-    /// height" — this is as large as a `.sheet` can get short of an actual `NSWindow` covering the
-    /// menu bar too.
+    /// Close to the screen's whole visible area ("the post processing view window must be
+    /// larger, full width and height") but NOT exactly equal to it — sizing a `.sheet` to exactly
+    /// `visibleFrame` (tried once, reverted) made macOS reposition the presenting window itself
+    /// down by the sheet's own title-bar height once this sheet's frame plus that title bar no
+    /// longer fit inside `visibleFrame`, cutting the bottom of the window off. Leaving a margin
+    /// keeps the sheet safely smaller than the screen so that repositioning never triggers.
     private var fullScreenSize: CGSize {
         let visible = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1200, height: 800)
-        return CGSize(width: max(visible.width, 980), height: max(visible.height, 660))
+        return CGSize(width: max(visible.width - 40, 980), height: max(visible.height - 40, 660))
     }
 
     var body: some View {

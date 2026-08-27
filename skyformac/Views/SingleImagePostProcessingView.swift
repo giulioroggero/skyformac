@@ -61,11 +61,12 @@ struct SingleImagePostProcessingView: View {
     @State private var savedImage: ElaboratedImage?
     @State private var saveErrorMessage: String?
 
-    /// See `PlanetaryPostProcessingView.fullScreenSize`'s own doc comment — same reasoning, same
-    /// fix: the whole visible screen area, not that minus a margin.
+    /// See `PlanetaryPostProcessingView.fullScreenSize`'s own doc comment — a margin below
+    /// `visibleFrame`, not exactly equal to it, so macOS never repositions the presenting window
+    /// itself to make room for this sheet's own title bar.
     private var fullScreenSize: CGSize {
         let visible = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1200, height: 800)
-        return CGSize(width: max(visible.width, 980), height: max(visible.height, 660))
+        return CGSize(width: max(visible.width - 40, 980), height: max(visible.height - 40, 660))
     }
 
     private var cropRect: CGRect? {

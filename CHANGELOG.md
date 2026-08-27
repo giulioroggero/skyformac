@@ -19,6 +19,10 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- An elaborated image's full-screen preview now has a "More" menu with everything its
+  right-click context menu already offers (Info…, Show in Finder, Publish to AstroBin…, Redo
+  from Original…, Edit Image…, Third-Party Tools, Delete…) — previously only reachable by
+  right-clicking the small thumbnail, not from the preview itself.
 - Planetary Post-Processing's ready-screen sidebar now has two tabs — "Video" (the existing
   Stacking/Wavelet/Color/Stretch controls) and "Single Shot Adjustments," reusing the same
   `ImageEditor` touch-up tools "Edit Image…" offers (tone, sharpen, denoise, green-cast removal,
@@ -74,6 +78,11 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   claimed all available vertical space and squeezed the button (sandwiched between two plain
   `Spacer()`s) down to nothing. Rearranged into a fixed-height footer below a properly
   height-bounded settings area instead.
+- Opening Planetary Post-Processing or Edit Image shifted the whole app window down by roughly
+  the sheet's own title-bar height, cutting off the bottom of the window — sizing the sheet to
+  exactly the screen's visible area (its own recent fix) left no room for macOS to fit that title
+  bar without repositioning the presenting window itself. Restored a small margin so the sheet
+  stays safely smaller than the screen instead.
 
 ## [0.5.3] - 2026-08-27
 
