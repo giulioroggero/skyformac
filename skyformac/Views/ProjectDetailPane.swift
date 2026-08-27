@@ -897,6 +897,34 @@ struct LocationEditorView: View {
     }
 }
 
+/// The "hand off to an external app" menu — GraXpert/StarNet/PixInsight, plus a Siril
+/// "Re-elaborate…" for a Siril-originated result — shared by an elaborated image's own context
+/// menu, its full-screen preview's "More" menu, and its Info sheet's button row. Extracted once
+/// `Menu("Third-Party Tools")`'s own content had been copy-pasted three times across this file: a
+/// real risk of the three drifting out of sync (a fifth tool added to one but not the others),
+/// not a case where the duplication itself read badly. Each call site still supplies its own
+/// action closures — one closes a detached window first, one doesn't have one to close, and the
+/// Info sheet's own closures come from its caller — so this only unifies the menu's *shape*, not
+/// what each button actually does.
+private struct ThirdPartyToolsMenu: View {
+    var canReElaborate: Bool
+    var onReElaborate: () -> Void
+    var onSendToGraXpert: () -> Void
+    var onSendToStarNet: () -> Void
+    var onOpenInPixInsight: () -> Void
+
+    var body: some View {
+        Menu("Third-Party Tools") {
+            if canReElaborate {
+                Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise", action: onReElaborate)
+            }
+            Button("Send to GraXpert…", systemImage: "sparkles", action: onSendToGraXpert)
+            Button("Remove Stars (StarNet)…", systemImage: "star.slash", action: onSendToStarNet)
+            Button("Open in PixInsight…", systemImage: "arrow.up.forward.app", action: onOpenInPixInsight)
+        }
+    }
+}
+
 /// One `SirilElaborationService` result on the Project page's "Elaborated" section — tapping it
 /// opens `ExportedFileViewerView` (the same viewer FITS/PNG/TIFF exports already use), since the
 /// result is itself just a `.tif` file. "Info…" shows what actually produced it (source, recipe,
@@ -997,14 +1025,13 @@ struct ElaboratedImageCard: View {
         Button("Show in Finder") { viewingFullScreenWindowController?.close(); NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
         Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { viewingFullScreenWindowController?.close(); AstroBinPublisher.publish(fileURL) }
         Divider()
-        Menu("Third-Party Tools") {
-            if image.recipe != nil, reElaborationSource != nil {
-                Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise") { viewingFullScreenWindowController?.close(); isReElaborating = true }
-            }
-            Button("Send to GraXpert…", systemImage: "sparkles") { viewingFullScreenWindowController?.close(); startSendingToGraXpert() }
-            Button("Remove Stars (StarNet)…", systemImage: "star.slash") { viewingFullScreenWindowController?.close(); startSendingToStarNet() }
-            Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
-        }
+        ThirdPartyToolsMenu(
+            canReElaborate: image.recipe != nil && reElaborationSource != nil,
+            onReElaborate: { viewingFullScreenWindowController?.close(); isReElaborating = true },
+            onSendToGraXpert: { viewingFullScreenWindowController?.close(); startSendingToGraXpert() },
+            onSendToStarNet: { viewingFullScreenWindowController?.close(); startSendingToStarNet() },
+            onOpenInPixInsight: { try? PixInsightAppLauncher.open(fileURL) }
+        )
         Divider()
         Button("Delete…", systemImage: "trash", role: .destructive) { viewingFullScreenWindowController?.close(); isConfirmingDelete = true }
     }
@@ -1051,14 +1078,13 @@ struct ElaboratedImageCard: View {
             // result through Siril specifically (only ever offered for a Siril-originated
             // result, `image.recipe != nil`), so it belongs alongside GraXpert/StarNet/
             // PixInsight, not next to Skyformac's own Info/Show in Finder/Delete above.
-            Menu("Third-Party Tools") {
-                if image.recipe != nil, reElaborationSource != nil {
-                    Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise") { isReElaborating = true }
-                }
-                Button("Send to GraXpert…", systemImage: "sparkles") { startSendingToGraXpert() }
-                Button("Remove Stars (StarNet)…", systemImage: "star.slash") { startSendingToStarNet() }
-                Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
-            }
+            ThirdPartyToolsMenu(
+                canReElaborate: image.recipe != nil && reElaborationSource != nil,
+                onReElaborate: { isReElaborating = true },
+                onSendToGraXpert: { startSendingToGraXpert() },
+                onSendToStarNet: { startSendingToStarNet() },
+                onOpenInPixInsight: { try? PixInsightAppLauncher.open(fileURL) }
+            )
         }
         .sheet(isPresented: $isShowingDetail) {
             ElaboratedImageDetailSheet(
@@ -1299,14 +1325,10 @@ private struct ElaboratedImageDetailSheet: View {
                 // Every hand-off to an external app grouped together — see the card's own
                 // context menu doc comment for why "Re-elaborate" (Siril-only) belongs here
                 // alongside GraXpert/StarNet/PixInsight rather than sitting on its own.
-                Menu("Third-Party Tools") {
-                    if canReElaborate {
-                        Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise", action: onReElaborate)
-                    }
-                    Button("Send to GraXpert…", systemImage: "sparkles", action: onSendToGraXpert)
-                    Button("Remove Stars (StarNet)…", systemImage: "star.slash", action: onSendToStarNet)
-                    Button("Open in PixInsight…", systemImage: "arrow.up.forward.app", action: onOpenInPixInsight)
-                }
+                ThirdPartyToolsMenu(
+                    canReElaborate: canReElaborate, onReElaborate: onReElaborate, onSendToGraXpert: onSendToGraXpert,
+                    onSendToStarNet: onSendToStarNet, onOpenInPixInsight: onOpenInPixInsight
+                )
                 .fixedSize()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)

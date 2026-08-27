@@ -19,6 +19,16 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Whole-app UX/simplification pass, from a self-review: the Dashboard's 7 independently-stacked
+  sections (a real returning user with history saw every one of them at once, the densest screen
+  in the app) are now organized into named, collapsible "Explore" (Observation Timeline/Recent
+  Projects/Highlighted Sessions) and "Insights" (Activity/Suggested Session) clusters — "Resume
+  Where You Left Off" and "Common Tasks" stay top-level since those are what's reached for first.
+  Nothing is hidden by default, only grouped; a returning user who wants less scrolling can
+  collapse a cluster they don't need right now. The Projects browser's "Atlas" view-mode segment
+  (icon-only, no room for a subtitle the way a Dashboard tile has) now has a hover tooltip
+  explaining what it actually shows, since "Atlas" alone assumes the reader already knows.
+
 - UX pass on the new Mosaic feature, from a self-review of its own discoverability: "Capture
   Mosaic Tile" moved out of the Capture page's collapsed "Export" section into its own
   always-visible one — the button was undiscoverable to anyone who didn't already know to expand
@@ -145,6 +155,14 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   accelerated registration/stacking in-app now) from anything that hands off to an external app
   (Siril, GraXpert, StarNet, PixInsight), which now live together under their own "Third-Party
   Tools" group/menu instead of mixed in with Skyformac's own actions.
+
+### Changed
+- The "Third-Party Tools" menu (GraXpert/StarNet/PixInsight/Siril hand-off) had been copy-pasted
+  three times across `ProjectDetailPane.swift` — an elaborated image's context menu, its
+  full-screen preview's "More" menu, and its Info sheet's button row — a real risk of the three
+  drifting out of sync (a tool added to one but not the others). Extracted into one shared
+  `ThirdPartyToolsMenu`; each call site still supplies its own action closures, so this only
+  unifies the menu's shape, not what any button actually does. No user-visible change.
 
 ### Fixed
 - Closed the remaining gaps behind "post-processing still pins the CPU after it finishes, and a

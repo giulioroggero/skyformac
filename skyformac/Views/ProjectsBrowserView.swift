@@ -525,6 +525,11 @@ private struct ProjectsHomeView: View {
                     Label("Thumbnails", systemImage: "square.grid.2x2").tag(ProjectsHomeViewMode.thumbnail.rawValue)
                     Label("Table", systemImage: "tablecells").tag(ProjectsHomeViewMode.table.rawValue)
                     Label("Atlas", systemImage: "map").tag(ProjectsHomeViewMode.atlas.rawValue)
+                        // Icon-only in a segmented control, unlike Dashboard's own `ActionCard`
+                        // tiles (which have room for a real subtitle) — a hover tooltip is this
+                        // control's own equivalent for "what is this," since "Atlas" alone assumes
+                        // the reader already knows what a sky atlas view of past sessions is.
+                        .help("Plots every session by its object's fixed position in the sky, instead of by project or date.")
                 }
                 .pickerStyle(.segmented)
                 .labelStyle(.iconOnly)

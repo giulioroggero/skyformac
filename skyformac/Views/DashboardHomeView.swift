@@ -26,6 +26,16 @@ struct DashboardHomeView: View {
     var onShowGallery: () -> Void
     var onShowSettings: () -> Void
 
+    /// Grouping "Explore" (Timeline/Recent Projects/Highlighted Sessions — all browsing past
+    /// activity) and "Insights" (the Activity chart/Suggested Session — data and what-to-do-next)
+    /// into their own named, collapsible clusters is what keeps a returning user with a full
+    /// history from seeing 7 independently-stacked cards at once — "Resume Where You Left Off"
+    /// and "Common Tasks" stay top-level and ungrouped since those are the two sections someone
+    /// actually reaches for first. Defaults to expanded (nothing is hidden by this change, only
+    /// organized) — collapsing is purely an option for a returning user who wants less scrolling.
+    @State private var isExploreClusterExpanded = true
+    @State private var isInsightsClusterExpanded = true
+
     /// "Add the skill for the AI that suggests project sessions" — a whole session proposal
     /// (name, goal, objects, target project), computed via `CameraManager.fetchSuggestedNextSession()`.
     /// There's no synchronous fallback to show first: a full session plan has no catalog-list
@@ -184,105 +194,130 @@ struct DashboardHomeView: View {
                     .accessibilityIdentifier("CommonTasksScrollView")
                 }
 
-                PageSection(title: "Observation Timeline") {
-                    ObservationTimelineView(
-                        projects: projects, cameraManager: cameraManager,
-                        onSelect: { project, session, capture in onOpenCapture(project, session, capture) }
-                    )
-                }
+                dashboardCluster("Explore", isExpanded: $isExploreClusterExpanded) {
+                    PageSection(title: "Observation Timeline") {
+                        ObservationTimelineView(
+                            projects: projects, cameraManager: cameraManager,
+                            onSelect: { project, session, capture in onOpenCapture(project, session, capture) }
+                        )
+                    }
 
-                if !recentProjects.isEmpty {
-                    PageSection(title: "Recent Projects") {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(recentProjects) { project in
-                                    ProjectCard(project: project, isOpen: cameraManager.activeProject?.id == project.id, store: cameraManager.projectStore)
-                                        .frame(width: 220)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture { onSelectProject(project) }
+                    if !recentProjects.isEmpty {
+                        PageSection(title: "Recent Projects") {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 16) {
+                                    ForEach(recentProjects) { project in
+                                        ProjectCard(project: project, isOpen: cameraManager.activeProject?.id == project.id, store: cameraManager.projectStore)
+                                            .frame(width: 220)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture { onSelectProject(project) }
+                                    }
+                                }
+                                // See "Common Tasks" above for why this is 20pt of real padding, not
+                                // just a scroll-anchor fix.
+                                .padding(.leading, 20)
+                            }
+                            .defaultScrollAnchor(.leading)
+                        }
+                    }
+
+                    if !highlightedSessions.isEmpty {
+                        PageSection(title: "Highlighted Sessions") {
+                            ForEach(highlightedSessions, id: \.session.id) { entry in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("\(entry.project.name) — \(entry.session.name)").font(.body)
+                                        Text("\(entry.session.captures.count) captures · last \(entry.session.lastCaptureDate?.formatted(date: .abbreviated, time: .omitted) ?? "—")")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Button("Open") { onOpenSession(entry.project, entry.session) }
+                                        .buttonStyle(.borderless)
                                 }
                             }
-                            // See "Common Tasks" above for why this is 20pt of real padding, not
-                            // just a scroll-anchor fix.
-                            .padding(.leading, 20)
                         }
-                        .defaultScrollAnchor(.leading)
                     }
                 }
 
-                if !highlightedSessions.isEmpty {
-                    PageSection(title: "Highlighted Sessions") {
-                        ForEach(highlightedSessions, id: \.session.id) { entry in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(entry.project.name) — \(entry.session.name)").font(.body)
-                                    Text("\(entry.session.captures.count) captures · last \(entry.session.lastCaptureDate?.formatted(date: .abbreviated, time: .omitted) ?? "—")")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                if insights.totalCaptures > 0 || suggestedSession != nil {
+                    dashboardCluster("Insights", isExpanded: $isInsightsClusterExpanded) {
+                        if insights.totalCaptures > 0 {
+                            PageSection(title: "Activity") {
+                                // Per-day, last 30 days — a fixed, immediately-legible "what have I
+                                // been doing lately" window, unlike Insights' own drill-down (year →
+                                // month → day → hour), which is deliberately open-ended/explorable
+                                // instead. Categorical (`label`) x-axis, same reasoning as
+                                // `MonthlyActivity.label`'s own doc comment — a continuous `Date`
+                                // axis would tick every day in the 30-day domain even where nothing
+                                // happened, not just the days shown here.
+                                Chart(last30DaysActivity) { bucket in
+                                    BarMark(x: .value("Day", bucket.label), y: .value("Captures", bucket.count))
                                 }
-                                Spacer()
-                                Button("Open") { onOpenSession(entry.project, entry.session) }
+                                .frame(height: 140)
+                                .contentShape(Rectangle())
+                                .onTapGesture { onShowInsights() }
+                                .onHover { isHovering in
+                                    if isHovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                                }
+                                .help("Open Insights")
+                                HStack(spacing: 24) {
+                                    if let topObject = insights.byObject.first {
+                                        summaryStat(label: "Most Captured", value: "\(topObject.name) (\(topObject.count))")
+                                    }
+                                    if let topEquipment = insights.byEquipmentSystem.first {
+                                        summaryStat(label: "Most Used Equipment", value: "\(topEquipment.name) (\(topEquipment.count))")
+                                    }
+                                    summaryStat(label: "Total Captures", value: "\(insights.totalCaptures)")
+                                }
+                                Button("See Full Insights…") { onShowInsights() }
                                     .buttonStyle(.borderless)
                             }
                         }
-                    }
-                }
 
-                if insights.totalCaptures > 0 {
-                    PageSection(title: "Activity") {
-                        // Per-day, last 30 days — a fixed, immediately-legible "what have I been
-                        // doing lately" window, unlike Insights' own drill-down (year → month →
-                        // day → hour), which is deliberately open-ended/explorable instead.
-                        // Categorical (`label`) x-axis, same reasoning as `MonthlyActivity.label`'s
-                        // own doc comment — a continuous `Date` axis would tick every day in the
-                        // 30-day domain even where nothing happened, not just the days shown here.
-                        Chart(last30DaysActivity) { bucket in
-                            BarMark(x: .value("Day", bucket.label), y: .value("Captures", bucket.count))
-                        }
-                        .frame(height: 140)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onShowInsights() }
-                        .onHover { isHovering in
-                            if isHovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                        }
-                        .help("Open Insights")
-                        HStack(spacing: 24) {
-                            if let topObject = insights.byObject.first {
-                                summaryStat(label: "Most Captured", value: "\(topObject.name) (\(topObject.count))")
-                            }
-                            if let topEquipment = insights.byEquipmentSystem.first {
-                                summaryStat(label: "Most Used Equipment", value: "\(topEquipment.name) (\(topEquipment.count))")
-                            }
-                            summaryStat(label: "Total Captures", value: "\(insights.totalCaptures)")
-                        }
-                        Button("See Full Insights…") { onShowInsights() }
-                            .buttonStyle(.borderless)
-                    }
-                }
-
-                if let suggestedSession {
-                    PageSection(title: "Suggested Session") {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(suggestedSession.name) — \(suggestedSession.projectName)").font(.headline)
-                                Text(suggestedSession.goal).font(.caption).foregroundStyle(.secondary)
-                                if !suggestedSession.plannedObjects.isEmpty {
-                                    Text("Objects: \(suggestedSession.plannedObjects.joined(separator: ", "))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
+                        if let suggestedSession {
+                            PageSection(title: "Suggested Session") {
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("\(suggestedSession.name) — \(suggestedSession.projectName)").font(.headline)
+                                        Text(suggestedSession.goal).font(.caption).foregroundStyle(.secondary)
+                                        if !suggestedSession.plannedObjects.isEmpty {
+                                            Text("Objects: \(suggestedSession.plannedObjects.joined(separator: ", "))")
+                                                .font(.caption2)
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Button("Dismiss") { self.suggestedSession = nil }
+                                        .buttonStyle(.borderless)
+                                    Button("Create") {
+                                        cameraManager.acceptSuggestedSession(suggestedSession)
+                                        self.suggestedSession = nil
+                                    }
+                                    .buttonStyle(.borderedProminent)
                                 }
                             }
-                            Spacer()
-                            Button("Dismiss") { self.suggestedSession = nil }
-                                .buttonStyle(.borderless)
-                            Button("Create") {
-                                cameraManager.acceptSuggestedSession(suggestedSession)
-                                self.suggestedSession = nil
-                            }
-                            .buttonStyle(.borderedProminent)
                         }
                     }
                 }
+        }
+    }
+
+    /// A named, collapsible group of `PageSection`s — see `isExploreClusterExpanded`'s own doc
+    /// comment for why. A plain `DisclosureGroup` rather than another `PageSection` wrapping
+    /// these: the point is fewer independently-scannable top-level cards, not one more card
+    /// nested around the ones already there.
+    @ViewBuilder
+    private func dashboardCluster<Content: View>(
+        _ title: String, isExpanded: Binding<Bool>, @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        DisclosureGroup(isExpanded: isExpanded) {
+            VStack(alignment: .leading, spacing: 16) {
+                content()
+            }
+            .padding(.top, 8)
+        } label: {
+            Text(title).font(.title3.bold())
         }
     }
 
