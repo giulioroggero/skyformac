@@ -112,6 +112,14 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   Tools" group/menu instead of mixed in with Skyformac's own actions.
 
 ### Fixed
+- Closed the remaining gaps behind "post-processing still pins the CPU after it finishes, and a
+  manual Restack only brings it partway back down": `autoStretch()` (the automatic stretch that
+  runs right after the very first stack) used to spawn a completely untracked, uncancellable
+  `Task` — no `@State` reference at all, unlike every other stage — so it could never be stopped
+  or superseded once started; `alignRGBChannels`/`histogram(of:)` also never accepted an
+  `isCancelled` check the way `waveletSharpen`/`renderImage` now do. All three now use the same
+  cancellation-flag pattern, and closing this window or hitting "Cancel" now stops every in-flight
+  stage (Stage 1-5), not just Stage 1-3's own registration/stacking.
 - Planetary Post-Processing's live wavelet-sharpen/stretch preview (Stage 4-5 — the wavelet-layer,
   denoise, RGB-align, black/white-point, and log-stretch sliders) could pin every CPU core at once
   and stay pinned, confirmed live on a real stuck process: several `Task.detached` closures piled

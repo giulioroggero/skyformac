@@ -119,6 +119,11 @@ struct PlanetaryPostProcessingView: View {
     /// superseded pass actually stops instead of computing an image nobody will see.
     @State private var sharpenCancelFlag: PlanetaryCancellationFlag?
     @State private var renderCancelFlag: PlanetaryCancellationFlag?
+    /// `autoStretch()` used to spawn a bare, untracked `Task { }` — no `@State` reference, no
+    /// cancellation flag at all, so it could never be stopped or superseded, unlike every other
+    /// stage in this pipeline. Same fix, same reasoning as `sharpenCancelFlag`/`renderCancelFlag`.
+    @State private var autoStretchTask: Task<Void, Never>?
+    @State private var autoStretchCancelFlag: PlanetaryCancellationFlag?
 
     private enum SidebarTab: String, CaseIterable, Identifiable {
         case video = "Video"
@@ -201,7 +206,7 @@ struct PlanetaryPostProcessingView: View {
         // silently fight the window's own resizing instead of actually growing/shrinking with it.
         .frame(minWidth: Self.minWindowSize.width, maxWidth: .infinity, minHeight: Self.minWindowSize.height, maxHeight: .infinity)
         .background(.background)
-        .onDisappear { cancelCurrentWork?() }
+        .onDisappear { cancelAllPipelineWork() }
         .onAppear { applyInitialSettingsIfNeeded() }
         .task {
             sourcePreview = sourceURLs.first.flatMap(Self.loadSourcePreview)
@@ -496,7 +501,7 @@ struct PlanetaryPostProcessingView: View {
                 .background(.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
                 .onChange(of: logLines) { _, _ in proxy.scrollTo("logBottom", anchor: .bottom) }
             }
-            Button("Cancel", role: .cancel) { cancelCurrentWork?() }
+            Button("Cancel", role: .cancel) { cancelAllPipelineWork() }
         }
     }
 
@@ -783,6 +788,19 @@ struct PlanetaryPostProcessingView: View {
         return try await task.value
     }
 
+    /// Every cancellable stage this view can have in flight — `cancelCurrentWork` alone (Stage
+    /// 1-3, `runDetached`) leaves Stage 4-5's own sharpen/render/auto-stretch flags untouched, so
+    /// closing this window or hitting "Cancel" mid-slider-drag used to leave those still running.
+    private func cancelAllPipelineWork() {
+        cancelCurrentWork?()
+        sharpenCancelFlag?.cancel()
+        sharpenTask?.cancel()
+        renderCancelFlag?.cancel()
+        renderTask?.cancel()
+        autoStretchCancelFlag?.cancel()
+        autoStretchTask?.cancel()
+    }
+
     private func loadAndProcess() async {
         let sink = ProgressSink(self)
         do {
@@ -900,6 +918,8 @@ struct PlanetaryPostProcessingView: View {
         sharpenTask?.cancel()
         renderCancelFlag?.cancel()
         renderTask?.cancel()
+        autoStretchCancelFlag?.cancel()
+        autoStretchTask?.cancel()
         guard let baseStack else { return }
         let layers = waveletLayers
         let denoiseAmount = denoise
@@ -914,7 +934,7 @@ struct PlanetaryPostProcessingView: View {
         sharpenTask = Task {
             let sharpened = await Task.detached(priority: .userInitiated) {
                 var image = PlanetaryPostProcessor.waveletSharpen(baseStack, layers: layers, denoise: denoiseAmount, isCancelled: { flag.isCancelled })
-                if align, !flag.isCancelled { image = PlanetaryPostProcessor.alignRGBChannels(image, roi: roi) }
+                if align { image = PlanetaryPostProcessor.alignRGBChannels(image, roi: roi, isCancelled: { flag.isCancelled }) }
                 return image
             }.value
             if Task.isCancelled || flag.isCancelled { return }
@@ -935,6 +955,11 @@ struct PlanetaryPostProcessingView: View {
     private func renderOnly() {
         renderCancelFlag?.cancel()
         renderTask?.cancel()
+        // A direct render (a black/white-point slider drag, say) supersedes any auto-stretch
+        // histogram pass still in flight — it's about to set its own blackPoint/whitePoint from
+        // possibly-stale data anyway.
+        autoStretchCancelFlag?.cancel()
+        autoStretchTask?.cancel()
         guard let sharpenedImage else { return }
         let black = blackPoint
         let white = whitePoint
@@ -969,11 +994,16 @@ struct PlanetaryPostProcessingView: View {
     }
 
     private func autoStretch() {
+        autoStretchCancelFlag?.cancel()
+        autoStretchTask?.cancel()
         guard let sharpenedImage else { return }
-        Task {
+        let flag = PlanetaryCancellationFlag()
+        autoStretchCancelFlag = flag
+        autoStretchTask = Task {
             let histogram = await Task.detached(priority: .userInitiated) {
-                PlanetaryPostProcessor.histogram(of: sharpenedImage)
+                PlanetaryPostProcessor.histogram(of: sharpenedImage, isCancelled: { flag.isCancelled })
             }.value
+            if Task.isCancelled || flag.isCancelled { return }
             guard let auto = DisplayStretch.autoStretch(histogram: histogram) else { return }
             blackPoint = auto.blackPoint
             whitePoint = auto.whitePoint

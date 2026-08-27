@@ -697,8 +697,10 @@ enum PlanetaryPostProcessor {
     ///   exceeds it, on the theory that a huge "correction" is a noise-dominated centroid
     ///   miscomputing itself, not a real optical effect — leaving that channel unaligned (visible
     ///   fringing, at worst) is far less destructive than applying it anyway.
-    static func alignRGBChannels(_ image: StackedImage, roi: CGRect? = nil, maxShiftFraction: Float = 0.05) -> StackedImage {
-        guard image.channels == 3 else { return image }
+    static func alignRGBChannels(
+        _ image: StackedImage, roi: CGRect? = nil, maxShiftFraction: Float = 0.05, isCancelled: () -> Bool = { false }
+    ) -> StackedImage {
+        guard image.channels == 3, !isCancelled() else { return image }
         let count = image.width * image.height
         var red = [Float](repeating: 0, count: count)
         var green = [Float](repeating: 0, count: count)
@@ -719,7 +721,7 @@ enum PlanetaryPostProcessor {
             return centroid(ofLuminance: channel, width: image.width, height: image.height, roi: roi)
         }
 
-        guard let greenCentroid = channelCentroid(green) else { return image }
+        guard let greenCentroid = channelCentroid(green), !isCancelled() else { return image }
 
         let searchDimension = roi.map { Float(min($0.width, $0.height)) } ?? Float(min(image.width, image.height))
         let maxShiftMagnitude = max(2, searchDimension * maxShiftFraction)
@@ -795,10 +797,11 @@ enum PlanetaryPostProcessor {
     /// A 256-bucket histogram of `image`'s own luma — what `DisplayStretch.autoStretch(histogram:)`
     /// needs to derive a default black/white point, the same "look at the actual data" auto-
     /// stretch every other render path in this app already uses, rather than a fixed guess.
-    static func histogram(of image: StackedImage) -> [Int] {
+    static func histogram(of image: StackedImage, isCancelled: () -> Bool = { false }) -> [Int] {
         var buckets = [Int](repeating: 0, count: 256)
         let count = image.width * image.height
         for i in 0..<count {
+            if i & 0xFFFF == 0, isCancelled() { return buckets }
             let o = image.channels == 3 ? i * 3 : i
             let value = image.channels == 3
                 ? image.values[o] * 0.299 + image.values[o + 1] * 0.587 + image.values[o + 2] * 0.114
