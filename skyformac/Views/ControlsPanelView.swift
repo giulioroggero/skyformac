@@ -133,6 +133,11 @@ struct ControlsPanelView: View {
     @AppStorage("liveCaptureDurationSeconds") private var liveCaptureDurationSeconds: Double = 3
     @State private var showLuckyImagingFrameBrowser = false
     @State private var showExportSection = false
+    /// Not persisted — a running count for "how many tiles have I captured in this sitting,"
+    /// reset (like every other `@State` here) whenever this view itself is torn down (ending the
+    /// session, say), which matches "how many since I started this mosaic" better than a
+    /// permanent total would.
+    @State private var mosaicTilesCapturedThisSession = 0
     @State private var showExportedFilesSection = false
     @State private var showRecordingSection = false
     @AppStorage("recordingThreshold") private var recordingThreshold: Double = 0
@@ -311,6 +316,8 @@ struct ControlsPanelView: View {
         }
 
         if cameraManager.connectedCamera != nil {
+            mosaicTileSection
+            Divider()
             DisclosureGroup("Export", isExpanded: $showExportSection) {
                 exportSection
             }
@@ -2180,21 +2187,37 @@ struct ControlsPanelView: View {
                 Button("TIFF") { cameraManager.exportCurrentFrame(as: .tiff) }
             }
             .disabled(cameraManager.currentFrame == nil)
+        }
+    }
 
-            Divider()
+    // MARK: - Mosaic
 
-            // Same underlying capture `exportCurrentFrame(as: .png)` already does — a distinct,
-            // purpose-named button (not just "PNG" above) so sweeping across a target one tile at
-            // a time reads as its own deliberate action, not an ordinary export. Composing the
-            // resulting tiles back together happens afterward, from the session's own Timeline —
-            // multi-select 2+ of them and "Compose Mosaic…" (`SessionDetailPane`).
+    /// "Capture Mosaic Tile" used to live inside the collapsed "Export" `DisclosureGroup` above —
+    /// a real discoverability problem (a new user would need to already know to expand Export to
+    /// find it at all), so it's its own always-visible section instead. Same underlying capture
+    /// `exportCurrentFrame(as: .png)` the plain "PNG" export button above already does — a
+    /// distinct, purpose-named button so sweeping across a target one tile at a time reads as its
+    /// own deliberate action, not an ordinary export.
+    @ViewBuilder
+    private var mosaicTileSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
             Button("Capture Mosaic Tile", systemImage: "square.grid.3x3") {
                 cameraManager.exportCurrentFrame(as: .png)
+                mosaicTilesCapturedThisSession += 1
             }
             .disabled(cameraManager.currentFrame == nil)
-            Text("For a Moon mosaic or a wide object like Andromeda — capture each overlapping tile with this, then select them in the Timeline below and \"Compose Mosaic…\" once you've got them all.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            // Confirms the tap actually did something (the button alone gives no feedback at
+            // all otherwise) and points at the second half of the feature — composing — which
+            // otherwise has no link *from* capturing to *knowing where to go next*.
+            if mosaicTilesCapturedThisSession > 0 {
+                Text("\(mosaicTilesCapturedThisSession) tile\(mosaicTilesCapturedThisSession == 1 ? "" : "s") captured this session — once you've covered the target, select them in the Timeline below and choose \"Compose Mosaic…\".")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("For a Moon mosaic or a wide object like Andromeda — capture each overlapping tile with this, sweeping across the target.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

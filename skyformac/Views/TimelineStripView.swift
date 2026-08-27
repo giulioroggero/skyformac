@@ -219,7 +219,7 @@ private struct TimelineThumbnailView: View {
 
     private func openPostProcessingWindow() {
         postProcessingWindowController = DetachedContentWindowController(
-            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            title: "Planetary Post-Processing — \(capture.fileName)", contentSize: PlanetaryPostProcessingView.fullScreenSize,
             minSize: PlanetaryPostProcessingView.minWindowSize,
             onClose: { postProcessingWindowController = nil }
         ) {
@@ -255,7 +255,7 @@ private struct TimelineThumbnailView: View {
 
     private func openEditingImageWindow() {
         editingImageWindowController = DetachedContentWindowController(
-            title: "Edit Image", contentSize: SingleImagePostProcessingView.fullScreenSize,
+            title: "Edit Image — \(capture.fileName)", contentSize: SingleImagePostProcessingView.fullScreenSize,
             minSize: SingleImagePostProcessingView.minWindowSize,
             onClose: { editingImageWindowController = nil }
         ) {

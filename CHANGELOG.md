@@ -19,6 +19,16 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- UX pass on the new Mosaic feature, from a self-review of its own discoverability: "Capture
+  Mosaic Tile" moved out of the Capture page's collapsed "Export" section into its own
+  always-visible one — the button was undiscoverable to anyone who didn't already know to expand
+  Export first. It now shows a running "N tiles captured this session" count with a direct pointer
+  to the next step ("select them in the Timeline below and choose Compose Mosaic…"), closing the
+  gap where capturing and composing were two disconnected surfaces with nothing linking them.
+  Separately, every Planetary Post-Processing/Edit Image/Mosaic Composer window's own title now
+  includes its source file/capture count (e.g. "Edit Image — moon_0042.png") instead of a bare,
+  identical-across-instances name — with several of these real windows open at once now routine,
+  the standard macOS Window menu's own window list can finally tell them apart.
 - Mosaic capture and composition — "different parts of the Moon to get a full Moon, or different
   captures of Andromeda, composed together." A new "Capture Mosaic Tile" button (Capture page,
   right next to FITS/PNG/TIFF export — reuses the exact same `exportCurrentFrame(as: .png)` every

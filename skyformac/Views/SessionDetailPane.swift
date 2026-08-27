@@ -522,7 +522,8 @@ struct SessionDetailPane: View {
             ? "Post-processing \(urls[0].lastPathComponent)."
             : "Post-processing \(urls.count) captures together."
         postProcessingSelectionWindowController = DetachedContentWindowController(
-            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            title: "Planetary Post-Processing — \(urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) captures")",
+            contentSize: PlanetaryPostProcessingView.fullScreenSize,
             minSize: PlanetaryPostProcessingView.minWindowSize,
             onClose: { postProcessingSelectionWindowController = nil }
         ) {
@@ -674,7 +675,7 @@ struct SessionDetailPane: View {
         }
         guard urls.count >= 2 else { return }
         mosaicComposerWindowController = DetachedContentWindowController(
-            title: "Mosaic Composer", contentSize: MosaicComposerView.fullScreenSize,
+            title: "Mosaic Composer — \(urls.count) tiles", contentSize: MosaicComposerView.fullScreenSize,
             minSize: MosaicComposerView.minWindowSize,
             onClose: { mosaicComposerWindowController = nil }
         ) {

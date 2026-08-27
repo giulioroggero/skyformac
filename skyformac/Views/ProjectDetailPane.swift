@@ -1160,7 +1160,7 @@ struct ElaboratedImageCard: View {
     private func openRedoFromOriginalWindow() {
         guard let originalSERCaptureURL else { return }
         redoingFromOriginalWindowController = DetachedContentWindowController(
-            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            title: "Planetary Post-Processing — \(originalSERCaptureURL.lastPathComponent)", contentSize: PlanetaryPostProcessingView.fullScreenSize,
             minSize: PlanetaryPostProcessingView.minWindowSize,
             onClose: { redoingFromOriginalWindowController = nil }
         ) {
@@ -1197,7 +1197,7 @@ struct ElaboratedImageCard: View {
 
     private func openEditingImageWindow() {
         editingImageWindowController = DetachedContentWindowController(
-            title: "Edit Image", contentSize: SingleImagePostProcessingView.fullScreenSize,
+            title: "Edit Image — \(image.fileName)", contentSize: SingleImagePostProcessingView.fullScreenSize,
             minSize: SingleImagePostProcessingView.minWindowSize,
             onClose: { editingImageWindowController = nil }
         ) {
