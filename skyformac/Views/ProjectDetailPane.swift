@@ -985,15 +985,19 @@ struct ElaboratedImageCard: View {
             Button("Info…", systemImage: "info.circle") { isShowingDetail = true }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
             Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
-            if image.recipe != nil, reElaborationSource != nil {
-                Button("Re-elaborate…", systemImage: "arrow.clockwise") { isReElaborating = true }
-            }
-            Menu("Further Processing") {
+            Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
+            // Every hand-off to an external app in one place — "Re-elaborate" re-runs this
+            // result through Siril specifically (only ever offered for a Siril-originated
+            // result, `image.recipe != nil`), so it belongs alongside GraXpert/StarNet/
+            // PixInsight, not next to Skyformac's own Info/Show in Finder/Delete above.
+            Menu("Third-Party Tools") {
+                if image.recipe != nil, reElaborationSource != nil {
+                    Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise") { isReElaborating = true }
+                }
                 Button("Send to GraXpert…", systemImage: "sparkles") { startSendingToGraXpert() }
                 Button("Remove Stars (StarNet)…", systemImage: "star.slash") { startSendingToStarNet() }
                 Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
             }
-            Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
         }
         .sheet(isPresented: $isViewingFullScreen) {
             if let nsImage = NSImage(contentsOf: fileURL) {
@@ -1150,10 +1154,13 @@ private struct ElaboratedImageDetailSheet: View {
                 Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
                 Button("Delete…", systemImage: "trash", role: .destructive, action: onDelete)
                 Spacer()
-                if canReElaborate {
-                    Button("Re-elaborate…", systemImage: "arrow.clockwise", action: onReElaborate)
-                }
-                Menu("Further Processing") {
+                // Every hand-off to an external app grouped together — see the card's own
+                // context menu doc comment for why "Re-elaborate" (Siril-only) belongs here
+                // alongside GraXpert/StarNet/PixInsight rather than sitting on its own.
+                Menu("Third-Party Tools") {
+                    if canReElaborate {
+                        Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise", action: onReElaborate)
+                    }
                     Button("Send to GraXpert…", systemImage: "sparkles", action: onSendToGraXpert)
                     Button("Remove Stars (StarNet)…", systemImage: "star.slash", action: onSendToStarNet)
                     Button("Open in PixInsight…", systemImage: "arrow.up.forward.app", action: onOpenInPixInsight)

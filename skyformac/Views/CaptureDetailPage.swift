@@ -472,14 +472,15 @@ struct CaptureDetailPage: View {
     }
 
     /// Every action this page offers on the capture itself, grouped under small labeled
-    /// sub-headers instead of one long flat stack of buttons — "View", "Process", "Share",
-    /// "Organize", then Delete on its own. A flat list here had grown to 8-9 buttons (Open, Show
-    /// in Finder, Publish to AstroBin, Open in Siril, Post-Process, Edit Image, Move to Session,
-    /// Split into New Session, Copy All Details, Delete, depending on `capture.kind`) with
-    /// nothing to visually separate "where do I click to just look at this" from "where do I
-    /// click to reprocess it" — grouping by what each action actually *does*, the same way a
-    /// Finder/Preview sidebar groups its own actions, makes scanning for one specific action
-    /// faster than reading top-to-bottom every time.
+    /// sub-headers instead of one long flat stack of buttons — "View", "Process", "Third-Party
+    /// Tools", "Share", "Organize", then Delete on its own. A flat list here had grown to 8-9
+    /// buttons (Open, Show in Finder, Publish to AstroBin, Open in Siril, Post-Process, Edit
+    /// Image, Move to Session, Split into New Session, Copy All Details, Delete, depending on
+    /// `capture.kind`) with nothing to visually separate "where do I click to just look at this"
+    /// from "where do I click to reprocess it," and "Process" itself mixed Skyformac's own
+    /// in-app tools with a hand-off to Siril as if they were interchangeable. Grouping by what
+    /// each action actually *does* — and splitting "stays in this app" from "leaves this app" —
+    /// makes scanning for one specific action faster than reading top-to-bottom every time.
     @ViewBuilder
     private var actionsList: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -508,19 +509,28 @@ struct CaptureDetailPage: View {
                 NSWorkspace.shared.activateFileViewerSelecting([fileURL])
             }
 
-            if elaborationSource != nil || capture.kind == .serVideo
-                || capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
+            // Skyformac's own tools first — now that Planetary Post-Processing does its own
+            // GPU-accelerated registration/stacking in-app, it's the tool most captures should
+            // actually reach for, not an equal-weight alternative buried next to Siril. Any
+            // hand-off to an external app (Siril here; GraXpert/StarNet/PixInsight from an
+            // elaborated image's own menu) lives in its own "Third-Party Tools" group below
+            // instead of mixed in here, so "stays in this app" and "leaves this app" read as two
+            // different kinds of action, not one flat list.
+            if capture.kind == .serVideo || capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
                 Divider()
                 actionGroupLabel("Process")
-                if elaborationSource != nil {
-                    Button("Open in Siril…", systemImage: "wand.and.stars") { startElaborating() }
-                }
                 if capture.kind == .serVideo {
                     Button("Post-Process…", systemImage: "sparkles.tv") { isPostProcessing = true }
                 }
                 if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
                     Button("Edit Image…", systemImage: "slider.horizontal.3") { isEditingImage = true }
                 }
+            }
+
+            if elaborationSource != nil {
+                Divider()
+                actionGroupLabel("Third-Party Tools")
+                Button("Open in Siril…", systemImage: "wand.and.stars") { startElaborating() }
             }
 
             Divider()

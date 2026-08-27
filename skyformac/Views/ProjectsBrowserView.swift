@@ -14,6 +14,7 @@ private enum ProjectsRoute: Hashable {
     case equipment(startsCreating: Bool)
     case equipmentSystem(EquipmentSystem.ID)
     case insights
+    case gallery
 }
 
 /// The iMovie-style library for the Projects feature and — since `RootView` shows this whenever
@@ -125,6 +126,7 @@ struct ProjectsBrowserView: View {
                 onQuickStart: { isShowingQuickStartSheet = true },
                 onShowEquipment: { path.append(.equipment(startsCreating: false)) },
                 onShowInsights: { path.append(.insights) },
+                onShowGallery: { path.append(.gallery) },
                 onShowSettings: { cameraManager.isSettingsPresented = true }
             )
             .navigationDestination(for: ProjectsRoute.self) { route in
@@ -170,6 +172,7 @@ struct ProjectsBrowserView: View {
         .onChange(of: cameraManager.isShowingAllProjectsRequested) { _, _ in consumePendingNavigationRequests() }
         .onChange(of: cameraManager.isShowingEquipmentRequested) { _, _ in consumePendingNavigationRequests() }
         .onChange(of: cameraManager.isAddingNewEquipmentRequested) { _, _ in consumePendingNavigationRequests() }
+        .onChange(of: cameraManager.isShowingGalleryRequested) { _, _ in consumePendingNavigationRequests() }
         // This browser's own minWidth combines with the AI sidebar's default width (320, plus a
         // 6pt resize handle) to become the WHOLE WINDOW's effective minimum width, since RootView
         // lays both out side by side in one HStack — 820 previously meant a forced minimum of
@@ -198,6 +201,10 @@ struct ProjectsBrowserView: View {
         if cameraManager.isAddingNewEquipmentRequested {
             cameraManager.isAddingNewEquipmentRequested = false
             path = [.equipment(startsCreating: true)]
+        }
+        if cameraManager.isShowingGalleryRequested {
+            cameraManager.isShowingGalleryRequested = false
+            path = [.gallery]
         }
     }
 
@@ -315,6 +322,13 @@ struct ProjectsBrowserView: View {
             }
         case .insights:
             InsightsView(data: insightsData, onBack: { path.removeLast() })
+        case .gallery:
+            // Not `visibleProjects` — that's scoped to whatever's currently typed into the Home
+            // page's own search field, an unrelated concern this page shouldn't inherit.
+            GalleryView(
+                cameraManager: cameraManager, projects: library.activeProjects.filter { !$0.isArchived },
+                onBack: { path.removeLast() }
+            )
         }
     }
 }

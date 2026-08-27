@@ -1960,6 +1960,9 @@ final class CameraManager {
     /// Set by "Equipment → Add New" — opens the Equipment list page with its "New System…" sheet
     /// already showing, rather than requiring a second click once there.
     var isAddingNewEquipmentRequested = false
+    /// Same idea as `isShowingAllProjectsRequested`, for "Project → Show Gallery" — jumps straight
+    /// to every elaborated image across every active project, regardless of what was showing.
+    var isShowingGalleryRequested = false
 
     /// "Project → Quick Start…" — returns to the Projects browser (if a session was running) and
     /// asks it to open the Quick Start sheet immediately, the same starting point as the Home
@@ -2010,6 +2013,13 @@ final class CameraManager {
     func showEquipmentList() {
         activeSession = nil
         isShowingEquipmentRequested = true
+    }
+
+    /// "Project → Show Gallery" — leaves camera mode if running, and asks the browser to open the
+    /// Gallery page (every elaborated image across every active project).
+    func showGallery() {
+        activeSession = nil
+        isShowingGalleryRequested = true
     }
 
     /// "Equipment → Add New" — same as `showEquipmentList()`, but also opens the "New System…"

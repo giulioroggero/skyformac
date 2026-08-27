@@ -11,6 +11,7 @@
 		048EA7517A3F23D16AF30BCD /* InsightsDrillLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679DDD7E0B6EFEFF4264B53D /* InsightsDrillLevelTests.swift */; };
 		056885C6201C1236C8D50051 /* SkyformacCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */; };
 		05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88925FDFCDFD5CD1889D56E /* InsightsView.swift */; };
+		2BC175A0D0EE4F638E5D7F5B /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30CCC1098124C64AE6BBC87 /* GalleryView.swift */; };
 		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
 		08A2998069B703FC94396BC9 /* ProjectSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */; };
 		095B435516723DB37892A1AD /* GraXpertElaborationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89576445CC21044FB95D0C4 /* GraXpertElaborationTests.swift */; };
@@ -480,6 +481,7 @@
 		E6503F6FAB5EE60511276664 /* ProjectSearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectSearch.swift; sourceTree = "<group>"; };
 		E72B4D2D0F26762D2120F696 /* DriftAlignerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DriftAlignerTests.swift; sourceTree = "<group>"; };
 		E88925FDFCDFD5CD1889D56E /* InsightsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
+		C30CCC1098124C64AE6BBC87 /* GalleryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 		E8F15C305509B9D238A0F6D8 /* CaptureEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureEngine.swift; sourceTree = "<group>"; };
 		EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DashboardHomeView.swift; sourceTree = "<group>"; };
 		EA47EE4DF4E6417DBF9D6036 /* GPUSharpnessScorer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUSharpnessScorer.swift; sourceTree = "<group>"; };
@@ -791,6 +793,7 @@
 				EE1AAD41550B27056C25269C /* RecallParametersView.swift */,
 				466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */,
 				E88925FDFCDFD5CD1889D56E /* InsightsView.swift */,
+				C30CCC1098124C64AE6BBC87 /* GalleryView.swift */,
 				EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */,
 				40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */,
 				3BB808D7623A429743A9F5AF /* AtlasView.swift */,
@@ -1140,6 +1143,7 @@
 				5AA29BA6F6D16D2662BE036F /* SettingsView.swift in Sources */,
 				1A7076BEEAFB0EEA97237E13 /* InsightsData.swift in Sources */,
 				05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */,
+				2BC175A0D0EE4F638E5D7F5B /* GalleryView.swift in Sources */,
 				D46D68D1BDC34143FD29E400 /* DashboardHomeView.swift in Sources */,
 				53BACB792DD5FDDC11B3BFF0 /* RootView.swift in Sources */,
 				AD962C0E6D2127BD6629CCC6 /* ProjectsBrowserView.swift in Sources */,

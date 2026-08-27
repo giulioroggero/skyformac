@@ -112,6 +112,7 @@ struct SkyformacCommands: Commands {
             Button("Quick Start…") { cameraManager.requestQuickStart() }
                 .keyboardShortcut("u", modifiers: .command)
             Button("Show All Projects") { cameraManager.showAllProjects() }
+            Button("Show Gallery") { cameraManager.showGallery() }
             Button("Go Home") { cameraManager.setActive(project: nil, session: nil) }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
 

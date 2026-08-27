@@ -143,9 +143,9 @@ final class SkyformacUITests: XCTestCase {
 
         let insightsTile = app.buttons["DashboardInsightsTile"]
         XCTAssertTrue(insightsTile.waitForExistence(timeout: 10))
-        // The "Common Tasks" row is a horizontal ScrollView of 5 tiles; on a narrower window (a
+        // The "Common Tasks" row is a horizontal ScrollView of tiles; on a narrower window (a
         // downloaded CI screen recording confirmed this — the AI sidebar leaves less room for the
-        // main content there than on a typical local dev display) the 5th tile, Insights, is
+        // main content there than on a typical local dev display) a later tile like Insights is
         // scrolled out of view. macOS XCUITest does NOT auto-scroll an off-screen-but-existing
         // element into view before tapping (unlike iOS), so the tap was landing on whatever was
         // actually on screen underneath — the AI panel — instead of this tile, leaving the app

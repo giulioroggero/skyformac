@@ -22,6 +22,7 @@ struct DashboardHomeView: View {
     var onQuickStart: () -> Void
     var onShowEquipment: () -> Void
     var onShowInsights: () -> Void
+    var onShowGallery: () -> Void
     var onShowSettings: () -> Void
 
     /// "Add the skill for the AI that suggests project sessions" — a whole session proposal
@@ -161,6 +162,8 @@ struct DashboardHomeView: View {
                             ActionCard(title: "New Project", icon: "plus", tint: .accentColor, action: onNewProject)
                             ActionCard(title: "All Projects", icon: "folder", tint: .blue, subtitle: "Browse everything", action: onOpenProjects)
                                 .accessibilityIdentifier("DashboardAllProjectsTile")
+                            ActionCard(title: "Gallery", icon: "photo.on.rectangle.angled", tint: .pink, subtitle: "Every post-processed image", action: onShowGallery)
+                                .accessibilityIdentifier("DashboardGalleryTile")
                             ActionCard(title: "Equipment", icon: "wrench.and.screwdriver", tint: .gray, subtitle: "Cameras, mounts, and gear", action: onShowEquipment)
                             ActionCard(title: "Insights", icon: "chart.bar", tint: .purple, subtitle: "What you actually do most", action: onShowInsights)
                                 .accessibilityIdentifier("DashboardInsightsTile")

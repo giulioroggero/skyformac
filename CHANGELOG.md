@@ -18,6 +18,18 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- A new Gallery page (Home's "Common Tasks" row, or Project → Show Gallery) — every
+  post-processed image across every active project, newest first, in one place instead of having
+  to open each project's own Elaborated section separately to find one. Reuses the same card
+  (tap to view full screen, Info sheet, Third-Party Tools menu) a project's own gallery already
+  shows.
+- Capture page and an elaborated image's own menus now separate Skyformac's own tools (Post-
+  Process, Edit Image — favored first, since Planetary Post-Processing does its own GPU-
+  accelerated registration/stacking in-app now) from anything that hands off to an external app
+  (Siril, GraXpert, StarNet, PixInsight), which now live together under their own "Third-Party
+  Tools" group/menu instead of mixed in with Skyformac's own actions.
+
 ## [0.5.3] - 2026-08-27
 
 ### Added
