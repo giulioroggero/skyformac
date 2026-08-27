@@ -106,6 +106,20 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   Tools" group/menu instead of mixed in with Skyformac's own actions.
 
 ### Fixed
+- Opening Planetary Post-Processing, Edit Image, or the full-screen image preview could land the
+  new window somewhere other than over the page you were actually looking at — `center()` alone
+  centers on whichever screen AppKit happens to pick for a window that's never been shown, not
+  necessarily the one (or position) the presenting page is actually on, e.g. a multi-monitor setup
+  where the main window lives on a secondary display. It now re-centers over the current key
+  window's own frame instead (clamped to that window's screen), and explicitly activates the app
+  when showing, so it's guaranteed to land visibly on top of the page instead of just "somewhere."
+  Moving/resizing already worked (a standard titled+resizable `NSWindow`) — this was purely about
+  where it first appears.
+- Stacking/Restacking's pre-run log line no longer guesses "(GPU when available)" for Mean
+  combination — whether a given run actually uses the GPU isn't knowable until it finishes (see
+  the "Stacking used the GPU/CPU" line already added below), so stating an intent upfront read as
+  a claim next to that later, definitive line. Median's line still states its own CPU-only note
+  upfront, since that one's a fact known in advance, not a guess.
 - A raw capture's own full-screen preview (opened from a Timeline thumbnail's "Open," or a
   capture's detail page) had no "More" menu at all, unlike an elaborated image's own preview —
   `moreMenuItems` was never passed at that call site, so "Edit Image…" (along with Show in

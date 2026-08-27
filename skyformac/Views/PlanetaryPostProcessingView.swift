@@ -1054,9 +1054,15 @@ struct PlanetaryPostProcessingView: View {
     /// and a restack (unlike the very first stack, which also includes a fast GPU registration
     /// pass diluting the wait) is *only* this combine step, so a CPU-bound Median restack has
     /// nothing faster running alongside it to make the wait feel shorter.
+    /// Mean's own case says nothing here — whether *this* run actually used the GPU isn't known
+    /// yet at the point this pre-stacking log line is written (the same call can go either way run
+    /// to run; see `reportGPUUsage`'s own doc comment), so guessing "(GPU when available)" ahead of
+    /// time was speculative and often wrong-looking next to the definitive "Stacking used the
+    /// GPU/CPU" line that follows once the run actually finishes. Median's case is a fact known in
+    /// advance (it's never GPU-accelerated at all, full stop), so that one still states it upfront.
     private static func stackPathNote(for method: PlanetaryPostProcessor.StackMethod) -> String {
         method == .mean
-            ? " (GPU when available)"
+            ? ""
             : " (CPU — a true per-pixel median needs every sample, so there's no GPU shortcut here)"
     }
 

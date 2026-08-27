@@ -37,6 +37,15 @@ final class DetachedContentWindowController: NSWindowController, NSWindowDelegat
         window.contentView = NSHostingView(rootView: content())
         window.minSize = minSize
         window.center()
+        // `center()` alone centers on whichever screen AppKit picks for a window that's never
+        // been shown — not necessarily the screen (or position) the presenting page is actually
+        // on, e.g. a multi-monitor setup where the main window lives on a secondary display. "The
+        // modal on top of the page" means visually over the window someone's actually looking at,
+        // not just "somewhere on screen" — so this re-centers over the current key window's own
+        // frame instead, clamped to stay fully on that window's screen.
+        if let origin = Self.originCenteredOverKeyWindow(size: contentSize) {
+            window.setFrameOrigin(origin)
+        }
         // AppKit's default `isReleasedWhenClosed = true` deallocates the window as part of
         // `close()` itself — but `onClose()` below (called from the delegate callback `close()`
         // triggers, so still on that same call stack) is what drops this controller's own last
@@ -54,6 +63,26 @@ final class DetachedContentWindowController: NSWindowController, NSWindowDelegat
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private static func originCenteredOverKeyWindow(size: NSSize) -> NSPoint? {
+        guard let parent = NSApp.keyWindow, let screen = parent.screen ?? NSScreen.main else { return nil }
+        let parentFrame = parent.frame
+        var origin = NSPoint(x: parentFrame.midX - size.width / 2, y: parentFrame.midY - size.height / 2)
+        let visible = screen.visibleFrame
+        origin.x = min(max(origin.x, visible.minX), max(visible.minX, visible.maxX - size.width))
+        origin.y = min(max(origin.y, visible.minY), max(visible.minY, visible.maxY - size.height))
+        return origin
+    }
+
+    /// Overridden (not just relying on every call site's own `showWindow(nil)`) so "on top of the
+    /// page" is guaranteed regardless of what else is going on when this is opened — `NSWindow`
+    /// ordering is scoped to the frontmost app, so a window can `makeKeyAndOrderFront` correctly
+    /// and still not visually appear in front of another app that happens to be frontmost at that
+    /// moment (unlikely mid-workflow inside this same app, but cheap insurance against it).
+    override func showWindow(_ sender: Any?) {
+        NSApp.activate(ignoringOtherApps: true)
+        super.showWindow(sender)
     }
 
     func windowWillClose(_ notification: Notification) {
