@@ -68,7 +68,10 @@ struct SessionDetailPane: View {
     /// The filmstrip's own "Select" mode toggle — see `TimelineStripView`'s own doc comment for
     /// why the Table doesn't need an equivalent.
     @State private var isSelectingCaptures = false
-    @State private var isPostProcessingSelection = false
+    /// "The edit/preview windows can be moved across the screen and resized" — see
+    /// `CaptureDetailPage`'s identical property doc comment for why this is a
+    /// `DetachedContentWindowController?` rather than the `Bool` + `.sheet` it used to be.
+    @State private var postProcessingSelectionWindowController: DetachedContentWindowController?
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// Files sitting in this session's own folder that AREN'T one of its tracked
@@ -505,15 +508,24 @@ struct SessionDetailPane: View {
                 }
             }
         }
-        .sheet(isPresented: $isPostProcessingSelection) {
-            let urls = selectedSERCaptures.map {
-                cameraManager.projectStore.sessionFolderURL(for: session, in: project).appendingPathComponent($0.fileName)
-            }
+    }
+
+    private func openPostProcessingSelectionWindow() {
+        let urls = selectedSERCaptures.map {
+            cameraManager.projectStore.sessionFolderURL(for: session, in: project).appendingPathComponent($0.fileName)
+        }
+        guard !urls.isEmpty else { return }
+        let description = urls.count == 1
+            ? "Post-processing \(urls[0].lastPathComponent)."
+            : "Post-processing \(urls.count) captures together."
+        postProcessingSelectionWindowController = DetachedContentWindowController(
+            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            minSize: PlanetaryPostProcessingView.minWindowSize,
+            onClose: { postProcessingSelectionWindowController = nil }
+        ) {
             PlanetaryPostProcessingView(
                 sourceURLs: urls,
-                sourceDescription: urls.count == 1
-                    ? "Post-processing \(urls[0].lastPathComponent)."
-                    : "Post-processing \(urls.count) captures together.",
+                sourceDescription: description,
                 onSave: { cgImage, title, notes, settings in
                     try cameraManager.savePlanetaryPostProcessingResult(
                         cgImage, sourceSessionIDs: [session.id], sourceCaptureID: nil, project: project,
@@ -534,9 +546,11 @@ struct SessionDetailPane: View {
                         sourceCaptureID: nil, project: project, parameters: parameters, onLog: onLog
                     )
                 },
-                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true },
+                onDismiss: { postProcessingSelectionWindowController?.close() }
             )
         }
+        postProcessingSelectionWindowController?.showWindow(nil)
     }
 
     /// `nil` when this session has nothing Siril can process — see
@@ -608,7 +622,7 @@ struct SessionDetailPane: View {
             // disabling the button outright — deleting captures works fine on a mixed-kind
             // selection, no reason post-processing needs an all-or-nothing kind match either.
             if !selectedSERCaptures.isEmpty {
-                Button("Post-Process Together…", systemImage: "sparkles.tv") { isPostProcessingSelection = true }
+                Button("Post-Process Together…", systemImage: "sparkles.tv") { openPostProcessingSelectionWindow() }
             }
             Button("Delete", systemImage: "trash", role: .destructive) {
                 isConfirmingBulkCaptureDelete = true

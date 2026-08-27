@@ -41,8 +41,12 @@ struct ObservationTimelineView: View {
     /// own tap target, bypassing the full Capture page (this timeline flattens every project's
     /// own sessions, so there's no single `project`/`session` this view already has in scope the
     /// way `TimelineStripView`'s per-session version does — each entry carries its own).
-    @State private var postProcessingEntry: TimelineEntry?
-    @State private var editingImageEntry: TimelineEntry?
+    /// "The edit/preview windows can be moved across the screen and resized" — see
+    /// `CaptureDetailPage`'s identical property doc comment for why this is a
+    /// `DetachedContentWindowController?` rather than the `TimelineEntry?` + `.sheet(item:)`
+    /// these used to be.
+    @State private var postProcessingWindowController: DetachedContentWindowController?
+    @State private var editingImageWindowController: DetachedContentWindowController?
 
     /// `nonisolated` on these plain constants (not just the functions that read them) — `View`
     /// conformance infers this whole type's static members as `@MainActor` by default, and
@@ -151,7 +155,29 @@ struct ObservationTimelineView: View {
                 }
             }
         }
-        .sheet(item: $postProcessingEntry) { entry in
+    }
+
+    private func fileURL(for entry: TimelineEntry) -> URL {
+        cameraManager.projectStore.sessionFolderURL(for: entry.session, in: entry.project)
+            .appendingPathComponent(entry.capture.fileName)
+    }
+
+    /// `CaptureKindBadge`'s tap target — same routing as `TimelineStripView`'s own
+    /// `startPostProcessing()`.
+    private func startPostProcessing(for entry: TimelineEntry) {
+        switch entry.capture.kind {
+        case .serVideo: openPostProcessingWindow(for: entry)
+        case .fits, .png, .tiff: openEditingImageWindow(for: entry)
+        case .recording: break
+        }
+    }
+
+    private func openPostProcessingWindow(for entry: TimelineEntry) {
+        postProcessingWindowController = DetachedContentWindowController(
+            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            minSize: PlanetaryPostProcessingView.minWindowSize,
+            onClose: { postProcessingWindowController = nil }
+        ) {
             PlanetaryPostProcessingView(
                 sourceURLs: [fileURL(for: entry)],
                 sourceDescription: "Post-processing \(entry.capture.fileName).",
@@ -175,10 +201,19 @@ struct ObservationTimelineView: View {
                         sourceCaptureID: entry.capture.id, project: entry.project, parameters: parameters, onLog: onLog
                     )
                 },
-                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true },
+                onDismiss: { postProcessingWindowController?.close() }
             )
         }
-        .sheet(item: $editingImageEntry) { entry in
+        postProcessingWindowController?.showWindow(nil)
+    }
+
+    private func openEditingImageWindow(for entry: TimelineEntry) {
+        editingImageWindowController = DetachedContentWindowController(
+            title: "Edit Image", contentSize: SingleImagePostProcessingView.fullScreenSize,
+            minSize: SingleImagePostProcessingView.minWindowSize,
+            onClose: { editingImageWindowController = nil }
+        ) {
             SingleImagePostProcessingView(
                 sourceURL: fileURL(for: entry),
                 sourceDescription: "Editing \(entry.capture.fileName).",
@@ -187,24 +222,11 @@ struct ObservationTimelineView: View {
                     try cameraManager.saveImageEditResult(
                         cgImage, sourceSessionIDs: [entry.session.id], sourceCaptureID: entry.capture.id, project: entry.project
                     )
-                }
+                },
+                onDismiss: { editingImageWindowController?.close() }
             )
         }
-    }
-
-    private func fileURL(for entry: TimelineEntry) -> URL {
-        cameraManager.projectStore.sessionFolderURL(for: entry.session, in: entry.project)
-            .appendingPathComponent(entry.capture.fileName)
-    }
-
-    /// `CaptureKindBadge`'s tap target — same routing as `TimelineStripView`'s own
-    /// `startPostProcessing()`.
-    private func startPostProcessing(for entry: TimelineEntry) {
-        switch entry.capture.kind {
-        case .serVideo: postProcessingEntry = entry
-        case .fits, .png, .tiff: editingImageEntry = entry
-        case .recording: break
-        }
+        editingImageWindowController?.showWindow(nil)
     }
 
     /// Re-anchors the scroll view to whatever was actually visible right before a zoom change —

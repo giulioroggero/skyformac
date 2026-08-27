@@ -72,8 +72,11 @@ private struct TimelineThumbnailView: View {
     @State private var isPromptingSirilSettings = false
     /// "If the user press on the icon she can post process the capture" — the kind badge's own
     /// tap target, bypassing the Capture page entirely for the common "just process this" case.
-    @State private var isPostProcessing = false
-    @State private var isEditingImage = false
+    /// "The edit/preview windows can be moved across the screen and resized" — see
+    /// `CaptureDetailPage`'s identical property doc comment for why this is a
+    /// `DetachedContentWindowController?` rather than the `Bool` + `.sheet` these used to be.
+    @State private var postProcessingWindowController: DetachedContentWindowController?
+    @State private var editingImageWindowController: DetachedContentWindowController?
 
     private var fileURL: URL {
         store.sessionFolderURL(for: session, in: project).appendingPathComponent(capture.fileName)
@@ -194,7 +197,32 @@ private struct TimelineThumbnailView: View {
                 }
             }
         }
-        .sheet(isPresented: $isPostProcessing) {
+    }
+
+    /// `nil` when this capture's `kind` isn't something Siril can process further (a `.png`/
+    /// `.tiff` export is already debayered/stretched) — see
+    /// `CameraManager.elaborationSource(forCaptureID:in:project:)`.
+    private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
+        cameraManager.elaborationSource(forCaptureID: capture.id, in: session, project: project)
+    }
+
+    /// `CaptureKindBadge`'s tap target — the same two Skyformac tools `CaptureDetailPage`'s own
+    /// Process group offers, routed by kind (`.serVideo` → Planetary Post-Processing, a still
+    /// image → Edit Image); `CaptureKindBadge` itself never offers a tap for anything else.
+    private func startPostProcessing() {
+        switch capture.kind {
+        case .serVideo: openPostProcessingWindow()
+        case .fits, .png, .tiff: openEditingImageWindow()
+        case .recording: break
+        }
+    }
+
+    private func openPostProcessingWindow() {
+        postProcessingWindowController = DetachedContentWindowController(
+            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            minSize: PlanetaryPostProcessingView.minWindowSize,
+            onClose: { postProcessingWindowController = nil }
+        ) {
             PlanetaryPostProcessingView(
                 sourceURLs: [fileURL],
                 sourceDescription: "Post-processing \(capture.fileName).",
@@ -218,10 +246,19 @@ private struct TimelineThumbnailView: View {
                         sourceCaptureID: capture.id, project: project, parameters: parameters, onLog: onLog
                     )
                 },
-                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true },
+                onDismiss: { postProcessingWindowController?.close() }
             )
         }
-        .sheet(isPresented: $isEditingImage) {
+        postProcessingWindowController?.showWindow(nil)
+    }
+
+    private func openEditingImageWindow() {
+        editingImageWindowController = DetachedContentWindowController(
+            title: "Edit Image", contentSize: SingleImagePostProcessingView.fullScreenSize,
+            minSize: SingleImagePostProcessingView.minWindowSize,
+            onClose: { editingImageWindowController = nil }
+        ) {
             SingleImagePostProcessingView(
                 sourceURL: fileURL,
                 sourceDescription: "Editing \(capture.fileName).",
@@ -230,27 +267,11 @@ private struct TimelineThumbnailView: View {
                     try cameraManager.saveImageEditResult(
                         cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project
                     )
-                }
+                },
+                onDismiss: { editingImageWindowController?.close() }
             )
         }
-    }
-
-    /// `nil` when this capture's `kind` isn't something Siril can process further (a `.png`/
-    /// `.tiff` export is already debayered/stretched) — see
-    /// `CameraManager.elaborationSource(forCaptureID:in:project:)`.
-    private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
-        cameraManager.elaborationSource(forCaptureID: capture.id, in: session, project: project)
-    }
-
-    /// `CaptureKindBadge`'s tap target — the same two Skyformac tools `CaptureDetailPage`'s own
-    /// Process group offers, routed by kind (`.serVideo` → Planetary Post-Processing, a still
-    /// image → Edit Image); `CaptureKindBadge` itself never offers a tap for anything else.
-    private func startPostProcessing() {
-        switch capture.kind {
-        case .serVideo: isPostProcessing = true
-        case .fits, .png, .tiff: isEditingImage = true
-        case .recording: break
-        }
+        editingImageWindowController?.showWindow(nil)
     }
 
     private func startElaborating() {

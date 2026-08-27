@@ -21,13 +21,18 @@ struct CaptureDetailPage: View {
     var onNextCapture: (() -> Void)?
 
     @State private var isElaborating = false
-    @State private var isPostProcessing = false
-    @State private var isEditingImage = false
+    /// "The edit/preview windows can be moved across the screen and resized" — each of these
+    /// three opens a real `NSWindow` via `DetachedContentWindowController` (not a `.sheet`, which
+    /// is permanently attached below this page's own window and can never be dragged/resized
+    /// independently), so a plain optional controller replaces what used to be a `Bool` +
+    /// `.sheet(isPresented:)`.
+    @State private var postProcessingWindowController: DetachedContentWindowController?
+    @State private var editingImageWindowController: DetachedContentWindowController?
+    @State private var viewingFullScreenWindowController: DetachedContentWindowController?
     @State private var isPromptingSirilSettings = false
     @State private var isConfirmingDelete = false
     @State private var isMovingToSession = false
     @State private var isSplittingSession = false
-    @State private var isViewingFullScreen = false
     @State private var actionErrorMessage: String?
     /// Keyed to a focusable modifier on the page itself — arrow-key stepping (`onKeyPress` below)
     /// only receives events while this view actually holds keyboard focus, which nothing else on
@@ -229,50 +234,6 @@ struct CaptureDetailPage: View {
                 }
             }
         }
-        .sheet(isPresented: $isPostProcessing) {
-            PlanetaryPostProcessingView(
-                sourceURLs: [fileURL],
-                sourceDescription: "Post-processing \(capture.fileName).",
-                onSave: { cgImage, title, notes, settings in
-                    try cameraManager.savePlanetaryPostProcessingResult(
-                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project,
-                        title: title, notes: notes, settings: settings
-                    )
-                },
-                onOverwrite: { cgImage, existing, title, notes, settings in
-                    try cameraManager.overwritePlanetaryPostProcessingResult(
-                        cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
-                    )
-                },
-                resolveGraXpertInputURL: { image in
-                    store.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
-                },
-                onSendToGraXpert: { inputURL, operation, parameters, onLog in
-                    try await cameraManager.sendToGraXpert(
-                        inputURL: inputURL, operation: operation, sourceSessionIDs: [session.id],
-                        sourceCaptureID: capture.id, project: project, parameters: parameters, onLog: onLog
-                    )
-                },
-                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
-            )
-        }
-        .sheet(isPresented: $isEditingImage) {
-            SingleImagePostProcessingView(
-                sourceURL: fileURL,
-                sourceDescription: "Editing \(capture.fileName).",
-                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
-                onSave: { cgImage in
-                    try cameraManager.saveImageEditResult(
-                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project
-                    )
-                }
-            )
-        }
-        .sheet(isPresented: $isViewingFullScreen) {
-            if let image = NSImage(contentsOf: fileURL) {
-                FullScreenImageViewer(image: image, fileURL: fileURL, onSetAsThumbnail: setSessionThumbnailFromThisCapture)
-            }
-        }
         .confirmationDialog(
             "Delete this capture?", isPresented: $isConfirmingDelete, titleVisibility: .visible
         ) {
@@ -371,6 +332,77 @@ struct CaptureDetailPage: View {
         } else {
             isPromptingSirilSettings = true
         }
+    }
+
+    private func startPostProcessing() {
+        postProcessingWindowController = DetachedContentWindowController(
+            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            minSize: PlanetaryPostProcessingView.minWindowSize,
+            onClose: { postProcessingWindowController = nil }
+        ) {
+            PlanetaryPostProcessingView(
+                sourceURLs: [fileURL],
+                sourceDescription: "Post-processing \(capture.fileName).",
+                onSave: { cgImage, title, notes, settings in
+                    try cameraManager.savePlanetaryPostProcessingResult(
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project,
+                        title: title, notes: notes, settings: settings
+                    )
+                },
+                onOverwrite: { cgImage, existing, title, notes, settings in
+                    try cameraManager.overwritePlanetaryPostProcessingResult(
+                        cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
+                    )
+                },
+                resolveGraXpertInputURL: { image in
+                    store.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
+                },
+                onSendToGraXpert: { inputURL, operation, parameters, onLog in
+                    try await cameraManager.sendToGraXpert(
+                        inputURL: inputURL, operation: operation, sourceSessionIDs: [session.id],
+                        sourceCaptureID: capture.id, project: project, parameters: parameters, onLog: onLog
+                    )
+                },
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true },
+                onDismiss: { postProcessingWindowController?.close() }
+            )
+        }
+        postProcessingWindowController?.showWindow(nil)
+    }
+
+    private func startEditingImage() {
+        editingImageWindowController = DetachedContentWindowController(
+            title: "Edit Image", contentSize: SingleImagePostProcessingView.fullScreenSize,
+            minSize: SingleImagePostProcessingView.minWindowSize,
+            onClose: { editingImageWindowController = nil }
+        ) {
+            SingleImagePostProcessingView(
+                sourceURL: fileURL,
+                sourceDescription: "Editing \(capture.fileName).",
+                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
+                onSave: { cgImage in
+                    try cameraManager.saveImageEditResult(
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project
+                    )
+                },
+                onDismiss: { editingImageWindowController?.close() }
+            )
+        }
+        editingImageWindowController?.showWindow(nil)
+    }
+
+    private func startViewingFullScreen() {
+        guard let image = NSImage(contentsOf: fileURL) else { return }
+        viewingFullScreenWindowController = DetachedContentWindowController(
+            title: capture.fileName, contentSize: NSSize(width: 1100, height: 800), minSize: NSSize(width: 960, height: 700),
+            onClose: { viewingFullScreenWindowController = nil }
+        ) {
+            FullScreenImageViewer(
+                image: image, fileURL: fileURL, onSetAsThumbnail: setSessionThumbnailFromThisCapture,
+                onDismiss: { viewingFullScreenWindowController?.close() }
+            )
+        }
+        viewingFullScreenWindowController?.showWindow(nil)
     }
 
     /// `FullScreenImageViewer`'s "Set as Thumbnail" for a capture — session-scoped (not
@@ -498,7 +530,7 @@ struct CaptureDetailPage: View {
                 // A real image `NSImage` can decode — opens in-app, full screen, with zoom,
                 // rather than handing off to whatever the system associates with the extension.
                 Button("Open", systemImage: "arrow.up.left.and.arrow.down.right") {
-                    isViewingFullScreen = true
+                    startViewingFullScreen()
                 }
             } else {
                 Button("Open", systemImage: "arrow.up.forward.app") {
@@ -520,10 +552,10 @@ struct CaptureDetailPage: View {
                 Divider()
                 actionGroupLabel("Process")
                 if capture.kind == .serVideo {
-                    Button("Post-Process…", systemImage: "sparkles.tv") { isPostProcessing = true }
+                    Button("Post-Process…", systemImage: "sparkles.tv") { startPostProcessing() }
                 }
                 if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
-                    Button("Edit Image…", systemImage: "slider.horizontal.3") { isEditingImage = true }
+                    Button("Edit Image…", systemImage: "slider.horizontal.3") { startEditingImage() }
                 }
             }
 

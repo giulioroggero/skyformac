@@ -72,7 +72,11 @@ struct FullScreenImageViewer: View {
     /// button entirely rather than showing an empty menu. `AnyView`, not a second generic
     /// parameter, so every existing call site keeps compiling unchanged.
     var moreMenuItems: (() -> AnyView)? = nil
-    @Environment(\.dismiss) private var dismiss
+    /// Closes this viewer's own window — a plain closure (not `@Environment(\.dismiss)`, which
+    /// only does anything inside a `.sheet`/`NavigationStack`) since this is now hosted in a real
+    /// `NSWindow` via `DetachedContentWindowController` instead, precisely so it can be moved and
+    /// resized like any other window.
+    var onDismiss: () -> Void
 
     @State private var isSavingToPhotos = false
     @State private var photosResultMessage: String?
@@ -138,7 +142,7 @@ struct FullScreenImageViewer: View {
                 }
             }
 
-            Button("Done") { dismiss() }
+            Button("Done") { onDismiss() }
                 .keyboardShortcut(.defaultAction)
         }
         .padding(12)

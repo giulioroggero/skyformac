@@ -35,8 +35,11 @@ struct PlanetaryPostProcessingView: View {
     /// image's "Redo from Original…"). `nil` (the default) leaves every control at its normal
     /// fresh-start value, exactly as before this existed — see `applyInitialSettingsIfNeeded()`.
     var initialSettings: PlanetaryPostProcessor.SettingsSnapshot? = nil
-
-    @Environment(\.dismiss) private var dismiss
+    /// Closes this view's own window — a plain closure (not `@Environment(\.dismiss)`, which only
+    /// does anything inside a `.sheet`/`NavigationStack`) since this is now hosted in a real
+    /// `NSWindow` via `DetachedContentWindowController` instead, precisely so it can be moved and
+    /// resized like any other window.
+    var onDismiss: () -> Void
 
     private enum Stage: Equatable { case setup, loading, ready, failed }
 
@@ -143,15 +146,18 @@ struct PlanetaryPostProcessingView: View {
         .enumerated().map { .init(id: $0.offset, gain: $0.element) }
 
     /// Close to the screen's whole visible area ("the post processing view window must be
-    /// larger, full width and height") but NOT exactly equal to it — sizing a `.sheet` to exactly
-    /// `visibleFrame` (tried once, reverted) made macOS reposition the presenting window itself
-    /// down by the sheet's own title-bar height once this sheet's frame plus that title bar no
-    /// longer fit inside `visibleFrame`, cutting the bottom of the window off. Leaving a margin
-    /// keeps the sheet safely smaller than the screen so that repositioning never triggers.
-    private var fullScreenSize: CGSize {
+    /// larger, full width and height") but NOT exactly equal to it — sizing this window to
+    /// exactly `visibleFrame` (tried once, reverted, back when this was still a `.sheet`) left no
+    /// room for its own title bar without something having to give. `static` (not an instance
+    /// property) — this is also what every call site hands `DetachedContentWindowController` as
+    /// the window's own *initial* size; the window itself is genuinely resizable now ("the
+    /// edit/preview windows can be moved across the screen and resized"), so this is just a
+    /// starting point, not a permanent constraint the way it was as a `.sheet`'s fixed frame.
+    static var fullScreenSize: CGSize {
         let visible = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1200, height: 800)
         return CGSize(width: max(visible.width - 40, 980), height: max(visible.height - 40, 660))
     }
+    static let minWindowSize = NSSize(width: 980, height: 660)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -175,10 +181,10 @@ struct PlanetaryPostProcessingView: View {
                 readyBody
             }
         }
-        // macOS has no `.fullScreenCover` — this is presented as a `.sheet`, so filling nearly the
-        // whole screen (rather than sizing to content, a plain sheet's macOS default) is what
-        // makes it read as "a full-size window" rather than a small popup like `ElaborateSheet`.
-        .frame(width: fullScreenSize.width, height: fullScreenSize.height)
+        // Fills whatever size the window actually is (see `DetachedContentWindowController`'s
+        // own doc comment) rather than a fixed size — a fixed `.frame(width:height:)` here would
+        // silently fight the window's own resizing instead of actually growing/shrinking with it.
+        .frame(minWidth: Self.minWindowSize.width, maxWidth: .infinity, minHeight: Self.minWindowSize.height, maxHeight: .infinity)
         .background(.background)
         .onDisappear { cancelCurrentWork?() }
         .onAppear { applyInitialSettingsIfNeeded() }
@@ -366,10 +372,10 @@ struct PlanetaryPostProcessingView: View {
             }
             Button(hasAlreadySavedThisSession ? "Done" : "Cancel") {
                 if hasAlreadySavedThisSession {
-                    dismiss()
+                    onDismiss()
                 } else {
                     cancelCurrentWork?()
-                    dismiss()
+                    onDismiss()
                 }
             }
             Button {
@@ -675,8 +681,12 @@ struct PlanetaryPostProcessingView: View {
     }
 
     @ViewBuilder
+    /// The label sits on its own line above the slider (not `LabeledContent`'s side-by-side
+    /// layout) — a longer label like "Chroma Noise Reduction" was squeezing the slider itself
+    /// down to a sliver in this sidebar's fixed width.
     private func singleShotSlider(_ label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String) -> some View {
-        LabeledContent(label) {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption)
             HStack {
                 Slider(value: value, in: range)
                 Text(String(format: format, value.wrappedValue)).font(.caption.monospacedDigit()).frame(width: 44, alignment: .trailing)

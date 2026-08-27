@@ -92,6 +92,7 @@
 		666012D86E930AA46CE6CF1A /* HFDCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F88E93C902EBE287E07893 /* HFDCalculator.swift */; };
 		6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */; };
 		6BF41C500611F8B1FBC3CC43 /* HistogramCurvesPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1859DB557F01A0CB1DA601 /* HistogramCurvesPanelController.swift */; };
+		419094AD8CE543E1B3D9C582 /* DetachedContentWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F5330BA97F42999A4B0B9F /* DetachedContentWindowController.swift */; };
 		6CF833B56A2CF5FCE1A4B713 /* SessionDetailPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DEFB869ABA587829E6F5A72 /* SessionDetailPane.swift */; };
 		6E19CC7BD534E70BADDCD941 /* FrameCropperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3E429C8F7CA250F8AA00FA6 /* FrameCropperTests.swift */; };
 		6E7AEC0C260D4688ABF71497 /* astro_catalog.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = CECA47B0DA774F678B906942 /* astro_catalog.sqlite */; };
@@ -312,6 +313,7 @@
 		28E5F55953A1FF914B2B0198 /* SharpnessScorer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharpnessScorer.swift; sourceTree = "<group>"; };
 		2933EAB79302DA70C2417DF3 /* SERReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SERReader.swift; sourceTree = "<group>"; };
 		2B1859DB557F01A0CB1DA601 /* HistogramCurvesPanelController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistogramCurvesPanelController.swift; sourceTree = "<group>"; };
+		46F5330BA97F42999A4B0B9F /* DetachedContentWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetachedContentWindowController.swift; sourceTree = "<group>"; };
 		2B97B82E0DE1F75083C77992 /* ASICamera2.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ASICamera2.h; sourceTree = "<group>"; };
 		2E813AEB385426A777F99203 /* NightModeTint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightModeTint.swift; sourceTree = "<group>"; };
 		2F188C9AA2C56922FA2E61A7 /* CalibrationLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalibrationLibraryTests.swift; sourceTree = "<group>"; };
@@ -813,6 +815,7 @@
 				A7718EB70AC68699C4078062 /* HistogramView.swift */,
 				998BCBC6DE56A7D81FC9945B /* CurvesView.swift */,
 				2B1859DB557F01A0CB1DA601 /* HistogramCurvesPanelController.swift */,
+				46F5330BA97F42999A4B0B9F /* DetachedContentWindowController.swift */,
 				8785A8BD20F061A304645DCA /* ActivePipelinesView.swift */,
 				6B75D3B271F9C06ECB3BB9B6 /* LuckyImagingFrameBrowserView.swift */,
 				EC6E0E0C0F50079C03C013D8 /* AllSkyMonitorView.swift */,
@@ -1165,6 +1168,7 @@
 				D9F25BF98E302BBB4BCFBDF5 /* HistogramView.swift in Sources */,
 				C46BC5FE3510EBFAEAB2EF84 /* CurvesView.swift in Sources */,
 				6BF41C500611F8B1FBC3CC43 /* HistogramCurvesPanelController.swift in Sources */,
+				419094AD8CE543E1B3D9C582 /* DetachedContentWindowController.swift in Sources */,
 				F46DF222992C699FFBC87D77 /* ActivePipelinesView.swift in Sources */,
 				58C8C84D2D082EFED7F1BE93 /* LuckyImagingFrameBrowserView.swift in Sources */,
 				E2EAC3EFFD26B34D7DBF5C7F /* MetalFrameRenderer.swift in Sources */,

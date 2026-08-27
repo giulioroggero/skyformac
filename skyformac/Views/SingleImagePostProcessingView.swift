@@ -15,8 +15,11 @@ struct SingleImagePostProcessingView: View {
     /// know about `CameraManager`/`Project` at all.
     let elaboratedImagesFolderURL: URL
     var onSave: (CGImage) async throws -> ElaboratedImage
-
-    @Environment(\.dismiss) private var dismiss
+    /// Closes this view's own window — a plain closure (not `@Environment(\.dismiss)`, which only
+    /// does anything inside a `.sheet`/`NavigationStack`) since this is now hosted in a real
+    /// `NSWindow` via `DetachedContentWindowController` instead, precisely so it can be moved and
+    /// resized like any other window.
+    var onDismiss: () -> Void
 
     private enum Stage: Equatable { case loading, ready, failed }
     @State private var stage: Stage = .loading
@@ -61,13 +64,12 @@ struct SingleImagePostProcessingView: View {
     @State private var savedImage: ElaboratedImage?
     @State private var saveErrorMessage: String?
 
-    /// See `PlanetaryPostProcessingView.fullScreenSize`'s own doc comment — a margin below
-    /// `visibleFrame`, not exactly equal to it, so macOS never repositions the presenting window
-    /// itself to make room for this sheet's own title bar.
-    private var fullScreenSize: CGSize {
-        let visible = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1200, height: 800)
-        return CGSize(width: max(visible.width - 40, 980), height: max(visible.height - 40, 660))
-    }
+    /// See `PlanetaryPostProcessingView.fullScreenSize`'s own doc comment — `static`, since this
+    /// is also what every call site hands `DetachedContentWindowController` as the window's own
+    /// *initial* size; the window itself is genuinely resizable now, so this is just a starting
+    /// point, not a permanent constraint.
+    static var fullScreenSize: CGSize { PlanetaryPostProcessingView.fullScreenSize }
+    static var minWindowSize: NSSize { PlanetaryPostProcessingView.minWindowSize }
 
     private var cropRect: CGRect? {
         guard cropLeft > 0 || cropRight > 0 || cropTop > 0 || cropBottom > 0 else { return nil }
@@ -96,7 +98,7 @@ struct SingleImagePostProcessingView: View {
                 readyBody
             }
         }
-        .frame(width: fullScreenSize.width, height: fullScreenSize.height)
+        .frame(minWidth: Self.minWindowSize.width, maxWidth: .infinity, minHeight: Self.minWindowSize.height, maxHeight: .infinity)
         .background(.background)
         .task { await loadImage() }
     }
@@ -115,13 +117,13 @@ struct SingleImagePostProcessingView: View {
                 Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") {
                     AstroBinPublisher.publish(elaboratedImagesFolderURL.appendingPathComponent(savedImage.fileName))
                 }
-                Button("Done") { dismiss() }
+                Button("Done") { onDismiss() }
                     .keyboardShortcut(.defaultAction)
             } else {
                 if let saveErrorMessage {
                     Text(saveErrorMessage).font(.caption).foregroundStyle(.red)
                 }
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { onDismiss() }
                 Button {
                     Task { await save() }
                 } label: {
@@ -389,12 +391,15 @@ struct SingleImagePostProcessingView: View {
 
     /// A slider paired with its own small reset control — every adjustment gets one, not just
     /// the single global "Reset" in the Auto-Fix section, so one parameter can be dialed back
-    /// without losing every other tweak already made.
+    /// without losing every other tweak already made. The label sits on its own line above the
+    /// slider (not `LabeledContent`'s side-by-side layout) — a longer label like "Chroma Noise
+    /// Reduction" was squeezing the slider itself down to a sliver in this panel's fixed width.
     private func resettableSlider(
         _ label: String, value: Binding<Double>, range: ClosedRange<Double>, defaultValue: Double,
         step: Double = 0.01, format: String = "%.2f", displayScale: Double = 1
     ) -> some View {
-        LabeledContent(label) {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption)
             HStack {
                 Slider(value: value, in: range, step: step)
                 Text(String(format: format, value.wrappedValue * displayScale))

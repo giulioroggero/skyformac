@@ -909,21 +909,23 @@ struct ElaboratedImageCard: View {
 
     @State private var isConfirmingDelete = false
     @State private var isShowingDetail = false
-    @State private var isViewingFullScreen = false
     @State private var isReElaborating = false
     @State private var isSendingToGraXpert = false
     @State private var isPromptingGraXpertSettings = false
     @State private var isSendingToStarNet = false
     @State private var isPromptingStarNetSettings = false
-    /// "Post-process more…starting from the original with the settings used" — re-runs Planetary
-    /// Post-Processing from scratch on the actual `.ser` this result was stacked from, seeded
-    /// with the settings that produced it (`image.planetarySettings`), rather than either editing
-    /// the finished PNG or hand-tuning every slider again from the app's own defaults.
-    @State private var isRedoingFromOriginal = false
-    /// The other half — "post elaborate the photo as png with all controls," i.e. run the
-    /// already-finished PNG through Edit Image's own controls (crop/color/curves/sharpen),
-    /// exactly like editing any other PNG capture.
-    @State private var isEditingImage = false
+    /// "The edit/preview windows can be moved across the screen and resized" — see
+    /// `CaptureDetailPage`'s identical property doc comment for why these are
+    /// `DetachedContentWindowController?` rather than the three `Bool`s + `.sheet`s they used to
+    /// be. `redoingFromOriginalWindowController`: "post-process more…starting from the original
+    /// with the settings used" — re-runs Planetary Post-Processing from scratch on the actual
+    /// `.ser` this result was stacked from, seeded with the settings that produced it
+    /// (`image.planetarySettings`). `editingImageWindowController`: the other half — "post
+    /// elaborate the photo as png with all controls" — runs the already-finished PNG through Edit
+    /// Image's own controls, exactly like editing any other PNG capture.
+    @State private var viewingFullScreenWindowController: DetachedContentWindowController?
+    @State private var redoingFromOriginalWindowController: DetachedContentWindowController?
+    @State private var editingImageWindowController: DetachedContentWindowController?
 
     private var fileURL: URL {
         cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
@@ -979,31 +981,30 @@ struct ElaboratedImageCard: View {
 
     /// "All the right-click menu items on post processed images must be visible also in preview
     /// of the image" — the same actions `.contextMenu` above offers, reachable from
-    /// `FullScreenImageViewer`'s own "More" menu too. Each action closes `isViewingFullScreen`
-    /// first (unlike the context menu's own actions) since two `.sheet`s can't be presented at
-    /// once — the same "close this sheet first, not just alongside" reasoning
-    /// `ElaboratedImageDetailSheet`'s own button handlers already use.
+    /// `FullScreenImageViewer`'s own "More" menu too. Each action closes the preview's own window
+    /// first (unlike the context menu's own actions, which don't have one open in the first
+    /// place) so it doesn't linger behind whatever it opens.
     @ViewBuilder
     private var fullScreenMoreMenuItems: some View {
-        Button("Info…", systemImage: "info.circle") { isViewingFullScreen = false; isShowingDetail = true }
-        Button("Show in Finder") { isViewingFullScreen = false; NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
-        Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { isViewingFullScreen = false; AstroBinPublisher.publish(fileURL) }
+        Button("Info…", systemImage: "info.circle") { viewingFullScreenWindowController?.close(); isShowingDetail = true }
+        Button("Show in Finder") { viewingFullScreenWindowController?.close(); NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+        Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { viewingFullScreenWindowController?.close(); AstroBinPublisher.publish(fileURL) }
         Divider()
         if originalSERCaptureURL != nil {
-            Button("Redo from Original…", systemImage: "arrow.counterclockwise") { isViewingFullScreen = false; isRedoingFromOriginal = true }
+            Button("Redo from Original…", systemImage: "arrow.counterclockwise") { viewingFullScreenWindowController?.close(); openRedoFromOriginalWindow() }
         }
-        Button("Edit Image…", systemImage: "slider.horizontal.3") { isViewingFullScreen = false; isEditingImage = true }
+        Button("Edit Image…", systemImage: "slider.horizontal.3") { viewingFullScreenWindowController?.close(); openEditingImageWindow() }
         Divider()
         Menu("Third-Party Tools") {
             if image.recipe != nil, reElaborationSource != nil {
-                Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise") { isViewingFullScreen = false; isReElaborating = true }
+                Button("Re-elaborate in Siril…", systemImage: "arrow.clockwise") { viewingFullScreenWindowController?.close(); isReElaborating = true }
             }
-            Button("Send to GraXpert…", systemImage: "sparkles") { isViewingFullScreen = false; startSendingToGraXpert() }
-            Button("Remove Stars (StarNet)…", systemImage: "star.slash") { isViewingFullScreen = false; startSendingToStarNet() }
+            Button("Send to GraXpert…", systemImage: "sparkles") { viewingFullScreenWindowController?.close(); startSendingToGraXpert() }
+            Button("Remove Stars (StarNet)…", systemImage: "star.slash") { viewingFullScreenWindowController?.close(); startSendingToStarNet() }
             Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
         }
         Divider()
-        Button("Delete…", systemImage: "trash", role: .destructive) { isViewingFullScreen = false; isConfirmingDelete = true }
+        Button("Delete…", systemImage: "trash", role: .destructive) { viewingFullScreenWindowController?.close(); isConfirmingDelete = true }
     }
 
     var body: some View {
@@ -1030,7 +1031,7 @@ struct ElaboratedImageCard: View {
         // Tapping opens the same full-screen zoom viewer "Open" uses everywhere else in the app
         // (`FullScreenImageViewer`) — metadata/Delete/Re-elaborate move to the context menu's
         // "Info…", which still opens the old detail sheet below.
-        .onTapGesture { isViewingFullScreen = true }
+        .onTapGesture { openFullScreenViewer() }
         .contextMenu {
             Button("Info…", systemImage: "info.circle") { isShowingDetail = true }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
@@ -1042,9 +1043,9 @@ struct ElaboratedImageCard: View {
             // with the settings that produced this result), or run the finished PNG through Edit
             // Image's own controls.
             if originalSERCaptureURL != nil {
-                Button("Redo from Original…", systemImage: "arrow.counterclockwise") { isRedoingFromOriginal = true }
+                Button("Redo from Original…", systemImage: "arrow.counterclockwise") { openRedoFromOriginalWindow() }
             }
-            Button("Edit Image…", systemImage: "slider.horizontal.3") { isEditingImage = true }
+            Button("Edit Image…", systemImage: "slider.horizontal.3") { openEditingImageWindow() }
             Divider()
             // Every hand-off to an external app in one place — "Re-elaborate" re-runs this
             // result through Siril specifically (only ever offered for a Siril-originated
@@ -1059,14 +1060,6 @@ struct ElaboratedImageCard: View {
                 Button("Open in PixInsight…", systemImage: "arrow.up.forward.app") { try? PixInsightAppLauncher.open(fileURL) }
             }
         }
-        .sheet(isPresented: $isViewingFullScreen) {
-            if let nsImage = NSImage(contentsOf: fileURL) {
-                FullScreenImageViewer(
-                    image: nsImage, fileURL: fileURL, onSetAsThumbnail: setProjectThumbnailFromThisImage,
-                    moreMenuItems: { AnyView(fullScreenMoreMenuItems) }
-                )
-            }
-        }
         .sheet(isPresented: $isShowingDetail) {
             ElaboratedImageDetailSheet(
                 image: image, fileURL: fileURL, sourceDescription: sourceDescription, diskSizeText: diskSizeText,
@@ -1075,55 +1068,13 @@ struct ElaboratedImageCard: View {
                 // Closes this sheet first, not just alongside — `isConfirmingDelete`'s
                 // `.confirmationDialog` and `isReElaborating`'s `.sheet` are both attached to the
                 // card underneath, which a still-open sheet would otherwise block from showing.
-                onRedoFromOriginal: { isShowingDetail = false; isRedoingFromOriginal = true },
-                onEditImage: { isShowingDetail = false; isEditingImage = true },
+                onRedoFromOriginal: { isShowingDetail = false; openRedoFromOriginalWindow() },
+                onEditImage: { isShowingDetail = false; openEditingImageWindow() },
                 onReElaborate: { isShowingDetail = false; isReElaborating = true },
                 onSendToGraXpert: { isShowingDetail = false; startSendingToGraXpert() },
                 onSendToStarNet: { isShowingDetail = false; startSendingToStarNet() },
                 onOpenInPixInsight: { try? PixInsightAppLauncher.open(fileURL) },
                 onDelete: { isShowingDetail = false; isConfirmingDelete = true }
-            )
-        }
-        .sheet(isPresented: $isRedoingFromOriginal) {
-            if let originalSERCaptureURL {
-                PlanetaryPostProcessingView(
-                    sourceURLs: [originalSERCaptureURL],
-                    sourceDescription: "Redoing \(originalSERCaptureURL.lastPathComponent) from the original.",
-                    onSave: { cgImage, title, notes, settings in
-                        try cameraManager.savePlanetaryPostProcessingResult(
-                            cgImage, sourceSessionIDs: image.sourceSessionIDs, sourceCaptureID: image.sourceCaptureID,
-                            project: project, title: title, notes: notes, settings: settings
-                        )
-                    },
-                    onOverwrite: { cgImage, existing, title, notes, settings in
-                        try cameraManager.overwritePlanetaryPostProcessingResult(
-                            cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
-                        )
-                    },
-                    resolveGraXpertInputURL: { resultImage in
-                        cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(resultImage.fileName)
-                    },
-                    onSendToGraXpert: { inputURL, operation, parameters, onLog in
-                        try await cameraManager.sendToGraXpert(
-                            inputURL: inputURL, operation: operation, sourceSessionIDs: image.sourceSessionIDs,
-                            sourceCaptureID: image.sourceCaptureID, project: project, parameters: parameters, onLog: onLog
-                        )
-                    },
-                    onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true },
-                    initialSettings: image.planetarySettings
-                )
-            }
-        }
-        .sheet(isPresented: $isEditingImage) {
-            SingleImagePostProcessingView(
-                sourceURL: fileURL,
-                sourceDescription: "Editing \(image.fileName).",
-                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
-                onSave: { cgImage in
-                    try cameraManager.saveImageEditResult(
-                        cgImage, sourceSessionIDs: image.sourceSessionIDs, sourceCaptureID: image.sourceCaptureID, project: project
-                    )
-                }
             )
         }
         .sheet(isPresented: $isReElaborating) {
@@ -1189,6 +1140,80 @@ struct ElaboratedImageCard: View {
         var updated = project
         updated.customThumbnailFileName = name
         try? cameraManager.projectsLibrary.save(updated)
+    }
+
+    private func openFullScreenViewer() {
+        guard let nsImage = NSImage(contentsOf: fileURL) else { return }
+        viewingFullScreenWindowController = DetachedContentWindowController(
+            title: image.displayLabel, contentSize: NSSize(width: 1100, height: 800), minSize: NSSize(width: 960, height: 700),
+            onClose: { viewingFullScreenWindowController = nil }
+        ) {
+            FullScreenImageViewer(
+                image: nsImage, fileURL: fileURL, onSetAsThumbnail: setProjectThumbnailFromThisImage,
+                moreMenuItems: { AnyView(fullScreenMoreMenuItems) },
+                onDismiss: { viewingFullScreenWindowController?.close() }
+            )
+        }
+        viewingFullScreenWindowController?.showWindow(nil)
+    }
+
+    private func openRedoFromOriginalWindow() {
+        guard let originalSERCaptureURL else { return }
+        redoingFromOriginalWindowController = DetachedContentWindowController(
+            title: "Planetary Post-Processing", contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            minSize: PlanetaryPostProcessingView.minWindowSize,
+            onClose: { redoingFromOriginalWindowController = nil }
+        ) {
+            PlanetaryPostProcessingView(
+                sourceURLs: [originalSERCaptureURL],
+                sourceDescription: "Redoing \(originalSERCaptureURL.lastPathComponent) from the original.",
+                onSave: { cgImage, title, notes, settings in
+                    try cameraManager.savePlanetaryPostProcessingResult(
+                        cgImage, sourceSessionIDs: image.sourceSessionIDs, sourceCaptureID: image.sourceCaptureID,
+                        project: project, title: title, notes: notes, settings: settings
+                    )
+                },
+                onOverwrite: { cgImage, existing, title, notes, settings in
+                    try cameraManager.overwritePlanetaryPostProcessingResult(
+                        cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
+                    )
+                },
+                resolveGraXpertInputURL: { resultImage in
+                    cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(resultImage.fileName)
+                },
+                onSendToGraXpert: { inputURL, operation, parameters, onLog in
+                    try await cameraManager.sendToGraXpert(
+                        inputURL: inputURL, operation: operation, sourceSessionIDs: image.sourceSessionIDs,
+                        sourceCaptureID: image.sourceCaptureID, project: project, parameters: parameters, onLog: onLog
+                    )
+                },
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true },
+                initialSettings: image.planetarySettings,
+                onDismiss: { redoingFromOriginalWindowController?.close() }
+            )
+        }
+        redoingFromOriginalWindowController?.showWindow(nil)
+    }
+
+    private func openEditingImageWindow() {
+        editingImageWindowController = DetachedContentWindowController(
+            title: "Edit Image", contentSize: SingleImagePostProcessingView.fullScreenSize,
+            minSize: SingleImagePostProcessingView.minWindowSize,
+            onClose: { editingImageWindowController = nil }
+        ) {
+            SingleImagePostProcessingView(
+                sourceURL: fileURL,
+                sourceDescription: "Editing \(image.fileName).",
+                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
+                onSave: { cgImage in
+                    try cameraManager.saveImageEditResult(
+                        cgImage, sourceSessionIDs: image.sourceSessionIDs, sourceCaptureID: image.sourceCaptureID, project: project
+                    )
+                },
+                onDismiss: { editingImageWindowController?.close() }
+            )
+        }
+        editingImageWindowController?.showWindow(nil)
     }
 
     private func startSendingToGraXpert() {

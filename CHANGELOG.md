@@ -19,6 +19,14 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Planetary Post-Processing, Edit Image, and the full-screen image preview now each open in a
+  real, independent window (`DetachedContentWindowController`) instead of a `.sheet` — a macOS
+  sheet is permanently attached below its parent window's own title bar and can never be dragged
+  to another position on screen or resized past what the presenting view declares, so "the
+  edit/preview windows can be moved across the screen and resized" needed a genuinely separate
+  window instead. Each still opens at roughly the same near-fullscreen starting size as before,
+  but the window itself is now freely movable, resizable, and (via the standard Window menu)
+  minimizable.
 - A "Chroma Noise Reduction" slider in Edit Image's Clean Up section and Planetary
   Post-Processing's Single Shot tab — cleans up the colored speckle ("puntini colorati") long
   exposures/high gain leave in the background, distinct from the existing Denoise (which smooths
@@ -80,6 +88,10 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   Tools" group/menu instead of mixed in with Skyformac's own actions.
 
 ### Fixed
+- The Chroma Noise Reduction slider (and every other slider using the same two helpers) was
+  squeezed down to a sliver by its own label sitting beside it — `LabeledContent`'s side-by-side
+  layout gave a long label like "Chroma Noise Reduction" most of the row's width, leaving barely
+  any for the slider itself. Moved the label to its own line above the slider instead.
 - The setup screen's "Start Processing" button stopped showing after Color/Stretch were added to
   it — the newly-scrollable settings panel had nothing bounding its height, so it greedily
   claimed all available vertical space and squeezed the button (sandwiched between two plain
