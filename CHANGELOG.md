@@ -19,6 +19,11 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Six new `SkyformacUITests` covering customer journeys the existing 9 didn't reach: the Gallery
+  and Equipment Dashboard tiles, cancelling out of the New Project sheet, Settings' "Done" button
+  actually returning to the underlying page, the AI panel's minimize/expand round trip, and the
+  full Quick Start → active session → "End Session" → the resulting project showing up in the
+  Dashboard's "Recent Projects" → opening it lands on that project's own detail page.
 - A "Center Object" button in Edit Image and Planetary Post-Processing's Single Shot tab — shifts
   the image so its brightness-weighted centroid lands in the exact middle of the frame, the same
   intensity-weighted-sum idea registration already uses for a whole burst, run once here directly

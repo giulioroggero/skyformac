@@ -226,4 +226,129 @@ final class SkyformacUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Detach"].exists)
     }
 
+    func testExpandingTheAssistantRestoresTheEmbeddedPanel() throws {
+        let app = makeApp()
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Minimize"].waitForExistence(timeout: 10))
+        app.buttons["Minimize"].tap()
+
+        let expandButton = app.buttons["Expand AI"]
+        XCTAssertTrue(expandButton.waitForExistence(timeout: 5))
+        expandButton.tap()
+
+        // Back to the embedded sidebar copy — "Minimize" only ever appears there, never on the
+        // floating/detached copy (see `testAIPanelIsDetachedNotEmbeddedWhileTheCameraViewIsRunning`).
+        XCTAssertTrue(app.buttons["Minimize"].waitForExistence(timeout: 5))
+    }
+
+    func testGalleryTileOpensTheGalleryPage() throws {
+        let app = makeApp()
+        app.launch()
+
+        let galleryTile = app.buttons["DashboardGalleryTile"]
+        XCTAssertTrue(galleryTile.waitForExistence(timeout: 10))
+        galleryTile.tap()
+
+        // `GalleryView`'s own empty-state copy — unique to that page, present on a fresh install
+        // with nothing post-processed yet.
+        XCTAssertTrue(app.staticTexts["Post-process a capture — or send one to Siril, GraXpert, or StarNet — and it shows up here."]
+            .waitForExistence(timeout: 10))
+    }
+
+    /// Same "scroll the horizontal Common Tasks row into view before tapping" reasoning as
+    /// `testInsightsTileOpensTheInsightsPage` — "Equipment" has no accessibility identifier of its
+    /// own (unlike Quick Start/All Projects/Gallery/Insights), so this matches by label instead,
+    /// still scoped to a button inside the known tile row to avoid matching some other "Equipment"
+    /// label elsewhere on the page.
+    func testEquipmentTileOpensTheEquipmentPage() throws {
+        let app = makeApp()
+        app.launch()
+
+        let equipmentTile = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Equipment")).firstMatch
+        XCTAssertTrue(equipmentTile.waitForExistence(timeout: 10))
+        let commonTasksScroll = app.scrollViews["CommonTasksScrollView"]
+        func scrollUntilHittable(direction: CGFloat, deadline: Date) {
+            while !equipmentTile.isHittable && Date() < deadline {
+                commonTasksScroll.scroll(byDeltaX: direction, deltaY: 0)
+            }
+        }
+        scrollUntilHittable(direction: 200, deadline: Date().addingTimeInterval(5))
+        if !equipmentTile.isHittable {
+            scrollUntilHittable(direction: -200, deadline: Date().addingTimeInterval(5))
+        }
+        XCTAssertTrue(equipmentTile.isHittable, "Equipment tile never became hittable after scrolling")
+        equipmentTile.tap()
+
+        // `EquipmentPage`'s own empty-state title — unique to that page, present with no
+        // equipment systems set up yet.
+        XCTAssertTrue(app.staticTexts["No Equipment Systems Yet"].waitForExistence(timeout: 10))
+    }
+
+    func testNewProjectTileOpensAndCancelsTheNewProjectSheet() throws {
+        let app = makeApp()
+        app.launch()
+
+        let newProjectTile = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "New Project")).firstMatch
+        XCTAssertTrue(newProjectTile.waitForExistence(timeout: 10))
+        newProjectTile.tap()
+
+        // `NewProjectSheet`'s own headline, plus its "Create" button starts disabled until a name
+        // is typed — confirms the sheet actually opened rather than the tap silently doing nothing.
+        XCTAssertTrue(app.staticTexts["New Project"].waitForExistence(timeout: 10))
+        let createButton = app.buttons["Create"]
+        XCTAssertTrue(createButton.exists)
+        XCTAssertFalse(createButton.isEnabled)
+
+        app.buttons["Cancel"].tap()
+
+        // Cancelling closes the sheet without creating anything — back to the Dashboard.
+        XCTAssertTrue(app.staticTexts["Common Tasks"].waitForExistence(timeout: 10))
+    }
+
+    func testSettingsDoneButtonReturnsToTheUnderlyingView() throws {
+        let app = makeApp()
+        app.launch()
+
+        let candidates = app.buttons.matching(identifier: "DashboardSettingsToolbarButton")
+        XCTAssertTrue(candidates.firstMatch.waitForExistence(timeout: 10))
+        let deadline = Date().addingTimeInterval(10)
+        var settingsButton: XCUIElement?
+        while settingsButton == nil && Date() < deadline {
+            settingsButton = candidates.allElementsBoundByIndex.first(where: \.isHittable)
+            if settingsButton == nil { Thread.sleep(forTimeInterval: 0.2) }
+        }
+        try XCTUnwrap(settingsButton, "No hittable DashboardSettingsToolbarButton found").tap()
+        XCTAssertTrue(app.staticTexts["Projects Folder"].waitForExistence(timeout: 10))
+
+        app.buttons["Done"].tap()
+
+        // Back at the Dashboard underneath — settled, not just "the sheet's gone."
+        XCTAssertTrue(app.staticTexts["Common Tasks"].waitForExistence(timeout: 10))
+    }
+
+    /// End-to-end session lifecycle: Quick Start → an active camera session → "End Session" →
+    /// the resulting project shows up back on the Dashboard's own "Recent Projects" row → opening
+    /// it lands on that project's own detail page. Exercises the full round trip a real user
+    /// takes, not just one hop of it.
+    func testEndingASessionReturnsToTheDashboardAndTheProjectAppearsInRecents() throws {
+        let app = makeApp()
+        launchIntoCameraView(app)
+
+        let endSessionButton = app.buttons["End Session"].firstMatch
+        XCTAssertTrue(endSessionButton.waitForExistence(timeout: 10))
+        endSessionButton.tap()
+
+        XCTAssertTrue(app.staticTexts["Common Tasks"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Recent Projects"].waitForExistence(timeout: 10))
+
+        let projectCard = app.staticTexts["Moon (Detail)"].firstMatch
+        XCTAssertTrue(projectCard.waitForExistence(timeout: 10))
+        projectCard.tap()
+
+        // `ProjectDetailPane`'s own "Stats" section (includes the session count) — unique to that
+        // page, confirms the tap actually navigated in rather than doing nothing.
+        XCTAssertTrue(app.staticTexts["Stats"].waitForExistence(timeout: 10))
+    }
+
 }
