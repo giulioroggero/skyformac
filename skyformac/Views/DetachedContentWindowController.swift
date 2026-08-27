@@ -37,6 +37,16 @@ final class DetachedContentWindowController: NSWindowController, NSWindowDelegat
         window.contentView = NSHostingView(rootView: content())
         window.minSize = minSize
         window.center()
+        // AppKit's default `isReleasedWhenClosed = true` deallocates the window as part of
+        // `close()` itself — but `onClose()` below (called from the delegate callback `close()`
+        // triggers, so still on that same call stack) is what drops this controller's own last
+        // strong reference (the caller's `@State` var), and this controller *is* the window's
+        // delegate. Letting AppKit release the window out from under itself mid-close, on the
+        // same object that's also about to lose its own last reference, is exactly the kind of
+        // reentrant-teardown situation that can leave a window not actually finishing its close
+        // — "the Done button doesn't close the preview." `false` here means `close()` just hides/
+        // orders out the window, no deallocation racing the delegate callback that's still using it.
+        window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
     }
@@ -47,6 +57,10 @@ final class DetachedContentWindowController: NSWindowController, NSWindowDelegat
     }
 
     func windowWillClose(_ notification: Notification) {
-        onClose()
+        // Deferred a tick — `onClose()` drops the caller's only strong reference to this
+        // controller (see `isReleasedWhenClosed`'s own doc comment above), and this is itself
+        // still running from inside the window's own `close()` call; letting that finish
+        // unwinding first, before this object can be deallocated, is the same reasoning.
+        DispatchQueue.main.async { [onClose] in onClose() }
     }
 }

@@ -986,14 +986,16 @@ struct ElaboratedImageCard: View {
     /// place) so it doesn't linger behind whatever it opens.
     @ViewBuilder
     private var fullScreenMoreMenuItems: some View {
-        Button("Info…", systemImage: "info.circle") { viewingFullScreenWindowController?.close(); isShowingDetail = true }
-        Button("Show in Finder") { viewingFullScreenWindowController?.close(); NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
-        Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { viewingFullScreenWindowController?.close(); AstroBinPublisher.publish(fileURL) }
-        Divider()
+        // Skyformac's own tools first, "Edit Image…" foremost — the action someone opening this
+        // preview reaches for most.
+        Button("Edit Image…", systemImage: "slider.horizontal.3") { viewingFullScreenWindowController?.close(); openEditingImageWindow() }
         if originalSERCaptureURL != nil {
             Button("Redo from Original…", systemImage: "arrow.counterclockwise") { viewingFullScreenWindowController?.close(); openRedoFromOriginalWindow() }
         }
-        Button("Edit Image…", systemImage: "slider.horizontal.3") { viewingFullScreenWindowController?.close(); openEditingImageWindow() }
+        Divider()
+        Button("Info…", systemImage: "info.circle") { viewingFullScreenWindowController?.close(); isShowingDetail = true }
+        Button("Show in Finder") { viewingFullScreenWindowController?.close(); NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+        Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { viewingFullScreenWindowController?.close(); AstroBinPublisher.publish(fileURL) }
         Divider()
         Menu("Third-Party Tools") {
             if image.recipe != nil, reElaborationSource != nil {
@@ -1033,19 +1035,17 @@ struct ElaboratedImageCard: View {
         // "Info…", which still opens the old detail sheet below.
         .onTapGesture { openFullScreenViewer() }
         .contextMenu {
+            // Skyformac's own tools first, "Edit Image…" foremost — mirrors
+            // `fullScreenMoreMenuItems`'s ordering below.
+            Button("Edit Image…", systemImage: "slider.horizontal.3") { openEditingImageWindow() }
+            if originalSERCaptureURL != nil {
+                Button("Redo from Original…", systemImage: "arrow.counterclockwise") { openRedoFromOriginalWindow() }
+            }
+            Divider()
             Button("Info…", systemImage: "info.circle") { isShowingDetail = true }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
             Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
             Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
-            Divider()
-            // Skyformac's own further-processing options, favored alongside — not buried inside —
-            // "Third-Party Tools" below: redo the whole stack from the original `.ser` (seeded
-            // with the settings that produced this result), or run the finished PNG through Edit
-            // Image's own controls.
-            if originalSERCaptureURL != nil {
-                Button("Redo from Original…", systemImage: "arrow.counterclockwise") { openRedoFromOriginalWindow() }
-            }
-            Button("Edit Image…", systemImage: "slider.horizontal.3") { openEditingImageWindow() }
             Divider()
             // Every hand-off to an external app in one place — "Re-elaborate" re-runs this
             // result through Siril specifically (only ever offered for a Siril-originated
@@ -1286,14 +1286,16 @@ private struct ElaboratedImageDetailSheet: View {
             }
 
             HStack {
-                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
-                Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
-                Button("Delete…", systemImage: "trash", role: .destructive, action: onDelete)
-                Spacer()
+                // Edit Image… leads, matching the card's own context menu and the full-screen
+                // preview's "More" menu — the action someone opening this sheet reaches for most.
+                Button("Edit Image…", systemImage: "slider.horizontal.3", action: onEditImage)
                 if canRedoFromOriginal {
                     Button("Redo from Original…", systemImage: "arrow.counterclockwise", action: onRedoFromOriginal)
                 }
-                Button("Edit Image…", systemImage: "slider.horizontal.3", action: onEditImage)
+                Spacer()
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+                Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
+                Button("Delete…", systemImage: "trash", role: .destructive, action: onDelete)
                 // Every hand-off to an external app grouped together — see the card's own
                 // context menu doc comment for why "Re-elaborate" (Siril-only) belongs here
                 // alongside GraXpert/StarNet/PixInsight rather than sitting on its own.

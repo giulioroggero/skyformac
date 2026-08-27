@@ -127,6 +127,16 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   `CameraManager.frameID` so a slow pass never races a newer frame's result back in; the GPU
   renderer path was never affected (`gpuHistogramCounts` is already precomputed elsewhere before
   this view reads it).
+- The Done button on an elaborated image's full-screen preview (and Planetary Post-Processing's
+  and Edit Image's own Done/Cancel) could fail to actually close the window — AppKit's default
+  `isReleasedWhenClosed = true` let `close()` deallocate the window while its own delegate
+  (`DetachedContentWindowController` itself) was still on the call stack synchronously calling
+  `onClose()`, which drops the caller's last strong reference to that same controller: a
+  reentrant-teardown race. Set `isReleasedWhenClosed = false` and deferred `onClose()` by one
+  run-loop tick so `close()` finishes unwinding before the controller can be released.
+- "Edit Image…" now leads an elaborated image's full-screen "More" menu, right-click context
+  menu, and Info sheet's button row, instead of sitting after Info/Show in Finder/Publish to
+  AstroBin — it's the action someone opening an elaborated image reaches for most.
 
 ## [0.5.3] - 2026-08-27
 
