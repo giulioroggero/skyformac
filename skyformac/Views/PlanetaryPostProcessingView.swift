@@ -105,6 +105,20 @@ struct PlanetaryPostProcessingView: View {
     @State private var previewImage: CGImage?
     @State private var sharpenTask: Task<Void, Never>?
     @State private var renderTask: Task<Void, Never>?
+    /// `sharpenTask?.cancel()`/`renderTask?.cancel()` alone don't stop the CPU-bound work already
+    /// running inside `Task.detached` — cancelling a `Task` you're `await`ing on doesn't cancel a
+    /// *different*, unstructured `Task.detached` it happens to be waiting on, and `waveletSharpen`/
+    /// `renderImage` never checked `Task.isCancelled` internally anyway (only `stack`'s own
+    /// `DispatchQueue.concurrentPerform` work has that problem documented on `PlanetaryCancellationFlag`
+    /// — this is the same problem, just via a different concurrency primitive). A burst of slider
+    /// drags (or `applyInitialSettingsIfNeeded()` setting several wavelet-affecting properties at
+    /// once, each with its own `.onChange`) used to queue up several full-resolution sharpen/render
+    /// passes that all ran to completion in parallel regardless of being superseded — several
+    /// concurrent `Task.detached` bodies all doing real per-pixel work is exactly what pins every
+    /// core at once. These flags are threaded into those functions' own `isCancelled` checks so a
+    /// superseded pass actually stops instead of computing an image nobody will see.
+    @State private var sharpenCancelFlag: PlanetaryCancellationFlag?
+    @State private var renderCancelFlag: PlanetaryCancellationFlag?
 
     private enum SidebarTab: String, CaseIterable, Identifiable {
         case video = "Video"
@@ -882,7 +896,9 @@ struct PlanetaryPostProcessingView: View {
     /// as-is). Cancels any in-flight sharpen/render first so a fast slider drag doesn't queue up a
     /// backlog of stale work.
     private func scheduleSharpen(useAutoStretch: Bool = false) {
+        sharpenCancelFlag?.cancel()
         sharpenTask?.cancel()
+        renderCancelFlag?.cancel()
         renderTask?.cancel()
         guard let baseStack else { return }
         let layers = waveletLayers
@@ -893,13 +909,15 @@ struct PlanetaryPostProcessingView: View {
         // background/noise the way a whole-frame centroid was; see `alignRGBChannels`'s own doc
         // comment for the failure mode this fixes.
         let roi = roiRect.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+        let flag = PlanetaryCancellationFlag()
+        sharpenCancelFlag = flag
         sharpenTask = Task {
             let sharpened = await Task.detached(priority: .userInitiated) {
-                var image = PlanetaryPostProcessor.waveletSharpen(baseStack, layers: layers, denoise: denoiseAmount)
-                if align { image = PlanetaryPostProcessor.alignRGBChannels(image, roi: roi) }
+                var image = PlanetaryPostProcessor.waveletSharpen(baseStack, layers: layers, denoise: denoiseAmount, isCancelled: { flag.isCancelled })
+                if align, !flag.isCancelled { image = PlanetaryPostProcessor.alignRGBChannels(image, roi: roi) }
                 return image
             }.value
-            if Task.isCancelled { return }
+            if Task.isCancelled || flag.isCancelled { return }
             sharpenedImage = sharpened
             if useAutoStretch {
                 autoStretch()
@@ -915,16 +933,19 @@ struct PlanetaryPostProcessingView: View {
     /// does, which previously ran on every single stretch-slider drag too and made "change
     /// stretch" feel unresponsive rather than live.
     private func renderOnly() {
+        renderCancelFlag?.cancel()
         renderTask?.cancel()
         guard let sharpenedImage else { return }
         let black = blackPoint
         let white = whitePoint
         let logIntensity = useLogStretch ? logStretchIntensity : nil
+        let flag = PlanetaryCancellationFlag()
+        renderCancelFlag = flag
         renderTask = Task {
             let cgImage = await Task.detached(priority: .userInitiated) {
-                PlanetaryPostProcessor.renderImage(sharpenedImage, blackPoint: black, whitePoint: white, logStretchIntensity: logIntensity)
+                PlanetaryPostProcessor.renderImage(sharpenedImage, blackPoint: black, whitePoint: white, logStretchIntensity: logIntensity, isCancelled: { flag.isCancelled })
             }.value
-            if Task.isCancelled { return }
+            if Task.isCancelled || flag.isCancelled { return }
             stackedPreviewImage = cgImage
             applySingleShotAdjustments()
         }

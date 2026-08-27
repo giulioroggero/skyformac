@@ -106,6 +106,22 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   Tools" group/menu instead of mixed in with Skyformac's own actions.
 
 ### Fixed
+- Planetary Post-Processing's live wavelet-sharpen/stretch preview (Stage 4-5 — the wavelet-layer,
+  denoise, RGB-align, black/white-point, and log-stretch sliders) could pin every CPU core at once
+  and stay pinned, confirmed live on a real stuck process: several `Task.detached` closures piled
+  up running full-resolution work concurrently, none of them actually stoppable once started.
+  `sharpenTask?.cancel()`/`renderTask?.cancel()` only cancelled the outer wrapper `Task` — the
+  actual CPU-bound work runs inside a *separate*, unstructured `Task.detached` that cancelling the
+  wrapper never reaches, and `waveletSharpen`/`renderImage` never checked `Task.isCancelled`
+  internally anyway, so a superseded pass ran to completion regardless (an image nobody would ever
+  see) instead of stopping. A burst of near-simultaneous slider/state changes — several sliders
+  dragged in quick succession, or "Redo from Original" setting five wavelet-affecting properties
+  at once, each independently triggering the full pipeline via its own `.onChange` — could queue up
+  that many full-resolution passes running in parallel, exactly matching "every core pinned."
+  `waveletSharpen`/`renderImage` now take an `isCancelled` closure (the same shape
+  `scoreAndRegister`/`stack` already use for their own `DispatchQueue.concurrentPerform` work),
+  checked periodically inside their loops so a superseded pass actually stops instead of computing
+  an image nobody will see.
 - Opening Planetary Post-Processing, Edit Image, or the full-screen image preview could land the
   new window somewhere other than over the page you were actually looking at — `center()` alone
   centers on whichever screen AppKit happens to pick for a window that's never been shown, not

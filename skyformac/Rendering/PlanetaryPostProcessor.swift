@@ -594,18 +594,28 @@ enum PlanetaryPostProcessor {
     /// highest-frequency scale is where sensor/seeing noise actually lives, so attenuating it
     /// specifically (rather than a separate blur pass) suppresses noise without also softening
     /// the coarser layers real detail (crater rims, cloud bands) lives in.
-    static func waveletSharpen(_ image: StackedImage, layers: [WaveletLayer], denoise: Double) -> StackedImage {
+    /// `isCancelled`, checked between each layer's own `boxSplineBlur` pass (the expensive unit
+    /// here — a full-resolution, 2-pass, 5-tap convolution) rather than mid-pass, matches this
+    /// call's own trigger: superseded by the *next* slider tweak, not something that needs to stop
+    /// mid-pixel. On cancellation this returns `image` unchanged — the caller (`scheduleSharpen`)
+    /// already discards a cancelled result, so what's returned here only matters in that it's
+    /// cheap and immediate, not that it's a real answer.
+    static func waveletSharpen(
+        _ image: StackedImage, layers: [WaveletLayer], denoise: Double, isCancelled: () -> Bool = { false }
+    ) -> StackedImage {
         guard !layers.isEmpty else { return image }
         var current = image.values
         var details: [[Float]] = []
         details.reserveCapacity(layers.count)
         var spacing = 1
         for _ in layers {
+            if isCancelled() { return image }
             let blurred = boxSplineBlur(current, width: image.width, height: image.height, channels: image.channels, spacing: spacing)
             details.append(zipSubtract(current, blurred))
             current = blurred
             spacing *= 2
         }
+        if isCancelled() { return image }
         // `current` now holds the coarsest low-frequency residual — the pipeline's base layer.
         var output = current
         for (i, layer) in layers.enumerated() {
@@ -737,7 +747,8 @@ enum PlanetaryPostProcessor {
     /// `logStretchIntensity` is given, applied per-channel on top of the linear black/white
     /// points (so both controls compose rather than being mutually exclusive).
     static func renderImage(
-        _ image: StackedImage, blackPoint: Double, whitePoint: Double, logStretchIntensity: Double?
+        _ image: StackedImage, blackPoint: Double, whitePoint: Double, logStretchIntensity: Double?,
+        isCancelled: () -> Bool = { false }
     ) -> CGImage? {
         guard image.width > 0, image.height > 0 else { return nil }
         let range = Float(max(whitePoint - blackPoint, 0.001))
@@ -748,6 +759,12 @@ enum PlanetaryPostProcessor {
         var pixels = [UInt8](repeating: 255, count: image.width * image.height * 4)
         let count = image.width * image.height
         for i in 0..<count {
+            // A slider-driven live preview can supersede this call many times a second — without
+            // this, an already-superseded call has no way to stop and just keeps burning CPU on a
+            // result nobody will ever see (see `renderOnly`'s own doc comment). Checked every 65536
+            // pixels (a lock/read every ~256KB of output, not every pixel) rather than every
+            // iteration, so the check itself doesn't become the hot loop's own overhead.
+            if i & 0xFFFF == 0, isCancelled() { return nil }
             let o = image.channels == 3 ? i * 3 : i
             let step = image.channels == 3 ? 1 : 0
             var r = max(0, (image.values[o] - black) / range)
