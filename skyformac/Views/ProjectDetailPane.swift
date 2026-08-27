@@ -1117,7 +1117,13 @@ private struct ElaboratedImageDetailSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(image.fileName).font(.headline)
+            Text(image.title ?? image.fileName).font(.headline)
+            if image.title != nil {
+                Text(image.fileName).font(.caption).foregroundStyle(.secondary)
+            }
+            if let notes = image.notes, !notes.isEmpty {
+                Text(notes).font(.callout).foregroundStyle(.secondary)
+            }
 
             if let nsImage = NSImage(contentsOf: fileURL) {
                 Image(nsImage: nsImage)
@@ -1132,9 +1138,12 @@ private struct ElaboratedImageDetailSheet: View {
             StatsGridView(stats: [
                 StatItem(label: "Elaborated", value: image.date.formatted(date: .abbreviated, time: .shortened)),
                 StatItem(label: "Source", value: sourceDescription),
-                StatItem(label: "Recipe", value: image.displayLabel),
+                StatItem(label: "Tool", value: image.toolLabel ?? image.recipe?.label ?? "Elaborated"),
                 StatItem(label: "Size on Disk", value: diskSizeText),
             ])
+            if let settings = image.planetarySettings {
+                settingsSummary(settings)
+            }
 
             HStack {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
@@ -1156,5 +1165,19 @@ private struct ElaboratedImageDetailSheet: View {
         }
         .padding(20)
         .frame(width: 480)
+    }
+
+    /// "The saving brings also all settings used to elaborate the image" — a compact readout of
+    /// exactly what `PlanetaryPostProcessingView` produced this with, for a result that came from
+    /// there (`nil` for anything else — Siril/GraXpert/Image Editor results have no equivalent
+    /// parameter set).
+    @ViewBuilder
+    private func settingsSummary(_ settings: PlanetaryPostProcessor.SettingsSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Settings Used").font(.caption.bold()).foregroundStyle(.secondary)
+            Text("Kept best \(Int(settings.keepBestPercent))% · \(settings.stackMethod.rawValue) combine\(settings.roi != nil ? " · tracked a selected object" : "")\(settings.alignRGBChannels ? " · RGB channels aligned" : "")")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 }

@@ -457,15 +457,38 @@ final class ProjectStore {
     @discardableResult
     func addElaboratedImage(
         fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe? = nil,
-        toolLabel: String? = nil, to project: inout Project
+        toolLabel: String? = nil, title: String? = nil, notes: String? = nil,
+        planetarySettings: PlanetaryPostProcessor.SettingsSnapshot? = nil, to project: inout Project
     ) throws -> ElaboratedImage {
         let image = ElaboratedImage(
             date: Date(), fileName: fileName, sourceSessionIDs: sourceSessionIDs,
-            sourceCaptureID: sourceCaptureID, recipe: recipe, toolLabel: toolLabel
+            sourceCaptureID: sourceCaptureID, recipe: recipe, toolLabel: toolLabel,
+            title: title, notes: notes, planetarySettings: planetarySettings
         )
         project.elaboratedImages.append(image)
         try save(project)
         return image
+    }
+
+    /// Updates an *existing* elaborated image's catalog entry in place — same `id`, same
+    /// `fileName` (the caller has already overwritten that file's bytes with the new render
+    /// before calling this; this only ever touches metadata), `date` bumped to now. The
+    /// "Overwrite" half of `PlanetaryPostProcessingView`'s save flow — "New Version" instead
+    /// calls `addElaboratedImage` and leaves this entry untouched.
+    @discardableResult
+    func updateElaboratedImage(
+        _ imageID: UUID, title: String?, notes: String?,
+        planetarySettings: PlanetaryPostProcessor.SettingsSnapshot?, in project: inout Project
+    ) throws -> ElaboratedImage {
+        guard let index = project.elaboratedImages.firstIndex(where: { $0.id == imageID }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        project.elaboratedImages[index].date = Date()
+        project.elaboratedImages[index].title = title
+        project.elaboratedImages[index].notes = notes
+        project.elaboratedImages[index].planetarySettings = planetarySettings
+        try save(project)
+        return project.elaboratedImages[index]
     }
 
     /// Deletes one elaborated image's file and its catalog entry — same real-data-loss caveat as

@@ -91,7 +91,7 @@ enum SirilElaborationService {
     /// long `.ser` capture at all. Same shape as `FrameCropper.crop(_:toPixelRect:)`'s own
     /// parameter, just `Equatable`/`Sendable` so it can round-trip through `ElaborateSheet`'s
     /// `@State`.
-    struct PixelRect: Equatable, Sendable {
+    struct PixelRect: Equatable, Sendable, Codable {
         var x: Int
         var y: Int
         var width: Int

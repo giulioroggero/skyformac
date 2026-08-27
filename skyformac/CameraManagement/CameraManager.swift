@@ -1838,9 +1838,12 @@ final class CameraManager {
 
     /// Records a `PlanetaryPostProcessingView` result as its own new `ElaboratedImage` — unlike
     /// `sendToGraXpert`/`sendToStarNet`, there's no external process here (the whole pipeline runs
-    /// in-app), so this just writes the already-rendered frame to disk and catalogs it.
+    /// in-app), so this just writes the already-rendered frame to disk and catalogs it. `title`/
+    /// `notes` are whatever the user optionally typed in the save sheet; `settings` is the exact
+    /// Stage 3-5 recipe that produced `image`, both just carried straight onto the new entry.
     func savePlanetaryPostProcessingResult(
-        _ image: CGImage, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project
+        _ image: CGImage, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, project: Project,
+        title: String?, notes: String?, settings: PlanetaryPostProcessor.SettingsSnapshot?
     ) throws -> ElaboratedImage {
         let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -1849,7 +1852,25 @@ final class CameraManager {
         try ImageExporter.writePNG(image, to: resultURL)
         return try projectsLibrary.addElaboratedImage(
             fileName: fileName, sourceSessionIDs: sourceSessionIDs,
-            sourceCaptureID: sourceCaptureID, toolLabel: "Planetary Post-Processing", to: project
+            sourceCaptureID: sourceCaptureID, toolLabel: "Planetary Post-Processing",
+            title: title, notes: notes, planetarySettings: settings, to: project
+        )
+    }
+
+    /// The "Overwrite" half of `PlanetaryPostProcessingView`'s save flow — replaces `existing`'s
+    /// own file (same `fileName`, so this really does overwrite the bytes on disk, not just
+    /// relabel a new file) and updates its catalog entry's metadata in place, rather than adding
+    /// a second `ElaboratedImage` the way `savePlanetaryPostProcessingResult` above does.
+    func overwritePlanetaryPostProcessingResult(
+        _ image: CGImage, existing: ElaboratedImage, project: Project,
+        title: String?, notes: String?, settings: PlanetaryPostProcessor.SettingsSnapshot?
+    ) throws -> ElaboratedImage {
+        let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        let resultURL = outputDirectory.appendingPathComponent(existing.fileName)
+        try ImageExporter.writePNG(image, to: resultURL)
+        return try projectsLibrary.updateElaboratedImage(
+            existing.id, title: title, notes: notes, planetarySettings: settings, in: project
         )
     }
 

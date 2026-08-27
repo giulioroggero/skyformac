@@ -283,7 +283,7 @@ enum PlanetaryPostProcessor {
 
     // MARK: - Stage 3: Frame stacking
 
-    enum StackMethod: String, CaseIterable, Identifiable, Sendable {
+    enum StackMethod: String, CaseIterable, Identifiable, Sendable, Codable {
         case mean = "Mean"
         case median = "Median"
         var id: String { rawValue }
@@ -513,9 +513,26 @@ enum PlanetaryPostProcessor {
     /// shape to an arbitrary layer count via the same repeated-doubling-spacing à trous technique
     /// (5-tap B3-spline `[1, 4, 6, 4, 1]/16`, separable, edge-clamped) that function already uses
     /// — just not hardcoded to stop at 2.
-    struct WaveletLayer: Identifiable, Sendable, Equatable {
+    struct WaveletLayer: Identifiable, Sendable, Equatable, Codable {
         var id: Int
         var gain: Double
+    }
+
+    /// Every Stage 3-5 parameter a `PlanetaryPostProcessingView` result was actually produced
+    /// with — recorded on the saved `ElaboratedImage` (`ElaboratedImage.planetarySettings`) so a
+    /// saved result carries its own recipe, not just the finished pixels. `roi` reuses
+    /// `SirilElaborationService.PixelRect` rather than a second copy of the same 4 `Int`s —
+    /// exactly what `PlanetaryPostProcessingView.roiRect` already is.
+    struct SettingsSnapshot: Codable, Sendable, Equatable {
+        var roi: SirilElaborationService.PixelRect?
+        var keepBestPercent: Double
+        var stackMethod: StackMethod
+        var waveletLayers: [WaveletLayer]
+        var denoise: Double
+        var alignRGBChannels: Bool
+        var blackPoint: Double
+        var whitePoint: Double
+        var logStretchIntensity: Double?
     }
 
     /// `denoise` (0...1) softens only the finest layer's own gain (`layers[0]`) — the

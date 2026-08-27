@@ -170,12 +170,26 @@ final class ProjectsLibrary {
     @discardableResult
     func addElaboratedImage(
         fileName: String, sourceSessionIDs: [UUID], sourceCaptureID: UUID?, recipe: ElaborationRecipe? = nil,
-        toolLabel: String? = nil, to project: Project
+        toolLabel: String? = nil, title: String? = nil, notes: String? = nil,
+        planetarySettings: PlanetaryPostProcessor.SettingsSnapshot? = nil, to project: Project
     ) throws -> ElaboratedImage {
         var updated = project
         let image = try store.addElaboratedImage(
             fileName: fileName, sourceSessionIDs: sourceSessionIDs, sourceCaptureID: sourceCaptureID,
-            recipe: recipe, toolLabel: toolLabel, to: &updated
+            recipe: recipe, toolLabel: toolLabel, title: title, notes: notes,
+            planetarySettings: planetarySettings, to: &updated
+        )
+        replace(updated)
+        return image
+    }
+
+    func updateElaboratedImage(
+        _ imageID: UUID, title: String?, notes: String?,
+        planetarySettings: PlanetaryPostProcessor.SettingsSnapshot?, in project: Project
+    ) throws -> ElaboratedImage {
+        var updated = project
+        let image = try store.updateElaboratedImage(
+            imageID, title: title, notes: notes, planetarySettings: planetarySettings, in: &updated
         )
         replace(updated)
         return image

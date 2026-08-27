@@ -11,7 +11,12 @@ import SwiftUI
 struct PlanetaryPostProcessingView: View {
     let sourceURL: URL
     let sourceDescription: String
-    var onSave: (CGImage) async throws -> ElaboratedImage
+    var onSave: (CGImage, _ title: String?, _ notes: String?, _ settings: PlanetaryPostProcessor.SettingsSnapshot?) async throws -> ElaboratedImage
+    /// The "Overwrite" half of the save flow — replaces an already-saved result's own file and
+    /// metadata in place (same `ElaboratedImage.id`) instead of cataloging a new one. Only ever
+    /// offered once `savedImage` is non-nil, i.e. this view has already saved something once this
+    /// session — see `startSaveFlow()`'s own doc comment.
+    var onOverwrite: (CGImage, _ existing: ElaboratedImage, _ title: String?, _ notes: String?, _ settings: PlanetaryPostProcessor.SettingsSnapshot?) async throws -> ElaboratedImage
     /// Where a just-saved `ElaboratedImage`'s file actually lives — plain path construction
     /// (`ProjectStore.elaboratedImagesFolderURL(for:)` + `fileName`), handed down rather than
     /// giving this view direct `Project`/`ProjectStore` access, same reasoning as `onSave` itself.
@@ -87,6 +92,12 @@ struct PlanetaryPostProcessingView: View {
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
     @State private var saveErrorMessage: String?
+    /// Only asked once `savedImage` is already set — nothing to choose between on a first save.
+    @State private var isChoosingSaveMode = false
+    @State private var pendingSaveOverwritesExisting = false
+    @State private var isPromptingSaveDetails = false
+    @State private var saveTitle = ""
+    @State private var saveNotes = ""
 
     @State private var isSendingToGraXpert = false
     @State private var isPromptingGraXpertSettings = false
@@ -137,6 +148,27 @@ struct PlanetaryPostProcessingView: View {
         .task {
             sourcePreview = Self.loadSourcePreview(sourceURL)
             sourcePreviewFailed = sourcePreview == nil
+        }
+        .confirmationDialog(
+            "You already saved a version of this result.", isPresented: $isChoosingSaveMode, titleVisibility: .visible
+        ) {
+            Button("Save as New Version") {
+                pendingSaveOverwritesExisting = false
+                isPromptingSaveDetails = true
+            }
+            Button("Overwrite Saved Version") {
+                pendingSaveOverwritesExisting = true
+                isPromptingSaveDetails = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Keep the one you already saved and add this as another, or replace it with this result.")
+        }
+        .sheet(isPresented: $isPromptingSaveDetails) {
+            SaveElaboratedImageDetailsSheet(
+                title: $saveTitle, notes: $saveNotes, isOverwriting: pendingSaveOverwritesExisting,
+                onSave: { Task { await save() } }
+            )
         }
         .sheet(isPresented: $isPromptingGraXpertSettings) {
             GraXpertDisabledPrompt(onOpenSettings: onOpenGraXpertSettings)
@@ -248,6 +280,11 @@ struct PlanetaryPostProcessingView: View {
         roiRect != nil || sourcePreviewFailed
     }
 
+    /// Whether a saved-then-restacked result exists to offer a real choice between — `save()`
+    /// only actually asks (`isChoosingSaveMode`) when this is true; a first save always just
+    /// creates a new entry, nothing to overwrite yet.
+    private var hasAlreadySavedThisSession: Bool { savedImage != nil }
+
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -261,33 +298,34 @@ struct PlanetaryPostProcessingView: View {
                         .font(.callout)
                         .foregroundStyle(.green)
                 } else {
-                    Label("Saved as \(savedImage.fileName)", systemImage: "checkmark.seal.fill")
+                    Label("Saved as \(savedImage.displayLabel)", systemImage: "checkmark.seal.fill")
                         .font(.callout)
                         .foregroundStyle(.green)
                     Button("Send to GraXpert…", systemImage: "sparkles") { startSendingToGraXpert() }
                 }
-                Button("Done") { dismiss() }
-                    .keyboardShortcut(.defaultAction)
-            } else {
-                if let saveErrorMessage {
-                    Text(saveErrorMessage).font(.caption).foregroundStyle(.red)
-                }
-                Button("Cancel") {
+            }
+            if let saveErrorMessage {
+                Text(saveErrorMessage).font(.caption).foregroundStyle(.red)
+            }
+            Button(hasAlreadySavedThisSession ? "Done" : "Cancel") {
+                if hasAlreadySavedThisSession {
+                    dismiss()
+                } else {
                     cancelCurrentWork?()
                     dismiss()
                 }
-                Button {
-                    Task { await save() }
-                } label: {
-                    if isSaving {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Save as Elaborated Image")
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(stage != .ready || previewImage == nil || isSaving)
             }
+            Button {
+                startSaveFlow()
+            } label: {
+                if isSaving {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text(hasAlreadySavedThisSession ? "Save Again…" : "Save as Elaborated Image")
+                }
+            }
+            .keyboardShortcut(.defaultAction)
+            .disabled(stage != .ready || previewImage == nil || isSaving)
         }
         .padding(16)
     }
@@ -584,7 +622,7 @@ struct PlanetaryPostProcessingView: View {
             progressFraction = 0
             let percent = keepBestPercent
             let method = stackMethod
-            appendLog("Stacking the sharpest \(Int(percent))% of frames using \(method.rawValue.lowercased()) combination…")
+            appendLog("Stacking the sharpest \(Int(percent))% of frames using \(method.rawValue.lowercased()) combination\(Self.stackPathNote(for: method))…")
             let stackResult = await runDetached { isCancelled in
                 PlanetaryPostProcessor.stack(
                     frames: sequence.frames, registered: registered, isColorCamera: sequence.isColorCamera,
@@ -628,7 +666,7 @@ struct PlanetaryPostProcessingView: View {
         let registered = registeredFrames
         let sink = ProgressSink(self)
         let frameCount = sequence.frames.count
-        appendLog("Restacking the sharpest \(Int(percent))% of frames using \(method.rawValue.lowercased()) combination…")
+        appendLog("Restacking the sharpest \(Int(percent))% of frames using \(method.rawValue.lowercased()) combination\(Self.stackPathNote(for: method))…")
         progressFraction = 0
         let stacked = await runDetached { isCancelled in
             PlanetaryPostProcessor.stack(
@@ -715,13 +753,52 @@ struct PlanetaryPostProcessingView: View {
         }
     }
 
+    /// "Save as Elaborated Image"/"Save Again…"'s action — asks new-version-vs-overwrite first
+    /// only when there's actually a choice to make (`hasAlreadySavedThisSession`), then always
+    /// asks for optional title/description before the real `save()` runs. A first save has
+    /// nothing to overwrite yet, so it skips straight to the details sheet.
+    private func startSaveFlow() {
+        saveErrorMessage = nil
+        if hasAlreadySavedThisSession {
+            isChoosingSaveMode = true
+        } else {
+            pendingSaveOverwritesExisting = false
+            isPromptingSaveDetails = true
+        }
+    }
+
+    /// Every Stage 3-5 parameter the *currently displayed* `previewImage` was actually produced
+    /// with — `appliedKeepBestPercent`/`appliedStackMethod` (not the live, possibly-unapplied
+    /// slider/picker values — see their own doc comment) for Stage 3, the rest live straight off
+    /// `@State` since Stage 4/5 always re-render immediately rather than needing a "Restack"-style
+    /// apply step.
+    private func currentSettingsSnapshot() -> PlanetaryPostProcessor.SettingsSnapshot {
+        PlanetaryPostProcessor.SettingsSnapshot(
+            roi: roiRect, keepBestPercent: appliedKeepBestPercent, stackMethod: appliedStackMethod,
+            waveletLayers: waveletLayers, denoise: denoise, alignRGBChannels: alignRGBChannels,
+            blackPoint: blackPoint, whitePoint: whitePoint,
+            logStretchIntensity: useLogStretch ? logStretchIntensity : nil
+        )
+    }
+
     private func save() async {
         guard let previewImage else { return }
         isSaving = true
         saveErrorMessage = nil
         defer { isSaving = false }
+        let title = saveTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let notes = saveNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let settings = currentSettingsSnapshot()
         do {
-            savedImage = try await onSave(previewImage)
+            if pendingSaveOverwritesExisting, let existing = savedImage {
+                savedImage = try await onOverwrite(
+                    previewImage, existing, title.isEmpty ? nil : title, notes.isEmpty ? nil : notes, settings
+                )
+            } else {
+                savedImage = try await onSave(
+                    previewImage, title.isEmpty ? nil : title, notes.isEmpty ? nil : notes, settings
+                )
+            }
         } catch {
             saveErrorMessage = error.localizedDescription
         }
@@ -739,6 +816,21 @@ struct PlanetaryPostProcessingView: View {
     /// crop selector to draw over — same idea as `ElaborateSheet.loadSERPreview`, kept separate
     /// since that one's `private` to its own file and this view has no other reason to depend on
     /// `ElaborateSheet` at all.
+    /// Makes the GPU-vs-CPU split in `PlanetaryPostProcessor.stack` visible in the log rather than
+    /// a silent implementation detail — "restack goes slow, is there duplicated old CPU code"
+    /// traced back to exactly this: Mean streams through `PlanetaryGPUStacker` (see its own doc
+    /// comment), but Median has no GPU equivalent — a true per-pixel median needs every sample
+    /// resident to pick from, which Metal has no reduction primitive for — so it *always* runs on
+    /// CPU, restack included. Nothing was duplicated; Median was simply never GPU-accelerated,
+    /// and a restack (unlike the very first stack, which also includes a fast GPU registration
+    /// pass diluting the wait) is *only* this combine step, so a CPU-bound Median restack has
+    /// nothing faster running alongside it to make the wait feel shorter.
+    private static func stackPathNote(for method: PlanetaryPostProcessor.StackMethod) -> String {
+        method == .mean
+            ? " (GPU when available)"
+            : " (CPU — a true per-pixel median needs every sample, so there's no GPU shortcut here)"
+    }
+
     private static func loadSourcePreview(_ url: URL) -> (NSImage, (width: Int, height: Int))? {
         guard let (frame, isColorCamera, bayerPattern) = try? SERReader.readFirstFrame(from: url),
               let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: frame)),
@@ -776,5 +868,37 @@ private final class ProgressSink {
                 owner.logLines.append(line)
             }
         }
+    }
+}
+
+/// The optional title/description prompt every save from `PlanetaryPostProcessingView` shows —
+/// "the user very time save can optionally add a title and description." A plain small sheet
+/// rather than inline fields on the main toolbar, since it's only needed for the instant of
+/// actually saving, not while adjusting the live preview.
+private struct SaveElaboratedImageDetailsSheet: View {
+    @Binding var title: String
+    @Binding var notes: String
+    let isOverwriting: Bool
+    var onSave: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(isOverwriting ? "Overwrite Saved Version" : "Save as Elaborated Image").font(.headline)
+            TextField("Title (optional)", text: $title)
+            TextField("Description (optional)", text: $notes, axis: .vertical)
+                .lineLimit(3...6)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button("Save") {
+                    dismiss()
+                    onSave()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
     }
 }

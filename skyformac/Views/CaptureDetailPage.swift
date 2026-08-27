@@ -233,9 +233,15 @@ struct CaptureDetailPage: View {
             PlanetaryPostProcessingView(
                 sourceURL: fileURL,
                 sourceDescription: "Post-processing \(capture.fileName).",
-                onSave: { cgImage in
+                onSave: { cgImage, title, notes, settings in
                     try cameraManager.savePlanetaryPostProcessingResult(
-                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project,
+                        title: title, notes: notes, settings: settings
+                    )
+                },
+                onOverwrite: { cgImage, existing, title, notes, settings in
+                    try cameraManager.overwritePlanetaryPostProcessingResult(
+                        cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
                     )
                 },
                 resolveGraXpertInputURL: { image in

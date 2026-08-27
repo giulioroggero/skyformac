@@ -352,8 +352,21 @@ struct ElaboratedImage: Codable, Identifiable, Equatable, Sendable {
     /// alongside a non-nil `recipe` means Siril produced this, the only tool this catalog tracked
     /// before GraXpert was added. `displayLabel` picks whichever one is actually set.
     var toolLabel: String?
+    /// Optional, user-entered — offered on every save from `PlanetaryPostProcessingView`
+    /// ("Redo" isn't descriptive enough once a project has a dozen attempts at the same target).
+    /// `nil` for anything saved before this existed, or left blank.
+    var title: String?
+    /// Same idea as `title`, free-form — "what's different about this one" ("used median +
+    /// tighter ROI"), not a caption.
+    var notes: String?
+    /// The exact `PlanetaryPostProcessor` Stage 3-5 parameters this result was produced with —
+    /// only ever set by `PlanetaryPostProcessingView`'s own save flow (`nil` for a Siril/GraXpert/
+    /// Image Editor result, which have no equivalent parameter set to record). Lets a saved
+    /// result's own detail view show exactly how it was made, alongside `sourceSessionIDs`/
+    /// `sourceCaptureID` already pointing back at the original capture/session it came from.
+    var planetarySettings: PlanetaryPostProcessor.SettingsSnapshot?
 
-    var displayLabel: String { toolLabel ?? recipe?.label ?? "Elaborated" }
+    var displayLabel: String { title ?? toolLabel ?? recipe?.label ?? "Elaborated" }
 }
 
 /// A set of observation sessions grouped by a goal — a week of "Messier marathon" nights, a trip

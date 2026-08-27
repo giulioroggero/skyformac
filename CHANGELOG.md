@@ -18,6 +18,15 @@ actually tagged. Tags on GitHub: [v0.5.2](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Planetary Post-Processing: saving now optionally asks for a title and description, records the
+  exact stacking/wavelet/color settings the result was produced with (visible in the elaborated
+  image's own Info sheet), and — once you've already saved once this session — asks whether to
+  save the new result as another version or overwrite the one you already saved. The log during
+  Stacking/Restacking now also says whether that run used the GPU (Mean) or CPU (Median, which
+  has no GPU equivalent — a true per-pixel median needs every sample resident to pick from) so
+  it's no longer a mystery why a Median restack feels slower than the very first stack (which
+  also includes a fast GPU registration pass diluting the wait; a restack is only the combine
+  step, so a CPU-bound Median restack has nothing faster running alongside it).
 - Planetary Post-Processing: drawing an "Object to Track" box is now required before "Start
   Processing" is enabled (unless the preview itself failed to load, in which case there's
   nothing to draw a box on). The pointer also switches to a crosshair while it's over the
