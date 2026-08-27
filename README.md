@@ -21,8 +21,10 @@
   <a href="docs/architecture.md">Architecture</a> ·
   <a href="docs/design-notes.md">Design Notes</a> ·
   <a href="docs/distribution.md">Distribution</a> ·
+  <a href="#results">Results</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="EXAMPLES.md">Examples</a> ·
+  <a href="RELNOTES.md">Release Notes</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="specs/README.md">Contributing</a> ·
   <a href="LICENSE.md">License</a> ·
@@ -521,6 +523,27 @@ First connection to a USB ASI camera may prompt via System Settings → Privacy 
 Security — keep the camera connected when you grant it. Using a webcam/iPhone
 source, or the optional All-Sky Monitor, requests separate camera access the
 first time each is used; declining either leaves the rest of the app unaffected.
+
+## Results
+
+Not the live view — actual output from Planetary Post-Processing (registration,
+stacking, wavelet sharpening, RGB channel alignment) and Edit Image
+(crop/curves/denoise/astronomy tools), from real sessions. See
+[`EXAMPLES.md`](EXAMPLES.md#post-processed-results) for the full, kept-up-to-date
+catalog.
+
+<table>
+<tr>
+<td width="33%"><img src="examples/moon-detail-result.png" alt="The Moon, post-processed with Edit Image — crater and terminator detail"></td>
+<td width="33%"><img src="examples/m57-ring-nebula-result.png" alt="M57 (Ring Nebula), post-processed with Edit Image"></td>
+<td width="33%"><img src="examples/saturn-post-processed-result.png" alt="Saturn, stacked and sharpened with Planetary Post-Processing"></td>
+</tr>
+<tr>
+<td width="33%" align="center">The Moon</td>
+<td width="33%" align="center">M57 (Ring Nebula)</td>
+<td width="33%" align="center">Saturn</td>
+</tr>
+</table>
 
 ## Screenshots
 

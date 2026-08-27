@@ -1,15 +1,32 @@
 # Examples
 
 Every picture and video in [`examples/`](examples/), captured with Skyformac
-itself — no post-processing beyond whatever the app's own live pipeline
-(debayer/stretch, GPU enhancement, live stacking) already applied. This file
-is meant to be kept up to date: when a new example is added to `examples/`,
-add a row for it here in the same pass.
+itself. Most are straight off the app's own live pipeline (debayer/stretch,
+GPU enhancement, live stacking) with no further post-processing — the
+[Post-processed results](#post-processed-results) section below is the one
+exception, showing what Planetary Post-Processing/Edit Image actually
+produce from that same raw data. This file is meant to be kept up to date:
+when a new example is added to `examples/`, add a row for it here in the
+same pass.
 
 Pictures are checked into the repository directly. Videos are **not** —
 they're well over GitHub's 100MB per-file push limit — instead they're
 attached to a [GitHub release](https://github.com/giulioroggero/skyformac/releases)
 and linked from here; see [`.gitignore`](.gitignore)'s `examples/*.mov` rule.
+
+## Post-processed results
+
+Real results from real sessions — not the raw live view, but what actually
+comes out the other end of Planetary Post-Processing (Saturn: registration,
+stacking, wavelet sharpening, color alignment) and Edit Image (Moon, M57:
+crop/curves/denoise/astronomy tools). Straight from the author's own
+projects, unedited beyond what the app itself did.
+
+| File | Subject | Notes |
+| --- | --- | --- |
+| [`moon-detail-result.png`](examples/moon-detail-result.png) | The Moon | Edit Image — crater/terminator detail from a Lucky Imaging session. |
+| [`m57-ring-nebula-result.png`](examples/m57-ring-nebula-result.png) | M57 (Ring Nebula) | Edit Image, from a live-stacked deep-sky session — the ring's own shape resolved clearly despite a bright suburban sky. |
+| [`saturn-post-processed-result.png`](examples/saturn-post-processed-result.png) | Saturn | Planetary Post-Processing — registration, stacking, wavelet sharpening, and RGB channel alignment from a `.ser` recording, with the rings and disk clearly separated. |
 
 ## Pictures
 
