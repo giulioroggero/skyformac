@@ -121,6 +121,7 @@ struct PlanetaryPostProcessingView: View {
     @State private var sidebarTab: SidebarTab = .video
     @State private var singleShotAdjustments = ImageEditor.Adjustments()
     @State private var isApplyingMagicWandToSingleShot = false
+    @State private var isCenteringObject = false
 
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
@@ -645,52 +646,46 @@ struct PlanetaryPostProcessingView: View {
                 Text("Single Shot Adjustments").font(.title3.bold())
                 Spacer()
                 if singleShotAdjustments != .identity {
-                    Button("Reset") { singleShotAdjustments = .identity }
-                        .buttonStyle(.borderless)
+                    Button("Reset") {
+                        singleShotAdjustments = .identity
+                        applySingleShotAdjustments()
+                    }
+                    .buttonStyle(.borderless)
                 }
             }
             Text("The same touch-up tools \"Edit Image…\" offers, applied straight to this stacked result — no need to save first and reopen it there separately.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Button {
-                applyMagicWandToSingleShot()
-            } label: {
-                if isApplyingMagicWandToSingleShot {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label("Magic Wand (Auto-Fix)", systemImage: "wand.and.stars")
-                }
-            }
-            .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot)
-
-            singleShotSlider("Brightness", value: $singleShotAdjustments.brightness, range: -1...1, format: "%.2f")
-            singleShotSlider("Contrast", value: $singleShotAdjustments.contrast, range: 0.25...4, format: "%.2f")
-            singleShotSlider("Saturation", value: $singleShotAdjustments.saturation, range: 0...2, format: "%.2f")
-            singleShotSlider("Gamma", value: $singleShotAdjustments.gamma, range: 0.1...4, format: "%.2f")
-            singleShotSlider("Shadow Lift", value: $singleShotAdjustments.shadowLift, range: 0...1, format: "%.2f")
-            singleShotSlider("Highlight Recovery", value: $singleShotAdjustments.highlightRecovery, range: 0...1, format: "%.2f")
-            singleShotSlider("Sharpen", value: $singleShotAdjustments.sharpenIntensity, range: 0...5, format: "%.2f")
-            singleShotSlider("Denoise", value: $singleShotAdjustments.denoiseAmount, range: 0...1, format: "%.2f")
-            singleShotSlider("Chroma Noise Reduction", value: $singleShotAdjustments.chromaNoiseReduction, range: 0...1, format: "%.2f")
-            singleShotSlider("Green Cast Removal", value: $singleShotAdjustments.greenCastRemoval, range: 0...1, format: "%.2f")
-            singleShotSlider("Star Size Reduction", value: $singleShotAdjustments.starSizeReduction, range: 0...5, format: "%.2f")
-            Toggle("Remove Hot Pixels", isOn: $singleShotAdjustments.removesHotPixels)
-        }
-        .onChange(of: singleShotAdjustments) { _, _ in applySingleShotAdjustments() }
-    }
-
-    @ViewBuilder
-    /// The label sits on its own line above the slider (not `LabeledContent`'s side-by-side
-    /// layout) — a longer label like "Chroma Noise Reduction" was squeezing the slider itself
-    /// down to a sliver in this sidebar's fixed width.
-    private func singleShotSlider(_ label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption)
             HStack {
-                Slider(value: value, in: range)
-                Text(String(format: format, value.wrappedValue)).font(.caption.monospacedDigit()).frame(width: 44, alignment: .trailing)
+                Button {
+                    applyMagicWandToSingleShot()
+                } label: {
+                    if isApplyingMagicWandToSingleShot {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Magic Wand (Auto-Fix)", systemImage: "wand.and.stars")
+                    }
+                }
+                .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot || isCenteringObject)
+                Button {
+                    centerSingleShotObject()
+                } label: {
+                    if isCenteringObject {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Center Object", systemImage: "scope")
+                    }
+                }
+                .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot || isCenteringObject)
+                .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
             }
+
+            // "In single shot use the edit functionalities of the edit image from capture page —
+            // don't duplicate the code" — the exact same Color/Clean Up/Sharpen/Astronomy Tools
+            // controls `SingleImagePostProcessingView`'s own sections use, not a second,
+            // independently maintained copy of the same ~15 sliders.
+            ImageAdjustmentsControls(adjustments: $singleShotAdjustments, onChange: applySingleShotAdjustments)
         }
     }
 
@@ -710,6 +705,22 @@ struct PlanetaryPostProcessingView: View {
             guard let autoFixed else { return }
             self.stackedPreviewImage = autoFixed
             singleShotAdjustments = .identity
+            applySingleShotAdjustments()
+        }
+    }
+
+    /// "Allow to center the object in the image" — same `ImageEditor.centerObject(_:)` as
+    /// `SingleImagePostProcessingView.centerObject()`, baked into `stackedPreviewImage` (the same
+    /// base Magic Wand bakes into above) rather than mapped onto an `Adjustments` slider, since a
+    /// geometric shift has no such slot either.
+    private func centerSingleShotObject() {
+        guard let stackedPreviewImage else { return }
+        isCenteringObject = true
+        Task {
+            let centered = ImageEditor.centerObject(stackedPreviewImage)
+            isCenteringObject = false
+            guard let centered else { return }
+            self.stackedPreviewImage = centered
             applySingleShotAdjustments()
         }
     }

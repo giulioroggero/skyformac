@@ -262,6 +262,82 @@ struct ImageEditorTests {
         #expect(abs(colorChannelSpread(of: rendered) - colorChannelSpread(of: noisy)) < 2)
     }
 
+    // MARK: - Center object
+
+    /// A bright square blob on an otherwise-black `width`×`height` background, placed with its
+    /// own top-left corner at `(originX, originY)` — top-left-origin, row-major, matching this
+    /// codebase's usual convention (`topLeftPixel`'s own doc comment).
+    private func makeBlobImage(width: Int, height: Int, blobSize: Int, originX: Int, originY: Int) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for y in originY..<min(originY + blobSize, height) {
+            for x in originX..<min(originX + blobSize, width) {
+                let offset = (y * width + x) * 4
+                pixels[offset] = 255
+                pixels[offset + 1] = 255
+                pixels[offset + 2] = 255
+            }
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    /// Plain intensity-weighted centroid of `image`'s own luma, top-left-origin — a test-local
+    /// black-box measurement (not `ImageEditor`'s own private `luminanceCentroid`) so this checks
+    /// `centerObject`'s actual observable effect rather than its internals.
+    private func brightPixelCentroid(of image: CGImage) -> (x: Double, y: Double) {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        var sumI = 0.0, sumX = 0.0, sumY = 0.0
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = (y * width + x) * 4
+                let luma = Double(pixels[offset])
+                sumI += luma
+                sumX += luma * Double(x)
+                sumY += luma * Double(y)
+            }
+        }
+        guard sumI > 0 else { return (Double(width) / 2, Double(height) / 2) }
+        return (sumX / sumI, sumY / sumI)
+    }
+
+    @Test func centerObjectMovesAnOffCenterBlobCloserToCenter() throws {
+        let image = makeBlobImage(width: 60, height: 60, blobSize: 8, originX: 2, originY: 2)
+        let before = brightPixelCentroid(of: image)
+        let centered = try #require(ImageEditor.centerObject(image))
+        let after = brightPixelCentroid(of: centered)
+
+        let center = (x: 30.0, y: 30.0)
+        let distanceBefore = ((before.x - center.x) * (before.x - center.x) + (before.y - center.y) * (before.y - center.y)).squareRoot()
+        let distanceAfter = ((after.x - center.x) * (after.x - center.x) + (after.y - center.y) * (after.y - center.y)).squareRoot()
+        #expect(distanceAfter < distanceBefore)
+        #expect(distanceAfter < 2) // should land almost exactly on center for a single clean blob
+    }
+
+    @Test func centerObjectPreservesDimensions() throws {
+        let image = makeBlobImage(width: 50, height: 40, blobSize: 6, originX: 5, originY: 5)
+        let centered = try #require(ImageEditor.centerObject(image))
+        #expect(centered.width == 50)
+        #expect(centered.height == 40)
+    }
+
+    @Test func centerObjectIsNilForAnAllBlackImage() throws {
+        // Nothing for a brightness centroid to find at all.
+        let image = makeImage(width: 20, height: 20, red: 0, green: 0, blue: 0)
+        #expect(ImageEditor.centerObject(image) == nil)
+    }
+
     @Test func renderWithChromaNoiseReductionPreservesDimensions() throws {
         let image = makeImage(width: 32, height: 32)
         var adjustments = ImageEditor.Adjustments.identity

@@ -243,4 +243,63 @@ enum ImageEditor {
         }
         return context.createCGImage(ciImage, from: ciImage.extent)
     }
+
+    /// "Allow to center the object in the image" — finds `image`'s own brightness-weighted
+    /// centroid (the same intensity-weighted-sum idea `PlanetaryPostProcessor.centroid(ofLuminance:...)`
+    /// uses for registration, just run once here directly on the finished image rather than per
+    /// burst frame) and translates the whole image so that point lands exactly in the middle.
+    /// `nil` only if `image` is degenerate (zero size, or genuinely all-black — nothing for a
+    /// brightness centroid to even find).
+    static func centerObject(_ image: CGImage) -> CGImage? {
+        guard let centroid = luminanceCentroid(of: image) else { return nil }
+        let center = CGPoint(x: CGFloat(image.width) / 2, y: CGFloat(image.height) / 2)
+        // `centroid`/`center` are both in this app's usual top-left-origin, row-major terms
+        // (matching `luminanceCentroid`'s own raw-buffer reading below) — Core Image's own
+        // coordinate space has its origin at the bottom-left instead, so the Y component of the
+        // translation needs flipping to actually move the object *down* when its centroid sits
+        // above center in top-left terms (same flip `render(_:with:)`'s own crop-rect handling
+        // already does converting the other direction).
+        let dx = center.x - centroid.x
+        let dy = centroid.y - center.y
+        let ciImage = CIImage(cgImage: image)
+        let translated = ciImage.transformed(by: CGAffineTransform(translationX: dx, y: dy))
+        // `.clampedToExtent()` extends the nearest edge pixels to fill whatever gap the shift
+        // opens up at the trailing edge, rather than leaving it transparent/black — in practice
+        // that's background sky, not a hard edge worth calling attention to.
+        let filled = translated.clampedToExtent().cropped(to: ciImage.extent)
+        return context.createCGImage(filled, from: ciImage.extent)
+    }
+
+    /// Plain intensity-weighted centroid over every pixel's own luma, in this app's usual
+    /// top-left-origin/row-major terms. Reads back through a throwaway `CGContext` (the same
+    /// "redraw into a raw buffer" approach `applyGreenCastRemoval` already uses) rather than a
+    /// GPU pass — a single one-shot call on an already-finished image, not a per-frame hot loop
+    /// worth a Core Image filter graph for.
+    private static func luminanceCentroid(of image: CGImage) -> CGPoint? {
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0, let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+        guard let drawContext = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else { return nil }
+        drawContext.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var sumI: Double = 0
+        var sumX: Double = 0
+        var sumY: Double = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = (y * width + x) * 4
+                let luma = 0.299 * Double(pixels[offset]) + 0.587 * Double(pixels[offset + 1]) + 0.114 * Double(pixels[offset + 2])
+                sumI += luma
+                sumX += luma * Double(x)
+                sumY += luma * Double(y)
+            }
+        }
+        guard sumI > 0 else { return nil }
+        return CGPoint(x: sumX / sumI, y: sumY / sumI)
+    }
 }

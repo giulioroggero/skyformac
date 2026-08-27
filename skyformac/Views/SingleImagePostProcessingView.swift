@@ -60,6 +60,7 @@ struct SingleImagePostProcessingView: View {
     /// than halving the width would.
     @State private var isComparingToOriginal = false
     @State private var isApplyingMagicWand = false
+    @State private var isCenteringObject = false
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
     @State private var saveErrorMessage: String?
@@ -152,13 +153,7 @@ struct SingleImagePostProcessingView: View {
                     Divider()
                     rotateSection
                     Divider()
-                    colorSection
-                    Divider()
-                    cleanUpSection
-                    Divider()
-                    sharpenSection
-                    Divider()
-                    astronomyToolsSection
+                    ImageAdjustmentsControls(adjustments: $adjustments, onChange: scheduleRender)
                 }
                 .padding(16)
             }
@@ -294,9 +289,20 @@ struct SingleImagePostProcessingView: View {
                         Label("Magic Wand", systemImage: "wand.and.stars")
                     }
                 }
-                .disabled(isApplyingMagicWand)
+                .disabled(isApplyingMagicWand || isCenteringObject)
+                Button {
+                    centerObject()
+                } label: {
+                    if isCenteringObject {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Center Object", systemImage: "scope")
+                    }
+                }
+                .disabled(isApplyingMagicWand || isCenteringObject)
+                .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
                 Button("Reset") { reset() }
-                    .disabled(isApplyingMagicWand)
+                    .disabled(isApplyingMagicWand || isCenteringObject)
                 Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
                     .toggleStyle(.button)
                     .help("Show the untouched original stacked above the current edit, instead of only the edit.")
@@ -307,118 +313,25 @@ struct SingleImagePostProcessingView: View {
     private var cropSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Crop").font(.title3.bold())
-            resettableSlider("Left", value: $cropLeft, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
-            resettableSlider("Right", value: $cropRight, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
-            resettableSlider("Top", value: $cropTop, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
-            resettableSlider("Bottom", value: $cropBottom, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100)
+            ResettableAdjustmentSlider(label: "Left", value: $cropLeft, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100, onChange: scheduleRender)
+            ResettableAdjustmentSlider(label: "Right", value: $cropRight, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100, onChange: scheduleRender)
+            ResettableAdjustmentSlider(label: "Top", value: $cropTop, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100, onChange: scheduleRender)
+            ResettableAdjustmentSlider(label: "Bottom", value: $cropBottom, range: 0...0.49, defaultValue: 0, format: "%.0f%%", displayScale: 100, onChange: scheduleRender)
         }
     }
 
     private var rotateSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Rotate").font(.title3.bold())
-            resettableSlider(
-                "Angle", value: $adjustments.rotationDegrees, range: -180...180, defaultValue: 0,
-                step: 0.5, format: "%.1f°"
+            ResettableAdjustmentSlider(
+                label: "Angle", value: $adjustments.rotationDegrees, range: -180...180, defaultValue: 0,
+                step: 0.5, format: "%.1f°", onChange: scheduleRender
             )
             HStack {
                 Button("-90°") { adjustments.rotationDegrees -= 90; scheduleRender() }
                 Button("+90°") { adjustments.rotationDegrees += 90; scheduleRender() }
             }
         }
-    }
-
-    private var colorSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Color & Contrast").font(.title3.bold())
-            resettableSlider("Brightness", value: $adjustments.brightness, range: -1...1, defaultValue: 0)
-            resettableSlider("Contrast", value: $adjustments.contrast, range: 0.25...4, defaultValue: 1)
-            resettableSlider("Saturation", value: $adjustments.saturation, range: 0...2, defaultValue: 1)
-            resettableSlider("Curve (Gamma)", value: $adjustments.gamma, range: 0.1...4, defaultValue: 1)
-            Text("Gamma lifts or crushes midtones without clipping black/white — the one-knob \"curves\" control for a quick touch-up.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var cleanUpSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Clean Up").font(.title3.bold())
-            resettableSlider("Denoise", value: $adjustments.denoiseAmount, range: 0...1, defaultValue: 0)
-            Text("Smooths sensor/read noise out of faint backgrounds — push too far and it starts to soften real detail too.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            resettableSlider("Chroma Noise Reduction", value: $adjustments.chromaNoiseReduction, range: 0...1, defaultValue: 0)
-            Text("Cleans up the colored speckle (\"puntini colorati\") long exposures/high gain leave in the background — blurs only the color, not the brightness, so stars and real detail stay sharp.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Toggle("Remove Hot Pixels", isOn: $adjustments.removesHotPixels)
-                .onChange(of: adjustments.removesHotPixels) { _, _ in scheduleRender() }
-            Text("A median filter that knocks out isolated single-pixel hot pixels/cosmic-ray hits without softening real detail.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var sharpenSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Sharpen").font(.title3.bold())
-            resettableSlider("Strength", value: $adjustments.sharpenIntensity, range: 0...5, defaultValue: 0)
-        }
-    }
-
-    private var astronomyToolsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Astronomy Tools").font(.title3.bold())
-            resettableSlider("Remove Green Cast", value: $adjustments.greenCastRemoval, range: 0...1, defaultValue: 0)
-            Text("SCNR — caps the green channel at the red/blue average, the standard fix for the green cast stacking software often leaves behind.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            resettableSlider("Reduce Star Size", value: $adjustments.starSizeReduction, range: 0...5, defaultValue: 0)
-            Text("Erodes bloated star images down without touching the fainter background/nebulosity around them.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            resettableSlider("Shadow Lift", value: $adjustments.shadowLift, range: 0...1, defaultValue: 0)
-            Text("Brings out faint nebulosity/dim planetary features hiding in the shadows.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            resettableSlider("Highlight Recovery", value: $adjustments.highlightRecovery, range: 0...1, defaultValue: 0)
-            Text("Pulls back a blown-out planetary disk or bright core.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    /// A slider paired with its own small reset control — every adjustment gets one, not just
-    /// the single global "Reset" in the Auto-Fix section, so one parameter can be dialed back
-    /// without losing every other tweak already made. The label sits on its own line above the
-    /// slider (not `LabeledContent`'s side-by-side layout) — a longer label like "Chroma Noise
-    /// Reduction" was squeezing the slider itself down to a sliver in this panel's fixed width.
-    private func resettableSlider(
-        _ label: String, value: Binding<Double>, range: ClosedRange<Double>, defaultValue: Double,
-        step: Double = 0.01, format: String = "%.2f", displayScale: Double = 1
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption)
-            HStack {
-                Slider(value: value, in: range, step: step)
-                Text(String(format: format, value.wrappedValue * displayScale))
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 46, alignment: .trailing)
-                Button {
-                    value.wrappedValue = defaultValue
-                    scheduleRender()
-                } label: {
-                    Image(systemName: "arrow.counterclockwise.circle")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .opacity(value.wrappedValue == defaultValue ? 0.25 : 1)
-                .disabled(value.wrappedValue == defaultValue)
-                .help("Reset to default")
-            }
-        }
-        .onChange(of: value.wrappedValue) { _, _ in scheduleRender() }
     }
 
     // MARK: - Pipeline
@@ -474,6 +387,22 @@ struct SingleImagePostProcessingView: View {
             // honestly reflect the new baseline — no adjustment on top of it yet — and any further
             // slider tweak still layers on top of the wand's result via `workingImage`.
             adjustments = .identity
+            scheduleRender()
+        }
+    }
+
+    /// "Allow to center the object in the image" — unlike Magic Wand, this bakes into whatever
+    /// `workingImage` currently is (not always `originalImage`), since a geometric shift doesn't
+    /// conflict with color/tone edits already applied the way Magic Wand's own scene analysis
+    /// might; there's no reason centering should discard them.
+    private func centerObject() {
+        guard let workingImage else { return }
+        isCenteringObject = true
+        Task {
+            let centered = ImageEditor.centerObject(workingImage)
+            isCenteringObject = false
+            guard let centered else { return }
+            self.workingImage = centered
             scheduleRender()
         }
     }

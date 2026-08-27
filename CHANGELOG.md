@@ -19,6 +19,14 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- A "Center Object" button in Edit Image and Planetary Post-Processing's Single Shot tab — shifts
+  the image so its brightness-weighted centroid lands in the exact middle of the frame, the same
+  intensity-weighted-sum idea registration already uses for a whole burst, run once here directly
+  on the finished image.
+- Planetary Post-Processing's Single Shot tab now shares its actual controls
+  (`ImageAdjustmentsControls`) with Edit Image's own Color & Contrast/Clean Up/Sharpen/Astronomy
+  Tools sections, instead of a second, separately maintained flat list of the same ~15 sliders —
+  a change to one's sliders (or a bug fix in how one behaves) now automatically applies to both.
 - Stacking/Restacking's log now states which one it actually used once a run finishes — "Stacking
   used the GPU"/"...used the CPU" — instead of only stating an intent ("GPU when available")
   beforehand. The same method can legitimately go either way run to run (no usable GPU in this
