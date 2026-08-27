@@ -572,6 +572,11 @@ enum PlanetaryPostProcessor {
         var blackPoint: Double
         var whitePoint: Double
         var logStretchIntensity: Double?
+        /// The "Single Shot" sidebar tab's own further touch-up, applied on top of everything
+        /// above — `nil` (not `.identity`) both for old JSON written before this field existed
+        /// and for a result that never touched that tab at all, so `applyInitialSettingsIfNeeded`
+        /// can tell "nothing to restore" apart from "restore to explicitly untouched."
+        var singleShotAdjustments: ImageEditor.Adjustments?
     }
 
     /// `denoise` (0...1) softens only the finest layer's own gain (`layers[0]`) — the

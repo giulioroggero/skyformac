@@ -19,6 +19,12 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Planetary Post-Processing's ready-screen sidebar now has two tabs — "Video" (the existing
+  Stacking/Wavelet/Color/Stretch controls) and "Single Shot Adjustments," reusing the same
+  `ImageEditor` touch-up tools "Edit Image…" offers (tone, sharpen, denoise, green-cast removal,
+  star-size reduction, a Magic Wand auto-fix) applied straight to the stacked result — no need to
+  save first and reopen it in Edit Image separately. Recorded alongside the rest of a saved
+  result's settings, and restored by "Redo from Original…" like everything else there.
 - A session's capture Timeline and Table now support multi-select — a "Select" toggle on the
   filmstrip (the Table already had native ⌘/shift-click selection), feeding a shared
   "Post-Process Together…" bulk action that pools every selected `.ser`'s own frames into one
@@ -61,6 +67,13 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   accelerated registration/stacking in-app now) from anything that hands off to an external app
   (Siril, GraXpert, StarNet, PixInsight), which now live together under their own "Third-Party
   Tools" group/menu instead of mixed in with Skyformac's own actions.
+
+### Fixed
+- The setup screen's "Start Processing" button stopped showing after Color/Stretch were added to
+  it — the newly-scrollable settings panel had nothing bounding its height, so it greedily
+  claimed all available vertical space and squeezed the button (sandwiched between two plain
+  `Spacer()`s) down to nothing. Rearranged into a fixed-height footer below a properly
+  height-bounded settings area instead.
 
 ## [0.5.3] - 2026-08-27
 

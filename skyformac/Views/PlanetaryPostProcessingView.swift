@@ -94,9 +94,30 @@ struct PlanetaryPostProcessingView: View {
     @State private var useLogStretch = false
     @State private var logStretchIntensity: Double = 5
 
+    /// The Stage 3-5 pipeline's own output (stack → wavelet sharpen/align → stretch), *before*
+    /// `singleShotAdjustments` — what `renderOnly()` actually computes. `previewImage` below
+    /// (what's actually displayed and saved) is this run back through `ImageEditor.render(_:with:)`
+    /// whenever the "Single Shot" tab's adjustments aren't at their identity default.
+    @State private var stackedPreviewImage: CGImage?
     @State private var previewImage: CGImage?
     @State private var sharpenTask: Task<Void, Never>?
     @State private var renderTask: Task<Void, Never>?
+
+    private enum SidebarTab: String, CaseIterable, Identifiable {
+        case video = "Video"
+        case singleShot = "Single Shot"
+        var id: String { rawValue }
+    }
+    /// "In edit and post processing[,] right bar add two tabs, one for video management and one
+    /// for editing single shots. The single shots [editing] can be used also in the post
+    /// processed image" — `.video` is the existing Stage 3-5 stacking/wavelet/color/stretch
+    /// controls; `.singleShot` reuses `ImageEditor` (the same single-image touch-up
+    /// `SingleImagePostProcessingView`/"Edit Image…" uses) applied on top of `stackedPreviewImage`
+    /// — the same tool, just one stage later in the pipeline instead of needing to save this
+    /// result first and reopen it there separately.
+    @State private var sidebarTab: SidebarTab = .video
+    @State private var singleShotAdjustments = ImageEditor.Adjustments()
+    @State private var isApplyingMagicWandToSingleShot = false
 
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
@@ -211,9 +232,16 @@ struct PlanetaryPostProcessingView: View {
     /// once a stacked image actually exists (that function itself no-ops with nothing to sharpen
     /// yet, so touching these sliders now is harmless). Still adjustable live after stacking too,
     /// same as before — cheap to re-run and easier to judge against the real stacked image.
+    /// Was `VStack { Spacer(); HStack { ... }; Button; Spacer() }` — with nothing bounding the
+    /// settings panel's height, adding a `ScrollView` there (see `stackingSection`'s sibling
+    /// sections below) made it greedily claim all available vertical space, squeezing "Start
+    /// Processing" itself down to zero height instead of just scrolling its own content. Giving
+    /// the `HStack` the greedy `maxHeight: .infinity` explicitly, and keeping the button in its
+    /// own fixed-height footer below it (not sandwiched between two plain `Spacer()`s), is what
+    /// actually pins the button visible regardless of how tall the settings panel's content gets.
     private var setupBody: some View {
-        VStack {
-            Spacer()
+        VStack(spacing: 0) {
+            Spacer(minLength: 12)
             HStack(alignment: .top, spacing: 24) {
                 roiSection
                     .frame(width: 420)
@@ -237,23 +265,26 @@ struct PlanetaryPostProcessingView: View {
                     }
                 }
                 .padding(24)
-                .frame(width: 440)
+                .frame(width: 460)
                 .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
             }
-            Button("Start Processing") {
-                stage = .loading
-                Task { await loadAndProcess() }
+            .frame(maxHeight: .infinity)
+
+            VStack(spacing: 6) {
+                Button("Start Processing") {
+                    stage = .loading
+                    Task { await loadAndProcess() }
+                }
+                .keyboardShortcut(.defaultAction)
+                .controlSize(.large)
+                .disabled(!canStartProcessing)
+                if !canStartProcessing {
+                    Text("Draw a box around the object to track above before starting.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .keyboardShortcut(.defaultAction)
-            .controlSize(.large)
-            .disabled(!canStartProcessing)
-            .padding(.top, 20)
-            if !canStartProcessing {
-                Text("Draw a box around the object to track above before starting.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+            .padding(.vertical, 20)
         }
     }
 
@@ -358,17 +389,33 @@ struct PlanetaryPostProcessingView: View {
         HSplitView {
             previewPane
                 .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    stackingSection
-                    Divider()
-                    waveletSection
-                    Divider()
-                    colorSection
-                    Divider()
-                    stretchSection
+            VStack(spacing: 0) {
+                Picker("", selection: $sidebarTab) {
+                    ForEach(SidebarTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
                 }
-                .padding(16)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(12)
+                Divider()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        switch sidebarTab {
+                        case .video:
+                            stackingSection
+                            Divider()
+                            waveletSection
+                            Divider()
+                            colorSection
+                            Divider()
+                            stretchSection
+                        case .singleShot:
+                            singleShotSection
+                        }
+                    }
+                    .padding(16)
+                }
             }
             .frame(width: 340)
         }
@@ -577,6 +624,83 @@ struct PlanetaryPostProcessingView: View {
         }
     }
 
+    /// The "Single Shot" tab's own controls — `ImageEditor.Adjustments`, the same set
+    /// `SingleImagePostProcessingView`'s "Edit Image…" offers, applied here on top of
+    /// `stackedPreviewImage` instead of a saved file reopened separately. Deliberately doesn't
+    /// include that view's crop/rotate — the "Object to Track" box already scoped registration to
+    /// the useful region, and a rotate has little value on an already-stacked planetary disk — so
+    /// this covers exactly what a *further touch-up* actually needs: tone, sharpen/denoise, and
+    /// the astrophotography-specific tools (green-cast removal, star-size reduction).
+    private var singleShotSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Single Shot Adjustments").font(.title3.bold())
+                Spacer()
+                if singleShotAdjustments != .identity {
+                    Button("Reset") { singleShotAdjustments = .identity }
+                        .buttonStyle(.borderless)
+                }
+            }
+            Text("The same touch-up tools \"Edit Image…\" offers, applied straight to this stacked result — no need to save first and reopen it there separately.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Button {
+                applyMagicWandToSingleShot()
+            } label: {
+                if isApplyingMagicWandToSingleShot {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Magic Wand (Auto-Fix)", systemImage: "wand.and.stars")
+                }
+            }
+            .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot)
+
+            singleShotSlider("Brightness", value: $singleShotAdjustments.brightness, range: -1...1, format: "%.2f")
+            singleShotSlider("Contrast", value: $singleShotAdjustments.contrast, range: 0.25...4, format: "%.2f")
+            singleShotSlider("Saturation", value: $singleShotAdjustments.saturation, range: 0...2, format: "%.2f")
+            singleShotSlider("Gamma", value: $singleShotAdjustments.gamma, range: 0.1...4, format: "%.2f")
+            singleShotSlider("Shadow Lift", value: $singleShotAdjustments.shadowLift, range: 0...1, format: "%.2f")
+            singleShotSlider("Highlight Recovery", value: $singleShotAdjustments.highlightRecovery, range: 0...1, format: "%.2f")
+            singleShotSlider("Sharpen", value: $singleShotAdjustments.sharpenIntensity, range: 0...5, format: "%.2f")
+            singleShotSlider("Denoise", value: $singleShotAdjustments.denoiseAmount, range: 0...1, format: "%.2f")
+            singleShotSlider("Green Cast Removal", value: $singleShotAdjustments.greenCastRemoval, range: 0...1, format: "%.2f")
+            singleShotSlider("Star Size Reduction", value: $singleShotAdjustments.starSizeReduction, range: 0...5, format: "%.2f")
+            Toggle("Remove Hot Pixels", isOn: $singleShotAdjustments.removesHotPixels)
+        }
+        .onChange(of: singleShotAdjustments) { _, _ in applySingleShotAdjustments() }
+    }
+
+    @ViewBuilder
+    private func singleShotSlider(_ label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String) -> some View {
+        LabeledContent(label) {
+            HStack {
+                Slider(value: value, in: range)
+                Text(String(format: format, value.wrappedValue)).font(.caption.monospacedDigit()).frame(width: 44, alignment: .trailing)
+            }
+        }
+    }
+
+    private func applyMagicWandToSingleShot() {
+        guard let stackedPreviewImage else { return }
+        isApplyingMagicWandToSingleShot = true
+        Task {
+            let autoFixed = ImageEditor.autoFixed(stackedPreviewImage)
+            isApplyingMagicWandToSingleShot = false
+            // Magic Wand bakes Core Image's own scene-analysis auto-enhance directly into the
+            // preview pixels (same reasoning as `SingleImagePostProcessingView.applyMagicWand()`)
+            // rather than mapping it back onto `Adjustments`' own sliders, which have no slot for
+            // the per-channel color balance its analysis picks — so this replaces the base image
+            // `applySingleShotAdjustments()` renders from, resetting the sliders to identity
+            // (their default) rather than double-applying on top of what Magic Wand already baked
+            // in.
+            guard let autoFixed else { return }
+            self.stackedPreviewImage = autoFixed
+            singleShotAdjustments = .identity
+            applySingleShotAdjustments()
+        }
+    }
+
     private func layerLabel(_ id: Int) -> String {
         switch id {
         case 0: return "Layer 1 (Fine)"
@@ -775,8 +899,26 @@ struct PlanetaryPostProcessingView: View {
                 PlanetaryPostProcessor.renderImage(sharpenedImage, blackPoint: black, whitePoint: white, logStretchIntensity: logIntensity)
             }.value
             if Task.isCancelled { return }
-            previewImage = cgImage
+            stackedPreviewImage = cgImage
+            applySingleShotAdjustments()
         }
+    }
+
+    /// `previewImage`'s own final assembly step — `ImageEditor.render(_:with:)` is the same
+    /// GPU-backed (Core Image/Metal) call `SingleImagePostProcessingView.scheduleRender()` uses,
+    /// cheap enough to run directly on the main actor rather than detaching (see that function's
+    /// own doc comment for why). Skips the render entirely at the identity default, so a "Video"-
+    /// tab-only session (the common case) never pays for it at all.
+    private func applySingleShotAdjustments() {
+        guard let stackedPreviewImage else {
+            previewImage = nil
+            return
+        }
+        guard singleShotAdjustments != .identity else {
+            previewImage = stackedPreviewImage
+            return
+        }
+        previewImage = ImageEditor.render(stackedPreviewImage, with: singleShotAdjustments) ?? stackedPreviewImage
     }
 
     private func autoStretch() {
@@ -816,7 +958,8 @@ struct PlanetaryPostProcessingView: View {
             roi: roiRect, keepBestPercent: appliedKeepBestPercent, stackMethod: appliedStackMethod,
             waveletLayers: waveletLayers, denoise: denoise, alignRGBChannels: alignRGBChannels,
             blackPoint: blackPoint, whitePoint: whitePoint,
-            logStretchIntensity: useLogStretch ? logStretchIntensity : nil
+            logStretchIntensity: useLogStretch ? logStretchIntensity : nil,
+            singleShotAdjustments: singleShotAdjustments == .identity ? nil : singleShotAdjustments
         )
     }
 
@@ -838,6 +981,7 @@ struct PlanetaryPostProcessingView: View {
         whitePoint = settings.whitePoint
         useLogStretch = settings.logStretchIntensity != nil
         logStretchIntensity = settings.logStretchIntensity ?? 5
+        singleShotAdjustments = settings.singleShotAdjustments ?? .identity
     }
 
     private func save() async {

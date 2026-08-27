@@ -18,7 +18,7 @@ enum ImageEditor {
     /// — `render(_:with:)` composes them in a fixed order (rotate → crop → hot-pixel cleanup →
     /// green-cast removal → denoise → color/contrast/gamma → highlights/shadows → star-size
     /// reduction → sharpen) regardless of which the user actually touched.
-    struct Adjustments: Equatable, Sendable {
+    struct Adjustments: Equatable, Sendable, Codable {
         var rotationDegrees: Double = 0
         /// Normalized (`0...1`, top-left origin, matching `CaptureRecord`/`PlanetaryPostProcessor`
         /// crop conventions elsewhere in this app), applied to the image *after* rotation — `nil`

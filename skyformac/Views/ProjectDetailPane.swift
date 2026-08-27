@@ -1265,7 +1265,7 @@ private struct ElaboratedImageDetailSheet: View {
     private func settingsSummary(_ settings: PlanetaryPostProcessor.SettingsSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("Settings Used").font(.caption.bold()).foregroundStyle(.secondary)
-            Text("Kept best \(Int(settings.keepBestPercent))% · \(settings.stackMethod.rawValue) combine\(settings.roi != nil ? " · tracked a selected object" : "")\(settings.alignRGBChannels ? " · RGB channels aligned" : "")")
+            Text("Kept best \(Int(settings.keepBestPercent))% · \(settings.stackMethod.rawValue) combine\(settings.roi != nil ? " · tracked a selected object" : "")\(settings.alignRGBChannels ? " · RGB channels aligned" : "")\(settings.singleShotAdjustments != nil ? " · single shot touch-up applied" : "")")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
