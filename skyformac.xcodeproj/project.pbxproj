@@ -10,6 +10,7 @@
 		0224F37EA5218C04135476C7 /* libASICamera2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; };
 		048EA7517A3F23D16AF30BCD /* InsightsDrillLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679DDD7E0B6EFEFF4264B53D /* InsightsDrillLevelTests.swift */; };
 		056885C6201C1236C8D50051 /* SkyformacCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */; };
+		31438A98F7B142BBA391BEA4 /* WindowArranger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E149001BD54AA6AC6D9A22 /* WindowArranger.swift */; };
 		05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88925FDFCDFD5CD1889D56E /* InsightsView.swift */; };
 		2BC175A0D0EE4F638E5D7F5B /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30CCC1098124C64AE6BBC87 /* GalleryView.swift */; };
 		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
@@ -503,6 +504,7 @@
 		5DFF34D661A4463A9FB53FAA /* LaunchSplashView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LaunchSplashView.swift; sourceTree = "<group>"; };
 		F1268AC14C8DB94BC5F57BE9 /* SERWriterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SERWriterTests.swift; sourceTree = "<group>"; };
 		F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyformacCommands.swift; sourceTree = "<group>"; };
+		22E149001BD54AA6AC6D9A22 /* WindowArranger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WindowArranger.swift; sourceTree = "<group>"; };
 		F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreLocationProvider.swift; sourceTree = "<group>"; };
 		F33E000603C9D668F3493A9A /* PlanetTrackerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetTrackerTests.swift; sourceTree = "<group>"; };
 		F35D7B41848345E7370201B3 /* ThumbnailGeneratorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGeneratorTests.swift; sourceTree = "<group>"; };
@@ -625,6 +627,7 @@
 				8B17820B7F74A47F6E4F8314 /* AppLog.swift */,
 				AEF040EFD1A707E65E5EDB36 /* App-Bridging-Header.h */,
 				F177F2B2328C240DB010CAA3 /* SkyformacCommands.swift */,
+				22E149001BD54AA6AC6D9A22 /* WindowArranger.swift */,
 			);
 			name = App;
 			path = App;
@@ -1216,6 +1219,7 @@
 				B8742B1F124B3C1D40E994B7 /* CloudDriftSentinel.swift in Sources */,
 				E27273C1437161A8B073027E /* DiskSpaceChecker.swift in Sources */,
 				056885C6201C1236C8D50051 /* SkyformacCommands.swift in Sources */,
+				31438A98F7B142BBA391BEA4 /* WindowArranger.swift in Sources */,
 				4356247B24614D5F9FD7F857 /* WebcamCaptureEngine.swift in Sources */,
 				37A64BE1A4544856BD8BC4A5 /* WCSProjection.swift in Sources */,
 				3E946BCE3689D6DF88FFE542 /* LiveWCSSolver.swift in Sources */,

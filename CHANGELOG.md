@@ -19,6 +19,12 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- A "Window" menu now offers "Tile Windows" and "Cascade Windows" — with Planetary
+  Post-Processing/Edit Image/the full-screen preview each opening in a real, independently
+  movable/resizable window now, having several open at once is common, and macOS has no built-in
+  per-app "arrange all my windows" command (only per-window Move & Resize, and the system-wide
+  Dock-icon "Tile Windows" that mixes in every other app's windows too) — the same convenience a
+  multi-window code editor's own Window menu offers.
 - The Capture Detail page's "File" box now shows Disk Usage (this one capture's own file size).
   Its session-wide "Stats" box (total captures, counts by kind) is gone — that's the session's own
   aggregate, not a property of the one capture this page is about; it's still on the Session page.

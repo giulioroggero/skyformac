@@ -13,29 +13,35 @@ struct SkyformacCommands: Commands {
     @AppStorage("sidebarTab") private var tab: SidebarTab = .cameraControls
 
     var body: some Commands {
-        // "skyformac → Show Log…" — right after "About skyformac," in the app's own first menu,
-        // since grabbing the log is exactly the kind of thing someone reporting a problem looks
-        // for right where "About"/version info already lives.
-        CommandGroup(after: .appInfo) {
-            Button("Show Log…") { cameraManager.isLogViewerPresented = true }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
-        }
+        // Grouped into one `Group` — `@CommandsBuilder`, like `@ViewBuilder`, only overloads
+        // `buildBlock` up to 10 children, and this file was already at that cap; bundling these
+        // three (otherwise-unrelated) placements together is what keeps room for more without
+        // restructuring everything else.
+        Group {
+            // "skyformac → Show Log…" — right after "About skyformac," in the app's own first
+            // menu, since grabbing the log is exactly the kind of thing someone reporting a
+            // problem looks for right where "About"/version info already lives.
+            CommandGroup(after: .appInfo) {
+                Button("Show Log…") { cameraManager.isLogViewerPresented = true }
+                    .keyboardShortcut("d", modifiers: [.command, .shift])
+            }
 
-        // The standard macOS "Settings…" placement/shortcut (⌘,) — a `.sheet` on `RootView`
-        // (`SettingsView`), not a real `Settings` scene, matching every other modal this
-        // deliberately single-window app already uses instead of a second window.
-        CommandGroup(replacing: .appSettings) {
-            Button("Settings…") { cameraManager.isSettingsPresented = true }
-                .keyboardShortcut(",", modifiers: .command)
-        }
+            // The standard macOS "Settings…" placement/shortcut (⌘,) — a `.sheet` on `RootView`
+            // (`SettingsView`), not a real `Settings` scene, matching every other modal this
+            // deliberately single-window app already uses instead of a second window.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { cameraManager.isSettingsPresented = true }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
 
-        // Replaces the default (otherwise inert, since this app ships no Apple Help Book)
-        // "skyformac Help" menu item with one that actually opens something — a `.sheet` on
-        // `ContentView`, not a second `Window` scene, since this app is deliberately
-        // single-window (see `SkyformacApp`).
-        CommandGroup(replacing: .help) {
-            Button("skyformac Help") { cameraManager.isHelpPresented = true }
-                .keyboardShortcut("?", modifiers: .command)
+            // Replaces the default (otherwise inert, since this app ships no Apple Help Book)
+            // "skyformac Help" menu item with one that actually opens something — a `.sheet` on
+            // `ContentView`, not a second `Window` scene, since this app is deliberately
+            // single-window (see `SkyformacApp`).
+            CommandGroup(replacing: .help) {
+                Button("skyformac Help") { cameraManager.isHelpPresented = true }
+                    .keyboardShortcut("?", modifiers: .command)
+            }
         }
 
         // Removes the default "New Window" (⌘N) item — `WindowGroup` provides one automatically,
@@ -206,6 +212,16 @@ struct SkyformacCommands: Commands {
                 set: { cameraManager.isAssistantPanelVisible = $0 }
             ))
             .keyboardShortcut("j", modifiers: [.command, .shift])
+        }
+
+        // "Arrange in Front" (built in) sits right above this — Planetary Post-Processing/Edit
+        // Image/the full-screen preview are all real, independently movable/resizable windows
+        // now (`DetachedContentWindowController`), so with several open at once this is the same
+        // "get them all back into a sane layout" convenience a multi-window code editor's own
+        // Window menu offers, not something macOS provides per-app on its own.
+        CommandGroup(after: .windowArrangement) {
+            Button("Tile Windows") { WindowArranger.tileWindows() }
+            Button("Cascade Windows") { WindowArranger.cascadeWindows() }
         }
     }
 
