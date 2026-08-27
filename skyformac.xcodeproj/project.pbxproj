@@ -139,6 +139,7 @@
 		9B66BD0AAA8CDF013F69A40D /* AppLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7261E53AF9603ACAC4DFF096 /* AppLogTests.swift */; };
 		9B66C665CD08AE8D3E38D97F /* LiveWCSSolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2C0DD35B6D8AD74A597E92C /* LiveWCSSolverTests.swift */; };
 		9C5D89801144516B3045566A /* InsightsDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */; };
+		05276C7CC50F44AAA3340FCE /* DashboardHomeViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3441322022C41F4B0E88D38 /* DashboardHomeViewTests.swift */; };
 		9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */; };
 		9F3706562428F173206180CB /* libASICamera2.dylib in Embed ZWO SDK */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A006B5C70327444FB8FC66B7 /* StarNetSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03B715973D42F6E04278F45 /* StarNetSettingsView.swift */; };
@@ -229,6 +230,7 @@
 		F3FC65FA9FFF187050939ED1 /* DiskSpaceCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F59753779FC35A72F9CDAE /* DiskSpaceCheckerTests.swift */; };
 		F46DF222992C699FFBC87D77 /* ActivePipelinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8785A8BD20F061A304645DCA /* ActivePipelinesView.swift */; };
 		F78A81BFBB8A33B86D6827DD /* TimelineStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */; };
+		F51B93AD04EF49C98CFA5509 /* CaptureKindBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFAF769E6141421382530A9A /* CaptureKindBadge.swift */; };
 		F8EDAF15E7158B69B54E7510 /* LiveStacker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7273CF82E64D50E81D2A3A99 /* LiveStacker.swift */; };
 		F8EFDC6EA36425F594FF9F0D /* GPUControlSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA7E98242926E6204AF579C /* GPUControlSettingsTests.swift */; };
 		F98B5FC37370F6ABA12AF277 /* Debayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E60DE976E78E63EEC051F93 /* Debayer.swift */; };
@@ -278,6 +280,7 @@
 		0332A2145788F658220362CC /* skyformacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = skyformacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0529E29D4A4C6E1127B1344A /* ZWOErrorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ZWOErrorTests.swift; sourceTree = "<group>"; };
 		0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineStripView.swift; sourceTree = "<group>"; };
+		BFAF769E6141421382530A9A /* CaptureKindBadge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureKindBadge.swift; sourceTree = "<group>"; };
 		0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CatalogRepositoryTests.swift; sourceTree = "<group>"; };
 		06F8D95B0E15A88F43623D77 /* GPUStillImageRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUStillImageRenderer.swift; sourceTree = "<group>"; };
 		07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyCatalog.swift; sourceTree = "<group>"; };
@@ -365,6 +368,7 @@
 		679DDD7E0B6EFEFF4264B53D /* InsightsDrillLevelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsDrillLevelTests.swift; sourceTree = "<group>"; };
 		67F359368A5B9198F0F3224E /* EquipmentPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentPage.swift; sourceTree = "<group>"; };
 		6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InsightsDataTests.swift; sourceTree = "<group>"; };
+		C3441322022C41F4B0E88D38 /* DashboardHomeViewTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DashboardHomeViewTests.swift; sourceTree = "<group>"; };
 		68B12DF4EB1D596CF7D3DF0C /* StackSNREstimatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StackSNREstimatorTests.swift; sourceTree = "<group>"; };
 		68FBDACF61BD48CA886373E3 /* ThumbnailCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
 		69724927C49D4521C6F61ED3 /* ZWOSDK.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ZWOSDK.swift; sourceTree = "<group>"; };
@@ -656,6 +660,7 @@
 				D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */,
 				A60E80083BB3A2A7B05436F7 /* EquipmentLibraryTests.swift */,
 				6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */,
+				C3441322022C41F4B0E88D38 /* DashboardHomeViewTests.swift */,
 				82D73D8098F2265E5CD371A4 /* SessionReuseTests.swift */,
 				9DBC34DD279C3551988D2A7F /* CameraManagerRecallParametersTests.swift */,
 				70EB42D09F8894D157693332 /* AIDescriptionContextTests.swift */,
@@ -788,6 +793,7 @@
 				588BB9FECC3348379BBE4C0D /* FullScreenImageViewer.swift */,
 				1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */,
 				0565E6A8C1FAFAD3AC77F8DE /* TimelineStripView.swift */,
+				BFAF769E6141421382530A9A /* CaptureKindBadge.swift */,
 				EA630448292764BE5C8643C0 /* CaptureDetailPage.swift */,
 				67F359368A5B9198F0F3224E /* EquipmentPage.swift */,
 				EE1AAD41550B27056C25269C /* RecallParametersView.swift */,
@@ -1137,6 +1143,7 @@
 				7C099FFCF11241F691BD55D6 /* FullScreenImageViewer.swift in Sources */,
 				7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */,
 				F78A81BFBB8A33B86D6827DD /* TimelineStripView.swift in Sources */,
+				F51B93AD04EF49C98CFA5509 /* CaptureKindBadge.swift in Sources */,
 				D699426F7F736A03AFE97842 /* CaptureDetailPage.swift in Sources */,
 				EBC37D9D09994EA0A7F3F4FD /* EquipmentPage.swift in Sources */,
 				858D0DCDD9E15C7847E8A078 /* RecallParametersView.swift in Sources */,
@@ -1274,6 +1281,7 @@
 				C4A8C6AF3843ED60F917394A /* EquipmentModelsTests.swift in Sources */,
 				30737B80E2D54DE1B8E41543 /* EquipmentLibraryTests.swift in Sources */,
 				9C5D89801144516B3045566A /* InsightsDataTests.swift in Sources */,
+				05276C7CC50F44AAA3340FCE /* DashboardHomeViewTests.swift in Sources */,
 				AF70883DC4C841CBC4DA62CE /* SessionReuseTests.swift in Sources */,
 				BFCD7A5D9232810B14153610 /* CameraManagerRecallParametersTests.swift in Sources */,
 				64C64AE39625125DA955E979 /* AIDescriptionContextTests.swift in Sources */,

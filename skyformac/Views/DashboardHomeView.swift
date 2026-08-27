@@ -1,5 +1,6 @@
-import SwiftUI
+import AppKit
 import Charts
+import SwiftUI
 
 /// The app's actual root page — orientation, not browsing: resume where you left off, jump to a
 /// common task, see recent projects/sessions, and a quick read on overall activity, all without
@@ -229,14 +230,22 @@ struct DashboardHomeView: View {
 
                 if insights.totalCaptures > 0 {
                     PageSection(title: "Activity") {
-                        if !insights.monthlyActivity.isEmpty {
-                            // Categorical (`label`) x-axis — see `MonthlyActivity.label`'s doc
-                            // comment for why a continuous `Date` axis showed misleading gaps.
-                            Chart(insights.monthlyActivity) { bucket in
-                                BarMark(x: .value("Month", bucket.label), y: .value("Captures", bucket.count))
-                            }
-                            .frame(height: 140)
+                        // Per-day, last 30 days — a fixed, immediately-legible "what have I been
+                        // doing lately" window, unlike Insights' own drill-down (year → month →
+                        // day → hour), which is deliberately open-ended/explorable instead.
+                        // Categorical (`label`) x-axis, same reasoning as `MonthlyActivity.label`'s
+                        // own doc comment — a continuous `Date` axis would tick every day in the
+                        // 30-day domain even where nothing happened, not just the days shown here.
+                        Chart(last30DaysActivity) { bucket in
+                            BarMark(x: .value("Day", bucket.label), y: .value("Captures", bucket.count))
                         }
+                        .frame(height: 140)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onShowInsights() }
+                        .onHover { isHovering in
+                            if isHovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
+                        .help("Open Insights")
                         HStack(spacing: 24) {
                             if let topObject = insights.byObject.first {
                                 summaryStat(label: "Most Captured", value: "\(topObject.name) (\(topObject.count))")
@@ -329,6 +338,44 @@ struct DashboardHomeView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.body)
+        }
+    }
+
+    /// One day's capture count, over a fixed last-30-days window — "the activity chart must be
+    /// per day, last 30 days," not Insights' own open-ended year → month → day → hour drill-down.
+    /// Not `private` — `buildLast30DaysActivity(from:endingToday:)` below is pulled out as its own
+    /// testable pure function (same reasoning as `MonthlyActivity`/`DrillLevel.bucket`'s own
+    /// dedicated test coverage), which needs this type visible from `skyformacTests`.
+    struct DailyActivity: Identifiable, Equatable {
+        var id: Date { day }
+        let day: Date
+        let count: Int
+
+        /// Categorical (not continuous `Date`) x-axis label — same reasoning as
+        /// `MonthlyActivity.label`'s own doc comment.
+        var label: String { day.formatted(.dateTime.month(.abbreviated).day()) }
+    }
+
+    private var last30DaysActivity: [DailyActivity] {
+        Self.buildLast30DaysActivity(from: insights.allCaptureDates, endingToday: Date())
+    }
+
+    /// Buckets `captureDates` into one count per calendar day across `now`'s own day and the 29
+    /// days before it — every day in the window appears (as a zero-height bar) even with no
+    /// activity that day, so the chart's shape reads as "a real 30-day window," not just however
+    /// many days happened to have something in them. `nonisolated` (and `now` injected rather
+    /// than read live) so this is callable and deterministic from a plain, non-`@MainActor` test.
+    nonisolated static func buildLast30DaysActivity(from captureDates: [Date], endingToday now: Date) -> [DailyActivity] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        guard let startDay = calendar.date(byAdding: .day, value: -29, to: today) else { return [] }
+        let countsByDay = Dictionary(
+            grouping: captureDates.filter { $0 >= startDay },
+            by: { calendar.startOfDay(for: $0) }
+        ).mapValues(\.count)
+        return (0..<30).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startDay) else { return nil }
+            return DailyActivity(day: day, count: countsByDay[day] ?? 0)
         }
     }
 }

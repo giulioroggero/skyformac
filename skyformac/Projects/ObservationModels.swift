@@ -97,6 +97,17 @@ struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
             case .recording: return "Recording"
             }
         }
+
+        /// Whether a timeline's own kind badge (`CaptureKindBadge`) offers a direct
+        /// post-processing shortcut for this kind — `true` for anything `CaptureDetailPage`'s own
+        /// Process group has a button for (Post-Process for `.serVideo`, Edit Image for a still
+        /// image), `false` for `.recording` (nothing in this app post-processes that kind today).
+        var isPostProcessable: Bool {
+            switch self {
+            case .fits, .png, .tiff, .serVideo: return true
+            case .recording: return false
+            }
+        }
     }
 
     var id = UUID()

@@ -37,6 +37,12 @@ struct ObservationTimelineView: View {
     /// wherever the new (often much narrower or wider) content width happens to clamp the old
     /// absolute scroll offset to — previously, that was usually the very first, oldest thumbnail.
     @State private var visibleEntryID: CaptureRecord.ID?
+    /// "If the user press on the icon she can post process the capture" — `CaptureKindBadge`'s
+    /// own tap target, bypassing the full Capture page (this timeline flattens every project's
+    /// own sessions, so there's no single `project`/`session` this view already has in scope the
+    /// way `TimelineStripView`'s per-session version does — each entry carries its own).
+    @State private var postProcessingEntry: TimelineEntry?
+    @State private var editingImageEntry: TimelineEntry?
 
     /// `nonisolated` on these plain constants (not just the functions that read them) — `View`
     /// conformance infers this whole type's static members as `@MainActor` by default, and
@@ -144,6 +150,60 @@ struct ObservationTimelineView: View {
                     }
                 }
             }
+        }
+        .sheet(item: $postProcessingEntry) { entry in
+            PlanetaryPostProcessingView(
+                sourceURL: fileURL(for: entry),
+                sourceDescription: "Post-processing \(entry.capture.fileName).",
+                onSave: { cgImage, title, notes, settings in
+                    try cameraManager.savePlanetaryPostProcessingResult(
+                        cgImage, sourceSessionIDs: [entry.session.id], sourceCaptureID: entry.capture.id,
+                        project: entry.project, title: title, notes: notes, settings: settings
+                    )
+                },
+                onOverwrite: { cgImage, existing, title, notes, settings in
+                    try cameraManager.overwritePlanetaryPostProcessingResult(
+                        cgImage, existing: existing, project: entry.project, title: title, notes: notes, settings: settings
+                    )
+                },
+                resolveGraXpertInputURL: { image in
+                    cameraManager.projectStore.elaboratedImagesFolderURL(for: entry.project).appendingPathComponent(image.fileName)
+                },
+                onSendToGraXpert: { inputURL, operation, parameters, onLog in
+                    try await cameraManager.sendToGraXpert(
+                        inputURL: inputURL, operation: operation, sourceSessionIDs: [entry.session.id],
+                        sourceCaptureID: entry.capture.id, project: entry.project, parameters: parameters, onLog: onLog
+                    )
+                },
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
+            )
+        }
+        .sheet(item: $editingImageEntry) { entry in
+            SingleImagePostProcessingView(
+                sourceURL: fileURL(for: entry),
+                sourceDescription: "Editing \(entry.capture.fileName).",
+                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: entry.project),
+                onSave: { cgImage in
+                    try cameraManager.saveImageEditResult(
+                        cgImage, sourceSessionIDs: [entry.session.id], sourceCaptureID: entry.capture.id, project: entry.project
+                    )
+                }
+            )
+        }
+    }
+
+    private func fileURL(for entry: TimelineEntry) -> URL {
+        cameraManager.projectStore.sessionFolderURL(for: entry.session, in: entry.project)
+            .appendingPathComponent(entry.capture.fileName)
+    }
+
+    /// `CaptureKindBadge`'s tap target — same routing as `TimelineStripView`'s own
+    /// `startPostProcessing()`.
+    private func startPostProcessing(for entry: TimelineEntry) {
+        switch entry.capture.kind {
+        case .serVideo: postProcessingEntry = entry
+        case .fits, .png, .tiff: editingImageEntry = entry
+        case .recording: break
         }
     }
 
@@ -287,6 +347,10 @@ struct ObservationTimelineView: View {
             }
             .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
             .clipped()
+            .overlay(alignment: .bottomTrailing) {
+                CaptureKindBadge(kind: entry.capture.kind) { startPostProcessing(for: entry) }
+                    .padding(3)
+            }
             // A crowded run of captures shows no text under any of them rather than text that
             // collides into illegible overlapping characters — the full detail (object, session,
             // filename) is always still one hover away via `.help` below.

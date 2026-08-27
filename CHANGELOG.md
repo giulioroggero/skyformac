@@ -19,6 +19,15 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Every timeline thumbnail (a session's own strip, and Home's cross-project timeline) now shows
+  a small badge indicating whether it's a single still capture, an SER video, or a lucky-imaging
+  recording — visible even once a real thumbnail image loads over the plain fallback icon that
+  used to be the only place this showed. Tapping the badge jumps straight to post-processing that
+  capture (Planetary Post-Processing for an SER video, Edit Image for a still), bypassing the
+  Capture page for the common "just process this" case.
+- Home's activity chart is now per-day over the last 30 days (a fixed, immediately-legible
+  window), not per-month over all-time — and the chart itself is now clickable (not just the "See
+  Full Insights…" text underneath it), opening Insights.
 - Planetary Post-Processing and Edit Image now open genuinely full-screen (the whole visible
   screen area, not that minus a margin) — they were already sized close to it, but noticeably
   short of actually filling the screen.

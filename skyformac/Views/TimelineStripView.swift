@@ -54,6 +54,14 @@ private struct TimelineThumbnailView: View {
     @State private var isConfirmingDelete = false
     @State private var isElaborating = false
     @State private var isPromptingSirilSettings = false
+    /// "If the user press on the icon she can post process the capture" — the kind badge's own
+    /// tap target, bypassing the Capture page entirely for the common "just process this" case.
+    @State private var isPostProcessing = false
+    @State private var isEditingImage = false
+
+    private var fileURL: URL {
+        store.sessionFolderURL(for: session, in: project).appendingPathComponent(capture.fileName)
+    }
 
     private var thumbnailURL: URL? {
         guard let name = capture.thumbnailFileName else { return nil }
@@ -80,6 +88,10 @@ private struct TimelineThumbnailView: View {
                 }
             }
             .frame(width: 130, height: 90)
+            .overlay(alignment: .bottomTrailing) {
+                CaptureKindBadge(kind: capture.kind, action: startPostProcessing)
+                    .padding(4)
+            }
 
             Text(capture.date, format: .dateTime.month(.abbreviated).day().hour().minute())
                 .font(.caption2)
@@ -141,6 +153,45 @@ private struct TimelineThumbnailView: View {
                 }
             }
         }
+        .sheet(isPresented: $isPostProcessing) {
+            PlanetaryPostProcessingView(
+                sourceURL: fileURL,
+                sourceDescription: "Post-processing \(capture.fileName).",
+                onSave: { cgImage, title, notes, settings in
+                    try cameraManager.savePlanetaryPostProcessingResult(
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project,
+                        title: title, notes: notes, settings: settings
+                    )
+                },
+                onOverwrite: { cgImage, existing, title, notes, settings in
+                    try cameraManager.overwritePlanetaryPostProcessingResult(
+                        cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
+                    )
+                },
+                resolveGraXpertInputURL: { image in
+                    store.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
+                },
+                onSendToGraXpert: { inputURL, operation, parameters, onLog in
+                    try await cameraManager.sendToGraXpert(
+                        inputURL: inputURL, operation: operation, sourceSessionIDs: [session.id],
+                        sourceCaptureID: capture.id, project: project, parameters: parameters, onLog: onLog
+                    )
+                },
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
+            )
+        }
+        .sheet(isPresented: $isEditingImage) {
+            SingleImagePostProcessingView(
+                sourceURL: fileURL,
+                sourceDescription: "Editing \(capture.fileName).",
+                elaboratedImagesFolderURL: store.elaboratedImagesFolderURL(for: project),
+                onSave: { cgImage in
+                    try cameraManager.saveImageEditResult(
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: capture.id, project: project
+                    )
+                }
+            )
+        }
     }
 
     /// `nil` when this capture's `kind` isn't something Siril can process further (a `.png`/
@@ -148,6 +199,17 @@ private struct TimelineThumbnailView: View {
     /// `CameraManager.elaborationSource(forCaptureID:in:project:)`.
     private var elaborationSource: (SirilElaborationService.Source, AcquisitionTarget?)? {
         cameraManager.elaborationSource(forCaptureID: capture.id, in: session, project: project)
+    }
+
+    /// `CaptureKindBadge`'s tap target — the same two Skyformac tools `CaptureDetailPage`'s own
+    /// Process group offers, routed by kind (`.serVideo` → Planetary Post-Processing, a still
+    /// image → Edit Image); `CaptureKindBadge` itself never offers a tap for anything else.
+    private func startPostProcessing() {
+        switch capture.kind {
+        case .serVideo: isPostProcessing = true
+        case .fits, .png, .tiff: isEditingImage = true
+        case .recording: break
+        }
     }
 
     private func startElaborating() {
