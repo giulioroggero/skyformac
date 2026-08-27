@@ -915,6 +915,15 @@ struct ElaboratedImageCard: View {
     @State private var isPromptingGraXpertSettings = false
     @State private var isSendingToStarNet = false
     @State private var isPromptingStarNetSettings = false
+    /// "Post-process more…starting from the original with the settings used" — re-runs Planetary
+    /// Post-Processing from scratch on the actual `.ser` this result was stacked from, seeded
+    /// with the settings that produced it (`image.planetarySettings`), rather than either editing
+    /// the finished PNG or hand-tuning every slider again from the app's own defaults.
+    @State private var isRedoingFromOriginal = false
+    /// The other half — "post elaborate the photo as png with all controls," i.e. run the
+    /// already-finished PNG through Edit Image's own controls (crop/color/curves/sharpen),
+    /// exactly like editing any other PNG capture.
+    @State private var isEditingImage = false
 
     private var fileURL: URL {
         cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
@@ -956,6 +965,18 @@ struct ElaboratedImageCard: View {
         return cameraManager.elaborationSource(for: sourceSession, project: project)
     }
 
+    /// "Redo from Original…" needs the actual `.ser` this result was stacked from — only
+    /// resolvable when the source capture still exists and is itself a `.ser` (the only input
+    /// kind Planetary Post-Processing accepts); `nil` hides the action rather than offering
+    /// something that can't actually run (a deleted source, or a result that never came from a
+    /// `.ser` in the first place — a whole-session elaboration, or an Edit Image/Siril/GraXpert
+    /// result).
+    private var originalSERCaptureURL: URL? {
+        guard let sourceSession, let sourceCapture, sourceCapture.kind == .serVideo else { return nil }
+        return cameraManager.projectStore.sessionFolderURL(for: sourceSession, in: project)
+            .appendingPathComponent(sourceCapture.fileName)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             ZStack {
@@ -986,6 +1007,16 @@ struct ElaboratedImageCard: View {
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
             Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
             Button("Delete…", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
+            Divider()
+            // Skyformac's own further-processing options, favored alongside — not buried inside —
+            // "Third-Party Tools" below: redo the whole stack from the original `.ser` (seeded
+            // with the settings that produced this result), or run the finished PNG through Edit
+            // Image's own controls.
+            if originalSERCaptureURL != nil {
+                Button("Redo from Original…", systemImage: "arrow.counterclockwise") { isRedoingFromOriginal = true }
+            }
+            Button("Edit Image…", systemImage: "slider.horizontal.3") { isEditingImage = true }
+            Divider()
             // Every hand-off to an external app in one place — "Re-elaborate" re-runs this
             // result through Siril specifically (only ever offered for a Siril-originated
             // result, `image.recipe != nil`), so it belongs alongside GraXpert/StarNet/
@@ -1008,14 +1039,59 @@ struct ElaboratedImageCard: View {
             ElaboratedImageDetailSheet(
                 image: image, fileURL: fileURL, sourceDescription: sourceDescription, diskSizeText: diskSizeText,
                 canReElaborate: image.recipe != nil && reElaborationSource != nil,
+                canRedoFromOriginal: originalSERCaptureURL != nil,
                 // Closes this sheet first, not just alongside — `isConfirmingDelete`'s
                 // `.confirmationDialog` and `isReElaborating`'s `.sheet` are both attached to the
                 // card underneath, which a still-open sheet would otherwise block from showing.
+                onRedoFromOriginal: { isShowingDetail = false; isRedoingFromOriginal = true },
+                onEditImage: { isShowingDetail = false; isEditingImage = true },
                 onReElaborate: { isShowingDetail = false; isReElaborating = true },
                 onSendToGraXpert: { isShowingDetail = false; startSendingToGraXpert() },
                 onSendToStarNet: { isShowingDetail = false; startSendingToStarNet() },
                 onOpenInPixInsight: { try? PixInsightAppLauncher.open(fileURL) },
                 onDelete: { isShowingDetail = false; isConfirmingDelete = true }
+            )
+        }
+        .sheet(isPresented: $isRedoingFromOriginal) {
+            if let originalSERCaptureURL {
+                PlanetaryPostProcessingView(
+                    sourceURL: originalSERCaptureURL,
+                    sourceDescription: "Redoing \(originalSERCaptureURL.lastPathComponent) from the original.",
+                    onSave: { cgImage, title, notes, settings in
+                        try cameraManager.savePlanetaryPostProcessingResult(
+                            cgImage, sourceSessionIDs: image.sourceSessionIDs, sourceCaptureID: image.sourceCaptureID,
+                            project: project, title: title, notes: notes, settings: settings
+                        )
+                    },
+                    onOverwrite: { cgImage, existing, title, notes, settings in
+                        try cameraManager.overwritePlanetaryPostProcessingResult(
+                            cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
+                        )
+                    },
+                    resolveGraXpertInputURL: { resultImage in
+                        cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(resultImage.fileName)
+                    },
+                    onSendToGraXpert: { inputURL, operation, parameters, onLog in
+                        try await cameraManager.sendToGraXpert(
+                            inputURL: inputURL, operation: operation, sourceSessionIDs: image.sourceSessionIDs,
+                            sourceCaptureID: image.sourceCaptureID, project: project, parameters: parameters, onLog: onLog
+                        )
+                    },
+                    onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true },
+                    initialSettings: image.planetarySettings
+                )
+            }
+        }
+        .sheet(isPresented: $isEditingImage) {
+            SingleImagePostProcessingView(
+                sourceURL: fileURL,
+                sourceDescription: "Editing \(image.fileName).",
+                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
+                onSave: { cgImage in
+                    try cameraManager.saveImageEditResult(
+                        cgImage, sourceSessionIDs: image.sourceSessionIDs, sourceCaptureID: image.sourceCaptureID, project: project
+                    )
+                }
             )
         }
         .sheet(isPresented: $isReElaborating) {
@@ -1112,6 +1188,9 @@ private struct ElaboratedImageDetailSheet: View {
     let sourceDescription: String
     let diskSizeText: String
     let canReElaborate: Bool
+    let canRedoFromOriginal: Bool
+    var onRedoFromOriginal: () -> Void
+    var onEditImage: () -> Void
     var onReElaborate: () -> Void
     var onSendToGraXpert: () -> Void
     var onSendToStarNet: () -> Void
@@ -1154,6 +1233,10 @@ private struct ElaboratedImageDetailSheet: View {
                 Button("Publish to AstroBin…", systemImage: "arrow.up.forward.app") { AstroBinPublisher.publish(fileURL) }
                 Button("Delete…", systemImage: "trash", role: .destructive, action: onDelete)
                 Spacer()
+                if canRedoFromOriginal {
+                    Button("Redo from Original…", systemImage: "arrow.counterclockwise", action: onRedoFromOriginal)
+                }
+                Button("Edit Image…", systemImage: "slider.horizontal.3", action: onEditImage)
                 // Every hand-off to an external app grouped together — see the card's own
                 // context menu doc comment for why "Re-elaborate" (Siril-only) belongs here
                 // alongside GraXpert/StarNet/PixInsight rather than sitting on its own.

@@ -26,6 +26,11 @@ struct PlanetaryPostProcessingView: View {
     /// saved result on to GraXpert" flow, rather than needing its own separate temp-file plumbing.
     var onSendToGraXpert: (URL, GraXpertElaborationService.Operation, GraXpertElaborationService.Parameters, @escaping @Sendable (String) -> Void) async throws -> ElaboratedImage
     var onOpenGraXpertSettings: () -> Void
+    /// Pre-fills every Stage 3-5 control from a previous result's own recorded settings —
+    /// "post-process more…starting from the original with the settings used" (an elaborated
+    /// image's "Redo from Original…"). `nil` (the default) leaves every control at its normal
+    /// fresh-start value, exactly as before this existed — see `applyInitialSettingsIfNeeded()`.
+    var initialSettings: PlanetaryPostProcessor.SettingsSnapshot? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -112,9 +117,13 @@ struct PlanetaryPostProcessingView: View {
     private static let defaultLayers: [PlanetaryPostProcessor.WaveletLayer] = [1.6, 1.35, 1.15, 1.0]
         .enumerated().map { .init(id: $0.offset, gain: $0.element) }
 
+    /// The screen's whole visible area (menu bar/Dock already excluded by `visibleFrame` itself),
+    /// not that minus a margin — "the post processing view window must be larger, full width and
+    /// height" — this is as large as a `.sheet` can get short of an actual `NSWindow` covering the
+    /// menu bar too.
     private var fullScreenSize: CGSize {
         let visible = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1200, height: 800)
-        return CGSize(width: max(visible.width - 40, 980), height: max(visible.height - 40, 660))
+        return CGSize(width: max(visible.width, 980), height: max(visible.height, 660))
     }
 
     var body: some View {
@@ -145,6 +154,7 @@ struct PlanetaryPostProcessingView: View {
         .frame(width: fullScreenSize.width, height: fullScreenSize.height)
         .background(.background)
         .onDisappear { cancelCurrentWork?() }
+        .onAppear { applyInitialSettingsIfNeeded() }
         .task {
             sourcePreview = Self.loadSourcePreview(sourceURL)
             sourcePreviewFailed = sourcePreview == nil
@@ -779,6 +789,26 @@ struct PlanetaryPostProcessingView: View {
             blackPoint: blackPoint, whitePoint: whitePoint,
             logStretchIntensity: useLogStretch ? logStretchIntensity : nil
         )
+    }
+
+    /// The inverse of `currentSettingsSnapshot()` — seeds every Stage 3-5 control from
+    /// `initialSettings` once, right as this view appears (so the "Object to Track" box is
+    /// already drawn and "Start Processing" is immediately enabled, not just the sliders). A
+    /// no-op when `initialSettings` is `nil` (every ordinary "Post-Process…" launch).
+    private func applyInitialSettingsIfNeeded() {
+        guard let settings = initialSettings else { return }
+        roiRect = settings.roi
+        keepBestPercent = settings.keepBestPercent
+        stackMethod = settings.stackMethod
+        appliedKeepBestPercent = settings.keepBestPercent
+        appliedStackMethod = settings.stackMethod
+        waveletLayers = settings.waveletLayers
+        denoise = settings.denoise
+        alignRGBChannels = settings.alignRGBChannels
+        blackPoint = settings.blackPoint
+        whitePoint = settings.whitePoint
+        useLogStretch = settings.logStretchIntensity != nil
+        logStretchIntensity = settings.logStretchIntensity ?? 5
     }
 
     private func save() async {

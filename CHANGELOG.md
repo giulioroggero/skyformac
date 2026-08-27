@@ -19,6 +19,17 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Planetary Post-Processing and Edit Image now open genuinely full-screen (the whole visible
+  screen area, not that minus a margin) — they were already sized close to it, but noticeably
+  short of actually filling the screen.
+- An elaborated image (its context menu, and its Info sheet) now offers two ways to
+  post-process it further, alongside the existing external hand-offs: "Redo from Original…"
+  re-runs Planetary Post-Processing on the actual `.ser` this result was stacked from, seeded
+  with the exact settings that produced it (`ElaboratedImage.planetarySettings`), rather than
+  hand-tuning every slider again from scratch; "Edit Image…" runs the already-finished PNG
+  through Edit Image's own controls (crop, color, curves, sharpen), the same tool already used
+  on any other PNG capture. Only offered where there's something to run it on — "Redo from
+  Original…" needs the source capture to still exist and be a `.ser`.
 - A new Gallery page (Home's "Common Tasks" row, or Project → Show Gallery) — every
   post-processed image across every active project, newest first, in one place instead of having
   to open each project's own Elaborated section separately to find one. Reuses the same card
