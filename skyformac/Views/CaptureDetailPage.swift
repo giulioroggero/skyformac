@@ -101,10 +101,18 @@ struct CaptureDetailPage: View {
                         }
                         Spacer(minLength: 0)
                     }
+                    HStack {
+                        Spacer(minLength: 0)
+                        primaryActionButton
+                        Spacer(minLength: 0)
+                    }
                 }
 
-                // Row 2: everything else about this capture — File, Camera Settings, Session, and
-                // Stats side by side, instead of each taking a full-width row of their own.
+                // Row 2: everything else about this capture — File, Camera Settings, and Session
+                // side by side, instead of each taking a full-width row of their own. No
+                // session-wide "Stats" (total captures, counts by kind) here — that's the
+                // session's own aggregate, not a property of this one capture; see the Session
+                // page for that.
                 HStack(alignment: .top, spacing: 16) {
                     PageSection {
                         sectionHeader("File", copying: fileStats)
@@ -141,13 +149,6 @@ struct CaptureDetailPage: View {
                     PageSection {
                         sectionHeader("Session", copying: sessionContextStats)
                         StatsGridView(stats: sessionContextStats)
-                    }
-
-                    if !session.captures.isEmpty {
-                        PageSection {
-                            sectionHeader("Stats", copying: sessionCaptureStats)
-                            StatsGridView(stats: sessionCaptureStats)
-                        }
                     }
                 }
 
@@ -478,6 +479,12 @@ struct CaptureDetailPage: View {
             StatItem(label: "File", value: capture.fileName),
             StatItem(label: "Kind", value: capture.kind.displayName),
             StatItem(label: "Date", value: capture.date.formatted(date: .abbreviated, time: .shortened)),
+            StatItem(
+                label: "Disk Usage",
+                value: ByteCountFormatter.string(
+                    fromByteCount: store.diskUsage(for: capture, in: session, project: project), countStyle: .file
+                )
+            ),
         ]
     }
 
@@ -529,14 +536,22 @@ struct CaptureDetailPage: View {
         return stats
     }
 
-    private var sessionCaptureStats: [StatItem] {
-        var stats = [StatItem(label: "Total Captures", value: "\(session.captures.count)")]
-        for kind in CaptureRecord.Kind.allCases {
-            if let count = session.captureCountByKind[kind] {
-                stats.append(StatItem(label: kind.displayName, value: "\(count)"))
-            }
+    /// This capture's own single most likely next action — "Post-Process…" for a `.serVideo`
+    /// burst, "Edit Image…" for a finished `.fits`/`.png`/`.tiff` frame — as a prominent button
+    /// directly under the image itself, not a line item buried inside `actionsList` alongside
+    /// Show in Finder/Move to Session/Delete. `nil` for `.recording` (no in-app processing exists
+    /// for a continuous-recording folder), matching `actionsList`'s own kind gating.
+    @ViewBuilder
+    private var primaryActionButton: some View {
+        if capture.kind == .serVideo {
+            Button("Post-Process…", systemImage: "sparkles.tv") { startPostProcessing() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+        } else if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
+            Button("Edit Image…", systemImage: "slider.horizontal.3") { startEditingImage() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
         }
-        return stats
     }
 
     /// Every action this page offers on the capture itself, grouped under small labeled
@@ -577,23 +592,9 @@ struct CaptureDetailPage: View {
                 NSWorkspace.shared.activateFileViewerSelecting([fileURL])
             }
 
-            // Skyformac's own tools first — now that Planetary Post-Processing does its own
-            // GPU-accelerated registration/stacking in-app, it's the tool most captures should
-            // actually reach for, not an equal-weight alternative buried next to Siril. Any
-            // hand-off to an external app (Siril here; GraXpert/StarNet/PixInsight from an
-            // elaborated image's own menu) lives in its own "Third-Party Tools" group below
-            // instead of mixed in here, so "stays in this app" and "leaves this app" read as two
-            // different kinds of action, not one flat list.
-            if capture.kind == .serVideo || capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
-                Divider()
-                actionGroupLabel("Process")
-                if capture.kind == .serVideo {
-                    Button("Post-Process…", systemImage: "sparkles.tv") { startPostProcessing() }
-                }
-                if capture.kind == .fits || capture.kind == .png || capture.kind == .tiff {
-                    Button("Edit Image…", systemImage: "slider.horizontal.3") { startEditingImage() }
-                }
-            }
+            // Post-Process…/Edit Image… — this page's own single most likely next action for a
+            // capture — is now a prominent button right under the image itself (`primaryActionButton`
+            // in Row 1) instead of buried down here alongside Show in Finder/Move to Session/Delete.
 
             if elaborationSource != nil {
                 Divider()
@@ -612,7 +613,7 @@ struct CaptureDetailPage: View {
             Button("Copy All Details", systemImage: "doc.on.doc") {
                 copyToClipboard(copyAllDetailsText)
             }
-            .help("Copies File, Camera Settings, Session, and Stats — everything on this page — as one block of plain text.")
+            .help("Copies File, Camera Settings, and Session — everything on this page — as one block of plain text.")
 
             Divider()
             actionGroupLabel("Organize")
@@ -681,9 +682,6 @@ struct CaptureDetailPage: View {
             blocks.append(Self.plainText(title: "Camera Settings", stats: cameraSettingsStats))
         }
         blocks.append(Self.plainText(title: "Session", stats: sessionContextStats))
-        if !session.captures.isEmpty {
-            blocks.append(Self.plainText(title: "Stats", stats: sessionCaptureStats))
-        }
         return blocks.joined(separator: "\n\n")
     }
 }

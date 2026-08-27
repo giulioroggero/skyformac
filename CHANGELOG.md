@@ -19,6 +19,12 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- The Capture Detail page's "File" box now shows Disk Usage (this one capture's own file size).
+  Its session-wide "Stats" box (total captures, counts by kind) is gone — that's the session's own
+  aggregate, not a property of the one capture this page is about; it's still on the Session page.
+  "Post-Process…"/"Edit Image…" — the single most likely next action for a capture — is now a
+  prominent button directly under the image, instead of a line item buried inside a long list of
+  Show in Finder/Move to Session/Delete and everything else this page offers.
 - Six new `SkyformacUITests` covering customer journeys the existing 9 didn't reach: the Gallery
   and Equipment Dashboard tiles, cancelling out of the New Project sheet, Settings' "Done" button
   actually returning to the underlying page, the AI panel's minimize/expand round trip, and the
