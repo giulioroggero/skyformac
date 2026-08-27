@@ -153,7 +153,7 @@ struct ObservationTimelineView: View {
         }
         .sheet(item: $postProcessingEntry) { entry in
             PlanetaryPostProcessingView(
-                sourceURL: fileURL(for: entry),
+                sourceURLs: [fileURL(for: entry)],
                 sourceDescription: "Post-processing \(entry.capture.fileName).",
                 onSave: { cgImage, title, notes, settings in
                     try cameraManager.savePlanetaryPostProcessingResult(

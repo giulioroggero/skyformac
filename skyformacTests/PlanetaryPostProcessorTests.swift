@@ -486,4 +486,78 @@ struct PlanetaryPostProcessorTests {
         #expect(cgImage.width == 8)
         #expect(cgImage.height == 6)
     }
+
+    // MARK: - combining multiple captures (loadSequence(from: [URL]))
+
+    /// `SERWriter.write`'s own blank-frame guard rejects an all-identical-byte frame — a simple
+    /// per-frame gradient (rather than a uniform fill) keeps every written frame accepted.
+    private func writeTestSER(
+        frameCount: Int, width: Int = 4, height: Int = 4, isColorCamera: Bool = false, to url: URL
+    ) throws {
+        let firstFrame = monoFrame(width: width, height: height) { x, y in UInt8((x + y) % 255) }
+        let writer = try SERWriter(firstFrame: firstFrame, isColorCamera: isColorCamera, bayerPattern: ASI_BAYER_RG, instrumentName: "test", url: url)
+        try writer.write(firstFrame)
+        for i in 1..<frameCount {
+            try writer.write(monoFrame(width: width, height: height) { x, y in UInt8((x + y + i) % 255) })
+        }
+        try writer.close()
+    }
+
+    @Test func loadSequenceFromMultipleURLsPoolsEveryFilesFrames() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let urlA = dir.appendingPathComponent("a.ser")
+        let urlB = dir.appendingPathComponent("b.ser")
+        try writeTestSER(frameCount: 3, to: urlA)
+        try writeTestSER(frameCount: 2, to: urlB)
+
+        let sequence = try PlanetaryPostProcessor.loadSequence(from: [urlA, urlB])
+        #expect(sequence.frames.count == 5)
+    }
+
+    @Test func loadSequenceFromASingleURLMatchesTheSingleURLOverload() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let url = dir.appendingPathComponent("a.ser")
+        try writeTestSER(frameCount: 3, to: url)
+
+        let viaSingle = try PlanetaryPostProcessor.loadSequence(from: url)
+        let viaArray = try PlanetaryPostProcessor.loadSequence(from: [url])
+        #expect(viaSingle.frames.count == viaArray.frames.count)
+        #expect(viaArray.frames.count == 3)
+    }
+
+    @Test func loadSequenceRejectsCombiningDifferentlySizedCaptures() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let urlA = dir.appendingPathComponent("a.ser")
+        let urlB = dir.appendingPathComponent("b.ser")
+        try writeTestSER(frameCount: 2, width: 4, height: 4, to: urlA)
+        try writeTestSER(frameCount: 2, width: 8, height: 8, to: urlB)
+
+        #expect(throws: PlanetaryPostProcessor.LoadSequenceError.self) {
+            try PlanetaryPostProcessor.loadSequence(from: [urlA, urlB])
+        }
+    }
+
+    @Test func loadSequenceRejectsCombiningDifferentColorModes() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let urlA = dir.appendingPathComponent("a.ser")
+        let urlB = dir.appendingPathComponent("b.ser")
+        try writeTestSER(frameCount: 2, isColorCamera: false, to: urlA)
+        try writeTestSER(frameCount: 2, isColorCamera: true, to: urlB)
+
+        #expect(throws: PlanetaryPostProcessor.LoadSequenceError.self) {
+            try PlanetaryPostProcessor.loadSequence(from: [urlA, urlB])
+        }
+    }
 }

@@ -231,7 +231,7 @@ struct CaptureDetailPage: View {
         }
         .sheet(isPresented: $isPostProcessing) {
             PlanetaryPostProcessingView(
-                sourceURL: fileURL,
+                sourceURLs: [fileURL],
                 sourceDescription: "Post-processing \(capture.fileName).",
                 onSave: { cgImage, title, notes, settings in
                     try cameraManager.savePlanetaryPostProcessingResult(

@@ -1055,7 +1055,7 @@ struct ElaboratedImageCard: View {
         .sheet(isPresented: $isRedoingFromOriginal) {
             if let originalSERCaptureURL {
                 PlanetaryPostProcessingView(
-                    sourceURL: originalSERCaptureURL,
+                    sourceURLs: [originalSERCaptureURL],
                     sourceDescription: "Redoing \(originalSERCaptureURL.lastPathComponent) from the original.",
                     onSave: { cgImage, title, notes, settings in
                         try cameraManager.savePlanetaryPostProcessingResult(

@@ -59,9 +59,48 @@ enum PlanetaryPostProcessor {
         let bayerPattern: ASI_BAYER_PATTERN
     }
 
+    enum LoadSequenceError: Error, LocalizedError {
+        case noURLs
+        case inconsistentDimensions(URL)
+        case inconsistentColorMode(URL)
+
+        var errorDescription: String? {
+            switch self {
+            case .noURLs:
+                return "No captures to load."
+            case .inconsistentDimensions(let url):
+                return "\(url.lastPathComponent) is a different frame size than the others — combined captures all need to share the same dimensions."
+            case .inconsistentColorMode(let url):
+                return "\(url.lastPathComponent) is a different color mode (color vs. monochrome) than the others."
+            }
+        }
+    }
+
     static func loadSequence(from url: URL) throws -> LoadedSequence {
-        let parsed = try SERReader.read(from: url)
-        return LoadedSequence(frames: parsed.frames, isColorCamera: parsed.isColorCamera, bayerPattern: parsed.bayerPattern)
+        try loadSequence(from: [url])
+    }
+
+    /// "Combine several different captures and stack it" — concatenates every `.ser`'s own
+    /// frames into one `LoadedSequence`, so registration/stacking downstream sees one pooled
+    /// burst instead of needing any awareness that it came from more than one file. Validates
+    /// every file shares the first one's frame size and color mode first — silently combining
+    /// mismatched captures would produce nonsense (registration/stacking both assume a single
+    /// `width`/`height` for the whole burst, taken from `frames.first`) rather than a clear error.
+    static func loadSequence(from urls: [URL]) throws -> LoadedSequence {
+        guard let firstURL = urls.first else { throw LoadSequenceError.noURLs }
+        let first = try SERReader.read(from: firstURL)
+        var allFrames = first.frames
+        for url in urls.dropFirst() {
+            let parsed = try SERReader.read(from: url)
+            guard parsed.width == first.width, parsed.height == first.height else {
+                throw LoadSequenceError.inconsistentDimensions(url)
+            }
+            guard parsed.isColorCamera == first.isColorCamera else {
+                throw LoadSequenceError.inconsistentColorMode(url)
+            }
+            allFrames.append(contentsOf: parsed.frames)
+        }
+        return LoadedSequence(frames: allFrames, isColorCamera: first.isColorCamera, bayerPattern: first.bayerPattern)
     }
 
     /// Human-readable name for the log/UI — `bayerPattern.rawValue` alone ("Bayer pattern 0")

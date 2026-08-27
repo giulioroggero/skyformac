@@ -4,12 +4,18 @@ import SwiftUI
 /// the Projects feature is built around. Tapping a thumbnail pushes that capture's own full-width
 /// Capture page (`onSelect`); each one's context menu also offers "Delete" (`onDelete`), for
 /// reclaiming disk space one capture at a time without deleting the whole session — captures
-/// otherwise still arrive in, and stay in, capture order.
+/// otherwise still arrive in, and stay in, capture order. While `isSelecting` is on (the same
+/// "Select" toggle `ProjectsThumbnailGrid` uses), tapping toggles `selectedIDs` instead of
+/// opening — "allow the user to select more than one (on timeline and table view)," feeding the
+/// same bulk-action bar/multi-capture selection `CapturesTableView`'s native `Table` selection
+/// already does.
 struct TimelineStripView: View {
     let project: Project
     let session: Session
     let store: ProjectStore
     var cameraManager: CameraManager
+    var isSelecting: Bool
+    @Binding var selectedIDs: Set<CaptureRecord.ID>
     var onSelect: (CaptureRecord) -> Void
     var onDelete: (CaptureRecord) -> Void
 
@@ -29,10 +35,18 @@ struct TimelineStripView: View {
                     ForEach(session.captures.sorted(by: { $0.date < $1.date })) { capture in
                         TimelineThumbnailView(
                             project: project, session: session, capture: capture, store: store,
-                            cameraManager: cameraManager, onDelete: onDelete
+                            cameraManager: cameraManager, isSelecting: isSelecting,
+                            isSelected: selectedIDs.contains(capture.id), onDelete: onDelete
                         )
                         .contentShape(Rectangle())
-                        .onTapGesture { onSelect(capture) }
+                        .onTapGesture {
+                            if isSelecting {
+                                if selectedIDs.contains(capture.id) { selectedIDs.remove(capture.id) }
+                                else { selectedIDs.insert(capture.id) }
+                            } else {
+                                onSelect(capture)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 2)
@@ -49,6 +63,8 @@ private struct TimelineThumbnailView: View {
     let capture: CaptureRecord
     let store: ProjectStore
     var cameraManager: CameraManager
+    var isSelecting: Bool
+    var isSelected: Bool
     var onDelete: (CaptureRecord) -> Void
 
     @State private var isConfirmingDelete = false
@@ -72,26 +88,51 @@ private struct TimelineThumbnailView: View {
         ByteCountFormatter.string(fromByteCount: store.diskUsage(for: capture, in: session, project: project), countStyle: .file)
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6).fill(.quaternary)
-                if let thumbnailURL, let image = ThumbnailCache.image(at: thumbnailURL) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                } else {
-                    Image(systemName: capture.kind.icon)
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
+    /// Suppressed while selecting — this tap target jumping straight into single-capture
+    /// post-processing would fight with "pick several, then act." A separate property (not a
+    /// ternary inline in `thumbnail` below) since that inline form was part of what made the type
+    /// checker choke on the whole view (see `thumbnail`'s own doc comment).
+    private var kindBadgeAction: (() -> Void)? {
+        if isSelecting { return nil }
+        return { startPostProcessing() }
+    }
+
+    /// Pulled out of `body` as its own property — chaining `.overlay` for both the kind badge and
+    /// the selection checkmark directly inside `body`'s own `VStack` made the whole expression
+    /// too complex for the type checker to solve ("failed to produce diagnostic for expression").
+    @ViewBuilder
+    private var thumbnail: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6).fill(.quaternary)
+            if let thumbnailURL, let image = ThumbnailCache.image(at: thumbnailURL) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                Image(systemName: capture.kind.icon)
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
             }
-            .frame(width: 130, height: 90)
-            .overlay(alignment: .bottomTrailing) {
-                CaptureKindBadge(kind: capture.kind, action: startPostProcessing)
+        }
+        .frame(width: 130, height: 90)
+        .overlay(alignment: .bottomTrailing) {
+            CaptureKindBadge(kind: capture.kind, action: kindBadgeAction)
+                .padding(4)
+        }
+        .overlay(alignment: .topLeading) {
+            if isSelecting {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    .background(Circle().fill(.background))
                     .padding(4)
             }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            thumbnail
 
             Text(capture.date, format: .dateTime.month(.abbreviated).day().hour().minute())
                 .font(.caption2)
@@ -155,7 +196,7 @@ private struct TimelineThumbnailView: View {
         }
         .sheet(isPresented: $isPostProcessing) {
             PlanetaryPostProcessingView(
-                sourceURL: fileURL,
+                sourceURLs: [fileURL],
                 sourceDescription: "Post-processing \(capture.fileName).",
                 onSave: { cgImage, title, notes, settings in
                     try cameraManager.savePlanetaryPostProcessingResult(

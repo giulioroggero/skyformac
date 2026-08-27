@@ -9,7 +9,11 @@ import SwiftUI
 /// out to Siril and reports its log, this view *is* the tool — every parameter change re-runs the
 /// (pure, GPU-independent) pipeline itself.
 struct PlanetaryPostProcessingView: View {
-    let sourceURL: URL
+    /// One `.ser` (the normal case), or several to combine into a single pooled burst before
+    /// registering/stacking — "I want to combine several different captures and stack it."
+    /// `PlanetaryPostProcessor.loadSequence(from:)`'s `[URL]` overload does the actual pooling;
+    /// every other stage downstream has no idea more than one file was involved at all.
+    let sourceURLs: [URL]
     let sourceDescription: String
     var onSave: (CGImage, _ title: String?, _ notes: String?, _ settings: PlanetaryPostProcessor.SettingsSnapshot?) async throws -> ElaboratedImage
     /// The "Overwrite" half of the save flow — replaces an already-saved result's own file and
@@ -52,7 +56,7 @@ struct PlanetaryPostProcessingView: View {
     /// crop. Required (see "Start Processing"'s `.disabled`) precisely because leaving it `nil`
     /// is what used to produce the ghosted/duplicated stacks this exists to prevent.
     @State private var roiRect: SirilElaborationService.PixelRect?
-    @State private var sourcePreview: (image: NSImage, pixelSize: (width: Int, height: Int))?
+    @State private var sourcePreview: (image: NSImage, pixelSize: (width: Int, height: Int), isColorCamera: Bool)?
     /// Distinguishes "still loading" (`sourcePreview == nil`, `false`) from "loading finished but
     /// failed" (`sourcePreview == nil`, `true`) — without this, a preview that fails to decode
     /// left `roiSection` showing "Loading preview…" forever, and now also permanently blocked
@@ -156,7 +160,7 @@ struct PlanetaryPostProcessingView: View {
         .onDisappear { cancelCurrentWork?() }
         .onAppear { applyInitialSettingsIfNeeded() }
         .task {
-            sourcePreview = Self.loadSourcePreview(sourceURL)
+            sourcePreview = sourceURLs.first.flatMap(Self.loadSourcePreview)
             sourcePreviewFailed = sourcePreview == nil
         }
         .confirmationDialog(
@@ -215,12 +219,22 @@ struct PlanetaryPostProcessingView: View {
                     .frame(width: 420)
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Set Up Stacking").font(.title2.bold())
-                    Text("Every frame in \(sourceURL.lastPathComponent) gets scored and registered first, regardless of these settings — they only decide how the sharpest frames get combined afterwards. You can re-stack with different values later without reloading.")
+                    Text(sourceURLs.count > 1
+                        ? "Every frame across all \(sourceURLs.count) selected captures gets pooled, scored, and registered first, regardless of these settings — they only decide how the sharpest frames get combined afterwards. You can re-stack with different values later without reloading."
+                        : "Every frame in \(sourceURLs.first?.lastPathComponent ?? "this capture") gets scored and registered first, regardless of these settings — they only decide how the sharpest frames get combined afterwards. You can re-stack with different values later without reloading.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                    stackingSection
-                    Divider()
-                    waveletSection
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            stackingSection
+                            Divider()
+                            waveletSection
+                            Divider()
+                            colorSection
+                            Divider()
+                            stretchSection
+                        }
+                    }
                 }
                 .padding(24)
                 .frame(width: 440)
@@ -502,10 +516,18 @@ struct PlanetaryPostProcessingView: View {
         }
     }
 
+    /// Prefers `loadedSequence` (the real answer, available once Stage 1 has actually run) but
+    /// falls back to `sourcePreview`'s own quick first-frame read — available immediately on the
+    /// setup screen, before "Start Processing" — so `colorSection` reads correctly there too
+    /// instead of defaulting to "monochrome" just because nothing's loaded yet.
+    private var isColorCameraSource: Bool {
+        loadedSequence?.isColorCamera ?? sourcePreview?.isColorCamera ?? false
+    }
+
     private var colorSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Color").font(.title3.bold())
-            if loadedSequence?.isColorCamera == true {
+            if isColorCameraSource {
                 Toggle("Align RGB Channels", isOn: $alignRGBChannels)
                     .onChange(of: alignRGBChannels) { _, _ in scheduleSharpen() }
                 Text("Aligns R/G/B to fix atmospheric-dispersion fringing at the disk's edge — most accurate with an \"Object to Track\" box drawn on the setup screen, so it isn't thrown off by noise/background elsewhere in the frame.")
@@ -602,10 +624,17 @@ struct PlanetaryPostProcessingView: View {
     private func loadAndProcess() async {
         let sink = ProgressSink(self)
         do {
-            appendLog("Loading \(sourceURL.lastPathComponent)…")
-            let sequence = try await runDetachedThrowing { try PlanetaryPostProcessor.loadSequence(from: sourceURL) }
+            appendLog(sourceURLs.count > 1
+                ? "Loading \(sourceURLs.count) captures…"
+                : "Loading \(sourceURLs.first?.lastPathComponent ?? "capture")…")
+            let sequence = try await runDetachedThrowing { try PlanetaryPostProcessor.loadSequence(from: sourceURLs) }
             loadedSequence = sequence
-            alignRGBChannels = sequence.isColorCamera
+            // No longer force-resets `alignRGBChannels` here — it's now a real setup-screen
+            // control (`colorSection`, also shown in `setupBody`) the user can set *before* this
+            // runs; overwriting it here would silently discard that choice (and, for "Redo from
+            // Original," discard `initialSettings.alignRGBChannels` too). Safe to leave whatever
+            // it already is for a monochrome source either way — `alignRGBChannels(_:)` itself
+            // no-ops unless `channels == 3`.
             let cameraDescription = sequence.isColorCamera
                 ? "color, \(PlanetaryPostProcessor.bayerPatternName(sequence.bayerPattern)) Bayer mosaic"
                 : "monochrome"
@@ -861,12 +890,12 @@ struct PlanetaryPostProcessingView: View {
             : " (CPU — a true per-pixel median needs every sample, so there's no GPU shortcut here)"
     }
 
-    private static func loadSourcePreview(_ url: URL) -> (NSImage, (width: Int, height: Int))? {
+    private static func loadSourcePreview(_ url: URL) -> (image: NSImage, pixelSize: (width: Int, height: Int), isColorCamera: Bool)? {
         guard let (frame, isColorCamera, bayerPattern) = try? SERReader.readFirstFrame(from: url),
               let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: frame)),
               let cgImage = CGImageRenderer.makeDisplayImage(from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: auto)
         else { return nil }
-        return (NSImage(cgImage: cgImage, size: NSSize(width: frame.width, height: frame.height)), (frame.width, frame.height))
+        return (NSImage(cgImage: cgImage, size: NSSize(width: frame.width, height: frame.height)), (frame.width, frame.height), isColorCamera)
     }
 }
 

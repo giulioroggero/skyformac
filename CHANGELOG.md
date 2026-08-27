@@ -19,6 +19,18 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- A session's capture Timeline and Table now support multi-select — a "Select" toggle on the
+  filmstrip (the Table already had native ⌘/shift-click selection), feeding a shared
+  "Post-Process Together…" bulk action that pools every selected `.ser`'s own frames into one
+  registration/stacking run, instead of only ever being able to post-process one capture at a
+  time. `PlanetaryPostProcessor.loadSequence(from:)` gained a `[URL]` overload for this; combining
+  captures with mismatched frame size or color mode raises a clear error instead of silently
+  producing nonsense.
+- Planetary Post-Processing's setup screen now also includes the Color (Align RGB Channels) and
+  Stretch (black/white point, log intensity) controls, not just Stacking/Wavelet — every
+  configurable parameter is now choosable before "Start Processing," not only after. Fixed a bug
+  this surfaced: `alignRGBChannels` was silently reset to the source's own color-camera flag right
+  after loading, discarding whatever the user (or "Redo from Original…") had already set it to.
 - Every timeline thumbnail (a session's own strip, and Home's cross-project timeline) now shows
   a small badge indicating whether it's a single still capture, an SER video, or a lucky-imaging
   recording — visible even once a real thumbnail image loads over the plain fallback icon that

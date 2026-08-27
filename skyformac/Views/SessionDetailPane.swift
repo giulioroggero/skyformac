@@ -61,8 +61,14 @@ struct SessionDetailPane: View {
     @AppStorage("sessionCapturesViewMode") private var capturesViewModeRaw = CapturesViewMode.filmstrip.rawValue
     private var capturesViewMode: CapturesViewMode { CapturesViewMode(rawValue: capturesViewModeRaw) ?? .filmstrip }
     /// A `Table`'s own selection — multi-select out of the box (click/⌘-click/shift-click) with
-    /// a `Set` binding, same as `ProjectDetailPane`'s own sessions table.
+    /// a `Set` binding, same as `ProjectDetailPane`'s own sessions table. Shared with the
+    /// filmstrip's own selection (gated by `isSelectingCaptures` there) so the bulk action bar
+    /// above the Timeline works the same regardless of which view mode picked the selection.
     @State private var selectedCaptureIDs: Set<CaptureRecord.ID> = []
+    /// The filmstrip's own "Select" mode toggle — see `TimelineStripView`'s own doc comment for
+    /// why the Table doesn't need an equivalent.
+    @State private var isSelectingCaptures = false
+    @State private var isPostProcessingSelection = false
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// Files sitting in this session's own folder that AREN'T one of its tracked
@@ -255,6 +261,17 @@ struct SessionDetailPane: View {
                     HStack {
                         Text("Timeline").font(.headline)
                         Spacer()
+                        // Only the filmstrip needs an explicit "Select" mode — the Table's own
+                        // `Table` selection is already native multi-select (click/⌘-click), no
+                        // mode toggle needed there, same reasoning `ProjectsThumbnailGrid`'s own
+                        // "Select" button has for its card grid vs. a `Table`.
+                        if capturesViewMode == .filmstrip {
+                            Button(isSelectingCaptures ? "Done Selecting" : "Select") {
+                                isSelectingCaptures.toggle()
+                                if !isSelectingCaptures { selectedCaptureIDs.removeAll() }
+                            }
+                            .buttonStyle(.borderless)
+                        }
                         Picker("View", selection: $capturesViewModeRaw) {
                             Label("Filmstrip", systemImage: "square.stack").tag(CapturesViewMode.filmstrip.rawValue)
                             Label("Table", systemImage: "tablecells").tag(CapturesViewMode.table.rawValue)
@@ -272,8 +289,8 @@ struct SessionDetailPane: View {
                     case .filmstrip:
                         TimelineStripView(
                             project: project, session: session, store: cameraManager.projectStore,
-                            cameraManager: cameraManager,
-                            onSelect: onSelectCapture,
+                            cameraManager: cameraManager, isSelecting: isSelectingCaptures,
+                            selectedIDs: $selectedCaptureIDs, onSelect: onSelectCapture,
                             onDelete: { capture in
                                 try? library.deleteCapture(capture.id, fromSessionID: session.id, in: project)
                             }
@@ -488,6 +505,38 @@ struct SessionDetailPane: View {
                 }
             }
         }
+        .sheet(isPresented: $isPostProcessingSelection) {
+            let urls = selectedSERCaptures.map {
+                cameraManager.projectStore.sessionFolderURL(for: session, in: project).appendingPathComponent($0.fileName)
+            }
+            PlanetaryPostProcessingView(
+                sourceURLs: urls,
+                sourceDescription: urls.count == 1
+                    ? "Post-processing \(urls[0].lastPathComponent)."
+                    : "Post-processing \(urls.count) captures together.",
+                onSave: { cgImage, title, notes, settings in
+                    try cameraManager.savePlanetaryPostProcessingResult(
+                        cgImage, sourceSessionIDs: [session.id], sourceCaptureID: nil, project: project,
+                        title: title, notes: notes, settings: settings
+                    )
+                },
+                onOverwrite: { cgImage, existing, title, notes, settings in
+                    try cameraManager.overwritePlanetaryPostProcessingResult(
+                        cgImage, existing: existing, project: project, title: title, notes: notes, settings: settings
+                    )
+                },
+                resolveGraXpertInputURL: { image in
+                    cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
+                },
+                onSendToGraXpert: { inputURL, operation, parameters, onLog in
+                    try await cameraManager.sendToGraXpert(
+                        inputURL: inputURL, operation: operation, sourceSessionIDs: [session.id],
+                        sourceCaptureID: nil, project: project, parameters: parameters, onLog: onLog
+                    )
+                },
+                onOpenGraXpertSettings: { cameraManager.isSettingsPresented = true }
+            )
+        }
     }
 
     /// `nil` when this session has nothing Siril can process — see
@@ -553,6 +602,14 @@ struct SessionDetailPane: View {
         HStack {
             Text("\(selectedCaptureIDs.count) selected").font(.subheadline)
             Spacer()
+            // "I want to combine several different captures and stack it" — pools every selected
+            // `.ser`'s own frames into one registration/stack run (see `PlanetaryPostProcessor
+            // .loadSequence(from: [URL])`). Ignores a non-`.ser` in the same selection rather than
+            // disabling the button outright — deleting captures works fine on a mixed-kind
+            // selection, no reason post-processing needs an all-or-nothing kind match either.
+            if !selectedSERCaptures.isEmpty {
+                Button("Post-Process Together…", systemImage: "sparkles.tv") { isPostProcessingSelection = true }
+            }
             Button("Delete", systemImage: "trash", role: .destructive) {
                 isConfirmingBulkCaptureDelete = true
             }
@@ -572,6 +629,10 @@ struct SessionDetailPane: View {
         } message: {
             Text("This removes the file(s) and their thumbnails from disk — this can't be undone.")
         }
+    }
+
+    private var selectedSERCaptures: [CaptureRecord] {
+        session.captures.filter { selectedCaptureIDs.contains($0.id) && $0.kind == .serVideo }
     }
 
     /// The historical record this page is actually for — when it was planned/created/captured,
