@@ -19,6 +19,11 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Stacking/Restacking's log now states which one it actually used once a run finishes — "Stacking
+  used the GPU"/"...used the CPU" — instead of only stating an intent ("GPU when available")
+  beforehand. The same method can legitimately go either way run to run (no usable GPU in this
+  environment at all, or a real GPU call that failed mid-burst and fell back), so only the actual
+  outcome is a definitive answer.
 - Planetary Post-Processing, Edit Image, and the full-screen image preview now each open in a
   real, independent window (`DetachedContentWindowController`) instead of a `.sheet` — a macOS
   sheet is permanently attached below its parent window's own title bar and can never be dragged

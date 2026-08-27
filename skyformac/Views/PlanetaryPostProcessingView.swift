@@ -804,7 +804,8 @@ struct PlanetaryPostProcessingView: View {
                     frames: sequence.frames, registered: registered, isColorCamera: sequence.isColorCamera,
                     bayerPattern: sequence.bayerPattern, keepBestPercent: percent, method: method,
                     progress: { fraction in sink.reportProgress(fraction, phase: "Stacking", total: frameCount) },
-                    isCancelled: isCancelled
+                    isCancelled: isCancelled,
+                    didUseGPU: { usedGPU in sink.reportGPUUsage(usedGPU, phase: "Stacking") }
                 )
             }
             guard !Task.isCancelled else { return }
@@ -849,7 +850,8 @@ struct PlanetaryPostProcessingView: View {
                 frames: sequence.frames, registered: registered, isColorCamera: sequence.isColorCamera,
                 bayerPattern: sequence.bayerPattern, keepBestPercent: percent, method: method,
                 progress: { fraction in sink.reportProgress(fraction, phase: "Stacking", total: frameCount) },
-                isCancelled: isCancelled
+                isCancelled: isCancelled,
+                didUseGPU: { usedGPU in sink.reportGPUUsage(usedGPU, phase: "Stacking") }
             )
         }
         progressFraction = nil
@@ -1083,6 +1085,17 @@ private final class ProgressSink {
                 lastLoggedMilestone[phase] = milestone
                 owner.logLines.append(line)
             }
+        }
+    }
+
+    /// "Show if used GPU or CPU" — `PlanetaryPostProcessor.stack`'s own `didUseGPU` callback
+    /// fires with the *definitive* answer for this specific run, not just "GPU when available"
+    /// (the same method can legitimately go either way run to run — no `MTLDevice` at all, or a
+    /// real GPU call that failed mid-burst and fell back), so this appends a follow-up log line
+    /// once stacking actually finishes instead of only stating an intent beforehand.
+    nonisolated func reportGPUUsage(_ usedGPU: Bool, phase: String) {
+        Task { @MainActor in
+            owner.logLines.append("\(phase) used the \(usedGPU ? "GPU" : "CPU").")
         }
     }
 }

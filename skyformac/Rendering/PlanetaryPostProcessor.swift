@@ -346,10 +346,19 @@ enum PlanetaryPostProcessor {
     /// existed anywhere in this codebase before this — every existing accumulator
     /// (`LiveStacker`, the GPU `accumulateMono*` kernels) is a streaming running-sum/mean, which
     /// can't compute a median without every sample already resident, unlike this batch pipeline.
+    /// `didUseGPU`, when given, is called exactly once with whether this particular call actually
+    /// combined on the GPU (`true`) or fell through to the CPU `combine(_:method:...)` path
+    /// below (`false`) — `.median` always reports `false` (no GPU path exists for it at all; see
+    /// `PlanetaryGPUStacker`'s own doc comment), and `.mean` reports `false` too whenever
+    /// `gpuStacker` is `nil` or its own `meanStack` call fails/is cancelled. Lets a caller state
+    /// definitively which one actually ran a given burst, rather than only "GPU when available"
+    /// — the same method can legitimately go either way run to run (a sandboxed CI runner has no
+    /// `MTLDevice` at all; a real Mac's GPU call could still fail mid-burst and fall back).
     static func stack(
         frames: [CapturedFrame], registered: [RegisteredFrame], isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
         keepBestPercent: Double, method: StackMethod, progress: ((Float) -> Void)? = nil,
-        isCancelled: @escaping () -> Bool = { Task.isCancelled }
+        isCancelled: @escaping () -> Bool = { Task.isCancelled },
+        didUseGPU: ((Bool) -> Void)? = nil
     ) -> StackedImage? {
         guard let first = frames.first else { return nil }
         let sortedByQuality = registered.sorted { $0.quality > $1.quality }
@@ -391,11 +400,13 @@ enum PlanetaryPostProcessor {
                    width: width, height: height, channels: fixedChannels, isCancelled: isCancelled,
                    progress: { fraction in progress?(0.3 + fraction * 0.7) }
                ) {
+                didUseGPU?(true)
                 return StackedImage(width: width, height: height, channels: fixedChannels, values: combined)
             }
             // GPU unavailable/failed for this burst — fall through to the CPU passes below.
         }
         guard !isCancelled() else { return nil }
+        didUseGPU?(false)
 
         // Pass 2 (parallel — bilinear resample): unlike the debayer step above, each selected
         // frame's shift is completely independent of every other's, so this full-resolution

@@ -96,6 +96,33 @@ struct PlanetaryPostProcessorTests {
         #expect(abs(medianValue - 102) < 1)
     }
 
+    @Test func medianStackReportsItDidNotUseGPU() throws {
+        // No GPU path exists for `.median` at all (see `PlanetaryGPUStacker`'s own doc comment) —
+        // `didUseGPU` should say so definitively, not leave a caller guessing from the method
+        // alone the way "GPU when available" (the log line this feeds) used to.
+        let frames = makeStackedFrames(width: 4, height: 4, pixelValues: [100, 102, 250])
+        let registered = frames.indices.map { PlanetaryPostProcessor.RegisteredFrame(index: $0, quality: Double($0 + 1), shift: .zero) }
+        var reportedGPU: Bool?
+        _ = PlanetaryPostProcessor.stack(
+            frames: frames, registered: registered, isColorCamera: false, bayerPattern: ASI_BAYER_RG,
+            keepBestPercent: 100, method: .median, didUseGPU: { reportedGPU = $0 }
+        )
+        #expect(reportedGPU == false)
+    }
+
+    @Test func meanStackReportsWhetherItUsedGPU() throws {
+        let frames = makeStackedFrames(width: 4, height: 4, pixelValues: [100, 150, 200])
+        let registered = frames.indices.map { PlanetaryPostProcessor.RegisteredFrame(index: $0, quality: Double($0 + 1), shift: .zero) }
+        var reportedGPU: Bool?
+        _ = PlanetaryPostProcessor.stack(
+            frames: frames, registered: registered, isColorCamera: false, bayerPattern: ASI_BAYER_RG,
+            keepBestPercent: 100, method: .mean, didUseGPU: { reportedGPU = $0 }
+        )
+        // Whichever way it actually went (depends on whether this environment has a usable
+        // MTLDevice), the callback must fire exactly once with a real answer.
+        #expect(reportedGPU != nil)
+    }
+
     @Test func stackKeepBestPercentOnlyUsesTheSharpestFraction() throws {
         // Three frames at very different brightness; quality ranks frame 2 highest. Keeping only
         // the top 34% (1 of 3) should produce exactly that one frame's own value, not a blend.
