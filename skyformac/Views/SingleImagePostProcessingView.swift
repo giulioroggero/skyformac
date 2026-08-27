@@ -346,6 +346,10 @@ struct SingleImagePostProcessingView: View {
             Text("Smooths sensor/read noise out of faint backgrounds — push too far and it starts to soften real detail too.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            resettableSlider("Chroma Noise Reduction", value: $adjustments.chromaNoiseReduction, range: 0...1, defaultValue: 0)
+            Text("Cleans up the colored speckle (\"puntini colorati\") long exposures/high gain leave in the background — blurs only the color, not the brightness, so stars and real detail stay sharp.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             Toggle("Remove Hot Pixels", isOn: $adjustments.removesHotPixels)
                 .onChange(of: adjustments.removesHotPixels) { _, _ in scheduleRender() }
             Text("A median filter that knocks out isolated single-pixel hot pixels/cosmic-ray hits without softening real detail.")

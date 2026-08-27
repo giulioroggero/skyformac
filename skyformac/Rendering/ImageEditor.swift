@@ -42,6 +42,13 @@ enum ImageEditor {
         /// pixels/cosmic-ray hits without softening real detail the way a blur would, since a
         /// median filter only replaces a pixel that's genuinely an outlier among its neighbors.
         var removesHotPixels: Bool = false
+        /// The "puntini colorati"/chroma-noise fix — random red/green speckle in the background,
+        /// distinct from `denoiseAmount` (which smooths *luminance* noise and would have to blur
+        /// real detail to touch this) and `greenCastRemoval` (a systematic per-pixel green
+        /// excess, not per-pixel color-channel randomness). 0...1 scales a Gaussian blur radius
+        /// applied to *only* the image's color, not its luminosity — see `render(_:with:)`'s own
+        /// `CIColorBlendMode` step for how. 0 = off.
+        var chromaNoiseReduction: Double = 0
         /// SCNR ("Subtractive Chromatic Noise Reduction") — a standard astrophotography fix for
         /// the green color cast/blotches stacking software often leaves behind, by capping each
         /// pixel's green channel at the average of its red and blue. 0...1 blends between the
@@ -115,6 +122,28 @@ enum ImageEditor {
                 noiseReduction.noiseLevel = noiseLevel
                 noiseReduction.sharpness = sharpness
                 if let output = noiseReduction.outputImage { ciImage = output }
+            }
+        }
+
+        if adjustments.chromaNoiseReduction > 0 {
+            // The standard "blur only the color, keep the luminance sharp" chroma-noise recipe:
+            // blur a copy of the image heavily, then recombine using `CIColorBlendMode` — it
+            // composites the *top* image's hue/saturation with the *background* image's
+            // luminosity (the same math Photoshop's "Color" blend mode uses), so the result keeps
+            // every bit of real structural detail (stars, the object's own edges) from the
+            // unblurred original while the red/green color speckle a blur naturally averages away
+            // disappears. Scaling the blur radius directly by the slider (rather than a separate
+            // blend-opacity) is what makes `0` a true no-op: at radius 0 the "blurred" copy is
+            // just the original again, so blending it with itself changes nothing.
+            let radius = Float(adjustments.chromaNoiseReduction * 10)
+            let blur = CIFilter.gaussianBlur()
+            blur.inputImage = ciImage.clampedToExtent()
+            blur.radius = radius
+            if let blurred = blur.outputImage?.cropped(to: ciImage.extent) {
+                let colorBlend = CIFilter.colorBlendMode()
+                colorBlend.inputImage = blurred
+                colorBlend.backgroundImage = ciImage
+                if let output = colorBlend.outputImage { ciImage = output.cropped(to: ciImage.extent) }
             }
         }
 

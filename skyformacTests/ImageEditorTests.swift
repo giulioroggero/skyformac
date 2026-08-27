@@ -190,4 +190,84 @@ struct ImageEditorTests {
         let pixel = topLeftPixel(of: rendered)
         #expect(pixel.green > 200)
     }
+
+    // MARK: - Chroma noise reduction
+
+    /// Random per-pixel *color* speckle with roughly constant luminance — red and green jitter in
+    /// opposite directions from the same 128 baseline, exactly what real chroma noise ("puntini
+    /// colorati") looks like: the brightness at each pixel barely moves, but its hue wobbles.
+    /// Deterministic (coordinate-derived, no `Math.random`) for a reproducible test.
+    private func makeChromaNoisyImage(width: Int, height: Int) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let jitter = (x * 928_371 + y * 123_457) % 61 - 30 // -30...30
+                let red = UInt8(min(max(128 + jitter, 0), 255))
+                let green = UInt8(min(max(128 - jitter, 0), 255))
+                let offset = (y * width + x) * 4
+                pixels[offset] = red
+                pixels[offset + 1] = green
+                pixels[offset + 2] = 128
+            }
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    /// Mean `|red - green|` across every pixel — a plain measure of how much per-pixel color
+    /// (not brightness) speckle is left, for comparing chroma-noise-reduction strengths.
+    private func colorChannelSpread(of image: CGImage) -> Double {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        var total = 0.0
+        let pixelCount = width * height
+        for pixel in 0..<pixelCount {
+            let offset = pixel * 4
+            total += abs(Double(pixels[offset]) - Double(pixels[offset + 1]))
+        }
+        return total / Double(pixelCount)
+    }
+
+    @Test func chromaNoiseReductionAtFullStrengthReducesColorSpeckleMoreThanLightStrength() throws {
+        let noisy = makeChromaNoisyImage(width: 48, height: 48)
+
+        var light = ImageEditor.Adjustments.identity
+        light.chromaNoiseReduction = 0.1
+        let lightlyReduced = try #require(ImageEditor.render(noisy, with: light))
+
+        var strong = ImageEditor.Adjustments.identity
+        strong.chromaNoiseReduction = 1
+        let stronglyReduced = try #require(ImageEditor.render(noisy, with: strong))
+
+        #expect(colorChannelSpread(of: stronglyReduced) < colorChannelSpread(of: lightlyReduced))
+    }
+
+    @Test func chromaNoiseReductionAtZeroIsANoOp() throws {
+        let noisy = makeChromaNoisyImage(width: 48, height: 48)
+        let rendered = try #require(ImageEditor.render(noisy, with: .identity))
+        // Not bit-exact (Core Image's own filter graph still runs through color-management
+        // round-tripping even with every filter skipped) but should be indistinguishable from
+        // the source's own speckle level, unlike the reduced cases above.
+        #expect(abs(colorChannelSpread(of: rendered) - colorChannelSpread(of: noisy)) < 2)
+    }
+
+    @Test func renderWithChromaNoiseReductionPreservesDimensions() throws {
+        let image = makeImage(width: 32, height: 32)
+        var adjustments = ImageEditor.Adjustments.identity
+        adjustments.chromaNoiseReduction = 0.6
+        let rendered = try #require(ImageEditor.render(image, with: adjustments))
+        #expect(rendered.width == 32)
+        #expect(rendered.height == 32)
+    }
 }

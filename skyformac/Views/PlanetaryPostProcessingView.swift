@@ -666,6 +666,7 @@ struct PlanetaryPostProcessingView: View {
             singleShotSlider("Highlight Recovery", value: $singleShotAdjustments.highlightRecovery, range: 0...1, format: "%.2f")
             singleShotSlider("Sharpen", value: $singleShotAdjustments.sharpenIntensity, range: 0...5, format: "%.2f")
             singleShotSlider("Denoise", value: $singleShotAdjustments.denoiseAmount, range: 0...1, format: "%.2f")
+            singleShotSlider("Chroma Noise Reduction", value: $singleShotAdjustments.chromaNoiseReduction, range: 0...1, format: "%.2f")
             singleShotSlider("Green Cast Removal", value: $singleShotAdjustments.greenCastRemoval, range: 0...1, format: "%.2f")
             singleShotSlider("Star Size Reduction", value: $singleShotAdjustments.starSizeReduction, range: 0...5, format: "%.2f")
             Toggle("Remove Hot Pixels", isOn: $singleShotAdjustments.removesHotPixels)

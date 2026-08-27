@@ -19,6 +19,13 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- A "Chroma Noise Reduction" slider in Edit Image's Clean Up section and Planetary
+  Post-Processing's Single Shot tab — cleans up the colored speckle ("puntini colorati") long
+  exposures/high gain leave in the background, distinct from the existing Denoise (which smooths
+  brightness noise and would soften real detail to touch color speckle) and Remove Green Cast
+  (a systematic color shift, not per-pixel randomness). Blurs only the image's color, not its
+  brightness (`CIColorBlendMode` recombining a blurred copy's hue/saturation with the original's
+  own luminosity), so stars and real detail stay sharp.
 - An elaborated image's full-screen preview now has a "More" menu with everything its
   right-click context menu already offers (Info…, Show in Finder, Publish to AstroBin…, Redo
   from Original…, Edit Image…, Third-Party Tools, Delete…) — previously only reachable by
