@@ -178,6 +178,11 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   Tools" group/menu instead of mixed in with Skyformac's own actions.
 
 ### Changed
+- The session Timeline's filmstrip "Select" mode toggle is now a real checkbox instead of a
+  "Select"/"Done Selecting" text button — same toggle either way (on: tapping a thumbnail selects
+  it instead of opening the Capture page; multi-select and "Post-Process Together…"/"Compose
+  Mosaic…" already worked here, same as the Table view), just a more immediately recognizable
+  control for "this is a mode, not an action."
 - The "Third-Party Tools" menu (GraXpert/StarNet/PixInsight/Siril hand-off) had been copy-pasted
   three times across `ProjectDetailPane.swift` — an elaborated image's context menu, its
   full-screen preview's "More" menu, and its Info sheet's button row — a real risk of the three

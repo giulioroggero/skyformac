@@ -284,11 +284,15 @@ struct SessionDetailPane: View {
                         // mode toggle needed there, same reasoning `ProjectsThumbnailGrid`'s own
                         // "Select" button has for its card grid vs. a `Table`.
                         if capturesViewMode == .filmstrip {
-                            Button(isSelectingCaptures ? "Done Selecting" : "Select") {
-                                isSelectingCaptures.toggle()
-                                if !isSelectingCaptures { selectedCaptureIDs.removeAll() }
-                            }
-                            .buttonStyle(.borderless)
+                            // A real checkbox, not a "Select"/"Done Selecting" text button — same
+                            // toggle either way (on: tapping a thumbnail selects it instead of
+                            // opening the Capture page; off: back to opening), just a more
+                            // immediately recognizable control for "this is a mode, not an action."
+                            Toggle("Select", isOn: $isSelectingCaptures)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: isSelectingCaptures) { _, isOn in
+                                    if !isOn { selectedCaptureIDs.removeAll() }
+                                }
                         }
                         Picker("View", selection: $capturesViewModeRaw) {
                             Label("Filmstrip", systemImage: "square.stack").tag(CapturesViewMode.filmstrip.rawValue)
