@@ -70,6 +70,65 @@ enum ImageEditor {
         var posterizeLevels: Double = 0
 
         static let identity = Adjustments()
+
+        // Hand-rolled `Codable` for exactly one reason: an already-saved elaborated image's
+        // `planetarySettings.singleShotAdjustments` (or a `CaptureRecord`-style settings blob
+        // anywhere else this struct is embedded) predating `posterizeLevels` has no such key in
+        // its JSON at all — real bug, confirmed live: `Project`'s decode is all-or-nothing, so a
+        // `keyNotFound` on this one field failed the *entire* project's decode, and
+        // `ProjectStore.loadAllProjects()` silently skips a project whose `project.json` fails to
+        // decode (see its own doc comment) — several real, on-disk, otherwise-perfectly-valid
+        // projects with an older elaborated image simply vanished from "All Projects." Same
+        // "`decodeIfPresent` a newer field, default it for older saved data" fix
+        // `CaptureRecord.rating`'s own custom `init(from:)` already established this session for
+        // the identical failure mode.
+        enum CodingKeys: String, CodingKey {
+            case rotationDegrees, cropRect, brightness, contrast, saturation, gamma, sharpenIntensity,
+                 denoiseAmount, removesHotPixels, chromaNoiseReduction, greenCastRemoval, starSizeReduction,
+                 shadowLift, highlightRecovery, posterizeLevels
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            rotationDegrees = try container.decode(Double.self, forKey: .rotationDegrees)
+            cropRect = try container.decodeIfPresent(CGRect.self, forKey: .cropRect)
+            brightness = try container.decode(Double.self, forKey: .brightness)
+            contrast = try container.decode(Double.self, forKey: .contrast)
+            saturation = try container.decode(Double.self, forKey: .saturation)
+            gamma = try container.decode(Double.self, forKey: .gamma)
+            sharpenIntensity = try container.decode(Double.self, forKey: .sharpenIntensity)
+            denoiseAmount = try container.decode(Double.self, forKey: .denoiseAmount)
+            removesHotPixels = try container.decode(Bool.self, forKey: .removesHotPixels)
+            chromaNoiseReduction = try container.decode(Double.self, forKey: .chromaNoiseReduction)
+            greenCastRemoval = try container.decode(Double.self, forKey: .greenCastRemoval)
+            starSizeReduction = try container.decode(Double.self, forKey: .starSizeReduction)
+            shadowLift = try container.decode(Double.self, forKey: .shadowLift)
+            highlightRecovery = try container.decode(Double.self, forKey: .highlightRecovery)
+            posterizeLevels = try container.decodeIfPresent(Double.self, forKey: .posterizeLevels) ?? 0
+        }
+
+        init(
+            rotationDegrees: Double = 0, cropRect: CGRect? = nil, brightness: Double = 0, contrast: Double = 1,
+            saturation: Double = 1, gamma: Double = 1, sharpenIntensity: Double = 0, denoiseAmount: Double = 0,
+            removesHotPixels: Bool = false, chromaNoiseReduction: Double = 0, greenCastRemoval: Double = 0,
+            starSizeReduction: Double = 0, shadowLift: Double = 0, highlightRecovery: Double = 0, posterizeLevels: Double = 0
+        ) {
+            self.rotationDegrees = rotationDegrees
+            self.cropRect = cropRect
+            self.brightness = brightness
+            self.contrast = contrast
+            self.saturation = saturation
+            self.gamma = gamma
+            self.sharpenIntensity = sharpenIntensity
+            self.denoiseAmount = denoiseAmount
+            self.removesHotPixels = removesHotPixels
+            self.chromaNoiseReduction = chromaNoiseReduction
+            self.greenCastRemoval = greenCastRemoval
+            self.starSizeReduction = starSizeReduction
+            self.shadowLift = shadowLift
+            self.highlightRecovery = highlightRecovery
+            self.posterizeLevels = posterizeLevels
+        }
     }
 
     enum RenderError: Error { case unreadableImage }

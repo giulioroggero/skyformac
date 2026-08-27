@@ -176,6 +176,17 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   unifies the menu's shape, not what any button actually does. No user-visible change.
 
 ### Fixed
+- **Projects could silently vanish from "All Projects."** Confirmed live on real, otherwise-valid
+  projects: adding `posterizeLevels` to `ImageEditor.Adjustments` this session, without a custom
+  decoder, meant any *already-saved* elaborated image's `planetarySettings.singleShotAdjustments`
+  predating that field had no such key in its JSON at all — `Project`'s decode is all-or-nothing,
+  so a `keyNotFound` on that one nested field failed the *entire* project's decode, and
+  `ProjectStore.loadAllProjects()` silently skips a project whose `project.json` fails to decode
+  (the whole point of that being silent is one hand-edited/incompatible file shouldn't break every
+  other project — but this made a perfectly good file look incompatible). `Adjustments` now has
+  the same "`decodeIfPresent` a newer field, default it for older saved data" custom `init(from:)`
+  `CaptureRecord.rating` already established for the identical failure mode — no data was ever
+  lost (the files on disk were always fine), only how many of them the app would actually load.
 - Closed the remaining gaps behind "post-processing still pins the CPU after it finishes, and a
   manual Restack only brings it partway back down": `autoStretch()` (the automatic stretch that
   runs right after the very first stack) used to spawn a completely untracked, uncancellable

@@ -4,6 +4,39 @@ import Testing
 @testable import skyformac
 
 struct ImageEditorTests {
+    /// Confirmed live: an already-saved elaborated image's `planetarySettings
+    /// .singleShotAdjustments` predating `posterizeLevels` has no such key in its JSON at all —
+    /// `Project`'s decode is all-or-nothing, so a `keyNotFound` on this one nested field failed
+    /// the *entire* project's decode, and `ProjectStore.loadAllProjects()` silently skips a
+    /// project whose `project.json` fails to decode. Several real, on-disk, otherwise-valid
+    /// projects with an older elaborated image simply vanished from "All Projects" until
+    /// `Adjustments` got the same "`decodeIfPresent` a newer field, default it for older saved
+    /// data" custom `init(from:)` `CaptureRecord.rating` already established (see
+    /// `RatingAndFavoriteTests.decodingAnOlderProjectJSONWithoutRatingOrFavoriteDefaultsBoth`
+    /// for the identical failure mode/fix, applied earlier).
+    @Test func decodingOlderAdjustmentsJSONWithoutPosterizeLevelsDefaultsToOff() throws {
+        let json = """
+        {"rotationDegrees":0,"brightness":0,"contrast":1,"saturation":1,"gamma":1,
+         "sharpenIntensity":0,"denoiseAmount":0,"removesHotPixels":false,"chromaNoiseReduction":0,
+         "greenCastRemoval":0,"starSizeReduction":0,"shadowLift":0,"highlightRecovery":0}
+        """
+        let decoded = try JSONDecoder().decode(ImageEditor.Adjustments.self, from: Data(json.utf8))
+        #expect(decoded.posterizeLevels == 0)
+        #expect(decoded == .identity)
+    }
+
+    @Test func adjustmentsRoundTripThroughJSONIncludingPosterizeLevels() throws {
+        var adjustments = ImageEditor.Adjustments()
+        adjustments.posterizeLevels = 6
+        adjustments.brightness = 0.2
+
+        let data = try JSONEncoder().encode(adjustments)
+        let decoded = try JSONDecoder().decode(ImageEditor.Adjustments.self, from: data)
+
+        #expect(decoded == adjustments)
+        #expect(decoded.posterizeLevels == 6)
+    }
+
     /// A flat mid-gray `width`×`height` RGB image — enough for `ImageEditor`'s adjustments to
     /// have something to operate on without needing a real capture on disk.
     private func makeImage(width: Int, height: Int, red: CGFloat = 0.5, green: CGFloat = 0.5, blue: CGFloat = 0.5) -> CGImage {
