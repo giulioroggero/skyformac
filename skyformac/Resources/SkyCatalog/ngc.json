@@ -1,0 +1,2315 @@
+[
+  {
+    "id": "IC1287",
+    "commonName": null,
+    "objectType": "Nebula",
+    "raDegrees": 278.0,
+    "decDegrees": -10.8,
+    "magnitude": 5.5,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "IC1369",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 318.048,
+    "decDegrees": 47.755,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 2.0,
+    "minorAxisArcmin": 2.0
+  },
+  {
+    "id": "IC1396",
+    "commonName": "Elephant's Trunk Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 324.75,
+    "decDegrees": 57.49,
+    "magnitude": 3.5,
+    "majorAxisArcmin": 12.0,
+    "minorAxisArcmin": 4.0
+  },
+  {
+    "id": "IC1590",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 13.204,
+    "decDegrees": 56.628,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 25.0
+  },
+  {
+    "id": "IC1805",
+    "commonName": "Heart Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 38.175,
+    "decDegrees": 61.45,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 60.0,
+    "minorAxisArcmin": 60.0
+  },
+  {
+    "id": "IC1848",
+    "commonName": "Soul Nebula",
+    "objectType": "Open Cluster",
+    "raDegrees": 42.777,
+    "decDegrees": 60.41,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 40.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "IC2157",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 91.207,
+    "decDegrees": 24.07,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "IC2177",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 106.104,
+    "decDegrees": -10.455,
+    "magnitude": 6.97,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "IC2395",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 130.6292,
+    "decDegrees": -48.1,
+    "magnitude": 4.6,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "IC2488",
+    "commonName": "Strings of Pearl Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 141.908,
+    "decDegrees": -57.0,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 18.0
+  },
+  {
+    "id": "IC2581",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 156.871,
+    "decDegrees": -57.617,
+    "magnitude": 4.3,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "IC2714",
+    "commonName": "The Rip-Torn Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 169.362,
+    "decDegrees": -62.733,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "IC348",
+    "commonName": "ο Per Cloud",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 56.142,
+    "decDegrees": 32.163,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "IC420",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 83.058,
+    "decDegrees": -4.52,
+    "magnitude": 8.11
+  },
+  {
+    "id": "IC431",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 85.0583,
+    "decDegrees": -1.4628,
+    "magnitude": 7.67,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 5.0
+  },
+  {
+    "id": "IC432",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 85.2333,
+    "decDegrees": -1.5069,
+    "magnitude": 6.98,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "IC434",
+    "commonName": "Horsehead Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 85.2,
+    "decDegrees": -2.5,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 60.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "IC435",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 85.7521,
+    "decDegrees": -2.3125,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 4.5,
+    "minorAxisArcmin": 3.0
+  },
+  {
+    "id": "IC444",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 94.642,
+    "decDegrees": 23.313,
+    "magnitude": 7.5,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 4.0
+  },
+  {
+    "id": "IC448",
+    "commonName": null,
+    "objectType": "HII Region",
+    "raDegrees": 98.5,
+    "decDegrees": 7.3,
+    "magnitude": 4.48,
+    "majorAxisArcmin": 15.0,
+    "minorAxisArcmin": 10.0
+  },
+  {
+    "id": "IC4499",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 225.07738,
+    "decDegrees": -82.21378,
+    "magnitude": 8.56,
+    "majorAxisArcmin": 3.0
+  },
+  {
+    "id": "IC4592",
+    "commonName": "Blue Horsehead Nebula",
+    "objectType": "Reflection Nebula",
+    "raDegrees": 243.2,
+    "decDegrees": -19.3,
+    "magnitude": 4.03,
+    "majorAxisArcmin": 60.0,
+    "minorAxisArcmin": 40.0
+  },
+  {
+    "id": "IC4603",
+    "commonName": null,
+    "objectType": "Bright Nebula",
+    "raDegrees": 246.5,
+    "decDegrees": -24.4,
+    "magnitude": 7.89,
+    "majorAxisArcmin": 20.0,
+    "minorAxisArcmin": 5.0
+  },
+  {
+    "id": "IC4604",
+    "commonName": "ρ Oph Nebula",
+    "objectType": "Nebula",
+    "raDegrees": 246.5,
+    "decDegrees": -23.4,
+    "magnitude": 4.61,
+    "majorAxisArcmin": 60.0,
+    "minorAxisArcmin": 25.0
+  },
+  {
+    "id": "IC4605",
+    "commonName": null,
+    "objectType": "Nebula",
+    "raDegrees": 247.8,
+    "decDegrees": -25.1,
+    "magnitude": 4.78,
+    "majorAxisArcmin": 30.0,
+    "minorAxisArcmin": 15.0
+  },
+  {
+    "id": "IC4628",
+    "commonName": "Prawn Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 254.22779,
+    "decDegrees": -40.51235,
+    "magnitude": 7.1,
+    "majorAxisArcmin": 34.0,
+    "minorAxisArcmin": 16.0
+  },
+  {
+    "id": "IC4651",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 261.204,
+    "decDegrees": -49.933,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 14.0
+  },
+  {
+    "id": "IC4665",
+    "commonName": "Summer Beehive Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 266.575,
+    "decDegrees": 5.717,
+    "magnitude": 4.2,
+    "majorAxisArcmin": 70.0
+  },
+  {
+    "id": "IC4756",
+    "commonName": "Graff's Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 279.63,
+    "decDegrees": 5.49,
+    "magnitude": 4.6,
+    "majorAxisArcmin": 45.0
+  },
+  {
+    "id": "IC4996",
+    "commonName": "P Cyg Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 304.125,
+    "decDegrees": 37.633,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "IC5076",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 314.0,
+    "decDegrees": 47.4,
+    "magnitude": 5.69,
+    "majorAxisArcmin": 7.0,
+    "minorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC1027",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 40.679,
+    "decDegrees": 61.633,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 18.0
+  },
+  {
+    "id": "NGC1245",
+    "commonName": "Patrick Starfish Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 48.701,
+    "decDegrees": 47.253,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC1269",
+    "commonName": "Snow Collar Galaxy",
+    "objectType": "Galaxy",
+    "raDegrees": 49.3275,
+    "decDegrees": -41.10807,
+    "magnitude": 8.46,
+    "majorAxisArcmin": 5.187,
+    "minorAxisArcmin": 3.683
+  },
+  {
+    "id": "NGC129",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 7.5,
+    "decDegrees": 60.218,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 21.0
+  },
+  {
+    "id": "NGC1316",
+    "commonName": "Fornax A",
+    "objectType": "Interacting Galaxies",
+    "raDegrees": 50.67412,
+    "decDegrees": -37.2082,
+    "magnitude": 8.53,
+    "majorAxisArcmin": 5.413,
+    "minorAxisArcmin": 3.898
+  },
+  {
+    "id": "NGC1342",
+    "commonName": "Little Scorpion Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 52.908,
+    "decDegrees": 37.377,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC1432",
+    "commonName": "Maia Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 56.5,
+    "decDegrees": 24.2,
+    "magnitude": 3.88,
+    "majorAxisArcmin": 60.0,
+    "minorAxisArcmin": 40.0
+  },
+  {
+    "id": "NGC1435",
+    "commonName": "Merope Nebula",
+    "objectType": "Reflection Nebula",
+    "raDegrees": 56.5,
+    "decDegrees": 23.9,
+    "magnitude": 4.18,
+    "majorAxisArcmin": 30.0,
+    "minorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC1444",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 57.349,
+    "decDegrees": 52.64,
+    "magnitude": 6.6,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC1502",
+    "commonName": "Jolly Roger Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 61.958,
+    "decDegrees": 62.332,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC1513",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 62.4875,
+    "decDegrees": 49.515,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC1528",
+    "commonName": "m & m Double Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 63.846,
+    "decDegrees": 51.215,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 25.0
+  },
+  {
+    "id": "NGC1545",
+    "commonName": "m & m Double Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 65.237,
+    "decDegrees": 50.253,
+    "magnitude": 6.2,
+    "majorAxisArcmin": 18.0
+  },
+  {
+    "id": "NGC1555",
+    "commonName": "Hind's Variable Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 65.4879,
+    "decDegrees": 19.5353,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 1.0
+  },
+  {
+    "id": "NGC1579",
+    "commonName": "Northern Trifid Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 67.546,
+    "decDegrees": 35.279,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 3.0,
+    "minorAxisArcmin": 3.0
+  },
+  {
+    "id": "NGC1582",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 68.064,
+    "decDegrees": 43.8454,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 37.0
+  },
+  {
+    "id": "NGC1647",
+    "commonName": "Pirate Moon Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 71.479,
+    "decDegrees": 19.115,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 40.0
+  },
+  {
+    "id": "NGC1662",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 72.112,
+    "decDegrees": 10.937,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC1664",
+    "commonName": "Kite Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 72.775,
+    "decDegrees": 43.675,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC1746",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 75.958,
+    "decDegrees": 23.77,
+    "magnitude": 6.1,
+    "majorAxisArcmin": 45.0
+  },
+  {
+    "id": "NGC1778",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 77.017,
+    "decDegrees": 37.023,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC1807",
+    "commonName": "Poor Man's Double Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 77.703,
+    "decDegrees": 16.522,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC1817",
+    "commonName": "Poor Man's Double Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 78.063,
+    "decDegrees": 16.69,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 16.0
+  },
+  {
+    "id": "NGC1850",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 77.19079,
+    "decDegrees": -68.76072,
+    "magnitude": 8.96,
+    "majorAxisArcmin": 3.0,
+    "minorAxisArcmin": 3.0
+  },
+  {
+    "id": "NGC1857",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 80.014,
+    "decDegrees": 39.29,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC189",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 9.87,
+    "decDegrees": 61.115,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC1893",
+    "commonName": "Letter Y Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 80.683,
+    "decDegrees": 33.412,
+    "magnitude": 7.5,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC1907",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 82.021,
+    "decDegrees": 35.325,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC1909",
+    "commonName": null,
+    "objectType": "Reflection Nebula",
+    "raDegrees": 75.5,
+    "decDegrees": -7.9,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 180.0,
+    "minorAxisArcmin": 60.0
+  },
+  {
+    "id": "NGC1955",
+    "commonName": null,
+    "objectType": "Stellar Association",
+    "raDegrees": 81.55,
+    "decDegrees": -67.498,
+    "magnitude": 8.87
+  },
+  {
+    "id": "NGC1968",
+    "commonName": null,
+    "objectType": "Stellar Association",
+    "raDegrees": 81.846,
+    "decDegrees": -67.472,
+    "magnitude": 8.22
+  },
+  {
+    "id": "NGC1980",
+    "commonName": "The Lost Jewel of Orion",
+    "objectType": "Cluster",
+    "raDegrees": 83.85,
+    "decDegrees": -5.915,
+    "magnitude": 2.5,
+    "majorAxisArcmin": 240.0,
+    "minorAxisArcmin": 180.0
+  },
+  {
+    "id": "NGC1981",
+    "commonName": "Coal Car Cluster",
+    "objectType": "Cluster",
+    "raDegrees": 83.787,
+    "decDegrees": -4.432,
+    "magnitude": 4.2,
+    "majorAxisArcmin": 25.0
+  },
+  {
+    "id": "NGC2014",
+    "commonName": null,
+    "objectType": "Stellar Association",
+    "raDegrees": 83.1,
+    "decDegrees": -67.688,
+    "magnitude": 8.97
+  },
+  {
+    "id": "NGC2023",
+    "commonName": "Lump Star",
+    "objectType": "Reflection Nebula",
+    "raDegrees": 85.4079,
+    "decDegrees": -2.2645,
+    "magnitude": 7.82,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC2055",
+    "commonName": null,
+    "objectType": "Stellar Association",
+    "raDegrees": 84.183,
+    "decDegrees": -69.498,
+    "magnitude": 8.39
+  },
+  {
+    "id": "NGC2129",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 90.279,
+    "decDegrees": 23.322,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC2158",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 91.854,
+    "decDegrees": 24.097,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC2169",
+    "commonName": "The 37 Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 92.1,
+    "decDegrees": 13.99,
+    "magnitude": 5.9,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC2175",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 92.413,
+    "decDegrees": 20.487,
+    "magnitude": 6.8,
+    "majorAxisArcmin": 40.0,
+    "minorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC2186",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 93.029,
+    "decDegrees": 5.458,
+    "magnitude": 8.7,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC2194",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 93.442,
+    "decDegrees": 12.818,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC2204",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 93.887,
+    "decDegrees": -18.665,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC2215",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 95.204,
+    "decDegrees": -7.283,
+    "magnitude": 8.45,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC2232",
+    "commonName": "Double Wedge Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 96.813,
+    "decDegrees": -4.758,
+    "magnitude": 3.9,
+    "majorAxisArcmin": 29.0
+  },
+  {
+    "id": "NGC2236",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 97.418,
+    "decDegrees": 6.817,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC225",
+    "commonName": "Sailboat Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 10.913,
+    "decDegrees": 61.775,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC2250",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 98.422,
+    "decDegrees": -5.08,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC2251",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 98.658,
+    "decDegrees": 8.367,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC2252",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 98.0852,
+    "decDegrees": 6.3227,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC2264",
+    "commonName": "Christmas Tree Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 100.242,
+    "decDegrees": 9.895,
+    "magnitude": 3.9,
+    "majorAxisArcmin": 10.0,
+    "minorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC2281",
+    "commonName": "Broken Heart Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 102.071,
+    "decDegrees": 41.078,
+    "magnitude": 5.4,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC2286",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 101.913,
+    "decDegrees": -3.155,
+    "magnitude": 7.5,
+    "majorAxisArcmin": 14.0
+  },
+  {
+    "id": "NGC2298",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 102.24754,
+    "decDegrees": -36.00531,
+    "magnitude": 8.89,
+    "majorAxisArcmin": 2.0
+  },
+  {
+    "id": "NGC2301",
+    "commonName": "Great Bird Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 102.938,
+    "decDegrees": 0.46,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC2302",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 102.97,
+    "decDegrees": -7.08,
+    "magnitude": 8.9
+  },
+  {
+    "id": "NGC2324",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 106.029,
+    "decDegrees": 1.045,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC2331",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 106.68,
+    "decDegrees": 27.255,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 18.0
+  },
+  {
+    "id": "NGC2335",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 106.704,
+    "decDegrees": -10.028,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC2343",
+    "commonName": "Doublemint Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 107.025,
+    "decDegrees": -10.617,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC2345",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 107.075,
+    "decDegrees": -13.193,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC2353",
+    "commonName": "Avery's Island",
+    "objectType": "Open Cluster",
+    "raDegrees": 108.625,
+    "decDegrees": -10.267,
+    "magnitude": 7.1,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC2354",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 108.542,
+    "decDegrees": -25.69,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC2367",
+    "commonName": "Charlie Brown's Christmas Tree",
+    "objectType": "Open Cluster",
+    "raDegrees": 110.025,
+    "decDegrees": -21.882,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 3.5
+  },
+  {
+    "id": "NGC2374",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 110.983,
+    "decDegrees": -13.263,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 19.0
+  },
+  {
+    "id": "NGC2383",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 111.167,
+    "decDegrees": -20.948,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC2384",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 111.292,
+    "decDegrees": -21.022,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 2.5
+  },
+  {
+    "id": "NGC2395",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 111.774,
+    "decDegrees": 13.584,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC2396",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 112.0,
+    "decDegrees": -11.717,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC2409",
+    "commonName": "Firsse 213",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 112.904,
+    "decDegrees": -17.193,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 17.0,
+    "minorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC2414",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 113.3,
+    "decDegrees": -15.453,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC2420",
+    "commonName": "Twinkling Comet Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 114.596,
+    "decDegrees": 21.573,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC2421",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 114.05,
+    "decDegrees": -20.62,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC2423",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 114.275,
+    "decDegrees": -13.872,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC2439",
+    "commonName": "Bold Arrow Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 115.188,
+    "decDegrees": -31.693,
+    "magnitude": 6.9,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC2453",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 116.903,
+    "decDegrees": -27.193,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC2467",
+    "commonName": "Skull and Crossbones Nebula",
+    "objectType": "HII Region",
+    "raDegrees": 118.077,
+    "decDegrees": -26.428,
+    "magnitude": 7.1,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC2482",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 118.8,
+    "decDegrees": -24.258,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC2483",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 118.9,
+    "decDegrees": -27.9,
+    "magnitude": 7.6
+  },
+  {
+    "id": "NGC2489",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 119.063,
+    "decDegrees": -30.063,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC2527",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 121.242,
+    "decDegrees": -28.147,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 22.0
+  },
+  {
+    "id": "NGC2533",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 121.767,
+    "decDegrees": -29.883,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 3.5
+  },
+  {
+    "id": "NGC2539",
+    "commonName": "The Dish Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 122.654,
+    "decDegrees": -12.818,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 21.0
+  },
+  {
+    "id": "NGC2546",
+    "commonName": "Heart and Dagger Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 123.062,
+    "decDegrees": -37.595,
+    "magnitude": 6.3,
+    "majorAxisArcmin": 40.0
+  },
+  {
+    "id": "NGC2547",
+    "commonName": "Golden Earring Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 122.478,
+    "decDegrees": -49.205,
+    "magnitude": 4.7,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC2567",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 124.633,
+    "decDegrees": -30.64,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC2571",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 124.733,
+    "decDegrees": -29.75,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 13.0
+  },
+  {
+    "id": "NGC2579",
+    "commonName": null,
+    "objectType": "HII Region",
+    "raDegrees": 125.2304,
+    "decDegrees": -36.2231,
+    "magnitude": 7.5,
+    "majorAxisArcmin": 1.5,
+    "minorAxisArcmin": 1.4
+  },
+  {
+    "id": "NGC2627",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 129.312,
+    "decDegrees": -29.955,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC2645",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 129.762,
+    "decDegrees": -46.233,
+    "magnitude": 7.32
+  },
+  {
+    "id": "NGC2659",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 130.65,
+    "decDegrees": -44.98,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC2660",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 130.658,
+    "decDegrees": -47.2,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 1.5
+  },
+  {
+    "id": "NGC2669",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 131.592,
+    "decDegrees": -52.948,
+    "magnitude": 6.1,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC2670",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 131.375,
+    "decDegrees": -48.8,
+    "magnitude": 7.8,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC2808",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 138.01292,
+    "decDegrees": -64.8635,
+    "magnitude": 5.69,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC288",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 13.1885,
+    "decDegrees": -26.58261,
+    "magnitude": 8.13,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC2910",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 142.62,
+    "decDegrees": -52.92,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC292",
+    "commonName": "Small Magellanic Cloud",
+    "objectType": "Galaxy",
+    "raDegrees": 13.1583,
+    "decDegrees": -72.8003,
+    "magnitude": 2.2,
+    "majorAxisArcmin": 309.0,
+    "minorAxisArcmin": 204.1
+  },
+  {
+    "id": "NGC2925",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 143.296,
+    "decDegrees": -53.398,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC3033",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 147.154,
+    "decDegrees": -56.422,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC3114",
+    "commonName": "Hand Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 150.65,
+    "decDegrees": -60.12,
+    "magnitude": 4.2,
+    "majorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC3228",
+    "commonName": "Queen's Cache Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 155.342,
+    "decDegrees": -51.728,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC3247",
+    "commonName": "Whirling Dervish Nebula",
+    "objectType": "Cluster",
+    "raDegrees": 156.0721,
+    "decDegrees": -57.76,
+    "magnitude": 7.6
+  },
+  {
+    "id": "NGC3293",
+    "commonName": "Gem Cluster",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 158.955,
+    "decDegrees": -58.23,
+    "magnitude": 4.7,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC3324",
+    "commonName": "The Gabriela Mistral Nebula",
+    "objectType": "Cluster",
+    "raDegrees": 159.333,
+    "decDegrees": -58.642,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 15.5,
+    "minorAxisArcmin": 14.0
+  },
+  {
+    "id": "NGC3330",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 159.7,
+    "decDegrees": -54.12,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC3496",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 164.9,
+    "decDegrees": -60.337,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC3519",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 166.04,
+    "decDegrees": -61.375,
+    "magnitude": 7.7
+  },
+  {
+    "id": "NGC3572",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 167.596,
+    "decDegrees": -60.248,
+    "magnitude": 6.6,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC3590",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 168.246,
+    "decDegrees": -60.788,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC3680",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 171.408,
+    "decDegrees": -43.243,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC3918",
+    "commonName": "Blue Planetary Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 177.57387,
+    "decDegrees": -57.18247,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 0.313,
+    "minorAxisArcmin": 0.313
+  },
+  {
+    "id": "NGC3960",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 177.638,
+    "decDegrees": -55.673,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC4052",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 180.3,
+    "decDegrees": -63.22,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC4103",
+    "commonName": "The Longtail",
+    "objectType": "Open Cluster",
+    "raDegrees": 181.665,
+    "decDegrees": -61.25,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC4337",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 186.0,
+    "decDegrees": -58.117,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 3.5
+  },
+  {
+    "id": "NGC4349",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 186.033,
+    "decDegrees": -61.872,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC436",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 18.992,
+    "decDegrees": 58.812,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC4439",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 187.1,
+    "decDegrees": -60.1,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC4463",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 187.483,
+    "decDegrees": -64.79,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC4815",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 194.505,
+    "decDegrees": -64.96,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 3.0
+  },
+  {
+    "id": "NGC4852",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 195.037,
+    "decDegrees": -59.613,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC5138",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 201.817,
+    "decDegrees": -59.033,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC5281",
+    "commonName": "Little Scorpion Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 206.646,
+    "decDegrees": -62.917,
+    "magnitude": 5.9,
+    "majorAxisArcmin": 3.0
+  },
+  {
+    "id": "NGC5316",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 208.487,
+    "decDegrees": -61.868,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC5460",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 211.862,
+    "decDegrees": -48.343,
+    "magnitude": 5.6,
+    "majorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC5606",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 216.946,
+    "decDegrees": -59.64,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 3.0
+  },
+  {
+    "id": "NGC5617",
+    "commonName": "Dracula Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 217.433,
+    "decDegrees": -60.712,
+    "magnitude": 6.3,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC5662",
+    "commonName": "Gypsy Moth Cluster",
+    "objectType": "Cluster",
+    "raDegrees": 218.904,
+    "decDegrees": -56.618,
+    "magnitude": 5.5,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC5749",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 222.23,
+    "decDegrees": -54.5,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC5822",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 226.118,
+    "decDegrees": -54.39,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 40.0
+  },
+  {
+    "id": "NGC5897",
+    "commonName": "Ghost Globular Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 229.35167,
+    "decDegrees": -21.01011,
+    "magnitude": 8.52,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC5925",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 231.861,
+    "decDegrees": -54.5343,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC5927",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 232.00287,
+    "decDegrees": -50.67303,
+    "magnitude": 8.86,
+    "majorAxisArcmin": 4.5
+  },
+  {
+    "id": "NGC5986",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 236.5125,
+    "decDegrees": -37.78642,
+    "magnitude": 6.92,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC6031",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 241.9642,
+    "decDegrees": -54.0509,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 2.0
+  },
+  {
+    "id": "NGC6067",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 243.296,
+    "decDegrees": -54.218,
+    "magnitude": 5.6,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC6134",
+    "commonName": "Little Pincushion",
+    "objectType": "Open Cluster",
+    "raDegrees": 246.942,
+    "decDegrees": -49.152,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC6152",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 248.18,
+    "decDegrees": -52.63,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 29.0
+  },
+  {
+    "id": "NGC6164",
+    "commonName": null,
+    "objectType": "HII Region",
+    "raDegrees": 248.46829,
+    "decDegrees": -48.11124,
+    "magnitude": 6.71,
+    "majorAxisArcmin": 8.0,
+    "minorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC6167",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 248.642,
+    "decDegrees": -49.772,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC6169",
+    "commonName": "μ Normae Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 248.528,
+    "decDegrees": -44.016,
+    "magnitude": 6.6,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC6178",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 248.946,
+    "decDegrees": -45.643,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC6192",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 250.096,
+    "decDegrees": -43.367,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC6200",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 251.02,
+    "decDegrees": -47.47,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC6204",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 251.535,
+    "decDegrees": -47.02,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC6208",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 252.367,
+    "decDegrees": -53.728,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC6235",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 253.35567,
+    "decDegrees": -22.17744,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 1.5
+  },
+  {
+    "id": "NGC6242",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 253.9,
+    "decDegrees": -39.47,
+    "magnitude": 6.4,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC6249",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 254.4,
+    "decDegrees": -44.82,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC6250",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 254.492,
+    "decDegrees": -45.943,
+    "magnitude": 5.9,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC6259",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 255.187,
+    "decDegrees": -44.655,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC6281",
+    "commonName": "Moth Wing Cluster",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 256.171,
+    "decDegrees": -37.985,
+    "magnitude": 5.4,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC6284",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 256.11978,
+    "decDegrees": -24.76423,
+    "magnitude": 7.43,
+    "majorAxisArcmin": 1.46,
+    "minorAxisArcmin": 1.402
+  },
+  {
+    "id": "NGC6322",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 259.604,
+    "decDegrees": -42.933,
+    "magnitude": 6.0,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC6356",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 260.89579,
+    "decDegrees": -17.81303,
+    "magnitude": 7.42,
+    "majorAxisArcmin": 1.5
+  },
+  {
+    "id": "NGC6362",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 262.97912,
+    "decDegrees": -67.04833,
+    "magnitude": 8.86,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC637",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 25.767,
+    "decDegrees": 64.04,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 3.5
+  },
+  {
+    "id": "NGC6374",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 263.062,
+    "decDegrees": -32.597,
+    "magnitude": 5.5,
+    "majorAxisArcmin": 2.5
+  },
+  {
+    "id": "NGC6383",
+    "commonName": null,
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 263.67583,
+    "decDegrees": -32.58167,
+    "magnitude": 5.5,
+    "majorAxisArcmin": 2.5
+  },
+  {
+    "id": "NGC6388",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 264.07275,
+    "decDegrees": -44.73565,
+    "magnitude": 6.8,
+    "majorAxisArcmin": 1.563,
+    "minorAxisArcmin": 1.501
+  },
+  {
+    "id": "NGC6396",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 264.4,
+    "decDegrees": -35.027,
+    "magnitude": 8.5
+  },
+  {
+    "id": "NGC6400",
+    "commonName": "Phantom Cluster",
+    "objectType": "Nebula",
+    "raDegrees": 265.05,
+    "decDegrees": -36.945,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC6416",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 266.079,
+    "decDegrees": -32.362,
+    "magnitude": 5.7,
+    "majorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC6425",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 266.745,
+    "decDegrees": -31.53,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC6441",
+    "commonName": "Silver Nugget Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 267.55442,
+    "decDegrees": -37.05144,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 1.5
+  },
+  {
+    "id": "NGC6451",
+    "commonName": "Tom Thumb Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 267.671,
+    "decDegrees": -30.21,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC6469",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 268.3,
+    "decDegrees": -22.32,
+    "magnitude": 8.2,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC6496",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 269.76533,
+    "decDegrees": -44.26594,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 1.5
+  },
+  {
+    "id": "NGC6520",
+    "commonName": "Dead Man's Chest Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 270.85,
+    "decDegrees": -27.888,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC6530",
+    "commonName": "Herschel 36",
+    "objectType": "Cluster",
+    "raDegrees": 271.129,
+    "decDegrees": -24.358,
+    "magnitude": 4.6,
+    "majorAxisArcmin": 14.0
+  },
+  {
+    "id": "NGC6539",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 271.20725,
+    "decDegrees": -7.58586,
+    "magnitude": 8.9
+  },
+  {
+    "id": "NGC654",
+    "commonName": "Fuzzy Butterfly Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 26.0,
+    "decDegrees": 61.885,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC6546",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 271.842,
+    "decDegrees": -23.297,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC6553",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 272.31533,
+    "decDegrees": -25.90775,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 1.5
+  },
+  {
+    "id": "NGC6568",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 273.18,
+    "decDegrees": -21.6,
+    "magnitude": 8.6,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC6572",
+    "commonName": "Blue Racquetball Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 273.02652,
+    "decDegrees": 6.85361,
+    "magnitude": 8.1,
+    "majorAxisArcmin": 0.333,
+    "minorAxisArcmin": 0.247
+  },
+  {
+    "id": "NGC6584",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 274.65667,
+    "decDegrees": -52.21578,
+    "magnitude": 8.17,
+    "majorAxisArcmin": 2.0
+  },
+  {
+    "id": "NGC659",
+    "commonName": "Yin-Yang Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 26.1,
+    "decDegrees": 60.67,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC6595",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 274.25,
+    "decDegrees": -19.88,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC6604",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 274.512,
+    "decDegrees": -12.242,
+    "magnitude": 6.5,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC6605",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 274.2482,
+    "decDegrees": -15.0111,
+    "magnitude": 6.0
+  },
+  {
+    "id": "NGC6633",
+    "commonName": "Tweedledum Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 276.88,
+    "decDegrees": 6.57,
+    "magnitude": 4.6,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC6645",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 278.13,
+    "decDegrees": -16.91,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 10.0
+  },
+  {
+    "id": "NGC6647",
+    "commonName": null,
+    "objectType": "Cluster",
+    "raDegrees": 277.868,
+    "decDegrees": -17.34,
+    "magnitude": 8.0
+  },
+  {
+    "id": "NGC6649",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 278.362,
+    "decDegrees": -10.403,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC6664",
+    "commonName": "Santa's Sleigh Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 279.1275,
+    "decDegrees": -8.1875,
+    "magnitude": 7.8,
+    "majorAxisArcmin": 18.0
+  },
+  {
+    "id": "NGC6709",
+    "commonName": "Flying Unicorn Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 282.825,
+    "decDegrees": 10.318,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 12.0
+  },
+  {
+    "id": "NGC6712",
+    "commonName": null,
+    "objectType": "Globular Cluster",
+    "raDegrees": 283.268,
+    "decDegrees": -8.70597,
+    "magnitude": 8.69,
+    "majorAxisArcmin": 2.5
+  },
+  {
+    "id": "NGC6716",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 283.642,
+    "decDegrees": -19.902,
+    "magnitude": 7.5,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC6723",
+    "commonName": "Chandelier Cluster",
+    "objectType": "Globular Cluster",
+    "raDegrees": 284.88812,
+    "decDegrees": -36.63225,
+    "magnitude": 7.92,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC6738",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 285.32,
+    "decDegrees": 11.62,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC6755",
+    "commonName": "Possible Binary Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 286.954,
+    "decDegrees": 4.267,
+    "magnitude": 7.5,
+    "majorAxisArcmin": 14.0
+  },
+  {
+    "id": "NGC6802",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 292.65,
+    "decDegrees": 20.2594,
+    "magnitude": 8.8,
+    "majorAxisArcmin": 3.34,
+    "minorAxisArcmin": 3.34
+  },
+  {
+    "id": "NGC6811",
+    "commonName": "Hole in a Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 294.321,
+    "decDegrees": 46.388,
+    "magnitude": 6.8,
+    "majorAxisArcmin": 15.0
+  },
+  {
+    "id": "NGC6819",
+    "commonName": "The Foxhead Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 295.325,
+    "decDegrees": 40.187,
+    "magnitude": 7.3,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC6823",
+    "commonName": "Cloud Sculpting Star Cluster",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 295.788,
+    "decDegrees": 23.3,
+    "magnitude": 7.1,
+    "majorAxisArcmin": 40.0,
+    "minorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC6830",
+    "commonName": "Poodle Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 297.746,
+    "decDegrees": 23.1,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 8.0
+  },
+  {
+    "id": "NGC6834",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 298.05,
+    "decDegrees": 29.408,
+    "magnitude": 7.8,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC6866",
+    "commonName": "Kite Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 300.979,
+    "decDegrees": 44.158,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC6871",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 301.496,
+    "decDegrees": 35.777,
+    "magnitude": 5.2,
+    "majorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC6883",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 302.829,
+    "decDegrees": 35.832,
+    "magnitude": 8.0,
+    "majorAxisArcmin": 35.0
+  },
+  {
+    "id": "NGC6910",
+    "commonName": "The Inchworm Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 305.783,
+    "decDegrees": 40.775,
+    "magnitude": 7.4,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC6939",
+    "commonName": "Ghost Bush Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 307.875,
+    "decDegrees": 60.662,
+    "magnitude": 7.8,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC6940",
+    "commonName": "Mothra Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 308.608,
+    "decDegrees": 28.283,
+    "magnitude": 6.3,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC7027",
+    "commonName": "Jewel Bug Nebula",
+    "objectType": "Planetary Nebula",
+    "raDegrees": 316.75664,
+    "decDegrees": 42.23616,
+    "magnitude": 8.5
+  },
+  {
+    "id": "NGC7039",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 317.7,
+    "decDegrees": 45.617,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 25.0
+  },
+  {
+    "id": "NGC7062",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 320.862,
+    "decDegrees": 46.39,
+    "magnitude": 8.3,
+    "majorAxisArcmin": 6.0
+  },
+  {
+    "id": "NGC7063",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 321.1,
+    "decDegrees": 36.48,
+    "magnitude": 7.0,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC7082",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 322.321,
+    "decDegrees": 47.127,
+    "magnitude": 7.2
+  },
+  {
+    "id": "NGC7086",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 322.612,
+    "decDegrees": 51.6,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 9.0
+  },
+  {
+    "id": "NGC7160",
+    "commonName": "Swimming Alligator Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 328.417,
+    "decDegrees": 62.603,
+    "magnitude": 6.1,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC7209",
+    "commonName": "Star Lizard Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 331.279,
+    "decDegrees": 46.483,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC7235",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 333.104,
+    "decDegrees": 57.27,
+    "magnitude": 7.7,
+    "majorAxisArcmin": 4.0
+  },
+  {
+    "id": "NGC7261",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 335.0292,
+    "decDegrees": 58.1281,
+    "magnitude": 8.4,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC7380",
+    "commonName": "The Wizard Nebula",
+    "objectType": "Cluster with Nebulosity",
+    "raDegrees": 341.837,
+    "decDegrees": 58.132,
+    "magnitude": 7.2,
+    "majorAxisArcmin": 25.0,
+    "minorAxisArcmin": 20.0
+  },
+  {
+    "id": "NGC744",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 29.65,
+    "decDegrees": 55.47,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 11.0
+  },
+  {
+    "id": "NGC7510",
+    "commonName": "The Dormouse Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 347.75,
+    "decDegrees": 60.57,
+    "magnitude": 7.9,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC7686",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 352.422,
+    "decDegrees": 49.17,
+    "magnitude": 5.6,
+    "majorAxisArcmin": 14.0
+  },
+  {
+    "id": "NGC7789",
+    "commonName": "Caroline's Rose Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 359.35,
+    "decDegrees": 56.708,
+    "magnitude": 6.7,
+    "majorAxisArcmin": 30.0
+  },
+  {
+    "id": "NGC7790",
+    "commonName": "The Widow's Web Cluster",
+    "objectType": "Open Cluster",
+    "raDegrees": 359.6,
+    "decDegrees": 61.208,
+    "magnitude": 8.5,
+    "majorAxisArcmin": 5.0
+  },
+  {
+    "id": "NGC956",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 38.063,
+    "decDegrees": 44.563,
+    "magnitude": 8.9,
+    "majorAxisArcmin": 7.0
+  },
+  {
+    "id": "NGC957",
+    "commonName": null,
+    "objectType": "Open Cluster",
+    "raDegrees": 38.338,
+    "decDegrees": 57.56,
+    "magnitude": 7.6,
+    "majorAxisArcmin": 11.0
+  }
+]

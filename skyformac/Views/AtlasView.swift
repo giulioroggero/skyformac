@@ -1,14 +1,18 @@
 import SwiftUI
 import Charts
 
-/// One session plotted on the atlas — its first planned object's fixed sky position
-/// (`SkyAtlasLookup`), plus enough of the session/project itself to filter and navigate by.
-private struct PlottedSession: Identifiable {
-    var id: Session.ID { session.id }
-    let project: Project
-    let session: Session
+/// One *object* plotted on the atlas — every session (across every project) that targeted it,
+/// grouped into a single point rather than one point per session. A session's object resolves to
+/// a fixed position by name (`SkyAtlasLookup`), so two sessions on the same object always land on
+/// the exact same point anyway; plotting them separately just stacked identical dots on top of
+/// each other with no way to tell "I've shot this once" from "I've shot this a dozen times."
+private struct PlottedObject: Identifiable {
+    var id: String { object }
     let object: String
     let position: SkyAtlasLookup.Position
+    let entries: [(project: Project, session: Session)]
+
+    var sessionCount: Int { entries.count }
 }
 
 /// A session with an object that couldn't be placed — either a Solar System object (the Moon,
@@ -37,7 +41,7 @@ struct AtlasView: View {
     @State private var hasDateRange = false
     @State private var startDate = Date()
     @State private var endDate = Date()
-    @State private var selectedPlotted: PlottedSession?
+    @State private var selectedPlotted: PlottedObject?
 
     private var allObjectNames: [String] {
         Array(Set(projects.flatMap { project in project.sessions.compactMap(\.plannedObjects.first) })).sorted()
@@ -65,13 +69,27 @@ struct AtlasView: View {
         }
     }
 
-    private var plotted: [PlottedSession] {
-        filteredEntries.compactMap { entry in
+    /// Grouped by object name (not one entry per session — see `PlottedObject`'s own doc comment)
+    /// and sorted by descending session count, so the chart's largest, most-imaged points and
+    /// "Selected Object"'s own list both read most-shot-first.
+    private var plotted: [PlottedObject] {
+        var byObject: [String: (position: SkyAtlasLookup.Position, entries: [(project: Project, session: Session)])] = [:]
+        for entry in filteredEntries {
             guard let object = entry.session.plannedObjects.first,
                   let position = SkyAtlasLookup.position(forObjectName: object)
-            else { return nil }
-            return PlottedSession(project: entry.project, session: entry.session, object: object, position: position)
+            else { continue }
+            byObject[object, default: (position, [])].entries.append((entry.project, entry.session))
         }
+        return byObject
+            .map { PlottedObject(object: $0.key, position: $0.value.position, entries: $0.value.entries) }
+            .sorted { $0.sessionCount > $1.sessionCount }
+    }
+
+    /// Roughly what's worth pointing at tonight (see `SolarPosition`'s own doc comment on what
+    /// this can/can't actually promise) — one or two RA bands, since the visible half of the sky
+    /// can straddle the chart's own 0°/360° seam.
+    private var tonightVisibleRARanges: [(start: Double, end: Double)] {
+        SolarPosition.tonightVisibleRARanges()
     }
 
     private var unplotted: [UnplottedSession] {
@@ -112,17 +130,34 @@ struct AtlasView: View {
                     if plotted.isEmpty {
                         ContentUnavailableView(
                             "No Placeable Sessions", systemImage: "map",
-                            description: Text("Sessions targeting a cataloged Messier object or bright star show up here, positioned by right ascension and declination.")
+                            description: Text("Sessions targeting a cataloged Messier/Caldwell/NGC/IC object or bright star show up here, positioned by right ascension and declination.")
                         )
                         .frame(height: 200)
                     } else {
-                        Chart(plotted) { entry in
-                            PointMark(
-                                x: .value("Right Ascension", entry.position.raDegrees),
-                                y: .value("Declination", entry.position.decDegrees)
-                            )
-                            .foregroundStyle(entry.id == selectedPlotted?.id ? Color.accentColor : Color.blue)
-                            .symbolSize(entry.id == selectedPlotted?.id ? 160 : 80)
+                        Chart {
+                            // Roughly what's up overnight, shaded behind the points — see
+                            // `SolarPosition`'s own doc comment on exactly what this can/can't
+                            // promise (no real location/horizon math, just "opposite the Sun").
+                            ForEach(tonightVisibleRARanges, id: \.start) { range in
+                                RectangleMark(
+                                    xStart: .value("Start", range.start), xEnd: .value("End", range.end),
+                                    yStart: .value("Bottom", -90), yEnd: .value("Top", 90)
+                                )
+                                .foregroundStyle(.yellow.opacity(0.10))
+                            }
+                            ForEach(plotted) { entry in
+                                PointMark(
+                                    x: .value("Right Ascension", entry.position.raDegrees),
+                                    y: .value("Declination", entry.position.decDegrees)
+                                )
+                                .foregroundStyle(entry.id == selectedPlotted?.id ? Color.accentColor : Color.blue)
+                                .symbolSize(pointSize(for: entry))
+                                .annotation(position: .top) {
+                                    Text(entry.sessionCount > 1 ? "\(entry.object) (\(entry.sessionCount))" : entry.object)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                         // A sky atlas conventionally reads right-to-left (RA increases eastward,
                         // but the sky is viewed from inside the celestial sphere) — reversed here
@@ -143,19 +178,27 @@ struct AtlasView: View {
                                     }
                             }
                         }
+                        Text("Shaded band: roughly up overnight, opposite the Sun — an approximation (ignores your actual location and horizon), not exact rise/set times. A point's size reflects how many sessions have targeted that object.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
                 if let selectedPlotted {
-                    PageSection(title: "Selected Session") {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(selectedPlotted.project.name) — \(selectedPlotted.session.name)").font(.headline)
-                                Text("Target: \(selectedPlotted.object)").font(.caption).foregroundStyle(.secondary)
+                    PageSection(title: "Selected Object") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(selectedPlotted.object).font(.headline)
+                            Text("\(selectedPlotted.sessionCount) session\(selectedPlotted.sessionCount == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            ForEach(selectedPlotted.entries, id: \.session.id) { entry in
+                                HStack {
+                                    Text("\(entry.project.name) — \(entry.session.name)").font(.body)
+                                    Spacer()
+                                    Button("Open") { onSelectSession(entry.project, entry.session) }
+                                        .buttonStyle(.borderless)
+                                }
                             }
-                            Spacer()
-                            Button("Open") { onSelectSession(selectedPlotted.project, selectedPlotted.session) }
-                                .buttonStyle(.borderedProminent)
                         }
                     }
                 }
@@ -188,7 +231,7 @@ struct AtlasView: View {
 
     /// Finds the plotted point nearest a tap — `Chart`'s own hit-testing needs a manual nearest-
     /// neighbor search like this since `PointMark` doesn't expose per-point tap gestures directly.
-    private func closestPlotted(to location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) -> PlottedSession? {
+    private func closestPlotted(to location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) -> PlottedObject? {
         let origin = geometry[proxy.plotAreaFrame].origin
         let relativeLocation = CGPoint(x: location.x - origin.x, y: location.y - origin.y)
         guard let (ra, dec) = proxy.value(at: relativeLocation, as: (Double, Double).self) else { return nil }
@@ -197,5 +240,15 @@ struct AtlasView: View {
             let rhsDistance = pow(rhs.position.raDegrees - ra, 2) + pow(rhs.position.decDegrees - dec, 2)
             return lhsDistance < rhsDistance
         }
+    }
+
+    /// Base size scales with how many sessions have targeted this object (capped so one
+    /// wildly-repeated target doesn't dwarf everything else on the chart), boosted further while
+    /// selected — the same "bigger = selected" signal the original single-size chart used, now
+    /// layered on top of "bigger = more sessions" instead of replacing it.
+    private func pointSize(for entry: PlottedObject) -> CGFloat {
+        let frequencyBoost = CGFloat(min(entry.sessionCount - 1, 6)) * 20
+        let base: CGFloat = 80 + frequencyBoost
+        return entry.id == selectedPlotted?.id ? base * 1.6 : base
     }
 }

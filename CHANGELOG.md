@@ -19,6 +19,17 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Sky Atlas improvements: points are now grouped by object (not one dot per session — every
+  session on the same object shares one point), sized by how many sessions have targeted it — a
+  quick "where have I actually spent my time" read instead of stacked identical dots with no way
+  to tell "shot once" from "shot a dozen times." Each point is labeled with its object name.
+  Selecting one now shows every session that targeted it (not just one). A shaded band shows
+  roughly what's up overnight (opposite the Sun — `SolarPosition`, a real if deliberately rough
+  low-precision solar-position formula, no location data needed), turning the atlas from a static
+  "where have my sessions been" chart into a rough "what's worth pointing at tonight" one too.
+  Catalog coverage also grew — a new bundled NGC/IC subset (254 objects, V mag < 9.0, extracted
+  from the same real Stellarium DSO catalog Messier/Caldwell already came from, excluding anything
+  already covered by those two) means far fewer sessions land in "Not Shown on the Atlas."
 - Whole-app UX/simplification pass, from a self-review: the Dashboard's 7 independently-stacked
   sections (a real returning user with history saw every one of them at once, the densest screen
   in the app) are now organized into named, collapsible "Explore" (Observation Timeline/Recent

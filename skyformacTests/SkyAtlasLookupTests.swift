@@ -48,6 +48,50 @@ struct SkyAtlasLookupTests {
         #expect(byCommonName != nil)
     }
 
+    @Test func resolvesABareNGCDesignation() {
+        guard let firstNGC = SkyCatalog.ngcObjects.first(where: { $0.id.hasPrefix("NGC") }) else {
+            Issue.record("Expected at least one bundled NGC object to test against")
+            return
+        }
+        #expect(SkyAtlasLookup.position(forObjectName: firstNGC.id) != nil)
+    }
+
+    @Test func resolvesAnNGCDesignationWithASpaceCaseInsensitively() {
+        guard let firstNGC = SkyCatalog.ngcObjects.first(where: { $0.id.hasPrefix("NGC") }) else {
+            Issue.record("Expected at least one bundled NGC object to test against")
+            return
+        }
+        let number = firstNGC.id.dropFirst(3)
+        #expect(SkyAtlasLookup.position(forObjectName: "ngc \(number)") == SkyAtlasLookup.position(forObjectName: firstNGC.id))
+    }
+
+    @Test func resolvesABareICDesignation() {
+        guard let firstIC = SkyCatalog.ngcObjects.first(where: { $0.id.hasPrefix("IC") }) else {
+            Issue.record("Expected at least one bundled IC object to test against")
+            return
+        }
+        #expect(SkyAtlasLookup.position(forObjectName: firstIC.id) != nil)
+    }
+
+    @Test func resolvesAnNGCObjectByItsCommonNameAlone() {
+        guard let named = SkyCatalog.ngcObjects.first(where: { $0.commonName != nil }) else {
+            Issue.record("Expected at least one bundled NGC/IC object with a common name")
+            return
+        }
+        let byCommonName = SkyAtlasLookup.position(forObjectName: named.commonName!)
+        let byDesignation = SkyAtlasLookup.position(forObjectName: named.id)
+        #expect(byCommonName == byDesignation)
+        #expect(byCommonName != nil)
+    }
+
+    @Test func ngcCatalogNeverDuplicatesAMessierOrCaldwellObject() {
+        // The extraction that built `ngc.json` deliberately excludes any Stellarium catalog row
+        // that already has a Messier or Caldwell cross-reference — asserting it here catches a
+        // regression if that file is ever regenerated without the same exclusion.
+        let messierAndCaldwellIDs = Set((SkyCatalog.messierObjects + SkyCatalog.caldwellObjects).map(\.id))
+        #expect(SkyCatalog.ngcObjects.allSatisfy { !messierAndCaldwellIDs.contains($0.id) })
+    }
+
     @Test func resolvesABrightStarByName() {
         guard let firstStar = SkyCatalog.brightStars.first else {
             Issue.record("Expected at least one bundled bright star to test against")

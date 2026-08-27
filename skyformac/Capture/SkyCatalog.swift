@@ -28,6 +28,13 @@ enum SkyCatalog {
     /// DSO catalog, common names (where Stellarium's `names.dat` has one) preferring a "WK"
     /// (well-known) source when more than one name is listed for the same object.
     static let caldwellObjects: [SkyCatalogObject] = load("caldwell")
+    /// A curated NGC/IC subset (V mag < 9.0, real Stellarium DSO-catalog coordinates, the same
+    /// source Messier/Caldwell already came from) — everything bright enough to be a realistic
+    /// imaging target that Messier/Caldwell's own ~220 objects between them don't already cover
+    /// (an object with a Messier or Caldwell number is excluded here, so it's never listed twice
+    /// under two different catalog IDs). Extends `SkyAtlasLookup`'s reach well past "only Messier/
+    /// Caldwell/bright stars can be plotted" without hand-curating coordinates.
+    static let ngcObjects: [SkyCatalogObject] = load("ngc")
 
     /// Logs (rather than just silently returning `[]`) on any failure — a missing bundle
     /// resource, an unreadable file, or a JSON schema mismatch would otherwise leave the entire

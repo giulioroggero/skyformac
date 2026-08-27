@@ -40,10 +40,15 @@ enum SkyAtlasLookup {
            let match = SkyCatalog.caldwellObjects.first(where: { $0.id.caseInsensitiveCompare(caldwellID) == .orderedSame }) {
             return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
         }
+        // "NGC" itself is 3 letters, unlike Messier/Caldwell's single-letter prefixes — tried as
+        // its own literal prefix (not `catalogID`'s generic single-char form) alongside "IC".
+        if let ngcID = catalogID(prefix: "NGC", in: trimmed) ?? catalogID(prefix: "IC", in: trimmed),
+           let match = SkyCatalog.ngcObjects.first(where: { $0.id.caseInsensitiveCompare(ngcID) == .orderedSame }) {
+            return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
+        }
 
-        if let match = (SkyCatalog.messierObjects + SkyCatalog.caldwellObjects).first(where: {
-            ($0.commonName?.caseInsensitiveCompare(trimmed)) == .orderedSame
-        }) {
+        let namedObjects: [SkyCatalogObject] = SkyCatalog.messierObjects + SkyCatalog.caldwellObjects + SkyCatalog.ngcObjects
+        if let match = namedObjects.first(where: { $0.commonName?.caseInsensitiveCompare(trimmed) == .orderedSame }) {
             return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
         }
 
