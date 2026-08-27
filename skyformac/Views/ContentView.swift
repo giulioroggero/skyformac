@@ -189,7 +189,13 @@ struct ContentView: View {
             // what its currently-selected tab's own content actually needs (a fixed height either
             // wastes space below shorter content, like the plain combined histogram, or clips
             // taller content, like "By Channel" mode's extra sliders — `HistogramView`'s own
-            // `ScrollView` is the fallback for that latter case, not the normal case).
+            // `ScrollView` is the fallback for that latter case, not the normal case). `maxHeight`
+            // was 260 — too tight even for *combined* mode's own real content: header + 70pt
+            // canvas + zoom control + two Black/White Point sliders already runs close to that on
+            // its own, and `HistogramView.clippingWarningView`'s extra row (shown live while
+            // capturing something bright enough to actually clip — exactly when this got
+            // reported) pushed it over, clipping the sliders at the bottom since combined mode has
+            // no `ScrollView` fallback. Raised so combined mode has real headroom again.
             Group {
                 if cameraManager.isHistogramPanelDetached {
                     HStack {
@@ -225,7 +231,7 @@ struct ContentView: View {
                                 .tabItem { Text("Stacking") }
                         }
                     }
-                    .frame(minHeight: 150, maxHeight: 260)
+                    .frame(minHeight: 150, maxHeight: 340)
                 }
             }
             .nightModeTint(cameraManager)

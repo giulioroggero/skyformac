@@ -41,6 +41,17 @@ struct HistogramView: View {
     @State private var blueBlackCenter: Double = 0
     @State private var blueWhiteCenter: Double = 1
 
+    /// The CPU-renderer path's own cache for `currentBuckets`/`currentChannelHistograms` — see
+    /// the `.task(id:)` in `body` below for why this exists at all: computing these synchronously
+    /// inside a computed property read *during `body`'s own evaluation* ran a full per-pixel CPU
+    /// histogram pass on the main actor every single time this view re-rendered, i.e. on every
+    /// live frame — "when capture and the histogram change the image freeze a little bit" was
+    /// this main-thread stall. The GPU path never had this problem (`gpuHistogramCounts` is
+    /// already precomputed elsewhere before this view ever reads it), so only the CPU path needs
+    /// a cache.
+    @State private var cachedCPUHistogram: [Int]?
+    @State private var cachedCPUChannelHistograms: (red: [Int], green: [Int], blue: [Int])?
+
     /// This whole tab lives in a shared row with the live preview — a plain `VStack` sizes to
     /// its own content's actual height, letting the tab area (and so the preview, via its own
     /// `.layoutPriority(1)` in `ContentView`) size correctly either way. A `ScrollView` does NOT
@@ -114,6 +125,29 @@ struct HistogramView: View {
         }
         .onChange(of: zoom) { recenter() }
         .onAppear { recenter() }
+        // `frameID` (not `cameraManager.currentFrame` itself) as the task's own identity —
+        // `CapturedFrame` has no `Equatable`/stable identity of its own, but `frameID` is bumped
+        // exactly once per new frame, and SwiftUI cancels the previous `.task(id:)` invocation
+        // outright when this changes, so a slow histogram pass never races a newer one back into
+        // `cachedCPUHistogram`.
+        .task(id: cameraManager.frameID) {
+            guard !useMetalRenderer, let frame = cameraManager.currentFrame else { return }
+            let bucketsTask = Task.detached(priority: .userInitiated) { HistogramComputer.histogram(for: frame) }
+            let buckets = await bucketsTask.value
+            guard !Task.isCancelled else { return }
+            cachedCPUHistogram = buckets
+
+            guard let camera = cameraManager.connectedCamera else {
+                cachedCPUChannelHistograms = nil
+                return
+            }
+            let channelsTask = Task.detached(priority: .userInitiated) {
+                HistogramComputer.channelHistograms(for: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
+            }
+            let channels = await channelsTask.value
+            guard !Task.isCancelled else { return }
+            cachedCPUChannelHistograms = channels
+        }
     }
 
     // MARK: - Zoom
@@ -300,23 +334,16 @@ struct HistogramView: View {
     }
 
     private var currentBuckets: [Int]? {
-        if useMetalRenderer {
-            return cameraManager.gpuHistogramCounts
-        }
-        guard let frame = cameraManager.currentFrame else { return nil }
-        return HistogramComputer.histogram(for: frame)
+        useMetalRenderer ? cameraManager.gpuHistogramCounts : cachedCPUHistogram
     }
 
     /// GPU path prefers `CameraManager.gpuChannelHistogramCounts` (`MetalFrameRenderer`'s
-    /// `histogramReduceBayerChannels`/`histogramReduceRGB24Channels`); CPU path computes the
-    /// equivalent directly from `currentFrame` via `HistogramComputer.channelHistograms`. `nil`
-    /// for a mono camera (nothing to split into channels) either way.
+    /// `histogramReduceBayerChannels`/`histogramReduceRGB24Channels`); CPU path reads
+    /// `cachedCPUHistogram`'s own companion cache, kept current by `body`'s `.task(id:)` — see
+    /// that cache's own doc comment for why this isn't computed directly here anymore. `nil` for
+    /// a mono camera (nothing to split into channels) either way.
     private var currentChannelHistograms: (red: [Int], green: [Int], blue: [Int])? {
-        if useMetalRenderer {
-            return cameraManager.gpuChannelHistogramCounts
-        }
-        guard let frame = cameraManager.currentFrame, let camera = cameraManager.connectedCamera else { return nil }
-        return HistogramComputer.channelHistograms(for: frame, isColorCamera: camera.isColorCamera, bayerPattern: camera.bayerPattern)
+        useMetalRenderer ? cameraManager.gpuChannelHistogramCounts : cachedCPUChannelHistograms
     }
 
     // MARK: - Sliders

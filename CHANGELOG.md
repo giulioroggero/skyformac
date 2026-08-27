@@ -83,6 +83,18 @@ actually tagged. Tags on GitHub: [v0.5.3](https://github.com/giulioroggero/skyfo
   exactly the screen's visible area (its own recent fix) left no room for macOS to fit that title
   bar without repositioning the presenting window itself. Restored a small margin so the sheet
   stays safely smaller than the screen instead.
+- The Capture page's Histogram tab (combined mode) could clip its Black/White Point sliders at
+  the bottom — its content already ran close to the tab area's 260pt height cap even without any
+  clipping warning showing, and the extra row `clippingWarningView` adds while capturing
+  something bright enough to actually clip (exactly when this got reported) pushed it over, with
+  no `ScrollView` fallback in combined mode to catch the overflow. Raised the cap to 340pt.
+- The CPU renderer path recomputed a full per-pixel histogram synchronously on the main actor
+  every time `HistogramView`'s `body` re-rendered — once per live frame — which is what "when
+  capture and the histogram change the image freeze a little bit" actually was: a real main-thread
+  stall, not just something that looked slow. Moved it to a background `Task.detached`, keyed off
+  `CameraManager.frameID` so a slow pass never races a newer frame's result back in; the GPU
+  renderer path was never affected (`gpuHistogramCounts` is already precomputed elsewhere before
+  this view reads it).
 
 ## [0.5.3] - 2026-08-27
 
