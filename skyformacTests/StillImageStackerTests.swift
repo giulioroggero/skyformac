@@ -90,4 +90,28 @@ struct StillImageStackerTests {
         #expect(result.image.height == 300)
         #expect(result.skippedTileIndices == [2])
     }
+
+    /// The actual bug report this guards against: a dense field (a globular cluster) gives
+    /// `MosaicStarMatcher` enough candidate triangles that it can genuinely fit a real transform
+    /// between two star sets that don't actually correspond — a large rotation/translation, the
+    /// kind `MosaicComposer` legitimately expects between two swept-apart tiles but that has no
+    /// business appearing between two captures meant to already share the same field. Even though
+    /// the fit itself "succeeds," Stack mode should reject it as implausible and skip the tile —
+    /// compositing it produced the reported ghosted-rectangle artifact.
+    @Test func stackRejectsATransformThatIsImplausibleForTheSameField() throws {
+        let positions: [(x: Int, y: Int)] = [(30, 30), (150, 40), (90, 160), (200, 100)]
+        let tileA = makeStarFieldImage(width: 340, height: 300, positions: positions, blobSize: 14)
+        let smallShift = positions.map { (x: $0.x + 4, y: $0.y + 2) }
+        let tileB = makeStarFieldImage(width: 340, height: 300, positions: smallShift, blobSize: 14)
+
+        let wildTransform = Similarity2DTransform(a: cos(0.7), b: sin(0.7), tx: 250, ty: 180)
+        let farPositions = positions.map { position -> (x: Int, y: Int) in
+            let applied = wildTransform.apply(CGPoint(x: Double(position.x), y: Double(position.y)))
+            return (x: Int(applied.x), y: Int(applied.y))
+        }
+        let tileC = makeStarFieldImage(width: 340, height: 300, positions: farPositions, blobSize: 14)
+
+        let result = try StillImageStacker.stack(tiles: [tileA, tileB, tileC])
+        #expect(result.skippedTileIndices == [2])
+    }
 }

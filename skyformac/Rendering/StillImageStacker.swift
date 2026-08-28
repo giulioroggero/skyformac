@@ -50,12 +50,19 @@ enum StillImageStacker {
         var skippedTileIndices: [Int] = []
         var contributingCount = 1 // the reference tile itself always contributes
         for index in 1..<tiles.count {
-            let matches = MosaicStarMatcher.match(pointsPerTile[index], pointsPerTile[0])
+            // A dense field (a globular cluster, a rich Milky Way star field — exactly what
+            // triggered this in practice) offers many candidate triangles, so `minimumVotes: 2`
+            // (the mosaic default, tuned for a *sparse* field where a real correspondence is the
+            // only plausible one) lets a coincidental, wrong triangle match through often enough
+            // to matter. Requiring more votes here cuts most of those false positives before they
+            // ever reach `SimilarityTransformFitter`.
+            let matches = MosaicStarMatcher.match(pointsPerTile[index], pointsPerTile[0], minimumVotes: 3)
             guard matches.count >= 2,
                   let transform = SimilarityTransformFitter.fit(
                       source: matches.map { pointsPerTile[index][$0.indexA] },
                       target: matches.map { pointsPerTile[0][$0.indexB] }
-                  )
+                  ),
+                  isPlausibleSameFieldTransform(transform, width: width, height: height)
             else {
                 skippedTileIndices.append(index)
                 progress?(index, tiles.count)
@@ -75,6 +82,24 @@ enum StillImageStacker {
 
         guard let image = accumulator.makeImage() else { throw MosaicComposer.ComposeError.renderFailed }
         return Result(image: image, skippedTileIndices: skippedTileIndices)
+    }
+
+    /// Rejects a fitted transform that's wildly implausible for two captures meant to already
+    /// share the same field — a large rotation, a scale far from 1, or a translation bigger than
+    /// half the frame almost always means `MosaicStarMatcher` locked onto a coincidental
+    /// (false-positive) triangle match rather than a real correspondence, not that the tile
+    /// actually belongs somewhere else entirely. Unlike `MosaicComposer`, which *expects* a large
+    /// offset between two deliberately-swept tiles, a transform this size here is a red flag to
+    /// skip, not a legitimate result to composite in (the actual cause of a "why does my stack
+    /// have a ghosted rectangle in it" report — a globular cluster's dense field gave the matcher
+    /// enough candidate triangles to coincidentally agree on a nonsense placement).
+    private static func isPlausibleSameFieldTransform(_ transform: Similarity2DTransform, width: Int, height: Int) -> Bool {
+        let scale = hypot(transform.a, transform.b)
+        guard scale > 0.85, scale < 1.15 else { return false }
+        let rotation = atan2(transform.b, transform.a)
+        guard abs(rotation) < (10 * .pi / 180) else { return false }
+        guard abs(transform.tx) < Double(width) / 2, abs(transform.ty) < Double(height) / 2 else { return false }
+        return true
     }
 
     /// Same Vision-normalized-to-pixel conversion as `MosaicComposer.pixelPoints` — duplicated
