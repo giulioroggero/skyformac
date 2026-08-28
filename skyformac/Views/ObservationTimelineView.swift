@@ -168,7 +168,7 @@ struct ObservationTimelineView: View {
         switch entry.capture.kind {
         case .serVideo: openPostProcessingWindow(for: entry)
         case .fits, .png, .tiff: openEditingImageWindow(for: entry)
-        case .recording: break
+        case .recording, .video: break
         }
     }
 

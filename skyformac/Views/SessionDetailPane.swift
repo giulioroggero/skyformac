@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// A session's own capture Timeline — same "recognize it visually" vs. "compare a lot of them
@@ -89,6 +90,11 @@ struct SessionDetailPane: View {
     /// "Compose Mosaic…" — same windowing reasoning as `postProcessingSelectionWindowController`
     /// above.
     @State private var mosaicComposerWindowController: DetachedContentWindowController?
+    /// "Import one or more images/videos from a file/folder or Apple Photos into a session."
+    @State private var isImportingMedia = false
+    @State private var isShowingPhotosPicker = false
+    @State private var photosPickerSelection: [PhotosPickerItem] = []
+    @State private var importResultMessage: String?
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
     /// Reads the live project/session straight out of `library` on every render — see
@@ -295,6 +301,18 @@ struct SessionDetailPane: View {
                     HStack {
                         Text("Timeline").font(.headline)
                         Spacer()
+                        Menu {
+                            Button("From Files/Folder…") { importFromFiles() }
+                            Button("From Photos…") { isShowingPhotosPicker = true }
+                        } label: {
+                            if isImportingMedia {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Label("Import…", systemImage: "square.and.arrow.down.on.square")
+                            }
+                        }
+                        .disabled(isImportingMedia)
+                        .help("Add pictures or videos you already have — from Finder or Apple Photos — as captures in this session.")
                         // Only the filmstrip needs an explicit "Select" mode — the Table's own
                         // `Table` selection is already native multi-select (click/⌘-click), no
                         // mode toggle needed there, same reasoning `ProjectsThumbnailGrid`'s own
@@ -317,6 +335,17 @@ struct SessionDetailPane: View {
                         .pickerStyle(.segmented)
                         .labelStyle(.iconOnly)
                         .frame(width: 90)
+                    }
+                    .photosPicker(
+                        isPresented: $isShowingPhotosPicker, selection: $photosPickerSelection,
+                        matching: .any(of: [.images, .videos])
+                    )
+                    .onChange(of: photosPickerSelection) { _, items in
+                        guard !items.isEmpty else { return }
+                        importFromPhotosPicker(items)
+                    }
+                    if let importResultMessage {
+                        Text(importResultMessage).font(.caption).foregroundStyle(.secondary)
                     }
 
                     if !selectedCaptureIDs.isEmpty {
@@ -780,6 +809,69 @@ struct SessionDetailPane: View {
             )
         }
         mosaicComposerWindowController?.showWindow(nil)
+    }
+
+    /// "Import…" → "From Files/Folder…" — an `NSOpenPanel` that allows both files and whole
+    /// folders (`MediaImporter.expand` flattens any folder into its own supported files
+    /// afterward), filtered to the image/video types this app can actually do something with.
+    private func importFromFiles() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.image, .movie]
+        panel.begin { response in
+            guard response == .OK else { return }
+            performImport(MediaImporter.expand(panel.urls))
+        }
+    }
+
+    /// "Import…" → "From Photos…" — each selected `PhotosPickerItem` is loaded as raw `Data` and
+    /// written to a scratch temp file (Photos doesn't hand out a real on-disk `URL` the way Finder
+    /// does), then goes through the exact same `performImport` path as a Finder file. The temp
+    /// files are cleaned up immediately after — `CameraManager.importMedia` already copies
+    /// whatever it imports into the session's own folder, so nothing downstream still needs them.
+    private func importFromPhotosPicker(_ items: [PhotosPickerItem]) {
+        isImportingMedia = true
+        importResultMessage = nil
+        Task {
+            var tempURLs: [URL] = []
+            for item in items {
+                guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+                let ext = MediaImporter.fileExtension(for: item.supportedContentTypes.first)
+                let tempURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension(ext)
+                guard (try? data.write(to: tempURL)) != nil else { continue }
+                tempURLs.append(tempURL)
+            }
+            await runImport(tempURLs, attemptedCount: items.count)
+            for tempURL in tempURLs { try? FileManager.default.removeItem(at: tempURL) }
+            photosPickerSelection = []
+        }
+    }
+
+    private func performImport(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        isImportingMedia = true
+        importResultMessage = nil
+        Task { await runImport(urls, attemptedCount: urls.count) }
+    }
+
+    private func runImport(_ urls: [URL], attemptedCount: Int) async {
+        guard !urls.isEmpty else {
+            isImportingMedia = false
+            importResultMessage = "Nothing importable was selected — supported types are images (PNG/TIFF/JPEG/HEIC/FITS) and video (MOV/MP4)."
+            return
+        }
+        let result = await cameraManager.importMedia(from: urls, into: session, project: project)
+        isImportingMedia = false
+        let unsupported = attemptedCount - urls.count + result.skipped.count
+        if unsupported == 0 {
+            importResultMessage = "Imported \(result.imported.count) file\(result.imported.count == 1 ? "" : "s")."
+        } else {
+            importResultMessage = "Imported \(result.imported.count), skipped \(unsupported) unsupported/unreadable file\(unsupported == 1 ? "" : "s")."
+        }
     }
 
     /// The historical record this page is actually for — when it was planned/created/captured,

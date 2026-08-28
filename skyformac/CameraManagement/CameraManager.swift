@@ -1748,7 +1748,7 @@ final class CameraManager {
         switch capture.kind {
         case .fits: return (.singleFITS(url), target)
         case .serVideo: return (.serVideo(url), target)
-        case .png, .tiff, .recording: return nil
+        case .png, .tiff, .recording, .video: return nil
         }
     }
 
@@ -1912,6 +1912,49 @@ final class CameraManager {
             fileName: fileName, sourceSessionIDs: sourceSessionIDs,
             sourceCaptureID: nil, toolLabel: toolLabel, to: project
         )
+    }
+
+    /// "Import one or more images/videos from a file/folder or Apple Photos into a session" —
+    /// each `url` is copied into `session`'s own folder and recorded as an ordinary
+    /// `CaptureRecord` via `ProjectStore.recordCapture(copyingFileAt:...)`, the exact same call a
+    /// real capture path uses, just fed a file that already exists somewhere else instead of one
+    /// this app's own camera pipeline just wrote. Skips (rather than aborts on) a URL
+    /// `MediaImporter.kind(for:)` doesn't recognize or that fails to copy — a caller reports
+    /// `skipped` however it wants (a toast, a summary line) rather than losing an otherwise-good
+    /// batch to one bad file. `project` is looked up fresh by ID at the end so the caller's own
+    /// (possibly now-stale, several captures later) value isn't what gets saved.
+    @discardableResult
+    func importMedia(from urls: [URL], into session: Session, project: Project) async -> (imported: [CaptureRecord], skipped: [URL]) {
+        var updatedProject = project
+        var imported: [CaptureRecord] = []
+        var skipped: [URL] = []
+        for url in urls {
+            guard let kind = MediaImporter.kind(for: url) else {
+                skipped.append(url)
+                continue
+            }
+            guard let sessionIndex = updatedProject.sessions.firstIndex(where: { $0.id == session.id })
+            else { break } // the session itself is gone — nothing left to import into.
+            let currentSession = updatedProject.sessions[sessionIndex]
+            let thumbnail = await MediaImporter.makeThumbnail(for: url, kind: kind)
+            guard let record = try? projectStore.recordCapture(
+                copyingFileAt: url, kind: kind, thumbnail: thumbnail,
+                note: "Imported \(url.lastPathComponent)",
+                into: currentSession, project: &updatedProject
+            ) else {
+                skipped.append(url)
+                continue
+            }
+            imported.append(record)
+        }
+        // `recordCapture` above only persists to disk (`ProjectStore.save`, not
+        // `ProjectsLibrary`'s own) — see `ProjectDetailPane.project`'s own doc comment for why a
+        // page reading live from `projectsLibrary.projects` wouldn't otherwise see these new
+        // captures until reopened.
+        if !imported.isEmpty {
+            try? projectsLibrary.save(updatedProject)
+        }
+        return (imported, skipped)
     }
 
     // MARK: - Lucky imaging (burst capture + sharpness-ranked stacking — see `LuckyImagingSession`)
@@ -3823,6 +3866,11 @@ final class CameraManager {
             return "Recorded \(target) as an SER video for \(seconds) sec"
         case .recording:
             return "Recorded \(target) to a continuous capture sequence"
+        case .video:
+            // Never actually produced by a real capture — `.video` only ever comes from
+            // `MediaImporter`'s own "Import…" flow (`CameraManager.importMedia`), which builds
+            // its own note directly rather than calling this. Exhaustiveness only.
+            return "Imported a video for \(target)"
         case .fits, .png, .tiff:
             let formatName = kind == .fits ? "FITS" : (kind == .png ? "PNG" : "TIFF")
             if isLiveStackingEnabled {

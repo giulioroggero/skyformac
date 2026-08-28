@@ -69,6 +69,7 @@
 		478066C07F1C9EFF100C0719 /* PixInsightAppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC667EE7A66F65B70E0C9F5 /* PixInsightAppLauncher.swift */; };
 		32A221DA34824A4797233ACC /* AstroBinPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F559202BC8594D7BB8C548C9 /* AstroBinPublisher.swift */; };
 		47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */; };
+		BCF2007DC1EC489EACA8AB56 /* MediaImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52191D54438F4ACFA4CA91B4 /* MediaImporter.swift */; };
 		485AF8771F6E408011E20220 /* AllSkyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7300188FBB4F3D4964CD94C8 /* AllSkyMonitor.swift */; };
 		49C4DD08273A13C3E8025DAD /* GraXpertSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9BB677FD43BE6A044E9AA63 /* GraXpertSheet.swift */; };
 		4B7C66D8078B52C9F95C0EEC /* StarDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885BBDC0D43C6A0B4ED42B32 /* StarDetector.swift */; };
@@ -130,6 +131,8 @@
 		8A770787F1F741B47B064F7E /* SmartLiveStackGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15634580B295941E6F3CB5 /* SmartLiveStackGateTests.swift */; };
 		8B1322B1E666F768A6045695 /* ImageEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6B1E929FEE960BA808F516 /* ImageEditorTests.swift */; };
 		57BA8F7E0BAA4CAAB1622BE7 /* MosaicComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */; };
+		771317A08674479080B5A3CA /* CameraManagerImportMediaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337F70C765A34D89BE67E793 /* CameraManagerImportMediaTests.swift */; };
+		96C542A9AD674AA18FB05608 /* MediaImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCAA2020A52409798AFC8CF /* MediaImporterTests.swift */; };
 		7DBD449FAB21485291CAB8E9 /* GradientExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBDD00EAB6624F4F8FE1984A /* GradientExtractorTests.swift */; };
 		8366559FA2E54CE19E0FDA46 /* StillImageStackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3591E97CE3784D70807EAAD6 /* StillImageStackerTests.swift */; };
 		8B63FF69E0600CE9493DCC9C /* LiveCaptureBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F125C29C77E8314CF5836D04 /* LiveCaptureBrowserView.swift */; };
@@ -342,6 +345,7 @@
 		3F4CDD606BCE2156ABE3B064 /* CoreLocationProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreLocationProviderTests.swift; sourceTree = "<group>"; };
 		3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyKnowledgeBaseTests.swift; sourceTree = "<group>"; };
 		4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGenerator.swift; sourceTree = "<group>"; };
+		52191D54438F4ACFA4CA91B4 /* MediaImporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaImporter.swift; sourceTree = "<group>"; };
 		40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantChatPanel.swift; sourceTree = "<group>"; };
 		41A74554FF1E98E12617F232 /* GPUSharpnessScorerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUSharpnessScorerTests.swift; sourceTree = "<group>"; };
 		43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WebcamCaptureEngine.swift; sourceTree = "<group>"; };
@@ -369,6 +373,8 @@
 		5CAFD2D6898CDC7637053BAA /* CloudDriftSentinelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudDriftSentinelTests.swift; sourceTree = "<group>"; };
 		5D6B1E929FEE960BA808F516 /* ImageEditorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorTests.swift; sourceTree = "<group>"; };
 		E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicComposerTests.swift; sourceTree = "<group>"; };
+		337F70C765A34D89BE67E793 /* CameraManagerImportMediaTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerImportMediaTests.swift; sourceTree = "<group>"; };
+		DCCAA2020A52409798AFC8CF /* MediaImporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaImporterTests.swift; sourceTree = "<group>"; };
 		EBDD00EAB6624F4F8FE1984A /* GradientExtractorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GradientExtractorTests.swift; sourceTree = "<group>"; };
 		3591E97CE3784D70807EAAD6 /* StillImageStackerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StillImageStackerTests.swift; sourceTree = "<group>"; };
 		5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectDetailPane.swift; sourceTree = "<group>"; };
@@ -748,6 +754,8 @@
 				8F3FC08CDD4148AFCC861DD0 /* PlanetaryPostProcessorTests.swift */,
 				5D6B1E929FEE960BA808F516 /* ImageEditorTests.swift */,
 				E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */,
+				337F70C765A34D89BE67E793 /* CameraManagerImportMediaTests.swift */,
+				DCCAA2020A52409798AFC8CF /* MediaImporterTests.swift */,
 				EBDD00EAB6624F4F8FE1984A /* GradientExtractorTests.swift */,
 				3591E97CE3784D70807EAAD6 /* StillImageStackerTests.swift */,
 			);
@@ -916,6 +924,7 @@
 				DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */,
 				4668DD1AFF704C72AB5B01D3 /* AIChatLibrary.swift */,
 				4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */,
+				52191D54438F4ACFA4CA91B4 /* MediaImporter.swift */,
 				F2B2B6A0DC0E610F3A4E0710 /* CoreLocationProvider.swift */,
 				E6503F6FAB5EE60511276664 /* ProjectSearch.swift */,
 				6B7C615644A9BCEC78CE2465 /* OllamaPlanner.swift */,
@@ -1158,6 +1167,7 @@
 				9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */,
 				FE141537F39F4A529188CB62 /* AIChatLibrary.swift in Sources */,
 				47BAACF3E0A133D8D5B31337 /* ThumbnailGenerator.swift in Sources */,
+				BCF2007DC1EC489EACA8AB56 /* MediaImporter.swift in Sources */,
 				DC9D7D8B7D1D90D151ED606B /* CoreLocationProvider.swift in Sources */,
 				18F32B6D347E62F801858544 /* ProjectSearch.swift in Sources */,
 				BC27AC288C8CEE63B9C1752D /* OllamaPlanner.swift in Sources */,
@@ -1389,6 +1399,8 @@
 				1FD7A4223786CDA55A11681F /* PlanetaryPostProcessorTests.swift in Sources */,
 				8B1322B1E666F768A6045695 /* ImageEditorTests.swift in Sources */,
 				57BA8F7E0BAA4CAAB1622BE7 /* MosaicComposerTests.swift in Sources */,
+				771317A08674479080B5A3CA /* CameraManagerImportMediaTests.swift in Sources */,
+				96C542A9AD674AA18FB05608 /* MediaImporterTests.swift in Sources */,
 				7DBD449FAB21485291CAB8E9 /* GradientExtractorTests.swift in Sources */,
 				8366559FA2E54CE19E0FDA46 /* StillImageStackerTests.swift in Sources */,
 			);

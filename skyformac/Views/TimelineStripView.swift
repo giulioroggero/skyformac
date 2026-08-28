@@ -213,7 +213,7 @@ private struct TimelineThumbnailView: View {
         switch capture.kind {
         case .serVideo: openPostProcessingWindow()
         case .fits, .png, .tiff: openEditingImageWindow()
-        case .recording: break
+        case .recording, .video: break
         }
     }
 

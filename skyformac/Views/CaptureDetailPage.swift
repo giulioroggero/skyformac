@@ -97,7 +97,7 @@ struct CaptureDetailPage: View {
         switch capture.kind {
         case .png, .tiff:
             return ThumbnailCache.image(at: fileURL) ?? thumbnailURL.flatMap(ThumbnailCache.image(at:))
-        case .fits, .serVideo, .recording:
+        case .fits, .serVideo, .recording, .video:
             return thumbnailURL.flatMap(ThumbnailCache.image(at:))
         }
     }

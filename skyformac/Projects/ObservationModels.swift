@@ -76,6 +76,11 @@ extension Rating {
 struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
     enum Kind: String, Codable, Sendable, Hashable, CaseIterable {
         case fits, png, tiff, serVideo, recording
+        /// A plain imported video file (`.mov`/`.mp4`/`.m4v`) — from "Import…" (Finder/Photos),
+        /// not something the camera itself produced. Distinct from `.serVideo` (this app's own
+        /// planetary `.ser` burst format, post-processable) and `.recording` (a continuous-capture
+        /// *folder* of frames) — a single ordinary video file with neither of those structures.
+        case video
 
         var icon: String {
             switch self {
@@ -83,6 +88,7 @@ struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
             case .png, .tiff: return "photo"
             case .serVideo: return "film"
             case .recording: return "record.circle"
+            case .video: return "video"
             }
         }
 
@@ -95,17 +101,18 @@ struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
             case .tiff: return "TIFF"
             case .serVideo: return "SER Video"
             case .recording: return "Recording"
+            case .video: return "Video"
             }
         }
 
         /// Whether a timeline's own kind badge (`CaptureKindBadge`) offers a direct
         /// post-processing shortcut for this kind — `true` for anything `CaptureDetailPage`'s own
         /// Process group has a button for (Post-Process for `.serVideo`, Edit Image for a still
-        /// image), `false` for `.recording` (nothing in this app post-processes that kind today).
+        /// image), `false` for `.recording`/`.video` (nothing in this app post-processes either).
         var isPostProcessable: Bool {
             switch self {
             case .fits, .png, .tiff, .serVideo: return true
-            case .recording: return false
+            case .recording, .video: return false
             }
         }
     }

@@ -20,6 +20,10 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- A session's Timeline gains "Import…" — adds pictures or videos you already have (Finder files,
+  a whole folder, or Apple Photos) directly as captures, alongside whatever the camera itself
+  produced. A new `.video` capture kind covers a plain imported video file, distinct from this
+  app's own `.ser` planetary format or a continuous-recording folder.
 - Session Timeline/Table's bulk action bar gains "Stack…" alongside "Compose Mosaic…" for 2+
   selected PNG/TIFF/FITS captures — aligns and averages same-field-of-view captures
   (`StillImageStacker`, reusing `MosaicComposer`'s star-pattern registration) for a better-SNR
