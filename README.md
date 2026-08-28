@@ -32,7 +32,7 @@
   <a href="https://github.com/giulioroggero/skyformac/issues">Issues</a>
 </p>
 
-<img src="examples/home.png" alt="Skyformac's Home dashboard — Quick Start, All Projects, Gallery, Equipment, Insights, the Observation Timeline, and Recent Projects" width="100%">
+<img src="examples/quick-tour.gif" alt="A quick tour of Skyformac's Home dashboard, Observation Timeline, and Recent Projects" width="100%">
 
 <img src="examples/saturn-live-stacking.gif" alt="Live stacking Saturn in Skyformac" width="100%">
 

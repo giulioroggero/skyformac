@@ -32,7 +32,8 @@ projects, unedited beyond what the app itself did.
 
 | File | Subject | Notes |
 | --- | --- | --- |
-| [`saturn-live-stacking.gif`](examples/saturn-live-stacking.gif) | Saturn, live stacking | Animated GIF derived from `saturn-live-stacking.mov` (2x speed, downscaled) — the README's top banner. |
+| [`quick-tour.gif`](examples/quick-tour.gif) | App tour | Animated GIF derived from `quick-tour.mov` (first 16s, downscaled, 12fps) — the README/website's top banner. |
+| [`saturn-live-stacking.gif`](examples/saturn-live-stacking.gif) | Saturn, live stacking | Animated GIF derived from `saturn-live-stacking.mov` (2x speed, downscaled) — the README's second banner image. |
 | [`saturn-live-stacking.png`](examples/saturn-live-stacking.png) | Saturn, live stacking | A single frame from the same session as the GIF above. |
 | [`saturn-2.png`](examples/saturn-2.png) | Saturn | 3840×2160. |
 | [`M57 - live.png`](<examples/M57 - live.png>) | M57 (Ring Nebula), live view | Straight off the live preview. |
@@ -47,7 +48,6 @@ Screens of the app itself, rather than a captured target — shown in the README
 
 | File | Page | Notes |
 | --- | --- | --- |
-| [`home.png`](examples/home.png) | Dashboard/Home | README/website banner — Common Tasks, the Observation Timeline, and Recent Projects. |
 | [`Home Page.png`](<examples/Home Page.png>) | Dashboard/Home | "Resume Where You Left Off," Common Tasks, Recent Projects, Highlighted Sessions. |
 | [`New Timeline.png`](<examples/New Timeline.png>) | Dashboard/Home (Observation Timeline) | The Home page's own zoomable timeline — big date header, count-based spacing (not proportional to real elapsed time), and a zoom slider. |
 | [`Quick Start.png`](<examples/Quick Start.png>) | Quick Start picker | Over the Projects grid — Planets & Moon and Deep Sky target lists. |
@@ -67,16 +67,17 @@ Screens of the app itself, rather than a captured target — shown in the README
 
 | File | Subject | Duration | Released with |
 | --- | --- | --- | --- |
+| [`quick-tour.mov`](https://github.com/giulioroggero/skyformac/releases) | App tour | ~122s | Not yet attached to a release — see note below. |
 | [`saturn-live-stacking.mov`](https://github.com/giulioroggero/skyformac/releases) | Saturn, live stacking | ~21s | Not yet attached to a release — see note below. |
 | [`saturn-full-screen.mov`](https://github.com/giulioroggero/skyformac/releases) | Saturn, full-screen preview | ~71s | Not yet attached to a release — see note below. |
 | [`arcturus-first-test.mov`](https://github.com/giulioroggero/skyformac/releases/download/v0.1.12/arcturus-first-test.mov) | Arcturus | ~94s | [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12) |
 | [`m13-test.mov`](https://github.com/giulioroggero/skyformac/releases/download/v0.1.12/m13-test.mov) | M13 (Hercules Cluster) | ~49s | [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12) |
 
-> **Note:** `saturn-live-stacking.mov` and `saturn-full-screen.mov` are newer
+> **Note:** `quick-tour.mov`, `saturn-live-stacking.mov`, and `saturn-full-screen.mov` are newer
 > than the last tagged release and aren't attached to any release yet — the
-> GIF/PNG derived from the first one are already in this file, but the raw
+> GIF/PNG derived from them are already in this file, but the raw
 > `.mov`s themselves need to ride along with the *next* release (`gh release
-> upload <tag> examples/saturn-live-stacking.mov examples/saturn-full-screen.mov`)
+> upload <tag> examples/quick-tour.mov examples/saturn-live-stacking.mov examples/saturn-full-screen.mov`)
 > before the links above will resolve.
 
 ## First-light test session
