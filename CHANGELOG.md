@@ -19,7 +19,38 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- Session Timeline/Table's bulk action bar gains "Stack…" alongside "Compose Mosaic…" for 2+
+  selected PNG/TIFF/FITS captures — aligns and averages same-field-of-view captures
+  (`StillImageStacker`, reusing `MosaicComposer`'s star-pattern registration) for a better-SNR
+  combine, rather than stitching them side by side into a wider frame.
+- The elaborated-image/capture full-screen viewer (`FullScreenImageViewer`) gains explicit Zoom
+  In/Zoom Out/Fit to Window buttons — pinch/scroll-wheel zoom already worked via `NSScrollView`,
+  but nothing on screen said so, and there was no way to re-fit after zooming/panning away from
+  the auto-fit that only ever ran once when the image first appeared.
+
+### Fixed
+- "Compose Mosaic…"/"Stack…" failed outright with a cryptic `CGImageRenderer.LoadError` if any
+  selected tile was corrupt/unreadable (e.g. an interrupted write) — unreadable tiles are now
+  skipped and named in the UI instead, only failing if fewer than 2 usable tiles remain.
+- "Stack…" could composite a tile at the wrong position/rotation — visible as a ghosted
+  rectangle in the result — when a dense field (a globular cluster, a rich Milky Way star field)
+  gave the star matcher enough candidate triangles to genuinely fit a real-but-wrong transform
+  between two captures that don't actually correspond. A fitted alignment implausible for
+  same-field captures (large rotation/scale/translation) is now rejected and the tile skipped,
+  and the star matcher requires more corroborating votes for this path.
+- A change made from a detached window — most visibly "Set as Thumbnail" from a capture's or an
+  elaborated image's full-screen preview — didn't show up on the Project/Session/Capture page
+  still open underneath until it was left and reopened. Each page now reads its project/session/
+  capture live from the shared library on every render instead of trusting the value snapshot it
+  was originally pushed with.
+- The elaborated-image viewer opened at its own smaller, independently hardcoded window size
+  instead of matching every Edit Image/Post-Processing/Mosaic window.
+- `GPUFrameCalibratorTests` (and other suites dispatching Metal kernels directly) could fail
+  intermittently in CI — several tests submitting GPU command buffers concurrently against each
+  other, not a bug in the kernels themselves. Those suites now run their own tests serially;
+  `make test` also retries a failed test up to 3 times as a backstop for other transient CI
+  contention.
 
 ## [0.6.0] - 2026-08-27
 
