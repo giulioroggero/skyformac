@@ -5,9 +5,13 @@ import SwiftUI
 /// info, the session it belongs to (so its context is visible without a trip back), and the same
 /// session-level Stats every Session page shows.
 struct CaptureDetailPage: View {
-    let project: Project
-    let session: Session
-    let capture: CaptureRecord
+    /// Snapshots this page was pushed with — see `ProjectDetailPane.initialProject`'s own doc
+    /// comment for why these only ever act as a fallback, never get read directly elsewhere in
+    /// this file (the computed `project`/`session`/`capture` below are what everything else means
+    /// by those names).
+    let initialProject: Project
+    let initialSession: Session
+    let initialCapture: CaptureRecord
     var cameraManager: CameraManager
     /// Pops back to this capture's own Session page.
     var onBack: () -> Void
@@ -19,6 +23,24 @@ struct CaptureDetailPage: View {
     /// is the first/last capture, so the toolbar button is hidden entirely.
     var onPreviousCapture: (() -> Void)?
     var onNextCapture: (() -> Void)?
+
+    /// Explicit — a synthesized memberwise init would otherwise expose `initialProject`/
+    /// `initialSession`/`initialCapture` as this init's own external parameter names, breaking
+    /// every existing call site's `CaptureDetailPage(project:session:capture:...)`.
+    init(
+        project: Project, session: Session, capture: CaptureRecord, cameraManager: CameraManager,
+        onBack: @escaping () -> Void, onHome: @escaping () -> Void,
+        onPreviousCapture: (() -> Void)? = nil, onNextCapture: (() -> Void)? = nil
+    ) {
+        self.initialProject = project
+        self.initialSession = session
+        self.initialCapture = capture
+        self.cameraManager = cameraManager
+        self.onBack = onBack
+        self.onHome = onHome
+        self.onPreviousCapture = onPreviousCapture
+        self.onNextCapture = onNextCapture
+    }
 
     @State private var isElaborating = false
     /// "The edit/preview windows can be moved across the screen and resized" — each of these
@@ -43,6 +65,21 @@ struct CaptureDetailPage: View {
     @FocusState private var isFocused: Bool
 
     private var store: ProjectStore { cameraManager.projectStore }
+    /// Reads the live project/session/capture straight out of `cameraManager.projectsLibrary` on
+    /// every render — see `ProjectDetailPane.project`'s own doc comment for exactly why (a plain
+    /// `let` snapshot from `.navigationDestination(for:)` doesn't refresh on its own when
+    /// something elsewhere, like this very page's own "Set as Thumbnail" button below, changes
+    /// the same session). Falls back to the initial snapshot for the brief window right after a
+    /// delete, before `onBack`/`onHome` has popped this page off the stack.
+    private var project: Project {
+        cameraManager.projectsLibrary.projects.first(where: { $0.id == initialProject.id }) ?? initialProject
+    }
+    private var session: Session {
+        project.sessions.first(where: { $0.id == initialSession.id }) ?? initialSession
+    }
+    private var capture: CaptureRecord {
+        session.captures.first(where: { $0.id == initialCapture.id }) ?? initialCapture
+    }
 
     private var fileURL: URL {
         store.sessionFolderURL(for: session, in: project).appendingPathComponent(capture.fileName)

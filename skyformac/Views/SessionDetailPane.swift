@@ -14,8 +14,12 @@ private enum CapturesViewMode: String {
 /// plain full-width `ScrollView`, not a `Form` — a `Form`'s `.formStyle(.grouped)` centers/caps
 /// its content width on macOS, which this page deliberately doesn't want (see `PageSection`).
 struct SessionDetailPane: View {
-    let project: Project
-    let session: Session
+    /// Snapshots this page was pushed with — see `ProjectDetailPane.initialProject`'s own doc
+    /// comment for why these only ever seed `@State`/act as a fallback, never get read directly
+    /// elsewhere in this file (the computed `project`/`session` below are what everything else
+    /// means by those names).
+    let initialProject: Project
+    let initialSession: Session
     var cameraManager: CameraManager
     /// Pops back to this session's own Project page — the toolbar's explicit "Back to Project"
     /// button, since the drill-down hierarchy this feature is built around means "up" always has
@@ -87,6 +91,18 @@ struct SessionDetailPane: View {
     @State private var mosaicComposerWindowController: DetachedContentWindowController?
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
+    /// Reads the live project/session straight out of `library` on every render — see
+    /// `ProjectDetailPane.project`'s own doc comment for exactly why (a plain `let` snapshot from
+    /// `.navigationDestination(for:)` doesn't refresh on its own when something elsewhere, like a
+    /// detached "Set as Thumbnail…" window, changes the same session). Falls back to the initial
+    /// snapshot for the brief window right after this session's project is deleted, before
+    /// `onHome`/`onBack` has popped this page off the stack.
+    private var project: Project {
+        library.projects.first(where: { $0.id == initialProject.id }) ?? initialProject
+    }
+    private var session: Session {
+        project.sessions.first(where: { $0.id == initialSession.id }) ?? initialSession
+    }
     /// Files sitting in this session's own folder that AREN'T one of its tracked
     /// `CaptureRecord`s — e.g. `moon_00290.fit` left behind by an external post-processing tool
     /// (Siril/AutoStakkert) pointed at this folder. Excludes the `Thumbnails` subfolder and
@@ -135,8 +151,8 @@ struct SessionDetailPane: View {
         onSessionCreated: @escaping (Session) -> Void,
         onPreviousSession: (() -> Void)? = nil, onNextSession: (() -> Void)? = nil
     ) {
-        self.project = project
-        self.session = session
+        self.initialProject = project
+        self.initialSession = session
         self.cameraManager = cameraManager
         self.onBack = onBack
         self.onHome = onHome

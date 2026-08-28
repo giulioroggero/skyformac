@@ -19,7 +19,10 @@ private enum SessionsViewMode: String {
 /// directly — see that type's doc comment for why an unnamed project's edits never hit disk
 /// until it's named.
 struct ProjectDetailPane: View {
-    let project: Project
+    /// The project snapshot this page was pushed with — only ever used to seed `@State` (in
+    /// `init`) and as `project`'s own fallback below. Everywhere else in this file, "the project"
+    /// means the computed `project` property, not this.
+    let initialProject: Project
     var cameraManager: CameraManager
     var onShowSessionHistory: (Session) -> Void
     /// Pushes straight to one specific capture's own page — the Timeline section's own thumbnails
@@ -57,6 +60,19 @@ struct ProjectDetailPane: View {
     @State private var selectedSessionIDs: Set<Session.ID> = []
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
+    /// Reads the live project straight out of `library` on every render instead of trusting
+    /// `initialProject` to still be current — a plain `let` snapshot handed down once by
+    /// `ProjectsBrowserView.destination(for:)` doesn't refresh just because something elsewhere
+    /// (a detached "Set as Thumbnail…" window, a background save) mutated the same project;
+    /// SwiftUI's `NavigationStack` doesn't re-invoke `.navigationDestination(for:)` just because
+    /// ambient `@Observable` state changed underneath an already-materialized destination. Reading
+    /// `library.projects` directly here, inside `body`'s own render pass, is what actually makes
+    /// this page pick up that kind of change immediately instead of needing to be left and
+    /// reopened. Falls back to `initialProject` for the brief window right after this project is
+    /// deleted, before `onProjectDeleted` has popped this page off the stack.
+    private var project: Project {
+        library.projects.first(where: { $0.id == initialProject.id }) ?? initialProject
+    }
 
     init(
         project: Project, cameraManager: CameraManager, onShowSessionHistory: @escaping (Session) -> Void,
@@ -64,7 +80,7 @@ struct ProjectDetailPane: View {
         onBack: @escaping () -> Void, onHome: @escaping () -> Void, onProjectDeleted: @escaping () -> Void,
         onPreviousProject: (() -> Void)? = nil, onNextProject: (() -> Void)? = nil
     ) {
-        self.project = project
+        self.initialProject = project
         self.cameraManager = cameraManager
         self.onShowSessionHistory = onShowSessionHistory
         self.onSelectCapture = onSelectCapture
