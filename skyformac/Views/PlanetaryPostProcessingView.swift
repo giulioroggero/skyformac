@@ -141,6 +141,15 @@ struct PlanetaryPostProcessingView: View {
     @State private var singleShotAdjustments = ImageEditor.Adjustments()
     @State private var isApplyingMagicWandToSingleShot = false
     @State private var isCenteringObject = false
+    @State private var isRemovingGradientFromSingleShot = false
+    @State private var singleShotGradientErrorMessage: String?
+    /// See `SingleImagePostProcessingView.starMask`'s own doc comment for why this is precomputed
+    /// rather than inside `ImageEditor.render` itself. Refreshed after Magic Wand/Center
+    /// Object/Remove Background Gradient, and once (lazily, not on every restack) the first time
+    /// a stacked result appears — not on every `applySingleShotAdjustments()` call, since that
+    /// also runs on every live wavelet-sharpen/stretch slider tweak upstream on the Video tab, far
+    /// too often to also re-run Vision star detection each time.
+    @State private var singleShotStarMask: CGImage?
 
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
@@ -698,6 +707,20 @@ struct PlanetaryPostProcessingView: View {
                 }
                 .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot || isCenteringObject)
                 .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
+                Button {
+                    removeBackgroundGradientFromSingleShot()
+                } label: {
+                    if isRemovingGradientFromSingleShot {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Remove Background Gradient", systemImage: "square.stack.3d.forward.dottedline")
+                    }
+                }
+                .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot || isCenteringObject || isRemovingGradientFromSingleShot)
+                .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
+            }
+            if let singleShotGradientErrorMessage {
+                Text(singleShotGradientErrorMessage).font(.caption).foregroundStyle(.red)
             }
 
             // "In single shot use the edit functionalities of the edit image from capture page —
@@ -724,6 +747,7 @@ struct PlanetaryPostProcessingView: View {
             guard let autoFixed else { return }
             self.stackedPreviewImage = autoFixed
             singleShotAdjustments = .identity
+            refreshSingleShotStarMask()
             applySingleShotAdjustments()
         }
     }
@@ -740,6 +764,7 @@ struct PlanetaryPostProcessingView: View {
             isCenteringObject = false
             guard let centered else { return }
             self.stackedPreviewImage = centered
+            refreshSingleShotStarMask()
             applySingleShotAdjustments()
         }
     }
@@ -972,6 +997,7 @@ struct PlanetaryPostProcessingView: View {
             }.value
             if Task.isCancelled || flag.isCancelled { return }
             stackedPreviewImage = cgImage
+            if singleShotStarMask == nil { refreshSingleShotStarMask() }
             applySingleShotAdjustments()
         }
     }
@@ -990,7 +1016,45 @@ struct PlanetaryPostProcessingView: View {
             previewImage = stackedPreviewImage
             return
         }
-        previewImage = ImageEditor.render(stackedPreviewImage, with: singleShotAdjustments) ?? stackedPreviewImage
+        previewImage = ImageEditor.render(stackedPreviewImage, with: singleShotAdjustments, starMask: singleShotStarMask) ?? stackedPreviewImage
+    }
+
+    /// See `singleShotStarMask`'s own doc comment for why this is only ever called explicitly
+    /// (Magic Wand/Center Object/Remove Background Gradient, or once lazily after the first
+    /// stacked result appears) rather than from every `applySingleShotAdjustments()` call.
+    private func refreshSingleShotStarMask() {
+        guard let stackedPreviewImage else { singleShotStarMask = nil; return }
+        Task.detached(priority: .utility) {
+            let mask = ImageEditor.computeStarMask(for: stackedPreviewImage)
+            await MainActor.run { self.singleShotStarMask = mask }
+        }
+    }
+
+    /// Same `GradientExtractor` background/gradient removal as
+    /// `SingleImagePostProcessingView.removeBackgroundGradient()`, baked into `stackedPreviewImage`
+    /// the same way Magic Wand/Center Object above do.
+    private func removeBackgroundGradientFromSingleShot() {
+        guard let stackedPreviewImage else { return }
+        isRemovingGradientFromSingleShot = true
+        singleShotGradientErrorMessage = nil
+        Task.detached(priority: .userInitiated) {
+            do {
+                let corrected = try GradientExtractor.removeGradient(from: stackedPreviewImage)
+                await MainActor.run {
+                    self.isRemovingGradientFromSingleShot = false
+                    self.stackedPreviewImage = corrected
+                    self.refreshSingleShotStarMask()
+                    self.applySingleShotAdjustments()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isRemovingGradientFromSingleShot = false
+                    self.singleShotGradientErrorMessage = error is GradientExtractor.ExtractionError
+                        ? "Couldn't find enough plain background away from stars/nebulosity to model a gradient."
+                        : "Couldn't remove the background gradient."
+                }
+            }
+        }
     }
 
     private func autoStretch() {

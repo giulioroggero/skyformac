@@ -28,6 +28,22 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   In/Zoom Out/Fit to Window buttons — pinch/scroll-wheel zoom already worked via `NSScrollView`,
   but nothing on screen said so, and there was no way to re-fit after zooming/panning away from
   the auto-fit that only ever ran once when the image first appeared.
+- Edit Image gains Photos.app-equivalent Vibrance and Warmth/Tint white-balance sliders
+  (`CIVibrance`/`CITemperatureAndTint`) — a smarter saturation boost that protects already-vivid
+  star colors, and a sky-glow/moonlight color-cast fix independent of the existing green-cast
+  SCNR tool.
+- Edit Image (and Planetary Post-Processing's "Single Shot" tab) gain "Remove Background
+  Gradient" — samples plain sky background away from stars/nebulosity, fits a smooth 2nd-order
+  gradient, and subtracts it (`GradientExtractor`), the light-pollution/vignetting removal step
+  previously only reachable by handing the image off to GraXpert.
+- "Reduce Star Size" now scopes its erosion to just the detected star locations
+  (`ImageEditor.computeStarMask`) instead of eroding the whole image uniformly — nebulosity/
+  galaxy structure away from any star is left completely untouched instead of being softened
+  right along with the stars.
+- Edit Image gains a Deconvolution sharpening control (Richardson-Lucy, modeling the blur as a
+  Gaussian PSF) alongside the existing unsharp-mask Sharpen — recovers detail a real point-spread
+  function (seeing, focus, diffraction) actually destroyed, instead of just boosting existing
+  edge contrast.
 
 ### Fixed
 - "Compose Mosaic…"/"Stack…" failed outright with a cryptic `CGImageRenderer.LoadError` if any

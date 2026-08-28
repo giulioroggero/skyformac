@@ -61,6 +61,12 @@ struct SingleImagePostProcessingView: View {
     @State private var isComparingToOriginal = false
     @State private var isApplyingMagicWand = false
     @State private var isCenteringObject = false
+    @State private var isRemovingGradient = false
+    @State private var gradientErrorMessage: String?
+    /// Precomputed once per `workingImage` (see `refreshStarMask()`) rather than inside
+    /// `ImageEditor.render` itself — `StarDetector.detectStars` is a synchronous, possibly-slow
+    /// Vision request, and `render` runs on every single slider tweak for the live preview.
+    @State private var starMask: CGImage?
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
     @State private var saveErrorMessage: String?
@@ -299,13 +305,27 @@ struct SingleImagePostProcessingView: View {
                         Label("Center Object", systemImage: "scope")
                     }
                 }
-                .disabled(isApplyingMagicWand || isCenteringObject)
+                .disabled(isApplyingMagicWand || isCenteringObject || isRemovingGradient)
                 .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
+                Button {
+                    removeBackgroundGradient()
+                } label: {
+                    if isRemovingGradient {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Remove Background Gradient", systemImage: "square.stack.3d.forward.dottedline")
+                    }
+                }
+                .disabled(isApplyingMagicWand || isCenteringObject || isRemovingGradient)
+                .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
                 Button("Reset") { reset() }
-                    .disabled(isApplyingMagicWand || isCenteringObject)
+                    .disabled(isApplyingMagicWand || isCenteringObject || isRemovingGradient)
                 Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
                     .toggleStyle(.button)
                     .help("Show the untouched original stacked above the current edit, instead of only the edit.")
+            }
+            if let gradientErrorMessage {
+                Text(gradientErrorMessage).font(.caption).foregroundStyle(.red)
             }
         }
     }
@@ -345,6 +365,7 @@ struct SingleImagePostProcessingView: View {
             workingImage = image
             previewImage = image
             stage = .ready
+            refreshStarMask()
         } catch {
             errorMessage = "Couldn't open \(sourceURL.lastPathComponent): \(error.localizedDescription)"
             stage = .failed
@@ -363,9 +384,22 @@ struct SingleImagePostProcessingView: View {
         guard let workingImage else { return }
         var adj = adjustments
         adj.cropRect = cropRect
+        let mask = starMask
         renderTask = Task {
             guard !Task.isCancelled else { return }
-            previewImage = ImageEditor.render(workingImage, with: adj) ?? workingImage
+            previewImage = ImageEditor.render(workingImage, with: adj, starMask: mask) ?? workingImage
+        }
+    }
+
+    /// Recomputes `starMask` for whatever `workingImage` currently is — called after every
+    /// operation that replaces `workingImage`'s own pixels/geometry (load, Magic Wand, Center
+    /// Object, Remove Background Gradient, Reset), so `starSizeReduction` always scopes itself to
+    /// this image's actual current star locations instead of a stale mask from before.
+    private func refreshStarMask() {
+        guard let workingImage else { starMask = nil; return }
+        Task.detached(priority: .utility) {
+            let mask = ImageEditor.computeStarMask(for: workingImage)
+            await MainActor.run { self.starMask = mask }
         }
     }
 
@@ -377,6 +411,7 @@ struct SingleImagePostProcessingView: View {
             isApplyingMagicWand = false
             guard let fixed else { return }
             workingImage = fixed
+            refreshStarMask()
             // Magic Wand bakes Core Image's own scene-analysis auto-enhance directly into
             // `workingImage`'s pixels — there's no `Adjustments` slot that corresponds to what it
             // actually computed (per-channel exposure, vibrance, tone curve), so the sliders
@@ -403,7 +438,42 @@ struct SingleImagePostProcessingView: View {
             isCenteringObject = false
             guard let centered else { return }
             self.workingImage = centered
+            refreshStarMask()
             scheduleRender()
+        }
+    }
+
+    /// "Background/gradient extraction" — same bakes-into-`workingImage` treatment as Magic Wand/
+    /// Center Object above, via `GradientExtractor`'s automatic sampling (see its own doc comment
+    /// for exactly how it picks background points and fits/subtracts the gradient).
+    private func removeBackgroundGradient() {
+        guard let workingImage else { return }
+        isRemovingGradient = true
+        gradientErrorMessage = nil
+        Task.detached(priority: .userInitiated) {
+            do {
+                let corrected = try GradientExtractor.removeGradient(from: workingImage)
+                await MainActor.run {
+                    self.isRemovingGradient = false
+                    self.workingImage = corrected
+                    self.refreshStarMask()
+                    self.scheduleRender()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isRemovingGradient = false
+                    self.gradientErrorMessage = Self.describe(error)
+                }
+            }
+        }
+    }
+
+    private static func describe(_ error: Error) -> String {
+        switch error {
+        case GradientExtractor.ExtractionError.tooFewSamples:
+            return "Couldn't find enough plain background away from stars/nebulosity to model a gradient."
+        default:
+            return "Couldn't remove the background gradient."
         }
     }
 
@@ -415,6 +485,7 @@ struct SingleImagePostProcessingView: View {
         cropTop = 0
         cropBottom = 0
         previewImage = originalImage
+        refreshStarMask()
     }
 
     private func save() async {

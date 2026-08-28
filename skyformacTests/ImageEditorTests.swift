@@ -213,6 +213,162 @@ struct ImageEditorTests {
         #expect(rendered.height == 32)
     }
 
+    /// Red-channel value at an arbitrary `(x, y)` — the general-purpose counterpart to
+    /// `topLeftPixel(of:)`, which only ever reads `(0, 0)`.
+    private func pixelValue(at x: Int, _ y: Int, in image: CGImage) -> Int {
+        let width = image.width
+        var pixels = [UInt8](repeating: 0, count: width * image.height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: &pixels, width: width, height: image.height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: image.height))
+        return Int(pixels[(y * width + x) * 4])
+    }
+
+    /// A smooth diagonal gradient (standing in for nebulosity/sky background — deliberately *not*
+    /// flat, since a flat region's interior is a no-op for a minimum filter regardless of
+    /// masking, which would make this test pass for the wrong reason) plus one small, much
+    /// brighter square near the top-left corner (standing in for a star).
+    private func makeStarOverGradientImage(width: Int, height: Int) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let gradient = 80 + Double(x + y) * (100.0 / Double(width + height))
+                let offset = (y * width + x) * 4
+                let value = UInt8(min(255, gradient))
+                pixels[offset] = value
+                pixels[offset + 1] = value
+                pixels[offset + 2] = value
+            }
+        }
+        for y in 4..<12 {
+            for x in 4..<12 {
+                let offset = (y * width + x) * 4
+                pixels[offset] = 255
+                pixels[offset + 1] = 255
+                pixels[offset + 2] = 255
+            }
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    /// A hard-edged (unblurred, unlike `ImageEditor.computeStarMask`'s own feathered output) white
+    /// rectangle over `whiteRect`, black everywhere else — enough to test `render(_:with:starMask:)`'s
+    /// own masking mechanism in isolation, without depending on Vision actually detecting the
+    /// synthetic star blob above as star-like.
+    private func makeHardMask(width: Int, height: Int, whiteRect: CGRect) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                guard whiteRect.contains(CGPoint(x: x, y: y)) else { continue }
+                let offset = (y * width + x) * 4
+                pixels[offset] = 255
+                pixels[offset + 1] = 255
+                pixels[offset + 2] = 255
+            }
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    /// The actual bug this fixes: star-size reduction used to erode the *whole* image uniformly,
+    /// visibly softening nebulosity/galaxy structure right along with the stars. With a mask
+    /// scoping the erosion to just the star's own area, a background pixel well outside the mask
+    /// should come through completely unchanged, while the same render *without* a mask (the old
+    /// behavior) measurably changes that same pixel via the minimum filter's neighborhood effect.
+    @Test func starSizeReductionWithMaskLeavesBackgroundUntouchedButUnmaskedDoesNot() throws {
+        let width = 60, height = 60
+        let image = makeStarOverGradientImage(width: width, height: height)
+        let mask = makeHardMask(width: width, height: height, whiteRect: CGRect(x: 0, y: 0, width: 20, height: 20))
+
+        var adjustments = ImageEditor.Adjustments.identity
+        adjustments.starSizeReduction = 3
+
+        let renderedGlobal = try #require(ImageEditor.render(image, with: adjustments))
+        let renderedMasked = try #require(ImageEditor.render(image, with: adjustments, starMask: mask))
+
+        let originalBackground = pixelValue(at: 47, 47, in: image)
+        let globalBackground = pixelValue(at: 47, 47, in: renderedGlobal)
+        let maskedBackground = pixelValue(at: 47, 47, in: renderedMasked)
+
+        #expect(globalBackground != originalBackground)
+        #expect(maskedBackground == originalBackground)
+    }
+
+    @Test func computeStarMaskReturnsNilForABlankImage() {
+        let blank = makeImage(width: 40, height: 40, red: 0, green: 0, blue: 0)
+        #expect(ImageEditor.computeStarMask(for: blank) == nil)
+    }
+
+    // MARK: - Deconvolution
+
+    /// A brightness step from 50 to 200 blurred over a `transitionWidth`-pixel-wide ramp instead
+    /// of a hard edge — what a real point-spread function does to what would otherwise be a sharp
+    /// boundary (a planetary limb, a lunar terminator), and exactly what deconvolution is meant to
+    /// partially reverse.
+    private func makeSoftEdgeImage(width: Int, height: Int, transitionWidth: Int = 6) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let edge = width / 2
+        for y in 0..<height {
+            for x in 0..<width {
+                let value: UInt8
+                if x < edge - transitionWidth {
+                    value = 50
+                } else if x > edge + transitionWidth {
+                    value = 200
+                } else {
+                    let t = Double(x - (edge - transitionWidth)) / Double(2 * transitionWidth)
+                    value = UInt8(50 + t * 150)
+                }
+                let offset = (y * width + x) * 4
+                pixels[offset] = value
+                pixels[offset + 1] = value
+                pixels[offset + 2] = value
+            }
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    @Test func deconvolutionSharpenPreservesDimensionsAndStaysInByteRange() throws {
+        let image = makeSoftEdgeImage(width: 60, height: 20)
+        var adjustments = ImageEditor.Adjustments.identity
+        adjustments.deconvolutionSharpen = 1
+        let rendered = try #require(ImageEditor.render(image, with: adjustments))
+        #expect(rendered.width == 60)
+        #expect(rendered.height == 20)
+    }
+
+    /// The whole point of deconvolution over plain unsharp-mask sharpening: it should measurably
+    /// steepen a real blurred transition, not just boost contrast at wherever an edge already is.
+    @Test func deconvolutionSharpenSteepensASoftEdge() throws {
+        let width = 60, height = 20
+        let image = makeSoftEdgeImage(width: width, height: height)
+        var adjustments = ImageEditor.Adjustments.identity
+        adjustments.deconvolutionSharpen = 1
+        let rendered = try #require(ImageEditor.render(image, with: adjustments))
+
+        let edge = width / 2
+        let beforeSteepness = pixelValue(at: edge + 3, height / 2, in: image) - pixelValue(at: edge - 3, height / 2, in: image)
+        let afterSteepness = pixelValue(at: edge + 3, height / 2, in: rendered) - pixelValue(at: edge - 3, height / 2, in: rendered)
+        #expect(afterSteepness > beforeSteepness)
+    }
+
     @Test func renderWithShadowAndHighlightAdjustmentsPreservesDimensions() throws {
         let image = makeImage(width: 32, height: 32)
         var adjustments = ImageEditor.Adjustments.identity

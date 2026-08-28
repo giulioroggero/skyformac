@@ -82,6 +82,13 @@ enum ImageEditor {
         /// Same filter's tint axis (green ↔ magenta) — Photos.app's "Tint," usually paired with
         /// Warmth for full white-balance correction. -1...1, 0 = unchanged.
         var tint: Double = 0
+        /// A small, fixed number of Richardson-Lucy deconvolution iterations (see
+        /// `richardsonLucyDeconvolve(_:amount:)`) modeling the blur as a symmetric Gaussian PSF —
+        /// recovers detail a real point-spread function genuinely destroyed (seeing, focus,
+        /// diffraction) instead of just boosting existing edge contrast the way `sharpenIntensity`
+        /// (`CIUnsharpMask`) does. Scales both the assumed PSF radius and the iteration count.
+        /// 0...1, 0 = off.
+        var deconvolutionSharpen: Double = 0
 
         static let identity = Adjustments()
 
@@ -99,7 +106,7 @@ enum ImageEditor {
         enum CodingKeys: String, CodingKey {
             case rotationDegrees, cropRect, brightness, contrast, saturation, gamma, sharpenIntensity,
                  denoiseAmount, removesHotPixels, chromaNoiseReduction, greenCastRemoval, starSizeReduction,
-                 shadowLift, highlightRecovery, posterizeLevels, vibrance, warmth, tint
+                 shadowLift, highlightRecovery, posterizeLevels, vibrance, warmth, tint, deconvolutionSharpen
         }
 
         init(from decoder: Decoder) throws {
@@ -122,6 +129,7 @@ enum ImageEditor {
             vibrance = try container.decodeIfPresent(Double.self, forKey: .vibrance) ?? 0
             warmth = try container.decodeIfPresent(Double.self, forKey: .warmth) ?? 0
             tint = try container.decodeIfPresent(Double.self, forKey: .tint) ?? 0
+            deconvolutionSharpen = try container.decodeIfPresent(Double.self, forKey: .deconvolutionSharpen) ?? 0
         }
 
         init(
@@ -129,7 +137,7 @@ enum ImageEditor {
             saturation: Double = 1, gamma: Double = 1, sharpenIntensity: Double = 0, denoiseAmount: Double = 0,
             removesHotPixels: Bool = false, chromaNoiseReduction: Double = 0, greenCastRemoval: Double = 0,
             starSizeReduction: Double = 0, shadowLift: Double = 0, highlightRecovery: Double = 0, posterizeLevels: Double = 0,
-            vibrance: Double = 0, warmth: Double = 0, tint: Double = 0
+            vibrance: Double = 0, warmth: Double = 0, tint: Double = 0, deconvolutionSharpen: Double = 0
         ) {
             self.rotationDegrees = rotationDegrees
             self.cropRect = cropRect
@@ -149,6 +157,7 @@ enum ImageEditor {
             self.vibrance = vibrance
             self.warmth = warmth
             self.tint = tint
+            self.deconvolutionSharpen = deconvolutionSharpen
         }
     }
 
@@ -163,7 +172,17 @@ enum ImageEditor {
 
     /// Renders `image` with `adjustments` applied. `nil` only if Core Image itself fails to
     /// produce a bitmap (e.g. a degenerate zero-size crop).
-    static func render(_ image: CGImage, with adjustments: Adjustments) -> CGImage? {
+    ///
+    /// - Parameter starMask: An optional precomputed mask from `computeStarMask(for:)`, scoping
+    ///   `starSizeReduction` to just the star locations it marks rather than eroding the whole
+    ///   image uniformly. `nil` (the default) keeps the old whole-image behavior — every existing
+    ///   caller not yet computing a mask keeps compiling and rendering unchanged. Deliberately not
+    ///   computed *inside* this function: `StarDetector.detectStars` runs a synchronous, possibly-
+    ///   slow Vision request, and `render` is called on every single slider tweak for a live
+    ///   preview — callers compute a mask once (e.g. after loading the image, or after Magic Wand/
+    ///   Center Object/Remove Background Gradient change its pixels) and pass the same mask into
+    ///   every subsequent render instead.
+    static func render(_ image: CGImage, with adjustments: Adjustments, starMask: CGImage? = nil) -> CGImage? {
         var ciImage = CIImage(cgImage: image)
 
         if adjustments.rotationDegrees != 0 {
@@ -286,7 +305,26 @@ enum ImageEditor {
             let erode = CIFilter.morphologyMinimum()
             erode.inputImage = ciImage
             erode.radius = Float(adjustments.starSizeReduction)
-            if let output = erode.outputImage { ciImage = output.cropped(to: extentBeforeErosion) }
+            if let eroded = erode.outputImage?.cropped(to: extentBeforeErosion) {
+                if let starMask {
+                    // Scoped to just the star locations `starMask` marks (white = star, feathered
+                    // to black elsewhere) — `CIBlendWithMask` picks `eroded` wherever the mask is
+                    // white and the untouched `ciImage` wherever it's black, so nebulosity/galaxy
+                    // structure away from any detected star is left completely alone instead of
+                    // being eroded right along with the stars the way the old whole-image pass did.
+                    let blend = CIFilter.blendWithMask()
+                    blend.inputImage = eroded
+                    blend.backgroundImage = ciImage
+                    blend.maskImage = CIImage(cgImage: starMask)
+                    if let output = blend.outputImage { ciImage = output.cropped(to: extentBeforeErosion) }
+                } else {
+                    ciImage = eroded
+                }
+            }
+        }
+
+        if adjustments.deconvolutionSharpen > 0 {
+            ciImage = richardsonLucyDeconvolve(ciImage, amount: adjustments.deconvolutionSharpen)
         }
 
         if adjustments.sharpenIntensity > 0 {
@@ -309,6 +347,101 @@ enum ImageEditor {
         // what actually produces a correctly-sized bitmap instead of silently ignoring them.
         guard let rendered = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return adjustments.greenCastRemoval > 0 ? applyGreenCastRemoval(rendered, amount: adjustments.greenCastRemoval) : rendered
+    }
+
+    /// A small, fixed number of Richardson-Lucy deconvolution iterations, modeling the blur as a
+    /// symmetric Gaussian point-spread function (`CIGaussianBlur` itself, reused as both the
+    /// forward and reverse convolution operator — a Gaussian is its own transpose, so the same
+    /// blur works for both directions of the algorithm). Real deconvolution recovers detail a PSF
+    /// (seeing, focus, diffraction) genuinely destroyed, rather than just boosting existing edge
+    /// contrast the way `CIUnsharpMask` (`sharpenIntensity`) does — at the cost of several
+    /// sequential GPU passes instead of one. `amount` (0...1) scales both the assumed PSF radius
+    /// and the iteration count; kept well short of "iterate until it stops changing" since more
+    /// iterations extract more fine detail but also amplify more noise, and a background this
+    /// noisy already needs `denoiseAmount` applied first (upstream of this call in `render`) far
+    /// more than it needs a longer deconvolution loop.
+    private static func richardsonLucyDeconvolve(_ image: CIImage, amount: Double) -> CIImage {
+        let extent = image.extent
+        let radius = Float(1 + amount * 2) // 1...3px assumed PSF radius
+        let iterations = 3 + Int(amount * 7) // 3...10
+        var estimate = image
+        for _ in 0..<iterations {
+            let blur = CIFilter.gaussianBlur()
+            blur.inputImage = estimate.clampedToExtent()
+            blur.radius = radius
+            guard let blurredEstimate = blur.outputImage?.cropped(to: extent) else { break }
+
+            // ratio = image / blurredEstimate — how far the current estimate's own reblur is from
+            // the real observed image, per pixel.
+            let divide = CIFilter.divideBlendMode()
+            divide.inputImage = blurredEstimate
+            divide.backgroundImage = image
+            guard let ratio = divide.outputImage?.cropped(to: extent) else { break }
+
+            let blurRatio = CIFilter.gaussianBlur()
+            blurRatio.inputImage = ratio.clampedToExtent()
+            blurRatio.radius = radius
+            guard let correction = blurRatio.outputImage?.cropped(to: extent) else { break }
+
+            // estimate *= correction — the standard Richardson-Lucy multiplicative update.
+            let multiply = CIFilter.multiplyBlendMode()
+            multiply.inputImage = correction
+            multiply.backgroundImage = estimate
+            guard let updated = multiply.outputImage?.cropped(to: extent) else { break }
+            estimate = updated
+        }
+
+        // The repeated divide/multiply passes can push a handful of pixels slightly outside
+        // 0...1 (dividing by a near-zero background, most often) — clamping once at the end
+        // avoids a stray bright/dark speckle surviving into the final render.
+        let clamp = CIFilter.colorClamp()
+        clamp.inputImage = estimate
+        clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 0)
+        clamp.maxComponents = CIVector(x: 1, y: 1, z: 1, w: 1)
+        return clamp.outputImage?.cropped(to: extent) ?? estimate
+    }
+
+    /// Builds a `starSizeReduction`/`render(_:with:starMask:)` mask: white (fully affected) over
+    /// each detected star's own area — padded well past Vision's tight contour box to also cover
+    /// a bloated star's softer outer halo — blurred for a smooth blend edge, black (untouched)
+    /// everywhere else. `nil` if star detection fails or finds nothing (a caller should just pass
+    /// `nil` on to `render`, which falls back to the old whole-image erosion in that case) —
+    /// this is a nice-to-have precision improvement, not something worth surfacing an error for.
+    /// Slow-ish (a synchronous Vision request) — call from a background `Task`, same as
+    /// `StarDetector.detectStars` itself.
+    static func computeStarMask(for image: CGImage) -> CGImage? {
+        guard let detected = try? StarDetector.detectStars(in: image), !detected.stars.isEmpty else { return nil }
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0, let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let drawContext = CGContext(
+                  data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                  space: colorSpace, bitmapInfo: CGImageAlphaInfo.none.rawValue
+              )
+        else { return nil }
+        drawContext.setFillColor(CGColor(gray: 0, alpha: 1))
+        drawContext.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        drawContext.setFillColor(CGColor(gray: 1, alpha: 1))
+        for star in detected.stars {
+            // Vision's own bottom-left-origin normalized box, converted to this app's usual
+            // top-left-origin pixel space — the same conversion `MosaicComposer.pixelPoints` and
+            // `StarPatternRecognizer` already use.
+            let box = star.boundingBoxNormalized
+            let pixelBox = CGRect(
+                x: box.minX * CGFloat(width), y: (1 - box.maxY) * CGFloat(height),
+                width: box.width * CGFloat(width), height: box.height * CGFloat(height)
+            )
+            let padded = pixelBox.insetBy(dx: -pixelBox.width * 0.6, dy: -pixelBox.height * 0.6)
+            drawContext.fillEllipse(in: padded)
+        }
+        guard let raw = drawContext.makeImage() else { return nil }
+
+        let ciMask = CIImage(cgImage: raw)
+        let blur = CIFilter.gaussianBlur()
+        blur.inputImage = ciMask.clampedToExtent()
+        blur.radius = 3
+        let blurred = blur.outputImage?.cropped(to: ciMask.extent) ?? ciMask
+        return context.createCGImage(blurred, from: ciMask.extent) ?? raw
     }
 
     /// SCNR: caps each pixel's green channel at the average of its red and blue, blended by

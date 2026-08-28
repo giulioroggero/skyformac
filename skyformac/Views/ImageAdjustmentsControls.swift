@@ -113,6 +113,10 @@ struct ImageAdjustmentsControls: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Sharpen").font(.title3.bold())
             slider("Strength", value: $adjustments.sharpenIntensity, range: 0...5, defaultValue: 0)
+            slider("Deconvolution", value: $adjustments.deconvolutionSharpen, range: 0...1, defaultValue: 0)
+            Text("Recovers detail a real point-spread function (seeing, focus, diffraction) actually destroyed, via a few Richardson-Lucy iterations — a genuine step up from Strength above for planetary/lunar detail, at the cost of amplifying more noise. Denoise first for best results.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
