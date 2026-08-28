@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 /// `NSScrollView` `ZoomableImageView` creates — a plain reference type rather than `@State`,
 /// since `ZoomableImageView` itself is recreated by SwiftUI but this needs to keep driving
 /// whichever `NSScrollView` is currently on screen.
+@MainActor
 final class ImageZoomController {
     fileprivate weak var scrollView: NSScrollView?
     fileprivate var imageSize: CGSize = .zero
