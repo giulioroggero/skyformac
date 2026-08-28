@@ -9,6 +9,13 @@ import SwiftUI
 /// `ImageAdjustmentsControls`/`ImageEditor` for the same touch-up pass every other post-processing
 /// screen already offers, once the tiles themselves are stitched together.
 struct MosaicComposerView: View {
+    /// `.mosaic` stitches deliberately-offset tiles side by side into a wider frame
+    /// (`MosaicComposer`); `.stack` instead aligns and averages captures that already share
+    /// (roughly) the same field of view (`StillImageStacker`) — the same "combine several
+    /// captures" screen either way, just a different compose function and a couple of labels.
+    enum Mode { case mosaic, stack }
+
+    let mode: Mode
     let sourceURLs: [URL]
     let sourceDescription: String
     /// See `SingleImagePostProcessingView`'s own doc comment on this — just enough for the
@@ -31,6 +38,10 @@ struct MosaicComposerView: View {
     @State private var previewImage: CGImage?
     @State private var renderTask: Task<Void, Never>?
     @State private var adjustments = ImageEditor.Adjustments()
+    /// File names among `sourceURLs` that failed to load (a corrupt/incomplete capture, e.g. a
+    /// write that got interrupted) — those tiles are silently left out rather than failing the
+    /// whole compose, as long as at least 2 loadable tiles remain.
+    @State private var skippedTileNames: [String] = []
 
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
@@ -67,8 +78,13 @@ struct MosaicComposerView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Mosaic Composer").font(.headline)
+                Text(mode == .mosaic ? "Mosaic Composer" : "Stack Captures").font(.headline)
                 Text(sourceDescription).font(.caption).foregroundStyle(.secondary)
+                if !skippedTileNames.isEmpty {
+                    Text("Skipped \(skippedTileNames.count) unreadable file\(skippedTileNames.count == 1 ? "" : "s"): \(skippedTileNames.joined(separator: ", "))")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
             Spacer()
             if let savedImage {
@@ -128,35 +144,65 @@ struct MosaicComposerView: View {
     private func compose() async {
         let urls = sourceURLs
         do {
-            let tiles = try await Task.detached(priority: .userInitiated) {
-                try urls.map { try CGImageRenderer.loadDisplayImage(from: $0) }
-            }.value
-            let sink = MosaicProgressSink { text in progressText = text }
-            let composed = try await Task.detached(priority: .userInitiated) {
-                try MosaicComposer.compose(tiles: tiles) { index, total in
-                    sink.report(tileIndex: index, total: total)
+            // A tile that fails to load (a corrupt/truncated file — e.g. a capture whose write
+            // got interrupted) is skipped rather than failing the whole compose; only bail out
+            // here if too few loadable tiles are left, which `MosaicComposer`/`StillImageStacker`
+            // would reject as `.tooFewTiles` anyway.
+            let (tiles, skipped) = try await Task.detached(priority: .userInitiated) {
+                var tiles: [CGImage] = []
+                var skipped: [String] = []
+                for url in urls {
+                    if let image = try? CGImageRenderer.loadDisplayImage(from: url) {
+                        tiles.append(image)
+                    } else {
+                        skipped.append(url.lastPathComponent)
+                    }
                 }
+                return (tiles, skipped)
             }.value
+            skippedTileNames = skipped
+            guard tiles.count >= 2 else { throw MosaicComposer.ComposeError.tooFewTiles }
+
+            let sink = MosaicProgressSink { text in progressText = text }
+            let composed: CGImage
+            switch mode {
+            case .mosaic:
+                composed = try await Task.detached(priority: .userInitiated) {
+                    try MosaicComposer.compose(tiles: tiles) { index, total in
+                        sink.report(tileIndex: index, total: total)
+                    }
+                }.value
+            case .stack:
+                composed = try await Task.detached(priority: .userInitiated) {
+                    try StillImageStacker.stack(tiles: tiles) { index, total in
+                        sink.report(tileIndex: index, total: total)
+                    }
+                }.value
+            }
             composedImage = composed
             previewImage = composed
             stage = .ready
         } catch let error as MosaicComposer.ComposeError {
-            errorMessage = Self.describe(error)
+            errorMessage = Self.describe(error, mode: mode)
             stage = .failed
         } catch {
-            errorMessage = "Couldn't load one of these tiles: \(error.localizedDescription)"
+            errorMessage = "Couldn't compose these captures: \(error.localizedDescription)"
             stage = .failed
         }
     }
 
-    private static func describe(_ error: MosaicComposer.ComposeError) -> String {
+    private static func describe(_ error: MosaicComposer.ComposeError, mode: Mode) -> String {
         switch error {
         case .tooFewTiles:
-            return "A mosaic needs at least two captures to compose together."
+            return mode == .mosaic
+                ? "A mosaic needs at least two loadable captures to compose together."
+                : "A stack needs at least two loadable captures to combine."
         case .insufficientOverlap(let tileIndex):
-            return "Tile \(tileIndex + 1) doesn't share enough stars with the tile before it to line up — they may not actually overlap, or the field is too sparse to register."
+            return mode == .mosaic
+                ? "Tile \(tileIndex + 1) doesn't share enough stars with the tile before it to line up — they may not actually overlap, or the field is too sparse to register."
+                : "Capture \(tileIndex + 1) doesn't share enough stars with the first capture to align — they may not actually be the same field, or the field is too sparse to register."
         case .renderFailed:
-            return "Couldn't render the composed image."
+            return "Couldn't render the result."
         }
     }
 

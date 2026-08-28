@@ -1896,15 +1896,21 @@ final class CameraManager {
     /// its own tool label. `sourceCaptureID` is always `nil` here (never a single representative
     /// capture — a mosaic result never has just one, same reasoning `savePlanetaryPostProcessingResult`'s
     /// own multi-capture call sites already use `nil` for).
-    func saveMosaicResult(_ image: CGImage, sourceSessionIDs: [UUID], project: Project) throws -> ElaboratedImage {
+    /// `filePrefix`/`toolLabel` default to the original Mosaic Composer naming — `StillImageStacker`'s
+    /// own "Stack Captures" flow (`MosaicComposerView.Mode.stack`) calls this with `"Stack"`/`"Stack
+    /// Captures"` instead, so both share this one save path rather than duplicating it.
+    func saveMosaicResult(
+        _ image: CGImage, sourceSessionIDs: [UUID], project: Project,
+        filePrefix: String = "Mosaic", toolLabel: String = "Mosaic Composer"
+    ) throws -> ElaboratedImage {
         let outputDirectory = projectStore.elaboratedImagesFolderURL(for: project)
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-        let fileName = "Mosaic-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970)).png"
+        let fileName = "\(filePrefix)-\(ProjectStore.sanitizeForFilename(project.name))-\(Int(Date().timeIntervalSince1970)).png"
         let resultURL = outputDirectory.appendingPathComponent(fileName)
         try ImageExporter.writePNG(image, to: resultURL)
         return try projectsLibrary.addElaboratedImage(
             fileName: fileName, sourceSessionIDs: sourceSessionIDs,
-            sourceCaptureID: nil, toolLabel: "Mosaic Composer", to: project
+            sourceCaptureID: nil, toolLabel: toolLabel, to: project
         )
     }
 

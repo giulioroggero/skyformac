@@ -670,6 +670,10 @@ struct SessionDetailPane: View {
             // same-field-of-view stacking, so this only makes sense for 2+ finished stills.
             if selectedImageCaptures.count >= 2 {
                 Button("Compose Mosaic…", systemImage: "square.grid.3x3") { openMosaicComposerWindow() }
+                // "Just combine these — same field of view, better signal-to-noise" — aligns and
+                // averages instead of `MosaicComposer`'s side-by-side stitch; see
+                // `StillImageStacker`'s own doc comment for exactly how it differs.
+                Button("Stack…", systemImage: "square.stack.3d.up") { openStillStackWindow() }
             }
             Button("Delete", systemImage: "trash", role: .destructive) {
                 isConfirmingBulkCaptureDelete = true
@@ -717,11 +721,44 @@ struct SessionDetailPane: View {
             onClose: { mosaicComposerWindowController = nil }
         ) {
             MosaicComposerView(
+                mode: .mosaic,
                 sourceURLs: urls,
                 sourceDescription: "Composing \(urls.count) captures into a mosaic.",
                 elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
                 onSave: { cgImage in
                     try cameraManager.saveMosaicResult(cgImage, sourceSessionIDs: [session.id], project: project)
+                },
+                onDismiss: { mosaicComposerWindowController?.close() }
+            )
+        }
+        mosaicComposerWindowController?.showWindow(nil)
+    }
+
+    /// Same window/flow as `openMosaicComposerWindow`, just `.stack` mode — see
+    /// `MosaicComposerView.Mode`/`StillImageStacker`'s own doc comments for how it differs from a
+    /// mosaic. Reuses `mosaicComposerWindowController` itself (not a second `@State` var) since
+    /// only one of these can sensibly be open at a time per session page.
+    private func openStillStackWindow() {
+        let captures = selectedImageCaptures
+        let urls = captures.map {
+            cameraManager.projectStore.sessionFolderURL(for: session, in: project).appendingPathComponent($0.fileName)
+        }
+        guard urls.count >= 2 else { return }
+        mosaicComposerWindowController = DetachedContentWindowController(
+            title: "Stack Captures — \(urls.count) captures", contentSize: MosaicComposerView.fullScreenSize,
+            minSize: MosaicComposerView.minWindowSize,
+            onClose: { mosaicComposerWindowController = nil }
+        ) {
+            MosaicComposerView(
+                mode: .stack,
+                sourceURLs: urls,
+                sourceDescription: "Aligning and averaging \(urls.count) captures.",
+                elaboratedImagesFolderURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: project),
+                onSave: { cgImage in
+                    try cameraManager.saveMosaicResult(
+                        cgImage, sourceSessionIDs: [session.id], project: project,
+                        filePrefix: "Stack", toolLabel: "Stack Captures"
+                    )
                 },
                 onDismiss: { mosaicComposerWindowController?.close() }
             )
