@@ -10,6 +10,9 @@ import Testing
 /// frame arrived last. Written in response to a real "live stacking looks identical to a single
 /// frame" report — see the two conclusions below (`stackedAverageIsMeaningfullyCloserToTheTrueMeanThanASingleFrame`,
 /// `alignedAccumulateRecentersADriftingFeatureInsteadOfSmearingIt`) for what was actually checked.
+/// `.serialized` — see `GPUFrameCalibratorTests`'s own doc comment for why every Metal-dispatching
+/// suite in this target avoids running its own tests concurrently against each other.
+@Suite(.serialized)
 struct GPULiveStackAccumulationTests {
     private struct Kernels {
         let device: MTLDevice

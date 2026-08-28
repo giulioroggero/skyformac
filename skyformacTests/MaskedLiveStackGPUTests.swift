@@ -8,6 +8,9 @@ import Testing
 /// path matches `LiveStacker.add(_:mask:)`'s CPU semantics exactly: a masked-out pixel on one
 /// frame is skipped entirely (not zeroed) — its final average is over fewer frames, not the
 /// same frame count with a zero mixed in.
+/// `.serialized` — see `GPUFrameCalibratorTests`'s own doc comment for why every Metal-dispatching
+/// suite in this target avoids running its own tests concurrently against each other.
+@Suite(.serialized)
 struct MaskedLiveStackGPUTests {
     private struct Kernels {
         let device: MTLDevice

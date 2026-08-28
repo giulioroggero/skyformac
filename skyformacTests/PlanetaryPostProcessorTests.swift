@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import skyformac
 
+/// `.serialized` — this suite mixes plain CPU-only tests with a GPU section (`PlanetaryGPURegistrar`/
+/// `PlanetaryGPUStacker`/`PlanetaryGPULuminanceConverter`, see the "GPU ..." `MARK`s below); see
+/// `GPUFrameCalibratorTests`'s own doc comment for why every Metal-dispatching suite in this
+/// target avoids running its own tests concurrently against each other. Serializing the whole
+/// suite (rather than splitting out just the GPU tests) costs a little CI time but is far simpler
+/// than maintaining two suites just to keep the CPU-only majority parallel.
+@Suite(.serialized)
 struct PlanetaryPostProcessorTests {
     private func monoFrame(width: Int, height: Int, value: (Int, Int) -> UInt8) -> CapturedFrame {
         var bytes = [UInt8](repeating: 0, count: width * height)

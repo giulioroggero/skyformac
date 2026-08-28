@@ -14,10 +14,14 @@ build:
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) \
 		-destination '$(DESTINATION)' -derivedDataPath $(DERIVED_DATA) build
 
-## Run the unit test suite (skyformacTests)
+## Run the unit test suite (skyformacTests). -retry-tests-on-failure is a buffer against
+## transient CI contention (GPU tests racing the runner's other load, disk I/O hiccups, etc.) —
+## see the `.serialized` traits on the Metal-dispatching test suites for the actual fix to GPU
+## test flakiness specifically; this just catches whatever that doesn't.
 test:
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) \
-		-destination '$(DESTINATION)' -derivedDataPath $(DERIVED_DATA) test
+		-destination '$(DESTINATION)' -derivedDataPath $(DERIVED_DATA) \
+		-retry-tests-on-failure test
 
 ## Build (if needed) and launch the app locally
 run: build

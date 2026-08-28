@@ -6,6 +6,13 @@ import Testing
 /// Cross-checks `GPUFrameCalibrator`'s Metal kernels against the CPU `FrameArithmetic`/
 /// `FlatFieldCorrector` reference implementations they're meant to match pixel-for-pixel — see
 /// `FrameArithmeticTests`/`FlatFieldCorrectorTests` for the CPU-side cases this mirrors.
+/// `.serialized` — Swift Testing runs a suite's tests concurrently by default, and each test here
+/// stands up its own `GPUFrameCalibrator` against the same physical/virtualized GPU; on a
+/// resource-constrained CI runner, several of these submitting Metal command buffers at once was
+/// the actual source of this suite's intermittent failures (confirmed: reruns in isolation always
+/// passed), not a bug in the kernels themselves. Running them one at a time removes that
+/// contention instead of just tolerating it via retries alone.
+@Suite(.serialized)
 struct GPUFrameCalibratorTests {
     private func makeCalibrator() throws -> GPUFrameCalibrator {
         let device = try #require(MTLCreateSystemDefaultDevice())
