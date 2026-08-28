@@ -47,6 +47,7 @@ Screens of the app itself, rather than a captured target — shown in the README
 
 | File | Page | Notes |
 | --- | --- | --- |
+| [`home.png`](examples/home.png) | Dashboard/Home | README/website banner — Common Tasks, the Observation Timeline, and Recent Projects. |
 | [`Home Page.png`](<examples/Home Page.png>) | Dashboard/Home | "Resume Where You Left Off," Common Tasks, Recent Projects, Highlighted Sessions. |
 | [`New Timeline.png`](<examples/New Timeline.png>) | Dashboard/Home (Observation Timeline) | The Home page's own zoomable timeline — big date header, count-based spacing (not proportional to real elapsed time), and a zoom slider. |
 | [`Quick Start.png`](<examples/Quick Start.png>) | Quick Start picker | Over the Projects grid — Planets & Moon and Deep Sky target lists. |
