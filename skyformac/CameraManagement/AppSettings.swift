@@ -38,6 +38,9 @@ enum AppSettings {
         case ollamaServerURLString
         case ollamaModel
         case ollamaMaxResponseTokens
+        case aiProvider
+        case anthropicModel
+        case geminiModel
         case sessionSuggestionSkill
         case isAssistantPanelVisible
         case isAssistantMinimized
@@ -392,6 +395,51 @@ enum AppSettings {
     }
 
     static let defaultOllamaMaxResponseTokens = 800
+
+    /// Which service the assistant/planning features (`OllamaPlanner`, despite the name — see its
+    /// own doc comment) actually talk to. "Configure AI with Ollama, or with an Anthropic/Gemini
+    /// API key" — Ollama stays the default (matches the app's own no-account/no-cloud stance
+    /// unless the user opts in to a cloud provider themselves).
+    enum AIProvider: String, CaseIterable, Identifiable {
+        case ollama, anthropic, gemini
+        var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .ollama: return "Ollama (local)"
+            case .anthropic: return "Anthropic Claude"
+            case .gemini: return "Google Gemini"
+            }
+        }
+    }
+
+    static var aiProvider: AIProvider {
+        get { UserDefaults.standard.string(forKey: Key.aiProvider.rawValue).flatMap(AIProvider.init(rawValue:)) ?? .ollama }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.aiProvider.rawValue) }
+    }
+
+    /// API keys live in the Keychain (`KeychainStore`), never `UserDefaults`'s own plist — see
+    /// that type's own doc comment for why. `nil` means "not configured yet."
+    static var anthropicAPIKey: String? {
+        get { KeychainStore.string(forKey: "anthropicAPIKey") }
+        set { KeychainStore.set(newValue, forKey: "anthropicAPIKey") }
+    }
+
+    static var geminiAPIKey: String? {
+        get { KeychainStore.string(forKey: "geminiAPIKey") }
+        set { KeychainStore.set(newValue, forKey: "geminiAPIKey") }
+    }
+
+    /// `nil` (the default) picks each client's own built-in default model — see
+    /// `AnthropicTransport`/`GeminiTransport`'s own doc comments for what that is.
+    static var anthropicModel: String? {
+        get { UserDefaults.standard.string(forKey: Key.anthropicModel.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.anthropicModel.rawValue) }
+    }
+
+    static var geminiModel: String? {
+        get { UserDefaults.standard.string(forKey: Key.geminiModel.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.geminiModel.rawValue) }
+    }
 
     /// `true` when launched by `SkyformacUITests` (which sets `SKYFORMAC_UITEST_ROOT` —
     /// `ProjectStore.resolveRootDirectory`'s own isolation marker). The assistant panel's

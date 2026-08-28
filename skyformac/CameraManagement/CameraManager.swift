@@ -720,7 +720,43 @@ final class CameraManager {
     func updateOllamaConfiguration(serverURL: URL, model: String?) {
         AppSettings.ollamaServerURL = serverURL
         AppSettings.ollamaModel = model
+        guard AppSettings.aiProvider == .ollama else { return }
         ollamaPlanner = OllamaPlanner(baseURL: serverURL, model: model)
+    }
+
+    /// "Configure AI with Ollama, or with an Anthropic/Gemini API key" — swaps `ollamaPlanner`'s
+    /// own transport (see `AnthropicTransport`/`GeminiTransport`'s own doc comment for why routing
+    /// through `OllamaPlanner` unchanged, rather than a parallel planner type, is the right call
+    /// here) and rebuilds it immediately, the same "takes effect right away, no destructive side
+    /// effect" reasoning `updateOllamaConfiguration` already documents.
+    func updateAIProviderConfiguration(provider: AppSettings.AIProvider, anthropicAPIKey: String?, geminiAPIKey: String?) {
+        AppSettings.aiProvider = provider
+        AppSettings.anthropicAPIKey = anthropicAPIKey
+        AppSettings.geminiAPIKey = geminiAPIKey
+        ollamaPlanner = Self.makePlanner()
+    }
+
+    /// The one place that decides which transport `ollamaPlanner` actually talks over — read at
+    /// `init` and again by `updateAIProviderConfiguration`/`updateOllamaConfiguration`, so both
+    /// starting the app and changing Settings mid-session stay consistent with each other.
+    static func makePlanner() -> OllamaPlanner {
+        switch AppSettings.aiProvider {
+        case .ollama:
+            return OllamaPlanner(baseURL: AppSettings.ollamaServerURL, model: AppSettings.ollamaModel)
+        case .anthropic:
+            let model = AppSettings.anthropicModel ?? "claude-3-5-haiku-latest"
+            let transport = AnthropicTransport(apiKey: AppSettings.anthropicAPIKey ?? "", model: model)
+            // `model:` set explicitly (never `nil`) — `OllamaPlanner.resolveModel()`'s own
+            // "nil means auto-detect via Ollama's /api/tags" fallback has no equivalent for a
+            // cloud provider; this transport only ever reads `prompt` back out of the request
+            // body (see its own doc comment), so a `GET /api/tags` auto-detect call would just
+            // fail against it rather than doing anything useful.
+            return OllamaPlanner(model: model, transport: transport)
+        case .gemini:
+            let model = AppSettings.geminiModel ?? "gemini-2.0-flash"
+            let transport = GeminiTransport(apiKey: AppSettings.geminiAPIKey ?? "", model: model)
+            return OllamaPlanner(model: model, transport: transport)
+        }
     }
 
     /// ZWO's own recommended gain/offset reference points for the connected camera model — see
@@ -2248,7 +2284,7 @@ final class CameraManager {
 
     init(
         projectStore: ProjectStore = ProjectStore(), locationProvider: CoreLocationProvider = CoreLocationProvider(),
-        ollamaPlanner: OllamaPlanner = OllamaPlanner(baseURL: AppSettings.ollamaServerURL, model: AppSettings.ollamaModel),
+        ollamaPlanner: OllamaPlanner = CameraManager.makePlanner(),
         aiChatLibrary: AIChatLibrary = AIChatLibrary()
     ) {
         self.projectStore = projectStore

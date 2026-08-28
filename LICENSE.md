@@ -11,6 +11,30 @@ As an additional permission under Section 7 of the GNU General Public License ve
 
 All other source code written for "Sky for Mac" remains governed strictly by the GNU General Public License version 3.
 
+### THIRD-PARTY MODELS
+"Sky for Mac" bundles a Core ML model converted from a third-party open-source project, redistributed under its own original license as required by that license's own terms:
+
+- **Cosmic-ray/hot-pixel removal** (`skyformac/Resources/Models/DeepCRCosmicRayMask.mlpackage`) — converted from the `UNet2Sigmoid` mask-prediction model in [deepCR](https://github.com/profjsb/deepCR) by Keming Zhang and Joshua S. Bloom (UC Berkeley), licensed under the **BSD 3-Clause License**:
+
+  > Copyright (c) 2019, UC Berkeley
+  > All rights reserved.
+  >
+  > Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+  > 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+  > 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+  > 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+  >
+  > THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+  See `scripts/models/convert_deepcr.py` for the exact conversion (architecture reconstructed
+  directly from the checkpoint's own weights, validated to within ~4e-5 per pixel against the
+  original PyTorch model) and `SBOM.md` for the full model/dependency inventory, including which
+  other researched models (NAFNet, SwinIR, diffusion4astro) aren't yet bundled and why.
+
+All other AI-assisted features in "Sky for Mac" (the sidebar assistant, session planning) call
+out to a local Ollama server or a cloud API (Anthropic, Google Gemini) the user configures with
+their own credentials — no other third-party model weights ship with the app itself.
+
 ---
 
 # GNU GENERAL PUBLIC LICENSE

@@ -20,6 +20,9 @@ struct SettingsView: View {
     @State private var selectedModel: String? = AppSettings.ollamaModel
     @State private var maxResponseTokens = AppSettings.ollamaMaxResponseTokens
     @State private var sessionSuggestionSkill = AppSettings.sessionSuggestionSkill
+    @State private var aiProvider = AppSettings.aiProvider
+    @State private var anthropicAPIKeyText = AppSettings.anthropicAPIKey ?? ""
+    @State private var geminiAPIKeyText = AppSettings.geminiAPIKey ?? ""
 
     private var currentProjectsFolder: URL {
         customPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? ProjectStore.defaultRootDirectory()
@@ -187,6 +190,33 @@ struct SettingsView: View {
 
     private var aiForm: some View {
         Form {
+                Section("AI Provider") {
+                    Picker("Provider", selection: $aiProvider) {
+                        ForEach(AppSettings.AIProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
+                    }
+                    .onChange(of: aiProvider) { _, _ in applyAIProviderConfiguration() }
+                    switch aiProvider {
+                    case .ollama:
+                        Text("Runs entirely on your own machine via a local Ollama server — no account, nothing leaves your computer.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .anthropic:
+                        SecureField("API Key", text: $anthropicAPIKeyText, prompt: Text("sk-ant-…"))
+                            .onSubmit(applyAIProviderConfiguration)
+                        Text("Requests go to Anthropic's own servers using this key — see [console.anthropic.com](https://console.anthropic.com) to create one. Not stored in this app's own preferences file; kept in the macOS Keychain.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .gemini:
+                        SecureField("API Key", text: $geminiAPIKeyText, prompt: Text("AIza…"))
+                            .onSubmit(applyAIProviderConfiguration)
+                        Text("Requests go to Google's own servers using this key — see [aistudio.google.com](https://aistudio.google.com/apikey) to create one. Not stored in this app's own preferences file; kept in the macOS Keychain.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if aiProvider == .ollama {
                 Section("AI (Ollama)") {
                     LabeledContent("Server") {
                         TextField("Server URL", text: $serverURLText, prompt: Text("http://localhost:11434"))
@@ -247,6 +277,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                }
 
                 Section("AI Skill: Suggest Next Session") {
                     TextEditor(text: $sessionSuggestionSkill)
@@ -275,6 +306,14 @@ struct SettingsView: View {
     /// silently ignored rather than clearing the existing configuration, since a URL field mid-edit
     /// (an incomplete paste, say) is a much more likely reason for it to briefly not parse than the
     /// user actually wanting to reset anything.
+    private func applyAIProviderConfiguration() {
+        cameraManager.updateAIProviderConfiguration(
+            provider: aiProvider,
+            anthropicAPIKey: anthropicAPIKeyText.trimmingCharacters(in: .whitespacesAndNewlines),
+            geminiAPIKey: geminiAPIKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
     private func applyServerURL() {
         let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed), url.scheme != nil else { return }

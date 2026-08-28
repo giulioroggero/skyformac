@@ -34,3 +34,24 @@ positions, magnitudes, and common names — themselves public astronomical facts
 the Stellarium project, used entirely offline to resolve an observed object's name to its real
 sky position for the app's own Sky Atlas view and AI assistant. Credit and thanks to the
 Stellarium project and its contributors for compiling and maintaining this data.
+
+---
+
+## 3. deepCR cosmic-ray mask model
+
+* **Project:** deepCR (https://github.com/profjsb/deepCR) by Keming Zhang and Joshua S. Bloom, UC Berkeley
+* **License Type:** BSD 3-Clause License (full text in `LICENSE.md`)
+* **Components Used:** The trained weights from `learned_models/mask/ACS-WFC.pth` (deepCR's
+  `UNet2Sigmoid` cosmic-ray mask model), converted to Core ML
+  (`skyformac/Resources/Models/DeepCRCosmicRayMask.mlpackage`) via
+  `scripts/models/convert_deepcr.py`. No deepCR source code is bundled or linked — only the
+  converted model weights, redistributed under deepCR's own BSD-3-Clause license as that license
+  permits and requires (notice retained above and in `LICENSE.md`).
+
+### Notice
+Edit Image / Planetary Post-Processing's "AI" section → "Remove Cosmic Rays" runs this converted
+model on-device via Core ML (GPU/ANE-accelerated where available) to detect cosmic-ray/hot-pixel
+damage; `CosmicRayRemover.swift` then repairs the flagged pixels with a median-filtered fill.
+Thanks to Keming Zhang, Joshua S. Bloom, and the deepCR project for the original model and
+training work this is built on. See `SBOM.md` for the exact source commit, weight file checksum,
+and which other researched models aren't (yet) bundled and why.

@@ -143,6 +143,9 @@ struct PlanetaryPostProcessingView: View {
     @State private var isCenteringObject = false
     @State private var isRemovingGradientFromSingleShot = false
     @State private var singleShotGradientErrorMessage: String?
+    @State private var isRemovingCosmicRaysFromSingleShot = false
+    @State private var isApplyingTikhonovDeconvolutionToSingleShot = false
+    @State private var singleShotAIToolErrorMessage: String?
     /// See `SingleImagePostProcessingView.starMask`'s own doc comment for why this is precomputed
     /// rather than inside `ImageEditor.render` itself. Refreshed after Magic Wand/Center
     /// Object/Remove Background Gradient, and once (lazily, not on every restack) the first time
@@ -695,7 +698,7 @@ struct PlanetaryPostProcessingView: View {
                         Label("Magic Wand (Auto-Fix)", systemImage: "wand.and.stars")
                     }
                 }
-                .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot || isCenteringObject)
+                .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
                 Button {
                     centerSingleShotObject()
                 } label: {
@@ -705,7 +708,7 @@ struct PlanetaryPostProcessingView: View {
                         Label("Center Object", systemImage: "scope")
                     }
                 }
-                .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot || isCenteringObject)
+                .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
                 .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
                 Button {
                     removeBackgroundGradientFromSingleShot()
@@ -716,11 +719,42 @@ struct PlanetaryPostProcessingView: View {
                         Label("Remove Background Gradient", systemImage: "square.stack.3d.forward.dottedline")
                     }
                 }
-                .disabled(stackedPreviewImage == nil || isApplyingMagicWandToSingleShot || isCenteringObject || isRemovingGradientFromSingleShot)
+                .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
                 .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
             }
             if let singleShotGradientErrorMessage {
                 Text(singleShotGradientErrorMessage).font(.caption).foregroundStyle(.red)
+            }
+
+            // Same on-device AI tools as `SingleImagePostProcessingView.aiSection` — see that
+            // property's own doc comment for why these bake into `stackedPreviewImage` as one-shot
+            // actions rather than living in `ImageAdjustmentsControls`' shared sliders.
+            HStack {
+                Button {
+                    removeCosmicRaysFromSingleShot()
+                } label: {
+                    if isRemovingCosmicRaysFromSingleShot {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Remove Cosmic Rays", systemImage: "sparkle")
+                    }
+                }
+                .disabled(stackedPreviewImage == nil || !CosmicRayRemover.isAvailable || isBusyWithAnySingleShotTool)
+                .help("Deep-learning cosmic-ray/hot-pixel detection and repair (deepCR, on-device Core ML).")
+                Button {
+                    applyTikhonovDeconvolutionToSingleShot()
+                } label: {
+                    if isApplyingTikhonovDeconvolutionToSingleShot {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Tikhonov Deconvolution", systemImage: "wand.and.rays")
+                    }
+                }
+                .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
+                .help("Regularized deblurring (Tikhonov/Landweber) — a smoother, more noise-robust alternative to the Sharpen section's own Deconvolution slider below.")
+            }
+            if let singleShotAIToolErrorMessage {
+                Text(singleShotAIToolErrorMessage).font(.caption).foregroundStyle(.red)
             }
 
             // "In single shot use the edit functionalities of the edit image from capture page —
@@ -1052,6 +1086,55 @@ struct PlanetaryPostProcessingView: View {
                     self.singleShotGradientErrorMessage = error is GradientExtractor.ExtractionError
                         ? "Couldn't find enough plain background away from stars/nebulosity to model a gradient."
                         : "Couldn't remove the background gradient."
+                }
+            }
+        }
+    }
+
+    private var isBusyWithAnySingleShotTool: Bool {
+        isApplyingMagicWandToSingleShot || isCenteringObject || isRemovingGradientFromSingleShot
+            || isRemovingCosmicRaysFromSingleShot || isApplyingTikhonovDeconvolutionToSingleShot
+    }
+
+    private func removeCosmicRaysFromSingleShot() {
+        guard let stackedPreviewImage else { return }
+        isRemovingCosmicRaysFromSingleShot = true
+        singleShotAIToolErrorMessage = nil
+        Task.detached(priority: .userInitiated) {
+            do {
+                let cleaned = try CosmicRayRemover.clean(stackedPreviewImage)
+                await MainActor.run {
+                    self.isRemovingCosmicRaysFromSingleShot = false
+                    self.stackedPreviewImage = cleaned
+                    self.refreshSingleShotStarMask()
+                    self.applySingleShotAdjustments()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isRemovingCosmicRaysFromSingleShot = false
+                    self.singleShotAIToolErrorMessage = "Couldn't remove cosmic rays: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func applyTikhonovDeconvolutionToSingleShot() {
+        guard let stackedPreviewImage else { return }
+        isApplyingTikhonovDeconvolutionToSingleShot = true
+        singleShotAIToolErrorMessage = nil
+        Task.detached(priority: .userInitiated) {
+            do {
+                let deconvolved = try TikhonovDeconvolver.deconvolve(stackedPreviewImage, amount: 0.5)
+                await MainActor.run {
+                    self.isApplyingTikhonovDeconvolutionToSingleShot = false
+                    self.stackedPreviewImage = deconvolved
+                    self.refreshSingleShotStarMask()
+                    self.applySingleShotAdjustments()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isApplyingTikhonovDeconvolutionToSingleShot = false
+                    self.singleShotAIToolErrorMessage = "Couldn't deconvolve: \(error.localizedDescription)"
                 }
             }
         }

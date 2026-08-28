@@ -20,6 +20,17 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Edit Image and Planetary Post-Processing's "Single Shot" tab gain an **AI** section with two
+  on-device Core ML tools, both GPU/ANE-accelerated and run off the main thread:
+  - **Remove Cosmic Rays** — a Core ML conversion of [deepCR](https://github.com/profjsb/deepCR)'s
+    cosmic-ray mask model (BSD-3-Clause), repairing flagged pixels with a median-filtered fill.
+  - **Tikhonov Deconvolution** — regularized deblurring (Landweber iteration) via Accelerate/vDSP,
+    a smoother, more noise-robust alternative to the existing Richardson-Lucy Deconvolution slider.
+  See `SBOM.md`/`THIRD_PARTY_NOTICES.md` for exactly what's bundled, its license, and which other
+  researched models (NAFNet, SwinIR, diffusion4astro) aren't yet bundled and why.
+- Settings gains an AI Provider picker — Ollama (local, the existing default) or, with your own
+  API key stored in the macOS Keychain, Anthropic Claude or Google Gemini — for the sidebar
+  assistant and session-planning features.
 - A session's Timeline gains "Import…" — adds pictures or videos you already have (Finder files,
   a whole folder, or Apple Photos) directly as captures, alongside whatever the camera itself
   produced. A new `.video` capture kind covers a plain imported video file, distinct from this

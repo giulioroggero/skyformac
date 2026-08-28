@@ -63,6 +63,9 @@ struct SingleImagePostProcessingView: View {
     @State private var isCenteringObject = false
     @State private var isRemovingGradient = false
     @State private var gradientErrorMessage: String?
+    @State private var isRemovingCosmicRays = false
+    @State private var isApplyingTikhonovDeconvolution = false
+    @State private var aiToolErrorMessage: String?
     /// Precomputed once per `workingImage` (see `refreshStarMask()`) rather than inside
     /// `ImageEditor.render` itself — `StarDetector.detectStars` is a synchronous, possibly-slow
     /// Vision request, and `render` runs on every single slider tweak for the live preview.
@@ -154,6 +157,8 @@ struct SingleImagePostProcessingView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     magicWandSection
+                    Divider()
+                    aiSection
                     Divider()
                     cropSection
                     Divider()
@@ -295,7 +300,7 @@ struct SingleImagePostProcessingView: View {
                         Label("Magic Wand", systemImage: "wand.and.stars")
                     }
                 }
-                .disabled(isApplyingMagicWand || isCenteringObject)
+                .disabled(isBusyWithAnyAITool)
                 Button {
                     centerObject()
                 } label: {
@@ -305,7 +310,7 @@ struct SingleImagePostProcessingView: View {
                         Label("Center Object", systemImage: "scope")
                     }
                 }
-                .disabled(isApplyingMagicWand || isCenteringObject || isRemovingGradient)
+                .disabled(isBusyWithAnyAITool)
                 .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
                 Button {
                     removeBackgroundGradient()
@@ -316,16 +321,109 @@ struct SingleImagePostProcessingView: View {
                         Label("Remove Background Gradient", systemImage: "square.stack.3d.forward.dottedline")
                     }
                 }
-                .disabled(isApplyingMagicWand || isCenteringObject || isRemovingGradient)
+                .disabled(isBusyWithAnyAITool)
                 .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
                 Button("Reset") { reset() }
-                    .disabled(isApplyingMagicWand || isCenteringObject || isRemovingGradient)
+                    .disabled(isBusyWithAnyAITool)
                 Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
                     .toggleStyle(.button)
                     .help("Show the untouched original stacked above the current edit, instead of only the edit.")
             }
             if let gradientErrorMessage {
                 Text(gradientErrorMessage).font(.caption).foregroundStyle(.red)
+            }
+        }
+    }
+
+    /// On-device machine-learning tools, distinct from the deterministic filters below (Sharpen,
+    /// Denoise, etc.) — each bakes into `workingImage` the same one-shot way Magic Wand/Center
+    /// Object/Remove Background Gradient above do, since neither has an `Adjustments` slot (a
+    /// trained model's output isn't expressible as a slider value) and Tikhonov deconvolution's
+    /// own iterative solve is too costly to re-run on every unrelated slider tweak the way
+    /// `ImageEditor.render`'s Core Image-based filters are. See each tool's own doc comment
+    /// (`CosmicRayRemover`, `TikhonovDeconvolver`) for exactly what runs and its license.
+    private var aiSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("AI").font(.title3.bold())
+            HStack {
+                Button {
+                    removeCosmicRays()
+                } label: {
+                    if isRemovingCosmicRays {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Remove Cosmic Rays", systemImage: "sparkle")
+                    }
+                }
+                .disabled(!CosmicRayRemover.isAvailable || isBusyWithAnyAITool)
+                .help("Deep-learning cosmic-ray/hot-pixel detection and repair (deepCR, on-device Core ML) — recognizes real cosmic-ray hit shapes a simple outlier filter misses.")
+                Button {
+                    applyTikhonovDeconvolution()
+                } label: {
+                    if isApplyingTikhonovDeconvolution {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Tikhonov Deconvolution", systemImage: "wand.and.rays")
+                    }
+                }
+                .disabled(isBusyWithAnyAITool)
+                .help("Regularized deblurring (Tikhonov/Landweber) — a smoother, more noise-robust alternative to the Sharpen section's own Deconvolution slider below.")
+            }
+            if let aiToolErrorMessage {
+                Text(aiToolErrorMessage).font(.caption).foregroundStyle(.red)
+            }
+            if !CosmicRayRemover.isAvailable {
+                Text("Cosmic-ray removal's bundled model didn't load — this build may be missing its Core ML resource.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var isBusyWithAnyAITool: Bool {
+        isApplyingMagicWand || isCenteringObject || isRemovingGradient || isRemovingCosmicRays || isApplyingTikhonovDeconvolution
+    }
+
+    private func removeCosmicRays() {
+        guard let workingImage else { return }
+        isRemovingCosmicRays = true
+        aiToolErrorMessage = nil
+        Task.detached(priority: .userInitiated) {
+            do {
+                let cleaned = try CosmicRayRemover.clean(workingImage)
+                await MainActor.run {
+                    self.isRemovingCosmicRays = false
+                    self.workingImage = cleaned
+                    self.refreshStarMask()
+                    self.scheduleRender()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isRemovingCosmicRays = false
+                    self.aiToolErrorMessage = "Couldn't remove cosmic rays: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func applyTikhonovDeconvolution() {
+        guard let workingImage else { return }
+        isApplyingTikhonovDeconvolution = true
+        aiToolErrorMessage = nil
+        Task.detached(priority: .userInitiated) {
+            do {
+                let deconvolved = try TikhonovDeconvolver.deconvolve(workingImage, amount: 0.5)
+                await MainActor.run {
+                    self.isApplyingTikhonovDeconvolution = false
+                    self.workingImage = deconvolved
+                    self.refreshStarMask()
+                    self.scheduleRender()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isApplyingTikhonovDeconvolution = false
+                    self.aiToolErrorMessage = "Couldn't deconvolve: \(error.localizedDescription)"
+                }
             }
         }
     }

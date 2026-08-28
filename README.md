@@ -28,6 +28,7 @@
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="specs/README.md">Contributing</a> ·
   <a href="LICENSE.md">License</a> ·
+  <a href="SBOM.md">SBOM</a> ·
   <a href="https://github.com/giulioroggero/skyformac/releases">Releases</a> ·
   <a href="https://github.com/giulioroggero/skyformac/issues">Issues</a>
 </p>
@@ -452,12 +453,18 @@ app:
   [GraXpert](https://www.graxpert.com) (star reduction/deconvolution/
   background extraction) without leaving the modal.
 - **Edit Image…**, on any single FITS/PNG/TIFF capture — brightness,
-  contrast, saturation, a gamma curve, crop, rotate, sharpen, denoise, and
-  three astrophotography-specific tools: green color-cast removal (SCNR),
-  star-size reduction, and shadow/highlight recovery. A one-tap **Magic
-  Wand** auto-fix picks a starting point, every slider has its own reset,
-  and a zoom/pan control checks the result at real pixel scale. Saves as a
-  new **Elaborated Image** alongside the original.
+  contrast, saturation, vibrance, white balance, a gamma curve, crop, rotate,
+  sharpen, deconvolution (Richardson-Lucy), denoise, and astrophotography-
+  specific tools: green color-cast removal (SCNR), star-mask-scoped star-size
+  reduction, shadow/highlight recovery, and background/gradient extraction. A
+  one-tap **Magic Wand** auto-fix picks a starting point, every slider has
+  its own reset, and a zoom/pan control checks the result at real pixel
+  scale. An **AI** section adds two on-device Core ML tools — **Remove
+  Cosmic Rays** (a converted [deepCR](https://github.com/profjsb/deepCR)
+  model) and **Tikhonov Deconvolution** (regularized deblurring) — both
+  GPU-accelerated and run off the main thread; see
+  [`SBOM.md`](SBOM.md) for exactly what's bundled and its license. Saves as
+  a new **Elaborated Image** alongside the original.
 - **Live Capture** — like an iPhone Live Photo: buffers a few seconds of
   the live feed, then scrub through every frame it captured and export
   whichever one actually looked sharpest, instead of timing one manual
@@ -478,8 +485,11 @@ in action.
 
 A chat panel on the right of every page (⌘⇧J to toggle) — the Dashboard,
 Projects, a Project/Session page, and the live camera view all share the same
-conversation, talking to a **local Ollama server** (nothing leaves your
-machine). It's grounded in whatever's currently relevant: the project/session
+conversation. Talks to a **local Ollama server** by default (nothing leaves
+your machine), or, if you'd rather use a cloud model, **Anthropic Claude** or
+**Google Gemini** with your own API key — pick a provider in Settings > AI
+Provider; a key you enter is stored in the macOS Keychain, never in the app's
+own preferences file. It's grounded in whatever's currently relevant: the project/session
 you're viewing, the connected camera, and your own activity/ratings/favorites.
 Ask it a question, or ask it to create a project, create a session, or change
 the camera's gain/exposure/mode — any proposed change always shows its own
@@ -645,5 +655,8 @@ third-party software, © ZWO Co., Ltd., under its own SDK terms, used here
 under that permission. The bundled Messier/Caldwell/bright-star catalog
 (`skyformac/Resources/SkyCatalog/`) is a small extracted subset of the
 [Stellarium](https://stellarium.org) project's own DSO catalog and
-object-name data (GPLv2) — see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
-for both full notices.
+object-name data (GPLv2). The bundled cosmic-ray-removal Core ML model is
+converted from [deepCR](https://github.com/profjsb/deepCR) (BSD-3-Clause).
+See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for all three full
+notices, and [`SBOM.md`](SBOM.md) for the complete bundled-model/dependency
+inventory.
