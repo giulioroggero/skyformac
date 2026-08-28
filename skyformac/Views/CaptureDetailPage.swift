@@ -411,7 +411,8 @@ struct CaptureDetailPage: View {
     private func startViewingFullScreen() {
         guard let image = NSImage(contentsOf: fileURL) else { return }
         viewingFullScreenWindowController = DetachedContentWindowController(
-            title: capture.fileName, contentSize: NSSize(width: 1100, height: 800), minSize: NSSize(width: 960, height: 700),
+            title: capture.fileName, contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            minSize: PlanetaryPostProcessingView.minWindowSize,
             onClose: { viewingFullScreenWindowController = nil }
         ) {
             FullScreenImageViewer(

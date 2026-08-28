@@ -1197,7 +1197,8 @@ struct ElaboratedImageCard: View {
     private func openFullScreenViewer() {
         guard let nsImage = NSImage(contentsOf: fileURL) else { return }
         viewingFullScreenWindowController = DetachedContentWindowController(
-            title: image.displayLabel, contentSize: NSSize(width: 1100, height: 800), minSize: NSSize(width: 960, height: 700),
+            title: image.displayLabel, contentSize: PlanetaryPostProcessingView.fullScreenSize,
+            minSize: PlanetaryPostProcessingView.minWindowSize,
             onClose: { viewingFullScreenWindowController = nil }
         ) {
             FullScreenImageViewer(

@@ -6,8 +6,37 @@ import UniformTypeIdentifiers
 /// SwiftUI has no built-in equivalent on macOS, and `NSScrollView.allowsMagnification` is the
 /// same mechanism Preview.app/Finder's own Quick Look already use, rather than hand-rolling
 /// `MagnificationGesture`/`DragGesture` math.
+/// Exposes explicit zoom controls (header buttons, not just the pinch/scroll gestures
+/// `NSScrollView.allowsMagnification` already gives for free) by holding onto the live
+/// `NSScrollView` `ZoomableImageView` creates — a plain reference type rather than `@State`,
+/// since `ZoomableImageView` itself is recreated by SwiftUI but this needs to keep driving
+/// whichever `NSScrollView` is currently on screen.
+final class ImageZoomController {
+    fileprivate weak var scrollView: NSScrollView?
+    fileprivate var imageSize: CGSize = .zero
+
+    func zoomIn() { step(by: 1.4) }
+    func zoomOut() { step(by: 1 / 1.4) }
+
+    /// Re-fits the whole image in the visible area — the same thing `ZoomableImageView` already
+    /// does automatically the moment it first appears, just re-triggerable on demand once the
+    /// user has zoomed/panned away from it.
+    func zoomToFit() {
+        guard let scrollView, imageSize.width > 0, imageSize.height > 0 else { return }
+        scrollView.animator().magnify(toFit: NSRect(origin: .zero, size: imageSize))
+    }
+
+    private func step(by factor: CGFloat) {
+        guard let scrollView else { return }
+        let target = (scrollView.magnification * factor).clamped(to: scrollView.minMagnification...scrollView.maxMagnification)
+        let center = NSPoint(x: scrollView.contentView.bounds.midX, y: scrollView.contentView.bounds.midY)
+        scrollView.animator().setMagnification(target, centeredAt: center)
+    }
+}
+
 private struct ZoomableImageView: NSViewRepresentable {
     let image: NSImage
+    let zoomController: ImageZoomController
 
     func makeNSView(context: Context) -> NSScrollView {
         let imageView = NSImageView()
@@ -25,6 +54,8 @@ private struct ZoomableImageView: NSViewRepresentable {
         scrollView.drawsBackground = true
         scrollView.documentView = imageView
         context.coordinator.imageView = imageView
+        zoomController.scrollView = scrollView
+        zoomController.imageSize = image.size
         return scrollView
     }
 
@@ -33,6 +64,7 @@ private struct ZoomableImageView: NSViewRepresentable {
             context.coordinator.imageView?.image = image
             context.coordinator.imageView?.frame = NSRect(origin: .zero, size: image.size)
             context.coordinator.hasFitted = false
+            zoomController.imageSize = image.size
         }
         // `NSScrollView`'s own bounds aren't known yet on the first `makeNSView` layout pass —
         // fitting once here (guarded so it only ever happens once per image) is the reliable
@@ -81,15 +113,21 @@ struct FullScreenImageViewer: View {
     @State private var isSavingToPhotos = false
     @State private var photosResultMessage: String?
     @State private var didSetThumbnail = false
+    private let zoomController = ImageZoomController()
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            ZoomableImageView(image: image)
-                .frame(minWidth: 900, minHeight: 640)
+            ZoomableImageView(image: image, zoomController: zoomController)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 960, minHeight: 700)
+        // Matches `PlanetaryPostProcessingView.minWindowSize`/`fullScreenSize` — every window
+        // showing a finished image (editing, post-processing, or just viewing one) opens at the
+        // same size now, instead of this one alone defaulting to a smaller fixed size that left
+        // the zoom/autofit `ZoomableImageView` already had less room to actually be useful in.
+        .frame(minWidth: PlanetaryPostProcessingView.minWindowSize.width, maxWidth: .infinity,
+               minHeight: PlanetaryPostProcessingView.minWindowSize.height, maxHeight: .infinity)
         .alert("Couldn't Save to Photos", isPresented: Binding(
             get: { photosResultMessage != nil }, set: { if !$0 { photosResultMessage = nil } }
         )) {
@@ -107,6 +145,19 @@ struct FullScreenImageViewer: View {
                 .truncationMode(.middle)
 
             Spacer()
+
+            // Explicit controls for the zoom/pan `ZoomableImageView`'s `NSScrollView` already
+            // supports via pinch/scroll gestures — those work, but nothing on screen said so;
+            // "Fit" re-triggers the same auto-fit that already runs once when the image first
+            // appears, for after a user has zoomed/panned away from it.
+            HStack(spacing: 4) {
+                Button("Zoom Out", systemImage: "minus.magnifyingglass") { zoomController.zoomOut() }
+                Button("Fit to Window", systemImage: "arrow.up.left.and.down.right.magnifyingglass") { zoomController.zoomToFit() }
+                Button("Zoom In", systemImage: "plus.magnifyingglass") { zoomController.zoomIn() }
+            }
+            .labelStyle(.iconOnly)
+
+            Divider().frame(height: 16)
 
             Button("Save As…", systemImage: "square.and.arrow.down") { saveAs() }
 
