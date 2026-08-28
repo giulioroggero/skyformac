@@ -16,7 +16,17 @@ enum StillImageStacker {
     /// `tileIndex`/`totalTiles` reported once per tile as its star detection finishes, then again
     /// as it's added to the running average — the same shape `MosaicComposer.compose`'s own
     /// progress callback uses, so `MosaicComposerView` can share one progress sink for both modes.
-    static func stack(tiles: [CGImage], progress: ((Int, Int) -> Void)? = nil) throws -> CGImage {
+    struct Result {
+        let image: CGImage
+        /// Indices into the `tiles` array this call was given — a capture that doesn't share
+        /// enough stars with the reference to align (unlike `MosaicComposer.compose`, which
+        /// fails the whole thing on the first tile that doesn't line up) is left out of the
+        /// average instead, since these are meant to already share the same field: one outlier
+        /// (wrong target framed, cloud-obscured, whatever) shouldn't sink the rest.
+        let skippedTileIndices: [Int]
+    }
+
+    static func stack(tiles: [CGImage], progress: ((Int, Int) -> Void)? = nil) throws -> Result {
         guard tiles.count >= 2 else { throw MosaicComposer.ComposeError.tooFewTiles }
         let reference = tiles[0]
         let width = reference.width
@@ -37,21 +47,34 @@ enum StillImageStacker {
         // tile-to-previous the way `MosaicComposer` does — these are meant to already share
         // (almost) the same field of view, so registering each one straight against a single
         // fixed reference avoids compounding drift across a long sequence the way a chain would.
+        var skippedTileIndices: [Int] = []
+        var contributingCount = 1 // the reference tile itself always contributes
         for index in 1..<tiles.count {
             let matches = MosaicStarMatcher.match(pointsPerTile[index], pointsPerTile[0])
-            guard matches.count >= 2 else { throw MosaicComposer.ComposeError.insufficientOverlap(tileIndex: index) }
-            let sourcePoints = matches.map { pointsPerTile[index][$0.indexA] }
-            let targetPoints = matches.map { pointsPerTile[0][$0.indexB] }
-            guard let transform = SimilarityTransformFitter.fit(source: sourcePoints, target: targetPoints)
-            else { throw MosaicComposer.ComposeError.insufficientOverlap(tileIndex: index) }
+            guard matches.count >= 2,
+                  let transform = SimilarityTransformFitter.fit(
+                      source: matches.map { pointsPerTile[index][$0.indexA] },
+                      target: matches.map { pointsPerTile[0][$0.indexB] }
+                  )
+            else {
+                skippedTileIndices.append(index)
+                progress?(index, tiles.count)
+                continue
+            }
             guard let raster = rasterize(tiles[index], transform: transform, width: width, height: height)
             else { throw MosaicComposer.ComposeError.renderFailed }
             accumulator.add(raster)
+            contributingCount += 1
             progress?(index, tiles.count)
         }
 
+        // Every non-reference tile failed to align — nothing was actually combined, so this
+        // should read as a failure (the same `.tooFewTiles` case a too-small input list gets),
+        // not silently "succeed" with the reference alone standing in for a stack.
+        guard contributingCount >= 2 else { throw MosaicComposer.ComposeError.tooFewTiles }
+
         guard let image = accumulator.makeImage() else { throw MosaicComposer.ComposeError.renderFailed }
-        return image
+        return Result(image: image, skippedTileIndices: skippedTileIndices)
     }
 
     /// Same Vision-normalized-to-pixel conversion as `MosaicComposer.pixelPoints` — duplicated

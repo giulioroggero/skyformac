@@ -41,9 +41,10 @@ struct StillImageStackerTests {
         let positions: [(x: Int, y: Int)] = [(30, 30), (150, 40), (90, 160), (200, 100)]
         let tile = makeStarFieldImage(width: 340, height: 300, positions: positions, blobSize: 14)
 
-        let stacked = try StillImageStacker.stack(tiles: [tile, tile])
-        #expect(stacked.width == 340)
-        #expect(stacked.height == 300)
+        let result = try StillImageStacker.stack(tiles: [tile, tile])
+        #expect(result.image.width == 340)
+        #expect(result.image.height == 300)
+        #expect(result.skippedTileIndices.isEmpty)
     }
 
     /// A small real-world drift between two otherwise-matching captures (an untracked mount) —
@@ -56,17 +57,37 @@ struct StillImageStackerTests {
         let shiftedPositions = positions.map { (x: $0.x + 6, y: $0.y + 3) }
         let tileB = makeStarFieldImage(width: 340, height: 300, positions: shiftedPositions, blobSize: 14)
 
-        let stacked = try StillImageStacker.stack(tiles: [tileA, tileB])
-        #expect(stacked.width == 340)
-        #expect(stacked.height == 300)
+        let result = try StillImageStacker.stack(tiles: [tileA, tileB])
+        #expect(result.image.width == 340)
+        #expect(result.image.height == 300)
+        #expect(result.skippedTileIndices.isEmpty)
     }
 
-    @Test func stackThrowsInsufficientOverlapWhenTilesShareNoStars() {
+    /// The one non-reference tile shares no stars with the reference at all — with nothing left
+    /// to actually combine, this should still surface as a failure (`.tooFewTiles`), not silently
+    /// "succeed" with the reference alone standing in for a stack.
+    @Test func stackThrowsTooFewTilesWhenTheOnlyOtherTileCannotAlign() {
         let tileA = makeStarFieldImage(width: 200, height: 200, positions: [(20, 20), (100, 40), (60, 150)])
         let tileB = makeStarFieldImage(width: 200, height: 200, positions: [])
 
         #expect(throws: MosaicComposer.ComposeError.self) {
             try StillImageStacker.stack(tiles: [tileA, tileB])
         }
+    }
+
+    /// The actual reported scenario this was fixed for: several captures selected, one of them
+    /// (say, capture 3) doesn't share enough stars with the reference to align — that one tile
+    /// should be skipped and reported, not fail the whole stack when the others align fine.
+    @Test func stackSkipsAndReportsATileThatCannotAlignRatherThanFailingOutright() throws {
+        let positions: [(x: Int, y: Int)] = [(30, 30), (150, 40), (90, 160), (200, 100)]
+        let tileA = makeStarFieldImage(width: 340, height: 300, positions: positions, blobSize: 14)
+        let shiftedPositions = positions.map { (x: $0.x + 6, y: $0.y + 3) }
+        let tileB = makeStarFieldImage(width: 340, height: 300, positions: shiftedPositions, blobSize: 14)
+        let unrelatedTileC = makeStarFieldImage(width: 340, height: 300, positions: [], blobSize: 14)
+
+        let result = try StillImageStacker.stack(tiles: [tileA, tileB, unrelatedTileC])
+        #expect(result.image.width == 340)
+        #expect(result.image.height == 300)
+        #expect(result.skippedTileIndices == [2])
     }
 }

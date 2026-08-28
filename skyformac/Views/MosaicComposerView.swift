@@ -38,10 +38,11 @@ struct MosaicComposerView: View {
     @State private var previewImage: CGImage?
     @State private var renderTask: Task<Void, Never>?
     @State private var adjustments = ImageEditor.Adjustments()
-    /// File names among `sourceURLs` that failed to load (a corrupt/incomplete capture, e.g. a
-    /// write that got interrupted) — those tiles are silently left out rather than failing the
-    /// whole compose, as long as at least 2 loadable tiles remain.
-    @State private var skippedTileNames: [String] = []
+    /// One line per tile left out of the result and why — either it failed to load (a corrupt/
+    /// incomplete capture) or, `.stack` mode only, it didn't share enough stars with the
+    /// reference to align — rather than failing the whole compose, as long as enough tiles
+    /// remain to actually produce something.
+    @State private var skippedTileNotes: [String] = []
 
     @State private var isSaving = false
     @State private var savedImage: ElaboratedImage?
@@ -80,10 +81,8 @@ struct MosaicComposerView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(mode == .mosaic ? "Mosaic Composer" : "Stack Captures").font(.headline)
                 Text(sourceDescription).font(.caption).foregroundStyle(.secondary)
-                if !skippedTileNames.isEmpty {
-                    Text("Skipped \(skippedTileNames.count) unreadable file\(skippedTileNames.count == 1 ? "" : "s"): \(skippedTileNames.joined(separator: ", "))")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                ForEach(skippedTileNotes, id: \.self) { note in
+                    Text("⚠️ Skipped \(note)").font(.caption).foregroundStyle(.orange)
                 }
             }
             Spacer()
@@ -147,20 +146,25 @@ struct MosaicComposerView: View {
             // A tile that fails to load (a corrupt/truncated file — e.g. a capture whose write
             // got interrupted) is skipped rather than failing the whole compose; only bail out
             // here if too few loadable tiles are left, which `MosaicComposer`/`StillImageStacker`
-            // would reject as `.tooFewTiles` anyway.
-            let (tiles, skipped) = try await Task.detached(priority: .userInitiated) {
+            // would reject as `.tooFewTiles` anyway. `tileNames` tracks alongside `tiles` so a
+            // later stack-alignment skip (see the `.stack` case below) can still be reported by
+            // filename, not just a bare index.
+            let (tiles, tileNames, loadFailures) = try await Task.detached(priority: .userInitiated) {
                 var tiles: [CGImage] = []
-                var skipped: [String] = []
+                var tileNames: [String] = []
+                var loadFailures: [String] = []
                 for url in urls {
                     if let image = try? CGImageRenderer.loadDisplayImage(from: url) {
                         tiles.append(image)
+                        tileNames.append(url.lastPathComponent)
                     } else {
-                        skipped.append(url.lastPathComponent)
+                        loadFailures.append(url.lastPathComponent)
                     }
                 }
-                return (tiles, skipped)
+                return (tiles, tileNames, loadFailures)
             }.value
-            skippedTileNames = skipped
+            var notes = loadFailures.map { "\($0) — couldn't be read" }
+            skippedTileNotes = notes
             guard tiles.count >= 2 else { throw MosaicComposer.ComposeError.tooFewTiles }
 
             let sink = MosaicProgressSink { text in progressText = text }
@@ -173,11 +177,16 @@ struct MosaicComposerView: View {
                     }
                 }.value
             case .stack:
-                composed = try await Task.detached(priority: .userInitiated) {
+                let result = try await Task.detached(priority: .userInitiated) {
                     try StillImageStacker.stack(tiles: tiles) { index, total in
                         sink.report(tileIndex: index, total: total)
                     }
                 }.value
+                composed = result.image
+                notes.append(contentsOf: result.skippedTileIndices.map {
+                    "\(tileNames[$0]) — doesn't share enough stars with the first capture to align"
+                })
+                skippedTileNotes = notes
             }
             composedImage = composed
             previewImage = composed
@@ -196,7 +205,7 @@ struct MosaicComposerView: View {
         case .tooFewTiles:
             return mode == .mosaic
                 ? "A mosaic needs at least two loadable captures to compose together."
-                : "A stack needs at least two loadable captures to combine."
+                : "A stack needs at least two captures that both load and align with each other — either too few loaded, or none of the others shared enough stars with the first capture to combine."
         case .insufficientOverlap(let tileIndex):
             return mode == .mosaic
                 ? "Tile \(tileIndex + 1) doesn't share enough stars with the tile before it to line up — they may not actually overlap, or the field is too sparse to register."
