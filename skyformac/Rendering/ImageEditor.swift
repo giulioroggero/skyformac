@@ -16,8 +16,9 @@ import Foundation
 enum ImageEditor {
     /// One control per adjustment, all independent and all reversible back to their own default
     /// — `render(_:with:)` composes them in a fixed order (rotate → crop → hot-pixel cleanup →
-    /// green-cast removal → denoise → color/contrast/gamma → highlights/shadows → star-size
-    /// reduction → sharpen) regardless of which the user actually touched.
+    /// green-cast removal → denoise → white balance → color/contrast/gamma/vibrance →
+    /// highlights/shadows → star-size reduction → sharpen) regardless of which the user actually
+    /// touched.
     struct Adjustments: Equatable, Sendable, Codable {
         var rotationDegrees: Double = 0
         /// Normalized (`0...1`, top-left origin, matching `CaptureRecord`/`PlanetaryPostProcessor`
@@ -68,6 +69,19 @@ enum ImageEditor {
         /// channel to a handful of discrete bands, the classic "posterize" look), not a
         /// restoration tool like everything else here. `0` = off; otherwise `2...32` bands.
         var posterizeLevels: Double = 0
+        /// `CIVibrance`'s own `inputAmount` — Photos.app's "Vibrance": a smarter saturation boost
+        /// that pushes muted colors harder than already-saturated ones (real value for a nebula's
+        /// faint color against already-vivid star colors, which plain `saturation` above would
+        /// oversaturate right alongside everything else). -1...1, 0 = unchanged.
+        var vibrance: Double = 0
+        /// `CITemperatureAndTint`'s warmth axis — Photos.app's "Warmth": corrects a sky-glow/
+        /// moonlight color cast independent of `greenCastRemoval` (a specifically-green,
+        /// per-pixel SCNR fix) or plain `saturation`/`contrast` (which can't shift color balance
+        /// at all). -1 (cooler/bluer) ... 1 (warmer/more orange), 0 = unchanged.
+        var warmth: Double = 0
+        /// Same filter's tint axis (green ↔ magenta) — Photos.app's "Tint," usually paired with
+        /// Warmth for full white-balance correction. -1...1, 0 = unchanged.
+        var tint: Double = 0
 
         static let identity = Adjustments()
 
@@ -85,7 +99,7 @@ enum ImageEditor {
         enum CodingKeys: String, CodingKey {
             case rotationDegrees, cropRect, brightness, contrast, saturation, gamma, sharpenIntensity,
                  denoiseAmount, removesHotPixels, chromaNoiseReduction, greenCastRemoval, starSizeReduction,
-                 shadowLift, highlightRecovery, posterizeLevels
+                 shadowLift, highlightRecovery, posterizeLevels, vibrance, warmth, tint
         }
 
         init(from decoder: Decoder) throws {
@@ -105,13 +119,17 @@ enum ImageEditor {
             shadowLift = try container.decode(Double.self, forKey: .shadowLift)
             highlightRecovery = try container.decode(Double.self, forKey: .highlightRecovery)
             posterizeLevels = try container.decodeIfPresent(Double.self, forKey: .posterizeLevels) ?? 0
+            vibrance = try container.decodeIfPresent(Double.self, forKey: .vibrance) ?? 0
+            warmth = try container.decodeIfPresent(Double.self, forKey: .warmth) ?? 0
+            tint = try container.decodeIfPresent(Double.self, forKey: .tint) ?? 0
         }
 
         init(
             rotationDegrees: Double = 0, cropRect: CGRect? = nil, brightness: Double = 0, contrast: Double = 1,
             saturation: Double = 1, gamma: Double = 1, sharpenIntensity: Double = 0, denoiseAmount: Double = 0,
             removesHotPixels: Bool = false, chromaNoiseReduction: Double = 0, greenCastRemoval: Double = 0,
-            starSizeReduction: Double = 0, shadowLift: Double = 0, highlightRecovery: Double = 0, posterizeLevels: Double = 0
+            starSizeReduction: Double = 0, shadowLift: Double = 0, highlightRecovery: Double = 0, posterizeLevels: Double = 0,
+            vibrance: Double = 0, warmth: Double = 0, tint: Double = 0
         ) {
             self.rotationDegrees = rotationDegrees
             self.cropRect = cropRect
@@ -128,6 +146,9 @@ enum ImageEditor {
             self.shadowLift = shadowLift
             self.highlightRecovery = highlightRecovery
             self.posterizeLevels = posterizeLevels
+            self.vibrance = vibrance
+            self.warmth = warmth
+            self.tint = tint
         }
     }
 
@@ -210,12 +231,36 @@ enum ImageEditor {
             }
         }
 
+        if adjustments.warmth != 0 || adjustments.tint != 0 {
+            // Standard "re-render as if captured under a different illuminant" white-balance
+            // trick — `inputNeutral` is a fixed reference point (an arbitrary but consistent
+            // 6500K/0 daylight baseline); moving `inputTargetNeutral` *below* it warms the
+            // result (targeting a cooler assumed light source makes the filter compensate
+            // toward orange), moving it *above* cools it. Tint's green/magenta axis works the
+            // same way on the y component. Scaled to comfortably visible but not extreme ranges
+            // (±1500K, ±50) across the full -1...1 slider.
+            let temperatureAndTint = CIFilter.temperatureAndTint()
+            temperatureAndTint.inputImage = ciImage
+            temperatureAndTint.neutral = CIVector(x: 6500, y: 0)
+            temperatureAndTint.targetNeutral = CIVector(
+                x: 6500 - adjustments.warmth * 1500, y: adjustments.tint * 50
+            )
+            if let output = temperatureAndTint.outputImage { ciImage = output }
+        }
+
         let colorControls = CIFilter.colorControls()
         colorControls.inputImage = ciImage
         colorControls.brightness = Float(adjustments.brightness)
         colorControls.contrast = Float(adjustments.contrast)
         colorControls.saturation = Float(adjustments.saturation)
         if let output = colorControls.outputImage { ciImage = output }
+
+        if adjustments.vibrance != 0 {
+            let vibrance = CIFilter.vibrance()
+            vibrance.inputImage = ciImage
+            vibrance.amount = Float(adjustments.vibrance)
+            if let output = vibrance.outputImage { ciImage = output }
+        }
 
         if adjustments.gamma != 1 {
             let gammaFilter = CIFilter.gammaAdjust()

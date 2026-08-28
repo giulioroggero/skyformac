@@ -78,6 +78,15 @@ struct ImageAdjustmentsControls: View {
             Text("Gamma lifts or crushes midtones without clipping black/white — the one-knob \"curves\" control for a quick touch-up.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            slider("Vibrance", value: $adjustments.vibrance, range: -1...1, defaultValue: 0)
+            Text("A smarter Saturation — pushes muted colors harder than already-vivid ones, so a nebula's faint color comes up without blowing out star colors that are already saturated.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            slider("Warmth", value: $adjustments.warmth, range: -1...1, defaultValue: 0)
+            slider("Tint", value: $adjustments.tint, range: -1...1, defaultValue: 0)
+            Text("White balance — corrects a sky-glow/moonlight color cast, independent of Saturation or the green-cast fix below.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 

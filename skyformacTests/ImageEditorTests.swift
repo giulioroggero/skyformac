@@ -37,6 +37,34 @@ struct ImageEditorTests {
         #expect(decoded.posterizeLevels == 6)
     }
 
+    /// Same "`decodeIfPresent` a newer field, default it for older saved data" fix as
+    /// `posterizeLevels`'s own test above, for the three fields (Photos-style Vibrance/Warmth/
+    /// Tint) added afterward.
+    @Test func decodingOlderAdjustmentsJSONWithoutVibranceOrWhiteBalanceDefaultsToOff() throws {
+        let json = """
+        {"rotationDegrees":0,"brightness":0,"contrast":1,"saturation":1,"gamma":1,
+         "sharpenIntensity":0,"denoiseAmount":0,"removesHotPixels":false,"chromaNoiseReduction":0,
+         "greenCastRemoval":0,"starSizeReduction":0,"shadowLift":0,"highlightRecovery":0,"posterizeLevels":0}
+        """
+        let decoded = try JSONDecoder().decode(ImageEditor.Adjustments.self, from: Data(json.utf8))
+        #expect(decoded.vibrance == 0)
+        #expect(decoded.warmth == 0)
+        #expect(decoded.tint == 0)
+        #expect(decoded == .identity)
+    }
+
+    @Test func adjustmentsRoundTripThroughJSONIncludingVibranceAndWhiteBalance() throws {
+        var adjustments = ImageEditor.Adjustments()
+        adjustments.vibrance = 0.4
+        adjustments.warmth = -0.3
+        adjustments.tint = 0.1
+
+        let data = try JSONEncoder().encode(adjustments)
+        let decoded = try JSONDecoder().decode(ImageEditor.Adjustments.self, from: data)
+
+        #expect(decoded == adjustments)
+    }
+
     /// A flat mid-gray `width`×`height` RGB image — enough for `ImageEditor`'s adjustments to
     /// have something to operate on without needing a real capture on disk.
     private func makeImage(width: Int, height: Int, red: CGFloat = 0.5, green: CGFloat = 0.5, blue: CGFloat = 0.5) -> CGImage {
@@ -222,6 +250,60 @@ struct ImageEditorTests {
         let rendered = try #require(ImageEditor.render(image, with: .identity))
         let pixel = topLeftPixel(of: rendered)
         #expect(pixel.green > 200)
+    }
+
+    // MARK: - Vibrance / white balance
+
+    @Test func positiveWarmthShiftsANeutralGrayImageTowardRed() throws {
+        let image = makeImage(width: 8, height: 8, red: 0.5, green: 0.5, blue: 0.5)
+        var adjustments = ImageEditor.Adjustments.identity
+        adjustments.warmth = 1
+        let rendered = try #require(ImageEditor.render(image, with: adjustments))
+        let pixel = topLeftPixel(of: rendered)
+        #expect(pixel.red > pixel.blue)
+    }
+
+    @Test func negativeWarmthShiftsANeutralGrayImageTowardBlue() throws {
+        let image = makeImage(width: 8, height: 8, red: 0.5, green: 0.5, blue: 0.5)
+        var adjustments = ImageEditor.Adjustments.identity
+        adjustments.warmth = -1
+        let rendered = try #require(ImageEditor.render(image, with: adjustments))
+        let pixel = topLeftPixel(of: rendered)
+        #expect(pixel.blue > pixel.red)
+    }
+
+    @Test func zeroWarmthAndTintIsANoOp() throws {
+        let image = makeImage(width: 8, height: 8, red: 0.5, green: 0.5, blue: 0.5)
+        let rendered = try #require(ImageEditor.render(image, with: .identity))
+        let pixel = topLeftPixel(of: rendered)
+        #expect(abs(Int(pixel.red) - Int(pixel.blue)) < 2)
+    }
+
+    /// `CIVibrance` should push a muted (already-close-to-gray) color harder than one that's
+    /// already fully saturated — the whole reason it's a different control from plain
+    /// `saturation` above. A pure-red pixel is already maxed out on saturation, so full vibrance
+    /// should barely move it, while a muted pink should visibly gain saturation.
+    @Test func vibrancePushesAMutedColorMoreThanAnAlreadySaturatedOne() throws {
+        let mutedPink = makeImage(width: 4, height: 4, red: 0.7, green: 0.55, blue: 0.55)
+        let pureRed = makeImage(width: 4, height: 4, red: 1, green: 0, blue: 0)
+        var adjustments = ImageEditor.Adjustments.identity
+        adjustments.vibrance = 1
+
+        let renderedMuted = try #require(ImageEditor.render(mutedPink, with: adjustments))
+        let renderedPure = try #require(ImageEditor.render(pureRed, with: adjustments))
+        let mutedPixel = topLeftPixel(of: renderedMuted)
+        let purePixel = topLeftPixel(of: renderedPure)
+
+        let mutedSpread = Int(mutedPixel.red) - Int(mutedPixel.green)
+        let originalMutedSpread = Int(0.7 * 255) - Int(0.55 * 255)
+        let pureSpread = Int(purePixel.red) - Int(purePixel.green)
+
+        // The muted pixel's red/green gap should widen noticeably (more saturated); the
+        // already-fully-saturated red stays clearly far more saturated than the muted pixel
+        // could ever become at the same vibrance amount, even if CIVibrance nudges its extreme
+        // value slightly.
+        #expect(mutedSpread > originalMutedSpread)
+        #expect(pureSpread > mutedSpread)
     }
 
     // MARK: - Chroma noise reduction
