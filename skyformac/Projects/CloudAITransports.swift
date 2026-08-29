@@ -156,10 +156,13 @@ struct GeminiTransport: OllamaTransport {
         if let authHeader { geminiRequest.setValue(authHeader.value, forHTTPHeaderField: authHeader.name) }
         geminiRequest.timeoutInterval = 60
         // Gemini expects an `inlineData` part per attached image, ahead of the text part — same
-        // "image(s) first, then text" ordering `AnthropicTransport.send` above uses.
+        // "image(s) first, then text" ordering `AnthropicTransport.send` above uses. `"role":
+        // "user"` is required explicitly — confirmed live: Vertex AI's own validator rejects a
+        // `contents` entry with no role at all ("Please use a valid role: user, model."), unlike
+        // the plain Gemini API, which silently defaults a missing role to `"user"`.
         let imageParts: [[String: Any]] = images.map { ["inlineData": ["mimeType": "image/jpeg", "data": $0]] }
         geminiRequest.httpBody = try JSONSerialization.data(withJSONObject: [
-            "contents": [["parts": imageParts + [["text": prompt]]]],
+            "contents": [["role": "user", "parts": imageParts + [["text": prompt]]]],
             "generationConfig": ["maxOutputTokens": AppSettings.ollamaMaxResponseTokens],
         ])
 
@@ -203,7 +206,7 @@ enum GeminiImageEnhancer {
         if let authHeader { request.setValue(authHeader.value, forHTTPHeaderField: authHeader.name) }
         request.timeoutInterval = 120
         request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "contents": [["parts": [
+            "contents": [["role": "user", "parts": [
                 ["inlineData": ["mimeType": "image/jpeg", "data": image.base64EncodedString()]],
                 ["text": instructions],
             ]]],
