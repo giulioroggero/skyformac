@@ -9,6 +9,7 @@ import SwiftUI
 struct GalleryView: View {
     var cameraManager: CameraManager
     let projects: [Project]
+    var onHome: () -> Void
     var onBack: () -> Void
 
     private struct Entry: Identifiable {
@@ -51,7 +52,10 @@ struct GalleryView: View {
         .navigationTitle("Gallery")
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button("Back", systemImage: "chevron.left", action: onBack)
+                HStack(spacing: 8) {
+                    Button("Home", systemImage: "house", action: onHome)
+                    Button("Back", systemImage: "chevron.left", action: onBack)
+                }
             }
             OpenAssistantToolbarItem(cameraManager: cameraManager)
         }

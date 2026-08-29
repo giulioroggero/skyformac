@@ -35,6 +35,8 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 - A new menu-bar item ("Sky Tonight"): at a glance, without opening the main window, see whether
   tonight's actually dark from your set location, the Moon's phase, and which of your existing
   sessions' planned objects clear the horizon tonight.
+- The Gallery page's toolbar was missing the "Home" button every other browser page already has
+  next to "Back."
 
 ### Fixed
 - `nightWindow` (the dark-window calculator behind "What to See"/Sky Tonight) returned "no window"
