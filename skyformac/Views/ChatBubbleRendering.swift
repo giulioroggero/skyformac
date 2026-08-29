@@ -5,6 +5,11 @@ import SwiftUI
 /// `AssistantMessage` shape, so this is the one place that owns "how a chat message actually
 /// looks," rather than each view keeping its own copy of the same Markdown handling/bubble
 /// styling to drift out of sync.
+/// `@MainActor` — unlike an instance method on a `View`-conforming type (implicitly main-actor
+/// isolated), a plain `enum`'s `static func`s aren't, and building SwiftUI views (`Spacer`,
+/// `HStack`, ...) from a nonisolated context is a real Swift 6 concurrency error under strict
+/// checking — confirmed live: this built fine locally but failed in CI, whose Xcode enforces it.
+@MainActor
 enum ChatBubbleRendering {
     /// "Render better the output of AI" — the model routinely answers in Markdown (`**M31**`,
     /// bullet lists), which a plain `Text(message.text)` showed as literal asterisks/dashes
