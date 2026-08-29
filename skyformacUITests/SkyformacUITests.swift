@@ -203,6 +203,19 @@ final class SkyformacUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Where and When"].waitForExistence(timeout: 10))
     }
 
+    func testGuideLogTileOpensThePHD2GuideLogPage() throws {
+        let app = makeApp()
+        app.launch()
+
+        let guideLogTile = app.buttons["DashboardGuideLogTile"]
+        XCTAssertTrue(guideLogTile.waitForExistence(timeout: 10))
+        let commonTasksScroll = app.scrollViews["CommonTasksScrollView"]
+        scrollCommonTasksTileIntoViewAndTap(guideLogTile, within: commonTasksScroll)
+
+        // `PHD2GuideLogView`'s own first `PageSection` title, unique to that page.
+        XCTAssertTrue(app.staticTexts["Import"].waitForExistence(timeout: 10))
+    }
+
     func testAllProjectsTileOpensTheProjectsList() throws {
         let app = makeApp()
         app.launch()

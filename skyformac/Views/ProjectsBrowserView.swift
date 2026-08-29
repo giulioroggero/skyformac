@@ -16,6 +16,7 @@ private enum ProjectsRoute: Hashable {
     case insights
     case gallery
     case skyVisibility
+    case guideLog
 }
 
 /// The iMovie-style library for the Projects feature and — since `RootView` shows this whenever
@@ -129,6 +130,7 @@ struct ProjectsBrowserView: View {
                 onShowInsights: { path.append(.insights) },
                 onShowGallery: { path.append(.gallery) },
                 onShowSkyVisibility: { path.append(.skyVisibility) },
+                onShowGuideLog: { path.append(.guideLog) },
                 onShowSettings: { cameraManager.isSettingsPresented = true }
             )
             .navigationDestination(for: ProjectsRoute.self) { route in
@@ -331,6 +333,8 @@ struct ProjectsBrowserView: View {
                 onCreateProject: { project in path = [.project(project.id)] },
                 onOpenSession: { project, session in path.append(contentsOf: [.project(project.id), .sessionHistory(project.id, session.id)]) }
             )
+        case .guideLog:
+            PHD2GuideLogView()
         case .gallery:
             // Not `visibleProjects` — that's scoped to whatever's currently typed into the Home
             // page's own search field, an unrelated concern this page shouldn't inherit.
