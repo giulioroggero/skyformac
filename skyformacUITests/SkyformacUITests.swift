@@ -286,7 +286,8 @@ final class SkyformacUITests: XCTestCase {
 
         let galleryTile = app.buttons["DashboardGalleryTile"]
         XCTAssertTrue(galleryTile.waitForExistence(timeout: 10))
-        galleryTile.tap()
+        let commonTasksScroll = app.scrollViews["CommonTasksScrollView"]
+        scrollCommonTasksTileIntoViewAndTap(galleryTile, within: commonTasksScroll)
 
         // `GalleryView`'s own empty-state copy — unique to that page, present on a fresh install
         // with nothing post-processed yet.
