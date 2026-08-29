@@ -45,6 +45,9 @@ struct SkyVisibilityExplorerView: View {
         let riseTime: Date?
         let peakTime: Date
         let setTime: Date?
+        /// `nil` for planets/the Moon — a real-sky-survey cutout is meaningless for a body that
+        /// moves, and SDSS's own imagery doesn't cover the solar system anyway.
+        let skyCoordinates: (raDegrees: Double, decDegrees: Double)?
     }
 
     private enum SortField: String, CaseIterable, Identifiable {
@@ -217,6 +220,7 @@ struct SkyVisibilityExplorerView: View {
             SkyVisibilityObjectDetailView(
                 title: subject.title, subtitle: subject.subtitle, symbolName: subject.symbolName,
                 riseTime: subject.riseTime, peakTime: subject.peakTime, setTime: subject.setTime,
+                skyCoordinates: subject.skyCoordinates,
                 onDismiss: { detailSubject = nil }
             )
         }
@@ -250,7 +254,8 @@ struct SkyVisibilityExplorerView: View {
             detailSubject = DetailSubject(
                 title: planet.name, subtitle: "Solar system body",
                 symbolName: planet.name == "Moon" ? "moon.fill" : "circle.fill",
-                riseTime: planet.riseTime, peakTime: planet.timeOfMaxAltitude, setTime: planet.setTime
+                riseTime: planet.riseTime, peakTime: planet.timeOfMaxAltitude, setTime: planet.setTime,
+                skyCoordinates: nil
             )
         }
     }
@@ -310,7 +315,8 @@ struct SkyVisibilityExplorerView: View {
                 title: result.object.displayName,
                 subtitle: "\(result.object.friendlyTypeName) · magnitude \(String(format: "%.1f", result.magnitudeOrPlaceholder))",
                 symbolName: result.object.symbolName,
-                riseTime: result.riseTime, peakTime: result.timeOfMaxAltitude, setTime: result.setTime
+                riseTime: result.riseTime, peakTime: result.timeOfMaxAltitude, setTime: result.setTime,
+                skyCoordinates: (result.object.raDegrees, result.object.decDegrees)
             )
         }
     }

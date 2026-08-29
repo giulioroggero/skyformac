@@ -12,12 +12,17 @@ struct SkyVisibilityObjectDetailView: View {
     let riseTime: Date?
     let peakTime: Date
     let setTime: Date?
+    /// `nil` for planets/the Moon — see this file's own doc comment on why an SDSS cutout doesn't
+    /// apply to those.
+    let skyCoordinates: (raDegrees: Double, decDegrees: Double)?
     var onDismiss: () -> Void
 
     @State private var wikipediaSummary: WikipediaLookupService.Summary?
     @State private var wikipediaErrorMessage: String?
     @State private var isLoadingWikipedia = false
     @State private var thumbnailImage: NSImage?
+    @State private var sdssImage: NSImage?
+    @State private var isLoadingSDSSImage = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -72,6 +77,31 @@ struct SkyVisibilityObjectDetailView: View {
                         }
                     }
 
+                    if skyCoordinates != nil {
+                        PageSection(title: "Sky Survey Image") {
+                            if !AppSettings.isOnlineObjectInfoEnabled {
+                                Text("Enable \"Online Object Info\" in Settings › AI to see an SDSS sky-survey cutout here.")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            } else if isLoadingSDSSImage {
+                                ProgressView()
+                            } else if let sdssImage {
+                                Image(nsImage: sdssImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxHeight: 300)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                Text("From SDSS SkyServer — coverage is real but limited to SDSS's own footprint (mostly northern extragalactic sky), so this may show a blank field for objects outside it.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Couldn't load an SDSS cutout for this object.")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
                     PageSection(title: "More") {
                         Button("Search on AstroBin…") { openAstroBinSearch() }
                         Button("Search r/astrophotography…") { openRedditSearch() }
@@ -83,6 +113,17 @@ struct SkyVisibilityObjectDetailView: View {
         }
         .frame(width: 460, height: 560)
         .task { await loadWikipediaSummaryIfEnabled() }
+        .task { await loadSDSSImageIfEnabled() }
+    }
+
+    private func loadSDSSImageIfEnabled() async {
+        guard AppSettings.isOnlineObjectInfoEnabled, let skyCoordinates else { return }
+        guard let url = SDSSImageCutoutService.cutoutURL(raDegrees: skyCoordinates.raDegrees, decDegrees: skyCoordinates.decDegrees) else { return }
+        isLoadingSDSSImage = true
+        if let (data, _) = try? await URLSession.shared.data(from: url) {
+            sdssImage = NSImage(data: data)
+        }
+        isLoadingSDSSImage = false
     }
 
     private func loadWikipediaSummaryIfEnabled() async {

@@ -30,7 +30,11 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   toggle in Settings › AI (off by default) gates this, since it's the only place Skyformac makes a
   live network request; "Search on AstroBin…"/"Search r/astrophotography…" just open your browser
   and work regardless of that toggle. First phase of a larger planned integration (Gaia/HYG for
-  precise stellar data, exoplanet catalogs, SDSS SkyServer imagery still to come).
+  precise stellar data, exoplanet catalogs still to come).
+- The detail sheet also shows a real per-object sky-survey photo from SDSS SkyServer's own public
+  image-cutout service (centered on the object's actual RA/Dec), gated by the same "Online Object
+  Info" toggle — coverage is real but limited to SDSS's own footprint (mostly northern
+  extragalactic sky).
 - A new "What to See" page: pick a date, a location (or "Use Current Location"), and a minimum
   altitude, and it scans the bundled Messier/Caldwell/NGC catalog against that night's actual dark
   window to list every object that clears the threshold from there, sorted by how high it peaks
