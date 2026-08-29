@@ -37,6 +37,12 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   sessions' planned objects clear the horizon tonight.
 - The Gallery page's toolbar was missing the "Home" button every other browser page already has
   next to "Back."
+- Opening an elaborated image full-screen (from the Gallery, a project, or a session's own gallery)
+  now has Previous/Next controls (arrow buttons or the ← / → keys) to step through every other
+  image in that same grid without closing the viewer. "Set as Thumbnail" and the "More" menu stay
+  scoped to
+  whichever image was actually opened, since navigating away lands on a different image's
+  project/session context those actions don't apply to.
 
 ### Fixed
 - `nightWindow` (the dark-window calculator behind "What to See"/Sky Tonight) returned "no window"

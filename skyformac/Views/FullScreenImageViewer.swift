@@ -92,10 +92,25 @@ private struct ZoomableImageView: NSViewRepresentable {
 /// FITS-specific debayer/stretch controls — this is the "just look at it, then do something with
 /// it" viewer, not a raw-frame inspector.
 struct FullScreenImageViewer: View {
-    let image: NSImage
-    let fileURL: URL
+    /// One image in the browsable set this viewer can step through with Next/Previous — just
+    /// enough to display it and load it lazily (`NSImage(contentsOf:)` for every sibling up front
+    /// would be wasteful for a large gallery).
+    struct Entry {
+        let fileURL: URL
+        let displayName: String
+    }
+
+    /// Every image Next/Previous can step to, in display order — a single-element array (the
+    /// convenience initializer below) means no navigation at all, matching every pre-existing
+    /// caller's behavior exactly.
+    let entries: [Entry]
+    @State private var currentIndex: Int
+    /// The index `currentIndex` started at — see `canActOnCurrentEntry`'s own doc comment.
+    private let originalIndex: Int
     /// `nil` hides the "Set as Thumbnail" button entirely — not every caller has a
     /// project/session to set one on (e.g. a bare exported file with no project association).
+    /// Scoped to `entries[0]` only (see `canActOnCurrentEntry`'s own doc comment) — never called
+    /// for a different index.
     var onSetAsThumbnail: (() -> Void)?
     /// "All the right-click menu items on post processed images must be visible also in preview
     /// of the image" — an elaborated image's own context menu (Info…, Show in Finder, Publish to
@@ -103,7 +118,8 @@ struct FullScreenImageViewer: View {
     /// equivalent here at all once this viewer replaced the old tap-to-open metadata sheet. `nil`
     /// (every other caller — a bare capture PNG has none of these concepts) hides the "More"
     /// button entirely rather than showing an empty menu. `AnyView`, not a second generic
-    /// parameter, so every existing call site keeps compiling unchanged.
+    /// parameter, so every existing call site keeps compiling unchanged. Scoped to `entries[0]`
+    /// only, same as `onSetAsThumbnail`.
     var moreMenuItems: (() -> AnyView)? = nil
     /// Closes this viewer's own window — a plain closure (not `@Environment(\.dismiss)`, which
     /// only does anything inside a `.sheet`/`NavigationStack`) since this is now hosted in a real
@@ -111,17 +127,57 @@ struct FullScreenImageViewer: View {
     /// resized like any other window.
     var onDismiss: () -> Void
 
+    init(image: NSImage, fileURL: URL, onSetAsThumbnail: (() -> Void)? = nil, moreMenuItems: (() -> AnyView)? = nil, onDismiss: @escaping () -> Void) {
+        self.entries = [Entry(fileURL: fileURL, displayName: fileURL.lastPathComponent)]
+        self._currentIndex = State(initialValue: 0)
+        self.originalIndex = 0
+        self._loadedImage = State(initialValue: image)
+        self.onSetAsThumbnail = onSetAsThumbnail
+        self.moreMenuItems = moreMenuItems
+        self.onDismiss = onDismiss
+    }
+
+    /// "Allow the user to go to next/previous image without closing the view" — `startIndex` is
+    /// whichever `entries` element the user actually tapped to get here, not necessarily 0.
+    init(entries: [Entry], startIndex: Int, onSetAsThumbnail: (() -> Void)? = nil, moreMenuItems: (() -> AnyView)? = nil, onDismiss: @escaping () -> Void) {
+        self.entries = entries
+        let resolvedStartIndex = entries.indices.contains(startIndex) ? startIndex : 0
+        self._currentIndex = State(initialValue: resolvedStartIndex)
+        self.originalIndex = resolvedStartIndex
+        self._loadedImage = State(initialValue: nil)
+        self.onSetAsThumbnail = onSetAsThumbnail
+        self.moreMenuItems = moreMenuItems
+        self.onDismiss = onDismiss
+    }
+
     @State private var isSavingToPhotos = false
     @State private var photosResultMessage: String?
     @State private var didSetThumbnail = false
+    @State private var loadedImage: NSImage?
     private let zoomController = ImageZoomController()
+
+    private var currentEntry: Entry { entries[currentIndex] }
+    private var fileURL: URL { currentEntry.fileURL }
+    private var canGoPrevious: Bool { currentIndex > 0 }
+    private var canGoNext: Bool { currentIndex < entries.count - 1 }
+    /// `onSetAsThumbnail`/`moreMenuItems` close over the *specific* image the caller originally
+    /// opened this viewer for (its own project/session, its own per-card `@State`) — they aren't
+    /// meaningful for whatever sibling Next/Previous has since scrolled to, so both stay hidden
+    /// once navigated away from the starting image rather than silently acting on the wrong one.
+    private var canActOnCurrentEntry: Bool { currentIndex == originalIndex }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            ZoomableImageView(image: image, zoomController: zoomController)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ZStack {
+                if let loadedImage {
+                    ZoomableImageView(image: loadedImage, zoomController: zoomController)
+                } else {
+                    ProgressView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         // Matches `PlanetaryPostProcessingView.minWindowSize`/`fullScreenSize` — every window
         // showing a finished image (editing, post-processing, or just viewing one) opens at the
@@ -136,10 +192,43 @@ struct FullScreenImageViewer: View {
         } message: {
             Text(photosResultMessage ?? "")
         }
+        .task(id: currentIndex) {
+            // Skipped for the single-entry convenience initializer, which already seeds
+            // `loadedImage` directly with the image the caller loaded itself — no need to
+            // re-decode the exact same file from disk a second time.
+            guard entries.count > 1 else { return }
+            loadedImage = NSImage(contentsOf: currentEntry.fileURL)
+        }
+    }
+
+    private func goPrevious() {
+        guard canGoPrevious else { return }
+        currentIndex -= 1
+    }
+
+    private func goNext() {
+        guard canGoNext else { return }
+        currentIndex += 1
     }
 
     private var header: some View {
         HStack {
+            if entries.count > 1 {
+                HStack(spacing: 4) {
+                    Button("Previous", systemImage: "chevron.left") { goPrevious() }
+                        .disabled(!canGoPrevious)
+                        .keyboardShortcut(.leftArrow, modifiers: [])
+                    Button("Next", systemImage: "chevron.right") { goNext() }
+                        .disabled(!canGoNext)
+                        .keyboardShortcut(.rightArrow, modifiers: [])
+                }
+                .labelStyle(.iconOnly)
+                Text("\(currentIndex + 1) of \(entries.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Divider().frame(height: 16)
+            }
+
             Text(fileURL.lastPathComponent)
                 .font(.headline)
                 .lineLimit(1)
@@ -177,7 +266,7 @@ struct FullScreenImageViewer: View {
                 Label("Share", systemImage: "square.and.arrow.up")
             }
 
-            if let onSetAsThumbnail {
+            if let onSetAsThumbnail, canActOnCurrentEntry {
                 Button {
                     onSetAsThumbnail()
                     didSetThumbnail = true
@@ -186,7 +275,7 @@ struct FullScreenImageViewer: View {
                 }
             }
 
-            if let moreMenuItems {
+            if let moreMenuItems, canActOnCurrentEntry {
                 Menu {
                     moreMenuItems()
                 } label: {

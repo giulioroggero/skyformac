@@ -271,8 +271,12 @@ struct ProjectDetailPane: View {
                     PageSection(title: "Elaborated") {
                         ScrollView(.horizontal) {
                             HStack(alignment: .top, spacing: 10) {
-                                ForEach(project.elaboratedImages.sorted(by: { $0.date > $1.date })) { image in
-                                    ElaboratedImageCard(project: project, image: image, cameraManager: cameraManager)
+                                let sorted = project.elaboratedImages.sorted(by: { $0.date > $1.date })
+                                ForEach(sorted) { image in
+                                    ElaboratedImageCard(
+                                        project: project, image: image, cameraManager: cameraManager,
+                                        siblings: sorted.map { (project: project, image: $0) }
+                                    )
                                 }
                             }
                             .padding(.horizontal, 2)
@@ -984,6 +988,11 @@ struct ElaboratedImageCard: View {
     let project: Project
     let image: ElaboratedImage
     var cameraManager: CameraManager
+    /// Every image shown alongside this one in the same grid (this card's own `project`/`image`
+    /// included), in display order — lets the full-screen viewer's Previous/Next step through all
+    /// of them without closing and reopening a new window. Empty (the default) means "just this
+    /// one image, no navigation," so existing call sites don't need to opt in.
+    var siblings: [(project: Project, image: ElaboratedImage)] = []
 
     @State private var isConfirmingDelete = false
     @State private var isShowingDetail = false
@@ -1219,14 +1228,22 @@ struct ElaboratedImageCard: View {
     }
 
     private func openFullScreenViewer() {
-        guard let nsImage = NSImage(contentsOf: fileURL) else { return }
+        guard NSImage(contentsOf: fileURL) != nil else { return }
+        let pairs = siblings.isEmpty ? [(project: project, image: image)] : siblings
+        let entries = pairs.map { pair in
+            FullScreenImageViewer.Entry(
+                fileURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: pair.project).appendingPathComponent(pair.image.fileName),
+                displayName: pair.image.displayLabel
+            )
+        }
+        let startIndex = pairs.firstIndex { $0.image.id == image.id } ?? 0
         viewingFullScreenWindowController = DetachedContentWindowController(
             title: image.displayLabel, contentSize: PlanetaryPostProcessingView.fullScreenSize,
             minSize: PlanetaryPostProcessingView.minWindowSize,
             onClose: { viewingFullScreenWindowController = nil }
         ) {
             FullScreenImageViewer(
-                image: nsImage, fileURL: fileURL, onSetAsThumbnail: setProjectThumbnailFromThisImage,
+                entries: entries, startIndex: startIndex, onSetAsThumbnail: setProjectThumbnailFromThisImage,
                 moreMenuItems: { AnyView(fullScreenMoreMenuItems) },
                 onDismiss: { viewingFullScreenWindowController?.close() }
             )

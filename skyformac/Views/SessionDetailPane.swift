@@ -380,7 +380,10 @@ struct SessionDetailPane: View {
                         ScrollView(.horizontal) {
                             HStack(alignment: .top, spacing: 10) {
                                 ForEach(sessionElaboratedImages) { image in
-                                    ElaboratedImageCard(project: project, image: image, cameraManager: cameraManager)
+                                    ElaboratedImageCard(
+                                        project: project, image: image, cameraManager: cameraManager,
+                                        siblings: sessionElaboratedImages.map { (project: project, image: $0) }
+                                    )
                                 }
                             }
                             .padding(.horizontal, 2)

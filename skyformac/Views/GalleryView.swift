@@ -37,7 +37,10 @@ struct GalleryView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 20) {
                     ForEach(entries) { entry in
                         VStack(alignment: .leading, spacing: 4) {
-                            ElaboratedImageCard(project: entry.project, image: entry.image, cameraManager: cameraManager)
+                            ElaboratedImageCard(
+                            project: entry.project, image: entry.image, cameraManager: cameraManager,
+                            siblings: entries.map { (project: $0.project, image: $0.image) }
+                        )
                             Text(entry.project.name)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
