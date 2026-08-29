@@ -33,6 +33,18 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   RA/Dec orthogonality readout (are the two axes actually guiding independently, or is there real
   cross-talk pointing at a guide camera that isn't square to the mount), and a periodogram to spot
   worm-gear periodic error and its period.
+- Edit Image gains Undo/Redo buttons (⌘Z/⇧⌘Z) — every adjustment slider and crop edit is now
+  undoable, coalesced per gesture rather than one entry per intermediate slider tick.
+
+### Fixed
+- Planetary Post-Processing's "AI Suggest Settings" failing with a generic "the model's reply
+  didn't contain a usable plan" gave no clue why. It now shows the model's own raw reply instead,
+  so a non-vision-capable model answering in prose (the actual, confirmed failure mode) is
+  immediately obvious rather than a dead end.
+- Edit Image: a slider adjustment made *after* AI Enhance (which bakes in an "AI - Sky For Mac"
+  watermark) was rendering that adjustment on top of the watermark's own pixels, distorting it.
+  The watermark is now removed before further edits render and reapplied as the very last step
+  instead, on both the live preview and the saved file.
 
 ## [0.6.2] - 2026-08-29
 

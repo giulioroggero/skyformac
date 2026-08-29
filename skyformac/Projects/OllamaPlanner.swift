@@ -76,6 +76,12 @@ extension URLSession: OllamaTransport {
     }
 }
 
+/// See `OllamaPlanner.suggestPlanetaryStackingSettings(image:waveletLayerCount:)`'s own doc
+/// comment for why this carries the raw text instead of just being another `OllamaError` case.
+struct PlanetaryStackingSuggestionParseError: Error {
+    let rawResponseText: String
+}
+
 enum OllamaError: Error, Equatable {
     /// The Ollama server itself returned a non-2xx status, or wasn't reachable at all —
     /// `message` is the server's own explanation when it gave one (see `URLSession.send`).
@@ -493,7 +499,12 @@ struct OllamaPlanner: Sendable {
         let text = try await generate(prompt: Self.planetaryStackingPrompt(waveletLayerCount: waveletLayerCount), image: image)
         guard let json = Self.extractJSONObject(from: text),
               let suggestion = try? JSONDecoder().decode(PlanetaryStackingSuggestion.self, from: json)
-        else { throw OllamaError.invalidPlanJSON }
+        // Thrown as this dedicated error (not `OllamaError.invalidPlanJSON`) specifically so the
+        // caller can show the model's own raw reply — "the model said: 'I can't analyze images'"
+        // is actionable in a way the generic "didn't contain a usable plan" message never was;
+        // confirmed live as a real, reachable failure mode (a non-vision-capable model just
+        // answering in prose instead of refusing outright).
+        else { throw PlanetaryStackingSuggestionParseError(rawResponseText: text) }
         return suggestion
     }
 

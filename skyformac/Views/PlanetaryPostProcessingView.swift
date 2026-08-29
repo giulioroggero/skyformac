@@ -390,6 +390,12 @@ struct PlanetaryPostProcessingView: View {
             )
             isFetchingAIStackingSuggestion = false
             aiStackingSuggestion = suggestion
+        } catch let parseError as PlanetaryStackingSuggestionParseError {
+            isFetchingAIStackingSuggestion = false
+            let snippet = parseError.rawResponseText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)
+            aiStackingSuggestionErrorMessage = snippet.isEmpty
+                ? "The model didn't return anything usable — try again, or try a different model."
+                : "The model replied: \u{201C}\(snippet)\u{201D}"
         } catch {
             isFetchingAIStackingSuggestion = false
             aiStackingSuggestionErrorMessage = (error as? OllamaError)?.userFacingMessage ?? "Couldn't reach the AI provider."

@@ -627,13 +627,20 @@ struct OllamaPlannerTests {
         #expect(suggestion.waveletLayerGains == nil)
     }
 
-    @Test func suggestPlanetaryStackingSettingsThrowsForUnusableText() async {
+    @Test func suggestPlanetaryStackingSettingsThrowsWithTheRawTextForUnusableText() async {
         let transport = FakeTransport()
         transport.responseText = "Sorry, I can't help with that."
         let planner = OllamaPlanner(transport: transport)
 
-        await #expect(throws: OllamaError.invalidPlanJSON) {
+        await #expect(throws: PlanetaryStackingSuggestionParseError.self) {
             _ = try await planner.suggestPlanetaryStackingSettings(image: Data([0xFF, 0xD8, 0xFF]), waveletLayerCount: 4)
+        }
+        do {
+            _ = try await planner.suggestPlanetaryStackingSettings(image: Data([0xFF, 0xD8, 0xFF]), waveletLayerCount: 4)
+        } catch let error as PlanetaryStackingSuggestionParseError {
+            #expect(error.rawResponseText == "Sorry, I can't help with that.")
+        } catch {
+            Issue.record("expected PlanetaryStackingSuggestionParseError, got \(error)")
         }
     }
 

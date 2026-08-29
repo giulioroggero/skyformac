@@ -46,6 +46,66 @@ struct SingleImagePostProcessingView: View {
     @State private var cropTop: Double = 0
     @State private var cropBottom: Double = 0
 
+    /// A single undo/redo checkpoint — `adjustments` plus the four crop insets, everything a
+    /// slider/crop edit here can actually change. Rotation/tone/sharpen/etc. all live inside
+    /// `adjustments` itself already; only crop needed its own fields alongside it.
+    private struct EditSnapshot: Equatable {
+        var adjustments: ImageEditor.Adjustments
+        var cropLeft: Double
+        var cropRight: Double
+        var cropTop: Double
+        var cropBottom: Double
+    }
+    @State private var undoStack: [EditSnapshot] = []
+    @State private var redoStack: [EditSnapshot] = []
+    /// Coalesces a continuous slider drag (which fires many rapid `onChange` events) into one
+    /// undo step — only the value from *before* a burst of changes gets pushed, not every
+    /// intermediate tick, by requiring a real pause since the last push before pushing again.
+    @State private var lastHistoryPushDate: Date?
+    /// Set while `undo()`/`redo()` themselves are reassigning `adjustments`/crop state, so those
+    /// reassignments don't get recorded as new undoable changes.
+    @State private var isApplyingHistory = false
+
+    private var currentEditSnapshot: EditSnapshot {
+        EditSnapshot(adjustments: adjustments, cropLeft: cropLeft, cropRight: cropRight, cropTop: cropTop, cropBottom: cropBottom)
+    }
+
+    private func recordHistoryChange(before: EditSnapshot) {
+        guard !isApplyingHistory else { return }
+        redoStack.removeAll()
+        let now = Date()
+        if let last = lastHistoryPushDate, now.timeIntervalSince(last) < 0.4 {
+            lastHistoryPushDate = now
+            return
+        }
+        undoStack.append(before)
+        lastHistoryPushDate = now
+    }
+
+    private func applyEditSnapshot(_ snapshot: EditSnapshot) {
+        isApplyingHistory = true
+        adjustments = snapshot.adjustments
+        cropLeft = snapshot.cropLeft
+        cropRight = snapshot.cropRight
+        cropTop = snapshot.cropTop
+        cropBottom = snapshot.cropBottom
+        isApplyingHistory = false
+        lastHistoryPushDate = nil
+        scheduleRender()
+    }
+
+    private func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(currentEditSnapshot)
+        applyEditSnapshot(previous)
+    }
+
+    private func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(currentEditSnapshot)
+        applyEditSnapshot(next)
+    }
+
     // Preview zoom/pan — lets a sharpen/denoise/star-size result be checked at real pixel scale
     // instead of only ever seeing the whole image shrunk to fit the pane.
     @State private var zoomScale: CGFloat = 1
@@ -132,6 +192,21 @@ struct SingleImagePostProcessingView: View {
         .frame(minWidth: Self.minWindowSize.width, maxWidth: .infinity, minHeight: Self.minWindowSize.height, maxHeight: .infinity)
         .background(.background)
         .task { await loadImage() }
+        .onChange(of: adjustments) { oldValue, _ in
+            recordHistoryChange(before: EditSnapshot(adjustments: oldValue, cropLeft: cropLeft, cropRight: cropRight, cropTop: cropTop, cropBottom: cropBottom))
+        }
+        .onChange(of: cropLeft) { oldValue, _ in
+            recordHistoryChange(before: EditSnapshot(adjustments: adjustments, cropLeft: oldValue, cropRight: cropRight, cropTop: cropTop, cropBottom: cropBottom))
+        }
+        .onChange(of: cropRight) { oldValue, _ in
+            recordHistoryChange(before: EditSnapshot(adjustments: adjustments, cropLeft: cropLeft, cropRight: oldValue, cropTop: cropTop, cropBottom: cropBottom))
+        }
+        .onChange(of: cropTop) { oldValue, _ in
+            recordHistoryChange(before: EditSnapshot(adjustments: adjustments, cropLeft: cropLeft, cropRight: cropRight, cropTop: oldValue, cropBottom: cropBottom))
+        }
+        .onChange(of: cropBottom) { oldValue, _ in
+            recordHistoryChange(before: EditSnapshot(adjustments: adjustments, cropLeft: cropLeft, cropRight: cropRight, cropTop: cropTop, cropBottom: oldValue))
+        }
     }
 
     private var header: some View {
@@ -139,6 +214,18 @@ struct SingleImagePostProcessingView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Edit Image").font(.headline)
                 Text(sourceDescription).font(.caption).foregroundStyle(.secondary)
+            }
+            if stage == .ready {
+                Button("Undo", systemImage: "arrow.uturn.backward") { undo() }
+                    .disabled(undoStack.isEmpty)
+                    .keyboardShortcut("z", modifiers: .command)
+                    .labelStyle(.iconOnly)
+                    .help("Undo")
+                Button("Redo", systemImage: "arrow.uturn.forward") { redo() }
+                    .disabled(redoStack.isEmpty)
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .labelStyle(.iconOnly)
+                    .help("Redo")
             }
             Spacer()
             if let savedImage {
@@ -689,8 +776,7 @@ struct SingleImagePostProcessingView: View {
                     instructions: instructions
                 )
                 guard let source = CGImageSourceCreateWithData(resultData as CFData, nil),
-                      let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil),
-                      let watermarked = AIWatermark.apply(to: decoded)
+                      let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)
                 else {
                     await MainActor.run {
                         self.isEnhancingWithAI = false
@@ -700,7 +786,14 @@ struct SingleImagePostProcessingView: View {
                 }
                 await MainActor.run {
                     self.isEnhancingWithAI = false
-                    self.workingImage = watermarked
+                    // Deliberately NOT watermarked here — `workingImage` stays the un-watermarked
+                    // Gemini result so a further slider adjustment (contrast, sharpen, ...) renders
+                    // from clean pixels instead of baking that adjustment into the watermark itself.
+                    // `scheduleRender()` re-applies the watermark to its own output whenever
+                    // `wasEnhancedByAI` is set, so the watermark still ends up in what's actually
+                    // previewed/saved — just always as the very last step, "remove, elaborate,
+                    // readd" rather than "elaborate on top of an already-watermarked image."
+                    self.workingImage = decoded
                     self.wasEnhancedByAI = true
                     if !customInstruction.isEmpty {
                         self.aiChatMessages.append(AssistantMessage(role: .assistant, text: "Applied AI Enhance with that instruction."))
@@ -818,9 +911,13 @@ struct SingleImagePostProcessingView: View {
         var adj = adjustments
         adj.cropRect = cropRect
         let mask = starMask
+        let shouldWatermark = wasEnhancedByAI
         renderTask = Task {
             guard !Task.isCancelled else { return }
-            previewImage = ImageEditor.render(workingImage, with: adj, starMask: mask) ?? workingImage
+            let rendered = ImageEditor.render(workingImage, with: adj, starMask: mask) ?? workingImage
+            // The watermark is re-applied here, as the very last step, rather than baked into
+            // `workingImage` up front — see `enhanceWithAI()`'s own doc comment for why.
+            previewImage = shouldWatermark ? (AIWatermark.apply(to: rendered) ?? rendered) : rendered
         }
     }
 
@@ -914,12 +1011,25 @@ struct SingleImagePostProcessingView: View {
     }
 
     private func reset() {
+        // Recorded as one explicit undo step, rather than letting the per-property `.onChange`
+        // handlers do it — those each build their "before" snapshot from the *other* properties'
+        // current `@State` values, which is only correct when just one property changes at a
+        // time. `reset()` changes all of them in the same synchronous call, so relying on that
+        // path here would let the crop fields' already-reset (new) values leak into what's
+        // supposed to be the pre-reset snapshot.
+        if !isApplyingHistory {
+            redoStack.removeAll()
+            undoStack.append(currentEditSnapshot)
+            lastHistoryPushDate = nil
+        }
         workingImage = originalImage
+        isApplyingHistory = true
         adjustments = .identity
         cropLeft = 0
         cropRight = 0
         cropTop = 0
         cropBottom = 0
+        isApplyingHistory = false
         previewImage = originalImage
         wasEnhancedByAI = false
         refreshStarMask()
