@@ -128,7 +128,11 @@ struct AssistantChatPanel: View {
 
     /// `minLines` is 4 for the centered empty-state composer, 2 for the normal bottom-anchored
     /// bar once a conversation exists — both have no upper bound, so a long multi-line message
-    /// keeps growing the box rather than scrolling text inside a fixed-height field.
+    /// keeps growing the box rather than scrolling text inside a fixed-height field. `.plain`
+    /// drops the system's own text-field chrome entirely, so this draws its own visible container
+    /// (the same background+stroke treatment Edit Image's own AI bar uses) — without it, the
+    /// field was just bare unbounded text with nothing marking it as an input box at all
+    /// (confirmed live, easy to miss especially in full-screen mode against a plain background).
     private func inputBar(minLines: Int) -> some View {
         HStack(alignment: .bottom, spacing: 8) {
             TextField("Ask the assistant…", text: $inputText, axis: .vertical)
@@ -140,6 +144,9 @@ struct AssistantChatPanel: View {
                 .labelStyle(.iconOnly)
                 .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cameraManager.isAssistantThinking)
         }
+        .padding(10)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator))
         .padding(10)
     }
 
@@ -175,10 +182,10 @@ struct AssistantChatPanel: View {
                     .buttonStyle(.borderless)
                     .help("Collapse the AI panel to a thin rail")
                 // The "enlarge" affordance — fills this same window instead of opening a second
-                // OS window the way "Detach" below does, matching Claude Code's own chat panel
-                // expand button. See `CameraManager.isAssistantFullScreen`'s own doc comment for
-                // why that distinction matters (a detached floating panel is easy to mistake for
-                // the chat having just closed).
+                // OS window the way "Detach" (folded into the overflow menu below) does, matching
+                // Claude Code's own chat panel expand button. See `CameraManager
+                // .isAssistantFullScreen`'s own doc comment for why that distinction matters (a
+                // detached floating panel is easy to mistake for the chat having just closed).
                 Button(
                     cameraManager.isAssistantFullScreen ? "Exit Full Screen" : "Full Screen",
                     systemImage: cameraManager.isAssistantFullScreen
@@ -187,14 +194,21 @@ struct AssistantChatPanel: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .help(cameraManager.isAssistantFullScreen ? "Return to the sidebar" : "Fill the whole window with the AI panel")
-                Button("Detach", systemImage: "macwindow") { cameraManager.isAssistantDetached = true }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .help("Move the AI panel into its own floating window")
-                Button("Close", systemImage: "xmark") { cameraManager.isAssistantPanelVisible = false }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .help("Hide the AI panel — reopen from the Skyformac menu")
+                // Detach + Close folded into one overflow menu, not two more separate buttons —
+                // this header already grew by two real buttons this round ("New Chat," "Full
+                // Screen"); the sidebar's own fixed width previously broke on CI's narrower
+                // 1024×768 virtual display from just *one* extra header button (see `historyMenu`'s
+                // own doc comment for that exact history), confirmed live again the same way this
+                // time before folding these two rarer actions back down.
+                Menu {
+                    Button("Detach", systemImage: "macwindow") { cameraManager.isAssistantDetached = true }
+                    Button("Close", systemImage: "xmark") { cameraManager.isAssistantPanelVisible = false }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("More AI panel options")
             }
         }
         .padding(10)
