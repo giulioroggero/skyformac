@@ -130,22 +130,33 @@ enum GradientExtractor {
         let greenMean = greenValues.reduce(0, +) / Double(greenValues.count)
         let blueMean = blueValues.reduce(0, +) / Double(blueValues.count)
 
-        func evaluate(_ coefficients: [Double], _ x: Double, _ y: Double) -> Double {
-            let row = designRow(x, y)
-            return zip(coefficients, row).reduce(0) { $0 + $1.0 * $1.1 }
+        // Direct arithmetic, not `designRow(x, y)` + `zip`/`reduce` — that shape reads clean for
+        // the handful of sample points the fit itself is built from above, but run per pixel (the
+        // loop below) it means allocating a fresh 6-element `[Double]` array and building a `zip`
+        // iterator on every single pixel, three times over (once per channel). For a real
+        // multi-megapixel image that's tens of millions of heap allocations for what should be a
+        // handful of flops — confirmed live: this was "Remove Gradient" reading as hung with no
+        // feedback, the same root cause `TikhonovDeconvolver`'s own hang fix this session found in
+        // a different form (expensive per-pixel work with no fast path).
+        @inline(__always)
+        func evaluate(_ c: [Double], _ x: Double, _ y: Double) -> Double {
+            c[0] + c[1] * x + c[2] * y + c[3] * x * x + c[4] * x * y + c[5] * y * y
         }
 
-        for y in 0..<height {
-            let ny = Double(y) / Double(height) * 2 - 1
-            for x in 0..<width {
-                let nx = Double(x) / Double(width) * 2 - 1
-                let offset = y * bytesPerRow + x * 4
-                let redBackground = evaluate(redCoefficients, nx, ny)
-                let greenBackground = evaluate(greenCoefficients, nx, ny)
-                let blueBackground = evaluate(blueCoefficients, nx, ny)
-                pixels[offset] = correctedByte(pixels[offset], background: redBackground, mean: redMean)
-                pixels[offset + 1] = correctedByte(pixels[offset + 1], background: greenBackground, mean: greenMean)
-                pixels[offset + 2] = correctedByte(pixels[offset + 2], background: blueBackground, mean: blueMean)
+        pixels.withUnsafeMutableBufferPointer { buffer in
+            for y in 0..<height {
+                let ny = Double(y) / Double(height) * 2 - 1
+                let rowOffset = y * bytesPerRow
+                for x in 0..<width {
+                    let nx = Double(x) / Double(width) * 2 - 1
+                    let offset = rowOffset + x * 4
+                    let redBackground = evaluate(redCoefficients, nx, ny)
+                    let greenBackground = evaluate(greenCoefficients, nx, ny)
+                    let blueBackground = evaluate(blueCoefficients, nx, ny)
+                    buffer[offset] = correctedByte(buffer[offset], background: redBackground, mean: redMean)
+                    buffer[offset + 1] = correctedByte(buffer[offset + 1], background: greenBackground, mean: greenMean)
+                    buffer[offset + 2] = correctedByte(buffer[offset + 2], background: blueBackground, mean: blueMean)
+                }
             }
         }
 

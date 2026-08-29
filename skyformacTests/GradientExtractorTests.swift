@@ -96,4 +96,19 @@ struct GradientExtractorTests {
         let correctedMid = pixel(at: 50, 50, in: corrected)
         #expect(abs(Int(correctedMid.red) - Int(originalMid.red)) < 20)
     }
+
+    /// A real full-resolution image's per-pixel correction pass used to allocate a fresh 6-element
+    /// `[Double]` array (via `designRow`/`zip`/`reduce`) for every single pixel, three times over —
+    /// confirmed live, this read as "Remove Gradient" hanging with no feedback on a real capture.
+    /// Direct arithmetic + unsafe buffer access should make this trivially fast regardless of
+    /// resolution.
+    @Test func removeGradientOfARealisticSizedImageCompletesQuickly() throws {
+        let image = makeLinearGradientImage(width: 1920, height: 1080, baseValue: 40, span: 150)
+        let points = gridSamplePoints(width: 1920, height: 1080, count: 6)
+
+        let start = DispatchTime.now()
+        _ = try GradientExtractor.removeGradient(from: image, samplePoints: points)
+        let elapsedSeconds = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+        #expect(elapsedSeconds < 5)
+    }
 }

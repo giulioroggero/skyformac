@@ -96,6 +96,11 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   are unaffected and keep using the real Keychain.
 
 ### Fixed
+- "Remove Gradient" could take minutes on a full-resolution image with no progress feedback at
+  all, reading as a hang — its per-pixel correction pass allocated a fresh 6-element array (and
+  built a `zip`/`reduce` iterator) for every single pixel, three times over. Replaced with direct
+  polynomial arithmetic over an unsafe buffer, the same "expensive per-pixel work with no fast
+  path" root cause and fix shape as this session's earlier Tikhonov Deconvolution hang.
 - Edit Image's AI Assistant chat bar was buried at the very bottom of the sidebar's own long
   scrollable sliders list — easy to miss entirely, reading as "this page has no chat" rather than
   "scroll down for it." It's now a persistent bar spanning the full window, below both the preview
