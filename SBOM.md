@@ -11,7 +11,7 @@ list updates this file in the same push. See [`LICENSE.md`](LICENSE.md) and
 
 | Component | Version | License |
 | --- | --- | --- |
-| Sky for Mac (this repository) | 0.6.0 (`MARKETING_VERSION`, `skyformac.xcodeproj`) | GPLv3 (+ the ZWO SDK linking exception, see `LICENSE.md`) |
+| Sky for Mac (this repository) | 0.6.1 (`MARKETING_VERSION`, `skyformac.xcodeproj`) | GPLv3 (+ the ZWO SDK linking exception, see `LICENSE.md`) |
 
 ## Build toolchain
 
