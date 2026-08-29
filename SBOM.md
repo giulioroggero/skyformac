@@ -45,11 +45,11 @@ this ships inside the app itself; a user running Sky for Mac needs none of it.
 
 | File | Size | Source | License | Checksum (SHA-256) |
 | --- | --- | --- | --- | --- |
-| `skyformac/Resources/SkyCatalog/messier.json` | 23,854 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `05e640fe8dc5e6e20beb8b1a6d5066fb69429be41659a63d1c31580ccc975655` |
-| `skyformac/Resources/SkyCatalog/caldwell.json` | 24,584 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `93dc33fa7ea52889262b5b469b67e77114852c876d0e5aa608f5079377a53490` |
-| `skyformac/Resources/SkyCatalog/ngc.json` | 50,597 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `42d3cc61ddb96dbfb7bd8153418b693eee1e342685115f240adacbbf27523dc3` |
-| `skyformac/Resources/SkyCatalog/bright_stars.json` | 1,881 B | Hand-curated by this project (~14 stars) | Sky for Mac's own GPLv3 | `1c3fbf8b2bf7c8541a4c014dc036fb00ffce8edebe1280ede1fa8f9e896c6fac` |
-| `skyformac/Resources/AstroCatalog/astro_catalog.sqlite` | 327,680 B | Built by `scripts/build_astro_catalog.py` from Stellarium's DSO catalog + the `bright_stars.json` above | GPLv2 | `353daf63024573835c56fbe7a9fba911302cce5458778d3af5da58aa257218f9` |
+| `skyformac/Resources/SkyCatalog/messier.json` | 23.3 KB | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `05e640fe8dc5e6e20beb8b1a6d5066fb69429be41659a63d1c31580ccc975655` |
+| `skyformac/Resources/SkyCatalog/caldwell.json` | 24.0 KB | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `93dc33fa7ea52889262b5b469b67e77114852c876d0e5aa608f5079377a53490` |
+| `skyformac/Resources/SkyCatalog/ngc.json` | 49.4 KB | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `42d3cc61ddb96dbfb7bd8153418b693eee1e342685115f240adacbbf27523dc3` |
+| `skyformac/Resources/SkyCatalog/bright_stars.json` | 1.8 KB | Hand-curated by this project (~14 stars) | Sky for Mac's own GPLv3 | `1c3fbf8b2bf7c8541a4c014dc036fb00ffce8edebe1280ede1fa8f9e896c6fac` |
+| `skyformac/Resources/AstroCatalog/astro_catalog.sqlite` | 320.0 KB | Built by `scripts/build_astro_catalog.py` from Stellarium's DSO catalog + the `bright_stars.json` above | GPLv2 | `353daf63024573835c56fbe7a9fba911302cce5458778d3af5da58aa257218f9` |
 
 Stellarium's own `COPYING` file (GPLv2) governs `nebulae/default/catalog.txt`/`names.dat` — its
 `CREDITS.md` carves out CC-BY-SA-4.0 for specific texture/image assets elsewhere in that project,
@@ -72,8 +72,8 @@ for every new tag.
 
 | Artifact | Tag | Size | Checksum (SHA-256) |
 | --- | --- | --- | --- |
-| `skyformac-v0.6.0-macOS.dmg` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 12,275,218 B | `26b5a4aa43b5e280d0b592971f9f6fcfa1c43a4cb6df098bb42ada33df3c89cc` |
-| `skyformac-v0.6.0-macOS.zip` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 10,484,776 B | `c266a499b0955aaf1b7ad9093d5110cb0b9b546e7434c61946f41f31cd51cb21` |
+| `skyformac-v0.6.0-macOS.dmg` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 11.7 MB | `26b5a4aa43b5e280d0b592971f9f6fcfa1c43a4cb6df098bb42ada33df3c89cc` |
+| `skyformac-v0.6.0-macOS.zip` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 10.0 MB | `c266a499b0955aaf1b7ad9093d5110cb0b9b546e7434c61946f41f31cd51cb21` |
 
 Both built via the "Ad-hoc manual releases" process in `docs/distribution.md` (ad-hoc codesigning,
 not a notarized Developer ID build); `Casks/skyformac.rb`'s own `sha256` is kept in sync with the
