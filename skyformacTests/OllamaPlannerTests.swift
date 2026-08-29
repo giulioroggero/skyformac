@@ -503,4 +503,52 @@ struct OllamaPlannerTests {
         #expect(seenPartials == ["First ", "First second ", "First second third."])
     }
 
+    @Test func discussImageParsesAPlainReply() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "reply", "text": "The stars look nicely round, no trailing."}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.discussImage(
+            message: "does this look sharp?", adjustmentsDescription: "No adjustments applied yet.",
+            image: Data([0xFF, 0xD8, 0xFF]), history: []
+        )
+        #expect(response == .reply("The stars look nicely round, no trailing."))
+    }
+
+    @Test func discussImageParsesAnAdjustmentSuggestion() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"""
+        {"kind": "adjustments", "message": "Reduce noise and lift shadows a bit.", "denoiseAmount": 0.4, "shadowLift": 0.3}
+        """#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.discussImage(
+            message: "how can I improve this?", adjustmentsDescription: "No adjustments applied yet.",
+            image: Data([0xFF, 0xD8, 0xFF]), history: []
+        )
+        #expect(response == .suggestion(OllamaPlanner.ImageAdjustmentSuggestion(
+            message: "Reduce noise and lift shadows a bit.", denoiseAmount: 0.4, shadowLift: 0.3
+        )))
+    }
+
+    /// The whole point of attaching an image is that it actually reaches the request Ollama's own
+    /// `/api/generate` sees — this pins down `generate(prompt:image:)`'s own wiring rather than
+    /// only checking the parsed reply, which would still pass even if the image were silently
+    /// dropped.
+    @Test func discussImageAttachesTheImageAsBase64InTheRequestBody() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "reply", "text": "ok"}"#
+        let planner = OllamaPlanner(transport: transport)
+        let imageBytes = Data([0xFF, 0xD8, 0xFF, 0xE0])
+
+        _ = try await planner.discussImage(
+            message: "what do you see?", adjustmentsDescription: "No adjustments applied yet.",
+            image: imageBytes, history: []
+        )
+
+        let body = try #require(transport.lastRequest?.httpBody)
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let images = try #require(json["images"] as? [String])
+        #expect(images == [imageBytes.base64EncodedString()])
+    }
 }

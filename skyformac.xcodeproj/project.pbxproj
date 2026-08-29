@@ -86,6 +86,8 @@
 		FD85D767345948E388C099F0 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5916FF50E124AEB9BCBB8C3 /* KeychainStore.swift */; };
 		A7343DE804844DDEAA6F8D96 /* CloudAITransports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD29A6B3A07463BB8D49FAC /* CloudAITransports.swift */; };
 		B87F6FE9261E4419B4FE07E6 /* TikhonovDeconvolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */; };
+		DC439C23C466DDDE800F9490 /* AIVisionImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */; };
+		908C7EDC352AB9845696E5E9 /* AIWatermark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B74555EF35A6C42CE316CD /* AIWatermark.swift */; };
 		8AEAA5949A8A4E2896E642E9 /* CosmicRayRemover.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A88CA18F0845FE9DE61DD6 /* CosmicRayRemover.swift */; };
 		BFEE472143B742FAAE721F0D /* GradientExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */; };
 		4E7624307C5A42D095CF449A /* StillImageStacker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B74C3CF7C400A81BC4D89 /* StillImageStacker.swift */; };
@@ -138,6 +140,8 @@
 		57BA8F7E0BAA4CAAB1622BE7 /* MosaicComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */; };
 		011E0725D1B7427AAB2C2201 /* KeychainStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D723D9AC944D3098D5A848 /* KeychainStoreTests.swift */; };
 		11B1A96C93F2495DA5E886C2 /* CloudAITransportsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C27A5491E064BA19E903697 /* CloudAITransportsTests.swift */; };
+		85B240D3659F4EE42F46F336 /* AIWatermarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43BC53334B936906EAFC750F /* AIWatermarkTests.swift */; };
+		03C46534C99E69C929066C9D /* AIVisionImageEncoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D808F2A47F54A097A233D732 /* AIVisionImageEncoderTests.swift */; };
 		234BFE9447EF4B92ABEDB512 /* TikhonovDeconvolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */; };
 		5F0AB3526F514D8D8B04F43A /* CosmicRayRemoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5504F654295404295FEBF18 /* CosmicRayRemoverTests.swift */; };
 		771317A08674479080B5A3CA /* CameraManagerImportMediaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337F70C765A34D89BE67E793 /* CameraManagerImportMediaTests.swift */; };
@@ -384,6 +388,8 @@
 		E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicComposerTests.swift; sourceTree = "<group>"; };
 		71D723D9AC944D3098D5A848 /* KeychainStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeychainStoreTests.swift; sourceTree = "<group>"; };
 		5C27A5491E064BA19E903697 /* CloudAITransportsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudAITransportsTests.swift; sourceTree = "<group>"; };
+		43BC53334B936906EAFC750F /* AIWatermarkTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIWatermarkTests.swift; sourceTree = "<group>"; };
+		D808F2A47F54A097A233D732 /* AIVisionImageEncoderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVisionImageEncoderTests.swift; sourceTree = "<group>"; };
 		9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TikhonovDeconvolverTests.swift; sourceTree = "<group>"; };
 		E5504F654295404295FEBF18 /* CosmicRayRemoverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CosmicRayRemoverTests.swift; sourceTree = "<group>"; };
 		337F70C765A34D89BE67E793 /* CameraManagerImportMediaTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerImportMediaTests.swift; sourceTree = "<group>"; };
@@ -483,6 +489,8 @@
 		F5916FF50E124AEB9BCBB8C3 /* KeychainStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		8CD29A6B3A07463BB8D49FAC /* CloudAITransports.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudAITransports.swift; sourceTree = "<group>"; };
 		BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TikhonovDeconvolver.swift; sourceTree = "<group>"; };
+		D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVisionImageEncoder.swift; sourceTree = "<group>"; };
+		12B74555EF35A6C42CE316CD /* AIWatermark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIWatermark.swift; sourceTree = "<group>"; };
 		F5A88CA18F0845FE9DE61DD6 /* CosmicRayRemover.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CosmicRayRemover.swift; sourceTree = "<group>"; };
 		A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GradientExtractor.swift; sourceTree = "<group>"; };
 		7E5B74C3CF7C400A81BC4D89 /* StillImageStacker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StillImageStacker.swift; sourceTree = "<group>"; };
@@ -774,6 +782,8 @@
 				E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */,
 				71D723D9AC944D3098D5A848 /* KeychainStoreTests.swift */,
 				5C27A5491E064BA19E903697 /* CloudAITransportsTests.swift */,
+				43BC53334B936906EAFC750F /* AIWatermarkTests.swift */,
+				D808F2A47F54A097A233D732 /* AIVisionImageEncoderTests.swift */,
 				9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */,
 				E5504F654295404295FEBF18 /* CosmicRayRemoverTests.swift */,
 				337F70C765A34D89BE67E793 /* CameraManagerImportMediaTests.swift */,
@@ -1044,6 +1054,8 @@
 				FF24A4AB94194CBA82E36353 /* MosaicComposer.swift */,
 				BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */,
 				F5A88CA18F0845FE9DE61DD6 /* CosmicRayRemover.swift */,
+				D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */,
+				12B74555EF35A6C42CE316CD /* AIWatermark.swift */,
 				A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */,
 				7E5B74C3CF7C400A81BC4D89 /* StillImageStacker.swift */,
 				60759144D69321A911094B7E /* ExposureOptimizer.swift */,
@@ -1281,6 +1293,8 @@
 				FD85D767345948E388C099F0 /* KeychainStore.swift in Sources */,
 				A7343DE804844DDEAA6F8D96 /* CloudAITransports.swift in Sources */,
 				B87F6FE9261E4419B4FE07E6 /* TikhonovDeconvolver.swift in Sources */,
+				DC439C23C466DDDE800F9490 /* AIVisionImageEncoder.swift in Sources */,
+				908C7EDC352AB9845696E5E9 /* AIWatermark.swift in Sources */,
 				8AEAA5949A8A4E2896E642E9 /* CosmicRayRemover.swift in Sources */,
 				BFEE472143B742FAAE721F0D /* GradientExtractor.swift in Sources */,
 				4E7624307C5A42D095CF449A /* StillImageStacker.swift in Sources */,
@@ -1442,6 +1456,8 @@
 				57BA8F7E0BAA4CAAB1622BE7 /* MosaicComposerTests.swift in Sources */,
 				011E0725D1B7427AAB2C2201 /* KeychainStoreTests.swift in Sources */,
 				11B1A96C93F2495DA5E886C2 /* CloudAITransportsTests.swift in Sources */,
+				85B240D3659F4EE42F46F336 /* AIWatermarkTests.swift in Sources */,
+				03C46534C99E69C929066C9D /* AIVisionImageEncoderTests.swift in Sources */,
 				234BFE9447EF4B92ABEDB512 /* TikhonovDeconvolverTests.swift in Sources */,
 				5F0AB3526F514D8D8B04F43A /* CosmicRayRemoverTests.swift in Sources */,
 				771317A08674479080B5A3CA /* CameraManagerImportMediaTests.swift in Sources */,

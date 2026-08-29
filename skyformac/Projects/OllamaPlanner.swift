@@ -338,6 +338,97 @@ struct OllamaPlanner: Sendable {
         }
     }
 
+    /// What `discussImage(message:adjustmentsDescription:image:history:)` returns — either a plain
+    /// answer, or a proposed set of slider values grounded in what the model actually saw in the
+    /// attached image. Never applies anything itself; the caller (`SingleImagePostProcessingView`)
+    /// shows the proposal and only writes it into `ImageEditor.Adjustments` once the user approves,
+    /// the same "propose, don't act" discipline `respond(to:context:history:)`'s `AssistantAction`
+    /// already follows for project/session/camera changes.
+    enum ImageAssistantResponse: Equatable, Sendable {
+        case reply(String)
+        case suggestion(ImageAdjustmentSuggestion)
+    }
+
+    /// Every field mirrors one of `ImageEditor.Adjustments`' own sliders by name (kept as a
+    /// separate type, not that struct itself, so this file doesn't need to import `ImageEditor` —
+    /// `SingleImagePostProcessingView` is what actually merges whichever fields came back non-`nil`
+    /// onto its own `Adjustments` value) — `nil` means "not proposing to change this one," not
+    /// "set it to zero."
+    struct ImageAdjustmentSuggestion: Codable, Equatable, Sendable {
+        var message: String
+        var brightness: Double?
+        var contrast: Double?
+        var saturation: Double?
+        var gamma: Double?
+        var sharpenIntensity: Double?
+        var denoiseAmount: Double?
+        var chromaNoiseReduction: Double?
+        var greenCastRemoval: Double?
+        var starSizeReduction: Double?
+        var shadowLift: Double?
+        var highlightRecovery: Double?
+        var vibrance: Double?
+        var warmth: Double?
+        var tint: Double?
+        var deconvolutionSharpen: Double?
+    }
+
+    private struct ImageAssistantRawResponse: Codable {
+        var kind: String
+        var text: String?
+        var message: String?
+        var brightness: Double?
+        var contrast: Double?
+        var saturation: Double?
+        var gamma: Double?
+        var sharpenIntensity: Double?
+        var denoiseAmount: Double?
+        var chromaNoiseReduction: Double?
+        var greenCastRemoval: Double?
+        var starSizeReduction: Double?
+        var shadowLift: Double?
+        var highlightRecovery: Double?
+        var vibrance: Double?
+        var warmth: Double?
+        var tint: Double?
+        var deconvolutionSharpen: Double?
+    }
+
+    /// Edit Image's own AI panel — grounded in an actual attached image (`image`, JPEG-encoded)
+    /// rather than only a text description of the current sliders, so the model can answer "what's
+    /// wrong with this image" or "how do I fix this color cast" by actually looking, and propose
+    /// specific slider values instead of vague advice. Every cloud transport already threads an
+    /// attached image through to its own provider's multimodal request shape (see
+    /// `AnthropicTransport`/`GeminiTransport`'s own doc comments); a local Ollama model needs to
+    /// itself be vision-capable (e.g. `llava`, `llama3.2-vision`) for this to actually see anything
+    /// — a non-vision model simply won't reference the image in its reply, since Ollama's own
+    /// `/api/generate` silently ignores an attached `images` array a model doesn't support.
+    func discussImage(
+        message: String, adjustmentsDescription: String, image: Data, history: [AssistantMessage]
+    ) async throws -> ImageAssistantResponse {
+        let text = try await generate(
+            prompt: Self.imageAssistantPrompt(message: message, adjustmentsDescription: adjustmentsDescription, history: history),
+            image: image
+        )
+        guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.invalidPlanJSON }
+        guard let raw = try? JSONDecoder().decode(ImageAssistantRawResponse.self, from: json) else { throw OllamaError.invalidPlanJSON }
+        switch raw.kind {
+        case "reply":
+            return .reply(raw.text ?? raw.message ?? "")
+        case "adjustments":
+            return .suggestion(ImageAdjustmentSuggestion(
+                message: raw.message ?? "Apply these adjustments?",
+                brightness: raw.brightness, contrast: raw.contrast, saturation: raw.saturation, gamma: raw.gamma,
+                sharpenIntensity: raw.sharpenIntensity, denoiseAmount: raw.denoiseAmount,
+                chromaNoiseReduction: raw.chromaNoiseReduction, greenCastRemoval: raw.greenCastRemoval,
+                starSizeReduction: raw.starSizeReduction, shadowLift: raw.shadowLift, highlightRecovery: raw.highlightRecovery,
+                vibrance: raw.vibrance, warmth: raw.warmth, tint: raw.tint, deconvolutionSharpen: raw.deconvolutionSharpen
+            ))
+        default:
+            throw OllamaError.invalidPlanJSON
+        }
+    }
+
     /// The model this app actually wants when it's available — a good balance of capability vs.
     /// speed for the short planning prompts this feature sends. Just a preference, not a
     /// requirement: `resolveModel()` falls back to whatever's actually installed when it isn't.
@@ -363,15 +454,23 @@ struct OllamaPlanner: Sendable {
     /// every chunk, so a UI can show a response growing live instead of a bare spinner.
     /// `options.num_predict` (`AppSettings.ollamaMaxResponseTokens`, user-configurable in Settings)
     /// bounds how many tokens a single response — reasoning included — may generate at all.
-    private func generate(prompt: String, onPartialResponse: (@Sendable (String) -> Void)? = nil) async throws -> String {
+    private func generate(prompt: String, image: Data? = nil, onPartialResponse: (@Sendable (String) -> Void)? = nil) async throws -> String {
         let resolvedModel = try await resolveModel()
         var request = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
+        var body: [String: Any] = [
             "model": resolvedModel, "prompt": prompt, "stream": true,
             "options": ["num_predict": AppSettings.ollamaMaxResponseTokens],
-        ])
+        ]
+        if let image {
+            // Ollama's own real vision-model field: a top-level array of base64-encoded images
+            // alongside the prompt. `AnthropicTransport`/`GeminiTransport` read this exact field
+            // back out of the request body this method builds to construct their own provider's
+            // multimodal payload — see each transport's own doc comment.
+            body["images"] = [image.base64EncodedString()]
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
         // A local model — especially a reasoning one that "thinks" before answering — can
         // legitimately take well past URLRequest's normal 60s default, which is what "Ollama goes
         // in timeout" actually was: the request timing out, not Ollama itself failing.
@@ -474,6 +573,39 @@ struct OllamaPlanner: Sendable {
         For applyCameraSettings, "mode" must be exactly one of "liveStack", "luckyImaging", or "both" \
         if included, and any of gain/exposureSeconds/mode may be omitted if you're not proposing to \
         change that one.
+        """
+    }
+
+    private static func imageAssistantPrompt(message: String, adjustmentsDescription: String, history: [AssistantMessage]) -> String {
+        let historyText = history.suffix(6).map { entry in
+            "\(entry.role == .user ? "User" : "Assistant"): \(entry.text)"
+        }.joined(separator: "\n")
+        return """
+        You are an assistant embedded in this astrophotography app's Edit Image tool. An image of \
+        the photo currently being edited is attached — actually look at it: its color balance, \
+        noise level, sharpness, contrast, and any visible artifacts (gradient/vignetting, hot \
+        pixels, bloated stars, green color cast).
+        Adjustment sliders already applied: \(adjustmentsDescription)
+        \(historyText.isEmpty ? "" : "Recent conversation:\n\(historyText)\n")\
+        User message: \(message)
+
+        You can either just answer a question about the image, or propose a specific set of \
+        adjustment slider values that would improve it, grounded only in what you actually see — \
+        never propose changing a slider that's already fine as-is, and never invent an artifact \
+        that isn't visible in the image.
+
+        Respond with ONLY a JSON object, no other text, in exactly one of these shapes:
+        {"kind": "reply", "text": "your answer"}
+        {"kind": "adjustments", "message": "one sentence explaining the proposal", "brightness": 0.1, \
+        "contrast": 1.2, "saturation": 1.1, "gamma": 1.0, "sharpenIntensity": 1.5, "denoiseAmount": 0.3, \
+        "chromaNoiseReduction": 0.2, "greenCastRemoval": 0.5, "starSizeReduction": 0.2, "shadowLift": 0.3, \
+        "highlightRecovery": 0.2, "vibrance": 0.3, "warmth": 0.1, "tint": 0.0, "deconvolutionSharpen": 0.2}
+        For "adjustments", every field besides "message" is optional — include only the sliders \
+        you're actually proposing to change, omit the rest entirely (don't set an unchanged one to \
+        its default). Value ranges: brightness/vibrance/warmth/tint are -1...1 (0 = unchanged); \
+        contrast is 0.25...4 (1 = unchanged); saturation is 0...2 and gamma is 0.1...4 (1 = \
+        unchanged for both); sharpenIntensity is 0...5 (0 = off); every other field is 0...1 (0 = \
+        off).
         """
     }
 

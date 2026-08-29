@@ -87,6 +87,8 @@ for a cloud provider selected in Settings.
 | Feature | Provider(s) | Where |
 | --- | --- | --- |
 | Session/project planning, sidebar assistant, tag suggestions, descriptions | Ollama (local, any installed model — no fixed version dependency), Anthropic Claude (`claude-sonnet-5` default), Google Gemini (`gemini-3.0-flash` default) | `skyformac/Projects/OllamaPlanner.swift`, `skyformac/Projects/CloudAITransports.swift` |
+| Edit Image's "AI Assistant" — vision-grounded chat that proposes slider values for the image on screen | Same three providers as above (a local Ollama model needs to itself be vision-capable, e.g. `llava`/`llama3.2-vision`, to actually see the attached image) | `skyformac/Projects/OllamaPlanner.swift` (`discussImage`), `skyformac/Projects/CloudAITransports.swift`, `skyformac/Rendering/AIVisionImageEncoder.swift` |
+| Edit Image's "AI Enhance" — genuine pixel-level AI re-rendering of the image, watermarked "AI - Sky For Mac" once applied | Google Gemini only (`gemini-2.5-flash-image`) — the only one of the three with an image-generation/editing API at all | `skyformac/Projects/CloudAITransports.swift` (`GeminiImageEnhancer`), `skyformac/Rendering/AIWatermark.swift` |
 
 ## Keeping this file current
 

@@ -20,6 +20,18 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Edit Image gains an **AI Assistant** section, grounded in the actual image currently shown in
+  the preview (not just a text description of the sliders) — attaches a JPEG of the live preview
+  to every question sent to whichever AI provider is set in Settings, so it can answer "what's
+  wrong with this image" or propose a specific set of adjustment slider values from what it
+  actually sees, shown as an Approve/Reject card like the sidebar assistant's own proposals — never
+  applied until you tap Apply. A local Ollama model needs to itself be vision-capable (e.g.
+  `llava`, `llama3.2-vision`) to actually see the attached image.
+  Also adds **AI Enhance** (Google Gemini only, `gemini-2.5-flash-image`) — sends the image to
+  Gemini's own image-generation model for a genuine AI-regenerated result, not this app's own
+  filters, since neither Anthropic's nor a local Ollama model's API can output an edited image at
+  all. The result is watermarked "AI - Sky For Mac" in its bottom-right corner so anyone looking at
+  a shared image afterward can tell it wasn't purely this app's own deterministic tools.
 - Edit Image and Planetary Post-Processing's "Single Shot" tab gain an **AI** section with two
   on-device Core ML tools, both GPU/ANE-accelerated and run off the main thread:
   - **Remove Cosmic Rays** — a Core ML conversion of [deepCR](https://github.com/profjsb/deepCR)'s

@@ -20,16 +20,23 @@ struct AnthropicTransport: OllamaTransport {
 
     func send(_ request: URLRequest) async throws -> Data {
         let prompt = try Self.extractPrompt(from: request)
+        let images = Self.extractImages(from: request)
         var anthropicRequest = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         anthropicRequest.httpMethod = "POST"
         anthropicRequest.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         anthropicRequest.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         anthropicRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         anthropicRequest.timeoutInterval = 60
+        // Anthropic's Messages API wants `content` as an array of typed blocks once an image is
+        // attached (image blocks first, then the text) — a bare string only works in the
+        // text-only case, which is why this only switches shape when `images` isn't empty.
+        let content: Any = images.isEmpty ? prompt : images.map {
+            ["type": "image", "source": ["type": "base64", "media_type": "image/jpeg", "data": $0]] as [String: Any]
+        } + [["type": "text", "text": prompt]]
         anthropicRequest.httpBody = try JSONSerialization.data(withJSONObject: [
             "model": model,
             "max_tokens": AppSettings.ollamaMaxResponseTokens,
-            "messages": [["role": "user", "content": prompt]],
+            "messages": [["role": "user", "content": content]],
         ])
 
         let (data, response) = try await URLSession.shared.data(for: anthropicRequest)
@@ -62,6 +69,17 @@ struct AnthropicTransport: OllamaTransport {
         return prompt
     }
 
+    /// The same request body's own `"images"` array (see `OllamaPlanner.generate`'s doc comment)
+    /// — each already base64-encoded, exactly as Ollama's real vision-model API expects, so both
+    /// cloud transports can reuse it verbatim rather than re-encoding. Empty (not thrown) for a
+    /// request with no attached image, since an image is always optional here.
+    static func extractImages(from request: URLRequest) -> [String] {
+        guard let body = request.httpBody,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
+        else { return [] }
+        return json["images"] as? [String] ?? []
+    }
+
     static func wrapAsOllamaResponse(_ text: String) throws -> Data {
         try JSONSerialization.data(withJSONObject: ["response": text, "done": true])
     }
@@ -75,13 +93,17 @@ struct GeminiTransport: OllamaTransport {
 
     func send(_ request: URLRequest) async throws -> Data {
         let prompt = try AnthropicTransport.extractPrompt(from: request)
+        let images = AnthropicTransport.extractImages(from: request)
         let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)")!
         var geminiRequest = URLRequest(url: url)
         geminiRequest.httpMethod = "POST"
         geminiRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         geminiRequest.timeoutInterval = 60
+        // Gemini expects an `inlineData` part per attached image, ahead of the text part — same
+        // "image(s) first, then text" ordering `AnthropicTransport.send` above uses.
+        let imageParts: [[String: Any]] = images.map { ["inlineData": ["mimeType": "image/jpeg", "data": $0]] }
         geminiRequest.httpBody = try JSONSerialization.data(withJSONObject: [
-            "contents": [["parts": [["text": prompt]]]],
+            "contents": [["parts": imageParts + [["text": prompt]]]],
             "generationConfig": ["maxOutputTokens": AppSettings.ollamaMaxResponseTokens],
         ])
 
@@ -99,5 +121,53 @@ struct GeminiTransport: OllamaTransport {
               let text = parts.first?["text"] as? String
         else { throw OllamaError.badResponse(message: nil) }
         return try AnthropicTransport.wrapAsOllamaResponse(text)
+    }
+}
+
+/// True pixel-level image editing via Gemini's own image-generation model ("Nano Banana") — unlike
+/// `GeminiTransport` above (routed through `OllamaPlanner`'s text-only envelope, used for
+/// "suggest slider values" chat), this calls Gemini's image-output endpoint directly and gets a
+/// genuinely re-rendered image back. Neither Ollama's plain-text `/api/generate` protocol nor
+/// Anthropic's Messages API (no image-generation capability at all, as of this writing) can express
+/// that, which is why `SingleImagePostProcessingView`'s "AI Enhance" button is Gemini-only — see
+/// its own doc comment for why the result gets a visible watermark once applied.
+enum GeminiImageEnhancer {
+    enum EnhanceError: Error {
+        /// The request succeeded, but Gemini's reply had no image part at all — e.g. it declined
+        /// and only replied with text explaining why, or the chosen model doesn't actually support
+        /// image output.
+        case noImageInResponse
+    }
+
+    static func enhance(image: Data, apiKey: String, model: String, instructions: String) async throws -> Data {
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "contents": [["parts": [
+                ["inlineData": ["mimeType": "image/jpeg", "data": image.base64EncodedString()]],
+                ["text": instructions],
+            ]]],
+            "generationConfig": ["responseModalities": ["IMAGE"]],
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let message = (envelope?["error"] as? [String: Any])?["message"] as? String
+            let status = (response as? HTTPURLResponse)?.statusCode
+            throw OllamaError.badResponse(message: message ?? status.map { "HTTP \($0)" })
+        }
+        guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let candidates = envelope["candidates"] as? [[String: Any]],
+              let content = candidates.first?["content"] as? [String: Any],
+              let parts = content["parts"] as? [[String: Any]],
+              let inlineData = parts.compactMap({ $0["inlineData"] as? [String: Any] }).first,
+              let base64 = inlineData["data"] as? String,
+              let outputData = Data(base64Encoded: base64)
+        else { throw EnhanceError.noImageInResponse }
+        return outputData
     }
 }
