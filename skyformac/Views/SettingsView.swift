@@ -29,6 +29,7 @@ struct SettingsView: View {
     @State private var isImportingVertexServiceAccount = false
     @State private var vertexServiceAccountErrorMessage: String?
     @State private var geminiImageModelText = AppSettings.geminiImageModel ?? GeminiImageEnhancer.availableModels[0]
+    @State private var isOnlineObjectInfoEnabled = AppSettings.isOnlineObjectInfoEnabled
 
     private var currentProjectsFolder: URL {
         customPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? ProjectStore.defaultRootDirectory()
@@ -341,6 +342,15 @@ struct SettingsView: View {
                 }
                 }
 
+                Section("Online Object Info") {
+                    Toggle("Enable Online Object Info", isOn: $isOnlineObjectInfoEnabled)
+                        .onChange(of: isOnlineObjectInfoEnabled) { _, newValue in
+                            AppSettings.isOnlineObjectInfoEnabled = newValue
+                        }
+                    Text("When on, tapping an object in \"What to See\" fetches its description and photo from Wikipedia's public API. This is the only place Skyformac makes a live network request — off by default. \"Search on AstroBin\"/\"Search r/astrophotography\" there just open your browser and work either way.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
         }
         .formStyle(.grouped)
     }

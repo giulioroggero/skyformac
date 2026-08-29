@@ -14,6 +14,46 @@ enum SkyVisibilityCalculator {
         let maxAltitudeDegrees: Double
         /// When it reaches that peak — the best time to actually be imaging it.
         let timeOfMaxAltitude: Date
+        /// When it climbs back above the horizon before the peak, and drops back below it after —
+        /// "when rise and when is no longer visible," independent of whether that happens to fall
+        /// inside the dark window itself (an object can rise in daylight and still be well placed
+        /// once it's actually dark). `nil` for either one means circumpolar in that direction —
+        /// already up before this whole 24h scan started, or still up at the end of it.
+        let riseTime: Date?
+        let setTime: Date?
+    }
+
+    /// Scans ±12h around `peakTime` at `sampleInterval` steps to find the nearest 0°-altitude
+    /// crossings on either side — "rises" (below → above) before the peak, "sets" (above → below)
+    /// after it. Not the same sampling pass `visibleObjects` already did to find the peak itself,
+    /// since a rise/set can fall well outside the dark window that pass was scoped to.
+    private static func riseAndSetTimes(
+        raDegrees: Double, decDegrees: Double, latitudeDegrees: Double, longitudeDegrees: Double,
+        around peakTime: Date, sampleInterval: TimeInterval = 10 * 60
+    ) -> (rise: Date?, set: Date?) {
+        let span = 12 * 3600.0
+        let start = peakTime.addingTimeInterval(-span)
+        let sampleCount = Int(2 * span / sampleInterval)
+        var previous: (date: Date, altitude: Double)?
+        var rise: Date?
+        var set: Date?
+        for i in 0...sampleCount {
+            let sampleDate = start.addingTimeInterval(Double(i) * sampleInterval)
+            let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
+                raDegrees: raDegrees, decDegrees: decDegrees,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, on: sampleDate
+            )
+            if let previous {
+                if previous.altitude < 0, altitude >= 0, sampleDate <= peakTime {
+                    rise = sampleDate
+                }
+                if previous.altitude >= 0, altitude < 0, sampleDate > peakTime, set == nil {
+                    set = sampleDate
+                }
+            }
+            previous = (sampleDate, altitude)
+        }
+        return (rise, set)
     }
 
     /// The night's dark window for `date`'s evening — from when the Sun drops below
@@ -84,9 +124,79 @@ enum SkyVisibilityCalculator {
                 }
             }
             if bestAltitude >= minAltitudeDegrees {
-                results.append(Result(object: object, maxAltitudeDegrees: bestAltitude, timeOfMaxAltitude: bestTime))
+                let (rise, set) = riseAndSetTimes(
+                    raDegrees: object.raDegrees, decDegrees: object.decDegrees,
+                    latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, around: bestTime
+                )
+                results.append(Result(object: object, maxAltitudeDegrees: bestAltitude, timeOfMaxAltitude: bestTime, riseTime: rise, setTime: set))
             }
         }
+        return results.sorted { $0.maxAltitudeDegrees > $1.maxAltitudeDegrees }
+    }
+
+    struct PlanetResult: Identifiable, Sendable {
+        var id: String { name }
+        let name: String
+        let maxAltitudeDegrees: Double
+        let timeOfMaxAltitude: Date
+        let riseTime: Date?
+        let setTime: Date?
+    }
+
+    /// Same idea as `visibleObjects`, for the Moon and every naked-eye planet — these don't have
+    /// a fixed `SkyCatalogObject` position (they move night to night), so `PlanetaryPositionCalculator`
+    /// computes each one fresh for `date` instead of reading from the bundled catalog.
+    static func visiblePlanets(
+        on date: Date, latitudeDegrees: Double, longitudeDegrees: Double, minAltitudeDegrees: Double = 20
+    ) -> [PlanetResult] {
+        guard let window = nightWindow(for: date, latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees) else {
+            return []
+        }
+        let sampleInterval: TimeInterval = 20 * 60
+        let sampleCount = max(1, Int(window.end.timeIntervalSince(window.start) / sampleInterval))
+
+        func bestPlacement(raAt: (Date) -> Double, decAt: (Date) -> Double) -> (altitude: Double, time: Date) {
+            var bestAltitude = -90.0
+            var bestTime = window.start
+            for i in 0...sampleCount {
+                let sampleDate = window.start.addingTimeInterval(Double(i) * sampleInterval)
+                let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
+                    raDegrees: raAt(sampleDate), decDegrees: decAt(sampleDate),
+                    latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, on: sampleDate
+                )
+                if altitude > bestAltitude { bestAltitude = altitude; bestTime = sampleDate }
+            }
+            return (bestAltitude, bestTime)
+        }
+
+        var results: [PlanetResult] = []
+        for planet in PlanetaryPositionCalculator.Planet.allCases {
+            let placement = bestPlacement(
+                raAt: { PlanetaryPositionCalculator.position(of: planet, on: $0).rightAscensionDegrees },
+                decAt: { PlanetaryPositionCalculator.position(of: planet, on: $0).declinationDegrees }
+            )
+            guard placement.altitude >= minAltitudeDegrees else { continue }
+            let position = PlanetaryPositionCalculator.position(of: planet, on: placement.time)
+            let (rise, set) = riseAndSetTimes(
+                raDegrees: position.rightAscensionDegrees, decDegrees: position.declinationDegrees,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, around: placement.time
+            )
+            results.append(PlanetResult(name: planet.rawValue, maxAltitudeDegrees: placement.altitude, timeOfMaxAltitude: placement.time, riseTime: rise, setTime: set))
+        }
+
+        let moonPlacement = bestPlacement(
+            raAt: { PlanetaryPositionCalculator.moonPosition(on: $0).equatorial.rightAscensionDegrees },
+            decAt: { PlanetaryPositionCalculator.moonPosition(on: $0).equatorial.declinationDegrees }
+        )
+        if moonPlacement.altitude >= minAltitudeDegrees {
+            let position = PlanetaryPositionCalculator.moonPosition(on: moonPlacement.time).equatorial
+            let (rise, set) = riseAndSetTimes(
+                raDegrees: position.rightAscensionDegrees, decDegrees: position.declinationDegrees,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, around: moonPlacement.time
+            )
+            results.append(PlanetResult(name: "Moon", maxAltitudeDegrees: moonPlacement.altitude, timeOfMaxAltitude: moonPlacement.time, riseTime: rise, setTime: set))
+        }
+
         return results.sorted { $0.maxAltitudeDegrees > $1.maxAltitudeDegrees }
     }
 }

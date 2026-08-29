@@ -22,6 +22,15 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- "What to See" now also lists the Moon and every naked-eye planet that clears the minimum
+  altitude, each with its rise/peak/set time, alongside the deep-sky catalog results — and every
+  result row (deep-sky or planet) opens a detail sheet on tap showing when it rises, peaks, and is
+  no longer visible.
+- That detail sheet can also show a Wikipedia description and photo — a new "Online Object Info"
+  toggle in Settings › AI (off by default) gates this, since it's the only place Skyformac makes a
+  live network request; "Search on AstroBin…"/"Search r/astrophotography…" just open your browser
+  and work regardless of that toggle. First phase of a larger planned integration (Gaia/HYG for
+  precise stellar data, exoplanet catalogs, SDSS SkyServer imagery still to come).
 - A new "What to See" page: pick a date, a location (or "Use Current Location"), and a minimum
   altitude, and it scans the bundled Messier/Caldwell/NGC catalog against that night's actual dark
   window to list every object that clears the threshold from there, sorted by how high it peaks

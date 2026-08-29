@@ -34,6 +34,18 @@ struct SkyVisibilityExplorerView: View {
     @State private var sortField: SortField = .peakAltitude
     @State private var sortAscending = false
     @State private var typeFilter: String?
+    @State private var planetResults: [SkyVisibilityCalculator.PlanetResult] = []
+    @State private var detailSubject: DetailSubject?
+
+    private struct DetailSubject: Identifiable {
+        let id = UUID()
+        let title: String
+        let subtitle: String
+        let symbolName: String
+        let riseTime: Date?
+        let peakTime: Date
+        let setTime: Date?
+    }
 
     private enum SortField: String, CaseIterable, Identifiable {
         case name = "Name", type = "Type", magnitude = "Magnitude", peakAltitude = "Peak Altitude", peakTime = "Peak Time"
@@ -134,6 +146,21 @@ struct SkyVisibilityExplorerView: View {
                 }
 
                 if hasCalculated {
+                    PageSection(title: "Planets & Moon Tonight") {
+                        if planetResults.isEmpty {
+                            Text("No planets or the Moon clear \(Int(minAltitude))° tonight from this location.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(planetResults) { planet in
+                                planetRow(planet)
+                                Divider()
+                            }
+                        }
+                    }
+                }
+
+                if hasCalculated {
                     PageSection(title: "\(results.count) Object\(results.count == 1 ? "" : "s") Above \(Int(minAltitude))°") {
                         if results.isEmpty {
                             Text("Nothing in the catalog clears that altitude on this night from this location — try a lower minimum altitude or a different date.")
@@ -186,12 +213,52 @@ struct SkyVisibilityExplorerView: View {
                 cameraManager.setActive(project: candidate.project, session: candidate.session)
             }
         }
+        .sheet(item: $detailSubject) { subject in
+            SkyVisibilityObjectDetailView(
+                title: subject.title, subtitle: subject.subtitle, symbolName: subject.symbolName,
+                riseTime: subject.riseTime, peakTime: subject.peakTime, setTime: subject.setTime,
+                onDismiss: { detailSubject = nil }
+            )
+        }
     }
 
     private var sessionCandidates: [SkyObjectSessionCandidate] {
         cameraManager.projectsLibrary.activeProjects.flatMap { project in
             project.sessions.map { SkyObjectSessionCandidate(project: project, session: $0) }
         }
+    }
+
+    @ViewBuilder
+    private func planetRow(_ planet: SkyVisibilityCalculator.PlanetResult) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(.quaternary)
+                Image(systemName: planet.name == "Moon" ? "moon.fill" : "circle.fill").font(.title2).foregroundStyle(.secondary)
+            }
+            .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(planet.name).font(.headline)
+                Text(riseSetSummary(rise: planet.riseTime, peak: planet.timeOfMaxAltitude, set: planet.setTime, peakAltitude: planet.maxAltitudeDegrees))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            detailSubject = DetailSubject(
+                title: planet.name, subtitle: "Solar system body",
+                symbolName: planet.name == "Moon" ? "moon.fill" : "circle.fill",
+                riseTime: planet.riseTime, peakTime: planet.timeOfMaxAltitude, setTime: planet.setTime
+            )
+        }
+    }
+
+    private func riseSetSummary(rise: Date?, peak: Date, set: Date?, peakAltitude: Double) -> String {
+        let riseText = rise.map(Self.timeFormatter.string) ?? "already up"
+        let setText = set.map(Self.timeFormatter.string) ?? "still up at dawn"
+        return "Rises \(riseText), peaks at \(Int(peakAltitude))° around \(Self.timeFormatter.string(from: peak)), \(set == nil ? setText : "sets \(setText)")"
     }
 
     @ViewBuilder
@@ -212,7 +279,7 @@ struct SkyVisibilityExplorerView: View {
                 Text("\(result.object.friendlyTypeName) · mag \(String(format: "%.1f", result.magnitudeOrPlaceholder))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("Peaks at \(Int(result.maxAltitudeDegrees))° around \(Self.timeFormatter.string(from: result.timeOfMaxAltitude))")
+                Text(riseSetSummary(rise: result.riseTime, peak: result.timeOfMaxAltitude, set: result.setTime, peakAltitude: result.maxAltitudeDegrees))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -237,6 +304,15 @@ struct SkyVisibilityExplorerView: View {
             .fixedSize()
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            detailSubject = DetailSubject(
+                title: result.object.displayName,
+                subtitle: "\(result.object.friendlyTypeName) · magnitude \(String(format: "%.1f", result.magnitudeOrPlaceholder))",
+                symbolName: result.object.symbolName,
+                riseTime: result.riseTime, peakTime: result.timeOfMaxAltitude, setTime: result.setTime
+            )
+        }
     }
 
     private func calculate() async {
@@ -245,7 +321,7 @@ struct SkyVisibilityExplorerView: View {
         let target = catalog
         let selectedDate = date
         let minAlt = minAltitude
-        let (computedResults, computedConjunctions) = await Task.detached(priority: .userInitiated) { () -> ([SkyVisibilityCalculator.Result], [SkyEventsCalculator.Conjunction]) in
+        let (computedResults, computedConjunctions, computedPlanets) = await Task.detached(priority: .userInitiated) { () -> ([SkyVisibilityCalculator.Result], [SkyEventsCalculator.Conjunction], [SkyVisibilityCalculator.PlanetResult]) in
             let visible = SkyVisibilityCalculator.visibleObjects(
                 in: target, on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, minAltitudeDegrees: minAlt
             )
@@ -253,10 +329,14 @@ struct SkyVisibilityExplorerView: View {
             let windowStart = calendar.date(byAdding: .day, value: -7, to: selectedDate) ?? selectedDate
             let windowEnd = calendar.date(byAdding: .day, value: 7, to: selectedDate) ?? selectedDate
             let events = SkyEventsCalculator.conjunctions(in: windowStart...windowEnd)
-            return (visible, events)
+            let planets = SkyVisibilityCalculator.visiblePlanets(
+                on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, minAltitudeDegrees: minAlt
+            )
+            return (visible, events, planets)
         }.value
         results = computedResults
         conjunctions = computedConjunctions
+        planetResults = computedPlanets
         isCalculating = false
         hasCalculated = true
     }

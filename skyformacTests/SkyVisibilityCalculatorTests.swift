@@ -68,4 +68,49 @@ struct SkyVisibilityCalculatorTests {
         // subtly wrong, while "descending by the field it claims to sort by" is always true.
         #expect(results[0].maxAltitudeDegrees >= results[1].maxAltitudeDegrees)
     }
+
+    @Test func circumpolarObjectsHaveNoRiseOrSetTime() {
+        let ncp = SkyCatalogObject(id: "ncp-test", commonName: nil, objectType: "test", raDegrees: 0, decDegrees: 90, magnitude: 0)
+        let results = SkyVisibilityCalculator.visibleObjects(
+            in: [ncp], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 30
+        )
+        #expect(results.first?.riseTime == nil)
+        #expect(results.first?.setTime == nil)
+    }
+
+    @Test func nonCircumpolarObjectRisesBeforeAndSetsAfterItsPeak() {
+        // dec 0° at latitude 45° is well clear of the ~45° circumpolar threshold, so it genuinely
+        // rises and sets within a 24h period rather than staying up (or down) the whole time.
+        let equatorial = SkyCatalogObject(id: "eq-test", commonName: nil, objectType: "test", raDegrees: 180, decDegrees: 0, magnitude: 0)
+        let results = SkyVisibilityCalculator.visibleObjects(
+            in: [equatorial], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 20
+        )
+        guard let result = results.first else {
+            Issue.record("expected this object to clear 20° at some point")
+            return
+        }
+        if let rise = result.riseTime { #expect(rise <= result.timeOfMaxAltitude) }
+        if let set = result.setTime { #expect(set >= result.timeOfMaxAltitude) }
+    }
+
+    @Test func visiblePlanetsReturnsStructurallyConsistentResults() {
+        let results = SkyVisibilityCalculator.visiblePlanets(
+            on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 0
+        )
+        for result in results {
+            #expect(result.maxAltitudeDegrees >= 0)
+            if let rise = result.riseTime { #expect(rise <= result.timeOfMaxAltitude) }
+            if let set = result.setTime { #expect(set >= result.timeOfMaxAltitude) }
+        }
+        for i in 1..<results.count {
+            #expect(results[i - 1].maxAltitudeDegrees >= results[i].maxAltitudeDegrees)
+        }
+    }
+
+    @Test func visiblePlanetsExcludesEverythingAtAnImpossibleThreshold() {
+        let results = SkyVisibilityCalculator.visiblePlanets(
+            on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 95
+        )
+        #expect(results.isEmpty)
+    }
 }

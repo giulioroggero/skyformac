@@ -56,6 +56,7 @@ enum AppSettings {
         case isAssistantPanelVisible
         case isAssistantMinimized
         case isAssistantDetached
+        case isOnlineObjectInfoEnabled
         case isSirilIntegrationEnabled
         case sirilCLIPath
         case isGraXpertIntegrationEnabled
@@ -668,6 +669,17 @@ enum AppSettings {
     /// Off by default — Siril is a real external process dependency this app doesn't bundle;
     /// "Elaborate…" prompts the user to turn this on here rather than silently doing nothing (or
     /// silently shelling out) when it's off. See `SirilElaborationService`.
+    /// Gates every live network call `SkyVisibilityExplorerView`'s object detail sheet makes
+    /// (Wikipedia's public REST API for a description/thumbnail) — off by default, since this is
+    /// the one place in the app that reaches the network at all, and "no telemetry, no network
+    /// dependency" (see `docs/distribution.md`) is otherwise true everywhere else. Turning this on
+    /// doesn't affect the "Search on AstroBin"/"Search on Reddit" links, which just open the
+    /// user's own browser — no request this app itself makes either way.
+    static var isOnlineObjectInfoEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.isOnlineObjectInfoEnabled.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.isOnlineObjectInfoEnabled.rawValue) }
+    }
+
     static var isSirilIntegrationEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Key.isSirilIntegrationEnabled.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.isSirilIntegrationEnabled.rawValue) }
