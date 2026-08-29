@@ -58,6 +58,34 @@ final class SkyformacUITests: XCTestCase {
         return app
     }
 
+    /// Scrolls a "Common Tasks" tile into an actually-tappable position, then taps it.
+    /// `XCUIElement.isHittable` alone isn't reliable for this row: on a narrower window (CI's
+    /// 1024×768 virtual display, confirmed via a downloaded xcresult) the AI sidebar sits to the
+    /// right of the row, and a tile whose accessibility frame still overlaps that sidebar area can
+    /// wrongly report `isHittable == true` — the synthesized tap then lands on the sidebar
+    /// underneath instead of the tile, and the app never navigates anywhere. Comparing the tile's
+    /// real on-screen frame against the scroll view's own frame is an actual geometry check rather
+    /// than trusting the accessibility layer's hit-test result.
+    private func scrollCommonTasksTileIntoViewAndTap(
+        _ element: XCUIElement, within scrollView: XCUIElement, timeout: TimeInterval = 10,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        func isFullyVisible() -> Bool {
+            let bounds = scrollView.frame
+            let frame = element.frame
+            return frame.width > 0 && frame.minX >= bounds.minX && frame.maxX <= bounds.maxX
+        }
+        for direction: CGFloat in [200, -200] {
+            let deadline = Date().addingTimeInterval(timeout / 2)
+            while !isFullyVisible() && Date() < deadline {
+                scrollView.scroll(byDeltaX: direction, deltaY: 0)
+            }
+            if isFullyVisible() { break }
+        }
+        XCTAssertTrue(isFullyVisible(), "\(element) never scrolled into an actually-tappable position", file: file, line: line)
+        element.tap()
+    }
+
     /// This app's main window is the orientation Dashboard (`DashboardHomeView`) whenever no
     /// session is running — the camera view (and its "Cameras" sidebar) only appears once a
     /// session is actually active. Quick Start is the fastest way there: it creates a throwaway
@@ -154,23 +182,7 @@ final class SkyformacUITests: XCTestCase {
         // attempt: exactly how far it's scrolled off-screen depends on the actual window width,
         // which isn't something to hardcode a single guess for.
         let commonTasksScroll = app.scrollViews["CommonTasksScrollView"]
-        // A single fixed-distance scroll attempt was tried first and confirmed (via CI) to not be
-        // enough on its own — rather than guess at the right magnitude, or risk having guessed the
-        // wrong sign for "reveal content further right" (undocumented/unverified on this XCTest
-        // version), this repeatedly scrolls in one direction (real cumulative progress, not
-        // canceling itself out) for up to 5s, then — if that direction was actually wrong — the
-        // other direction for another 5s, until the tile is hittable either way.
-        func scrollUntilHittable(direction: CGFloat, deadline: Date) {
-            while !insightsTile.isHittable && Date() < deadline {
-                commonTasksScroll.scroll(byDeltaX: direction, deltaY: 0)
-            }
-        }
-        scrollUntilHittable(direction: 200, deadline: Date().addingTimeInterval(5))
-        if !insightsTile.isHittable {
-            scrollUntilHittable(direction: -200, deadline: Date().addingTimeInterval(5))
-        }
-        XCTAssertTrue(insightsTile.isHittable, "DashboardInsightsTile never became hittable after scrolling")
-        insightsTile.tap()
+        scrollCommonTasksTileIntoViewAndTap(insightsTile, within: commonTasksScroll)
 
         // macOS `NavigationStack` titles don't surface as an XCUITest `NavigationBar` element the
         // way they do on iOS, so this checks for "Overview" — `InsightsView`'s own first
@@ -268,17 +280,7 @@ final class SkyformacUITests: XCTestCase {
         let equipmentTile = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Equipment")).firstMatch
         XCTAssertTrue(equipmentTile.waitForExistence(timeout: 10))
         let commonTasksScroll = app.scrollViews["CommonTasksScrollView"]
-        func scrollUntilHittable(direction: CGFloat, deadline: Date) {
-            while !equipmentTile.isHittable && Date() < deadline {
-                commonTasksScroll.scroll(byDeltaX: direction, deltaY: 0)
-            }
-        }
-        scrollUntilHittable(direction: 200, deadline: Date().addingTimeInterval(5))
-        if !equipmentTile.isHittable {
-            scrollUntilHittable(direction: -200, deadline: Date().addingTimeInterval(5))
-        }
-        XCTAssertTrue(equipmentTile.isHittable, "Equipment tile never became hittable after scrolling")
-        equipmentTile.tap()
+        scrollCommonTasksTileIntoViewAndTap(equipmentTile, within: commonTasksScroll)
 
         // `EquipmentPage`'s own empty-state title — unique to that page, present with no
         // equipment systems set up yet.

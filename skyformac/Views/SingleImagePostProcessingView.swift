@@ -251,7 +251,16 @@ struct SingleImagePostProcessingView: View {
     /// separate synchronization to get right.
     @ViewBuilder
     private func labeledComparisonImage(_ label: String, image: CGImage?) -> some View {
-        ZStack(alignment: .topLeading) {
+        // Plain (default `.center`) alignment here, not `.topLeading` — an earlier version used
+        // `.topLeading` so the label overlay below could anchor to that corner, but that alignment
+        // applies to *every* child of this `ZStack`, not just the label: the image itself (smaller
+        // than the full pane once aspect-fit shrinks it to match its own proportions) was pinned
+        // to the top-left corner instead of centered, so zooming — anchored on the image's own,
+        // off-center bounds — visually read as "zooming toward the bottom-right from a fixed
+        // top-left point" rather than zooming in place. The label now gets its own independent
+        // `.overlay(alignment:)` instead, so it can stay pinned to the corner without dragging the
+        // image's own centering along with it.
+        ZStack {
             Color.black
             if let image {
                 Image(decorative: image, scale: 1)
@@ -278,6 +287,8 @@ struct SingleImagePostProcessingView: View {
             } else {
                 ProgressView()
             }
+        }
+        .overlay(alignment: .topLeading) {
             Text(label)
                 .font(.caption2.bold())
                 .padding(.horizontal, 6)

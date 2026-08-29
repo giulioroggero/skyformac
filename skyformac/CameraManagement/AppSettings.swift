@@ -46,6 +46,13 @@ enum AppSettings {
         case geminiVertexProjectID
         case geminiVertexRegion
         case sessionSuggestionSkill
+        case sessionPlanningInstructions
+        case projectPlanningInstructions
+        case assistantChatInstructions
+        case planetaryStackingInstructions
+        case imageAssistantInstructions
+        case summaryInstructions
+        case suggestTagsInstructions
         case isAssistantPanelVisible
         case isAssistantMinimized
         case isAssistantDetached
@@ -571,6 +578,89 @@ enum AppSettings {
     projects and sessions. Favor a good variety over repeating the same target, unless a repeat \
     under better conditions is clearly worthwhile. Attach the session to an existing project when \
     one genuinely fits its goal; otherwise propose a new project.
+    """
+
+    // MARK: - AI system instructions
+    //
+    // "All system instructions, for each model, page, and task, are visible in Settings and can be
+    // updated by the user" — the opening persona/behavior paragraph `OllamaPlanner` sends for each
+    // distinct AI task, editable here the same way `sessionSuggestionSkill` already was. The JSON
+    // response-format scaffolding that follows each of these in `OllamaPlanner` stays fixed in
+    // code (not exposed) since editing it would silently break response parsing; what's exposed is
+    // genuinely just the instructions, not the contract the app depends on to read the reply back.
+
+    static var sessionPlanningInstructions: String {
+        get { UserDefaults.standard.string(forKey: Key.sessionPlanningInstructions.rawValue) ?? defaultSessionPlanningInstructions }
+        set { UserDefaults.standard.set(newValue, forKey: Key.sessionPlanningInstructions.rawValue) }
+    }
+    static let defaultSessionPlanningInstructions =
+        "You are an assistant helping an amateur astronomer plan a single observing session."
+
+    static var projectPlanningInstructions: String {
+        get { UserDefaults.standard.string(forKey: Key.projectPlanningInstructions.rawValue) ?? defaultProjectPlanningInstructions }
+        set { UserDefaults.standard.set(newValue, forKey: Key.projectPlanningInstructions.rawValue) }
+    }
+    static let defaultProjectPlanningInstructions =
+        "You are an assistant helping an amateur astronomer plan a multi-session observing project."
+
+    static var assistantChatInstructions: String {
+        get { UserDefaults.standard.string(forKey: Key.assistantChatInstructions.rawValue) ?? defaultAssistantChatInstructions }
+        set { UserDefaults.standard.set(newValue, forKey: Key.assistantChatInstructions.rawValue) }
+    }
+    static let defaultAssistantChatInstructions = """
+    You are an assistant embedded in the sidebar of an astrophotography capture app, grounded in \
+    the current page's own context below — use it, don't ignore it. If an image is attached, it's \
+    a snapshot of whatever's currently on screen (a capture, an elaborated image) — actually look \
+    at it before answering a question like "what is that?" rather than guessing from the context \
+    text alone.
+    """
+
+    static var planetaryStackingInstructions: String {
+        get { UserDefaults.standard.string(forKey: Key.planetaryStackingInstructions.rawValue) ?? defaultPlanetaryStackingInstructions }
+        set { UserDefaults.standard.set(newValue, forKey: Key.planetaryStackingInstructions.rawValue) }
+    }
+    static let defaultPlanetaryStackingInstructions = """
+    You are an assistant embedded in this astrophotography app's Planetary Post-Processing tool, \
+    at its very first "Set Up Stacking" step, before any stacking has actually run yet. An image \
+    of a single representative frame from the capture is attached — actually look at it and \
+    identify what it shows: a planet or the Moon (a small, bright, high-contrast disk) or a \
+    deep-sky object (an extended, fainter nebula/galaxy/star cluster) — good starting values \
+    differ a lot between the two.
+    """
+
+    static var imageAssistantInstructions: String {
+        get { UserDefaults.standard.string(forKey: Key.imageAssistantInstructions.rawValue) ?? defaultImageAssistantInstructions }
+        set { UserDefaults.standard.set(newValue, forKey: Key.imageAssistantInstructions.rawValue) }
+    }
+    static let defaultImageAssistantInstructions = """
+    You are an assistant embedded in this astrophotography app's Edit Image tool. An image of the \
+    photo currently being edited is attached — actually look at it: its color balance, noise \
+    level, sharpness, contrast, and any visible artifacts (gradient/vignetting, hot pixels, \
+    bloated stars, green color cast).
+    You can either just answer a question about the image, or propose a specific set of adjustment \
+    slider values that would improve it, grounded only in what you actually see — never propose \
+    changing a slider that's already fine as-is, and never invent an artifact that isn't visible \
+    in the image.
+    """
+
+    static var summaryInstructions: String {
+        get { UserDefaults.standard.string(forKey: Key.summaryInstructions.rawValue) ?? defaultSummaryInstructions }
+        set { UserDefaults.standard.set(newValue, forKey: Key.summaryInstructions.rawValue) }
+    }
+    static let defaultSummaryInstructions = """
+    You are an assistant helping an amateur astronomer write a short, engaging description of \
+    their observing project or session, grounded only in the facts given below — don't invent \
+    details (equipment, dates, objects) that aren't in this data.
+    """
+
+    static var suggestTagsInstructions: String {
+        get { UserDefaults.standard.string(forKey: Key.suggestTagsInstructions.rawValue) ?? defaultSuggestTagsInstructions }
+        set { UserDefaults.standard.set(newValue, forKey: Key.suggestTagsInstructions.rawValue) }
+    }
+    static let defaultSuggestTagsInstructions = """
+    You are an assistant suggesting short organizational tags for an amateur astronomer's \
+    observing project or session, grounded only in the facts given below — don't invent details \
+    (equipment, dates, objects) that aren't in this data.
     """
 
     // MARK: - Siril integration

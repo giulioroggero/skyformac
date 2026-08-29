@@ -302,6 +302,14 @@ struct ProjectDetailPane: View {
         // next to `onBack` doing the same thing — hidden in favor of the explicit Home/Back pair
         // below (see `SessionDetailPane`'s identical modifier for the full reasoning).
         .navigationBarBackButtonHidden(true)
+        .task(id: project.id) {
+            cameraManager.assistantBrowsedProject = project
+            cameraManager.assistantBrowsedSession = nil
+        }
+        .onDisappear {
+            cameraManager.assistantBrowsedProject = nil
+            cameraManager.assistantBrowsedSession = nil
+        }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 HStack(spacing: 8) {

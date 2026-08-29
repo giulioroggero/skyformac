@@ -20,7 +20,6 @@ struct SettingsView: View {
     @State private var serverURLText = AppSettings.ollamaServerURL.absoluteString
     @State private var selectedModel: String? = AppSettings.ollamaModel
     @State private var maxResponseTokens = AppSettings.ollamaMaxResponseTokens
-    @State private var sessionSuggestionSkill = AppSettings.sessionSuggestionSkill
     @State private var aiProvider = AppSettings.aiProvider
     @State private var anthropicAPIKeyText = AppSettings.anthropicAPIKey ?? ""
     @State private var geminiAPIKeyText = AppSettings.geminiAPIKey ?? ""
@@ -89,6 +88,8 @@ struct SettingsView: View {
                     .tabItem { Label("Rendering", systemImage: "camera.aperture") }
                 aiForm
                     .tabItem { Label("AI", systemImage: "sparkles") }
+                AIInstructionsSettingsView()
+                    .tabItem { Label("AI Instructions", systemImage: "text.bubble") }
                 StorageSettingsView(cameraManager: cameraManager)
                     .tabItem { Label("Storage", systemImage: "internaldrive") }
                 SirilSettingsView()
@@ -340,25 +341,6 @@ struct SettingsView: View {
                 }
                 }
 
-                Section("AI Skill: Suggest Next Session") {
-                    TextEditor(text: $sessionSuggestionSkill)
-                        .font(.body)
-                        .frame(minHeight: 90)
-                        .onChange(of: sessionSuggestionSkill) { _, newValue in
-                            AppSettings.sessionSuggestionSkill = newValue
-                        }
-                    HStack {
-                        Spacer()
-                        Button("Reset to Default") {
-                            sessionSuggestionSkill = AppSettings.defaultSessionSuggestionSkill
-                            AppSettings.sessionSuggestionSkill = AppSettings.defaultSessionSuggestionSkill
-                        }
-                        .disabled(sessionSuggestionSkill == AppSettings.defaultSessionSuggestionSkill)
-                    }
-                    Text("Standing instructions folded into every \"suggest my next session\" request — tune what the AI favors (equipment, target types, repeat vs. variety) without touching a single prompt in code.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
         }
         .formStyle(.grouped)
     }

@@ -45,6 +45,15 @@ actually tagged. Tags on GitHub: [v0.6.1](https://github.com/giulioroggero/skyfo
   `gemini-2.5-flash-image`; now choose among every current Gemini image-generation model
   (`gemini-2.5-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3.1-flash-image`,
   `gemini-3-pro-image`).
+- Planetary Post-Processing's "Set Up Stacking" step gains an "AI Suggest Settings" button — sends
+  a representative frame to the AI, which identifies whether it's a planet/the Moon or a deep-sky
+  target and proposes matching keep-best-percent, stack method, per-layer wavelet gains, denoise,
+  RGB channel alignment, black/white point, and log stretch settings; shown as an Approve/Dismiss
+  card, never applied until approved.
+- Settings gains a new "AI Instructions" tab: every distinct AI task's system instructions (session
+  and project planning, the sidebar assistant, Planetary Post-Processing's stacking suggestions,
+  Edit Image's assistant, "Ask AI to Describe…", tag suggestions, and the existing "suggest next
+  session" skill) are now visible and directly editable there, each with its own "Reset to Default."
 
 ### Fixed
 - The sidebar assistant surfaced "the model's reply didn't contain a usable plan — try again, or
@@ -55,6 +64,22 @@ actually tagged. Tags on GitHub: [v0.6.1](https://github.com/giulioroggero/skyfo
 - The AI Enhance-produced watermark ("AI - Sky For Mac") was too opaque, standing out more than
   intended against the image. Both the label and its background box are now noticeably more
   transparent.
+- Zooming or comparing Original/Edited in the single-image post-processing editor drifted the image
+  toward the bottom-left instead of zooming/staying centered — a `ZStack(alignment: .topLeading)`
+  meant for a small corner label was misaligning the whole image underneath it too. The label now
+  gets its own `.overlay(alignment: .topLeading)` instead, leaving the image itself centered.
+- The sidebar assistant had no idea what project/session was actually open while just browsing
+  (not recording) — "what's the best capture in this session?" asked from a Session page got "I
+  don't have any information about what's been captured in this current session," since the
+  context builder only ever looked at the live-recording session, never the one on screen. Project
+  and Session detail pages now tell the assistant what they're showing.
+- Two CI-only UI test failures (`testEquipmentTileOpensTheEquipmentPage`,
+  `testInsightsTileOpensTheInsightsPage`): on CI's narrower 1024×768 virtual display, the "Common
+  Tasks" tile row's later tiles sit partly behind the AI sidebar, and `XCUIElement.isHittable`
+  wrongly reported them tappable there — the synthesized tap landed on the sidebar instead of the
+  tile. Tile taps for that row now check the tile's actual on-screen frame against the scroll
+  view's own frame before tapping, a real geometry check instead of trusting the accessibility
+  layer's hit-test result.
 
 ## [0.6.1] - 2026-08-29
 

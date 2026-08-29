@@ -600,6 +600,43 @@ struct OllamaPlannerTests {
         )))
     }
 
+    @Test func suggestPlanetaryStackingSettingsParsesAFullSuggestion() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"""
+        {"message": "This looks like Jupiter — a compact, high-contrast planetary disk.", "keepBestPercent": 25, "stackMethod": "median", "waveletLayerGains": [1.8, 1.4, 1.1, 1.0], "denoise": 0.1, "alignRGBChannels": true, "blackPoint": 0.02, "whitePoint": 0.95, "useLogStretch": false, "logStretchIntensity": 5}
+        """#
+        let planner = OllamaPlanner(transport: transport)
+
+        let suggestion = try await planner.suggestPlanetaryStackingSettings(image: Data([0xFF, 0xD8, 0xFF]), waveletLayerCount: 4)
+        #expect(suggestion == OllamaPlanner.PlanetaryStackingSuggestion(
+            message: "This looks like Jupiter — a compact, high-contrast planetary disk.",
+            keepBestPercent: 25, stackMethod: "median", waveletLayerGains: [1.8, 1.4, 1.1, 1.0],
+            denoise: 0.1, alignRGBChannels: true, blackPoint: 0.02, whitePoint: 0.95,
+            useLogStretch: false, logStretchIntensity: 5
+        ))
+    }
+
+    @Test func suggestPlanetaryStackingSettingsAllowsAPartialSuggestion() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"message": "Deep-sky target — keep more frames to average noise out.", "keepBestPercent": 80}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let suggestion = try await planner.suggestPlanetaryStackingSettings(image: Data([0xFF, 0xD8, 0xFF]), waveletLayerCount: 4)
+        #expect(suggestion.keepBestPercent == 80)
+        #expect(suggestion.stackMethod == nil)
+        #expect(suggestion.waveletLayerGains == nil)
+    }
+
+    @Test func suggestPlanetaryStackingSettingsThrowsForUnusableText() async {
+        let transport = FakeTransport()
+        transport.responseText = "Sorry, I can't help with that."
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.invalidPlanJSON) {
+            _ = try await planner.suggestPlanetaryStackingSettings(image: Data([0xFF, 0xD8, 0xFF]), waveletLayerCount: 4)
+        }
+    }
+
     /// The whole point of attaching an image is that it actually reaches the request Ollama's own
     /// `/api/generate` sees — this pins down `generate(prompt:image:)`'s own wiring rather than
     /// only checking the parsed reply, which would still pass even if the image were silently

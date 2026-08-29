@@ -464,6 +464,39 @@ struct OllamaPlanner: Sendable {
         }
     }
 
+    /// What `suggestPlanetaryStackingSettings` returns — every field but `message` optional, the
+    /// same "only propose what you actually have an opinion on" shape `ImageAdjustmentSuggestion`
+    /// uses. `waveletLayerGains`, when given, has exactly one value per existing layer, in order
+    /// (layer 1 = finest detail first) — the caller is responsible for matching them up positionally
+    /// since a model can't reference `PlanetaryPostProcessor.WaveletLayer`'s own `id`.
+    struct PlanetaryStackingSuggestion: Codable, Equatable, Sendable {
+        var message: String
+        var keepBestPercent: Double?
+        var stackMethod: String?
+        var waveletLayerGains: [Double]?
+        var denoise: Double?
+        var alignRGBChannels: Bool?
+        var blackPoint: Double?
+        var whitePoint: Double?
+        var useLogStretch: Bool?
+        var logStretchIntensity: Double?
+    }
+
+    /// "AI suggestions for better-set parameters depending on the picture and object (planet, deep
+    /// sky)" — Planetary Post-Processing's very first "Set Up Stacking" step, before any stacking
+    /// has actually run, grounded in an attached representative frame (a planet/the Moon and a
+    /// deep-sky object genuinely want different Keep Best/stretch defaults, and the model has to
+    /// actually see which one this is rather than guess). `waveletLayerCount` tells it exactly how
+    /// many `waveletLayerGains` entries to propose, since that's a fixed, page-specific number, not
+    /// something worth hardcoding into the prompt text itself.
+    func suggestPlanetaryStackingSettings(image: Data, waveletLayerCount: Int) async throws -> PlanetaryStackingSuggestion {
+        let text = try await generate(prompt: Self.planetaryStackingPrompt(waveletLayerCount: waveletLayerCount), image: image)
+        guard let json = Self.extractJSONObject(from: text),
+              let suggestion = try? JSONDecoder().decode(PlanetaryStackingSuggestion.self, from: json)
+        else { throw OllamaError.invalidPlanJSON }
+        return suggestion
+    }
+
     /// The model this app actually wants when it's available — a good balance of capability vs.
     /// speed for the short planning prompts this feature sends. Just a preference, not a
     /// requirement: `resolveModel()` falls back to whatever's actually installed when it isn't.
@@ -556,7 +589,7 @@ struct OllamaPlanner: Sendable {
 
     private static func sessionPrompt(goal: String, notes: String) -> String {
         """
-        You are an assistant helping an amateur astronomer plan a single observing session.
+        \(AppSettings.sessionPlanningInstructions)
         Goal: \(goal)
         \(notes.isEmpty ? "" : "Notes: \(notes)\n")\
         Respond with ONLY a JSON object, no other text, matching exactly this shape:
@@ -566,7 +599,7 @@ struct OllamaPlanner: Sendable {
 
     private static func projectPrompt(goal: String, notes: String) -> String {
         """
-        You are an assistant helping an amateur astronomer plan a multi-session observing project.
+        \(AppSettings.projectPlanningInstructions)
         Goal: \(goal)
         \(notes.isEmpty ? "" : "Context: \(notes)\n")\
         If the goal names or implies a list of distinct targets (e.g. "the nicest Messier objects \
@@ -587,11 +620,7 @@ struct OllamaPlanner: Sendable {
             "\(entry.role == .user ? "User" : "Assistant"): \(entry.text)"
         }.joined(separator: "\n")
         return """
-        You are an assistant embedded in the sidebar of an astrophotography capture app, grounded \
-        in the current page's own context below — use it, don't ignore it. If an image is \
-        attached, it's a snapshot of whatever's currently on screen (a capture, an elaborated \
-        image) — actually look at it before answering a question like "what is that?" rather than \
-        guessing from the context text alone.
+        \(AppSettings.assistantChatInstructions)
         Context:
         \(context)
         \(historyText.isEmpty ? "" : "Recent conversation:\n\(historyText)\n")\
@@ -622,23 +651,40 @@ struct OllamaPlanner: Sendable {
         """
     }
 
+    private static func planetaryStackingPrompt(waveletLayerCount: Int) -> String {
+        """
+        \(AppSettings.planetaryStackingInstructions)
+
+        There are exactly \(waveletLayerCount) wavelet sharpening layers, numbered 1 (finest \
+        detail) through \(waveletLayerCount) (coarsest/broadest contrast) — propose one gain value \
+        per layer, in that order, if you're proposing to change them at all.
+
+        Respond with ONLY a JSON object, no other text, matching this shape (every field besides \
+        "message" is optional — include only what you're actually proposing to change):
+        {"message": "one or two sentences explaining what you see and why these values", \
+        "keepBestPercent": 30, "stackMethod": "median", "waveletLayerGains": [1.8, 1.4, 1.1, 1.0], \
+        "denoise": 0.1, "alignRGBChannels": true, "blackPoint": 0.02, "whitePoint": 0.95, \
+        "useLogStretch": false, "logStretchIntensity": 5}
+
+        Ranges: "keepBestPercent" is 1...100 (a lower value rejects more frames, keeping only the \
+        sharpest — a good fit for a planet/the Moon, where seeing genuinely varies a lot frame to \
+        frame; a deep-sky target usually wants a higher keepBestPercent instead, since there's no \
+        comparable frame-to-frame sharpness variation worth exploiting there). "stackMethod" is \
+        exactly "mean" or "median". "waveletLayerGains" entries are 0...3 each (1.0 = unchanged). \
+        "denoise" is 0...1. "blackPoint"/"whitePoint" are 0...1, whitePoint greater than \
+        blackPoint. "logStretchIntensity" is 1...20, only relevant when "useLogStretch" is true.
+        """
+    }
+
     private static func imageAssistantPrompt(message: String, adjustmentsDescription: String, history: [AssistantMessage]) -> String {
         let historyText = history.suffix(6).map { entry in
             "\(entry.role == .user ? "User" : "Assistant"): \(entry.text)"
         }.joined(separator: "\n")
         return """
-        You are an assistant embedded in this astrophotography app's Edit Image tool. An image of \
-        the photo currently being edited is attached — actually look at it: its color balance, \
-        noise level, sharpness, contrast, and any visible artifacts (gradient/vignetting, hot \
-        pixels, bloated stars, green color cast).
+        \(AppSettings.imageAssistantInstructions)
         Adjustment sliders already applied: \(adjustmentsDescription)
         \(historyText.isEmpty ? "" : "Recent conversation:\n\(historyText)\n")\
         User message: \(message)
-
-        You can either just answer a question about the image, or propose a specific set of \
-        adjustment slider values that would improve it, grounded only in what you actually see — \
-        never propose changing a slider that's already fine as-is, and never invent an artifact \
-        that isn't visible in the image.
 
         Respond with ONLY a JSON object, no other text, in exactly one of these shapes:
         {"kind": "reply", "text": "your answer"}
@@ -657,9 +703,7 @@ struct OllamaPlanner: Sendable {
 
     private static func summaryPrompt(context: String, extraInstructions: String) -> String {
         """
-        You are an assistant helping an amateur astronomer write a short, engaging description of \
-        their observing project or session, grounded only in the facts given below — don't invent \
-        details (equipment, dates, objects) that aren't in this data.
+        \(AppSettings.summaryInstructions)
         \(context)
         \(extraInstructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : "Additional instructions from the user: \(extraInstructions)\n")\
         Respond with a plain-text paragraph only — no JSON, no markdown formatting, no preamble like \
@@ -669,9 +713,7 @@ struct OllamaPlanner: Sendable {
 
     private static func suggestTagsPrompt(context: String, existingTags: [String], extraInstructions: String) -> String {
         """
-        You are an assistant suggesting short organizational tags for an amateur astronomer's \
-        observing project or session, grounded only in the facts given below — don't invent \
-        details (equipment, dates, objects) that aren't in this data.
+        \(AppSettings.suggestTagsInstructions)
         \(context)
         \(existingTags.isEmpty ? "" : "Tags already applied (don't repeat these): \(existingTags.joined(separator: ", "))\n")\
         \(extraInstructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : "Additional instructions from the user: \(extraInstructions)\n")\

@@ -391,6 +391,13 @@ final class CameraManager {
     /// already does for Edit Image. `nil` on any page with nothing relevant to show (Home,
     /// Equipment, a `.recording`/`.serVideo` capture with no single representative frame).
     var assistantContextImage: CGImage?
+    /// The project/session currently open in the browser (`ProjectDetailPane`/`SessionDetailPane`),
+    /// set/cleared the same way `assistantContextImage` is. `activeProject`/`activeSession` only
+    /// ever reflect the live camera-recording session, so without this a question like "what is
+    /// the best capture in this session?" asked while just browsing (not recording) had nothing to
+    /// go on — `assistantContext()` falls back to these whenever the live pair is `nil`.
+    var assistantBrowsedProject: Project?
+    var assistantBrowsedSession: Session?
     var isAssistantThinking = false
     let aiChatLibrary: AIChatLibrary
     /// The chat currently shown in `assistantMessages` — `nil` means "not saved yet," which is
@@ -642,15 +649,20 @@ final class CameraManager {
         // isn't cached), so the date/time is always genuinely current, not stale from whenever the
         // chat was first opened.
         lines.append("Current date/time: \(Self.assistantContextDateFormatter.string(from: Date())).")
-        if let location = activeSession?.location ?? activeProject?.location ?? locationProvider.lastLocation {
+        // `activeProject`/`activeSession` only exist while the camera is actually recording;
+        // `assistantBrowsedProject`/`assistantBrowsedSession` cover the far more common case of
+        // just looking at a project/session's detail page in the browser.
+        let contextProject = activeProject ?? assistantBrowsedProject
+        let contextSession = activeSession ?? assistantBrowsedSession
+        if let location = contextSession?.location ?? contextProject?.location ?? locationProvider.lastLocation {
             lines.append("Observer location: \(location.displayName) (latitude \(location.latitude), longitude \(location.longitude)).")
         } else {
             lines.append("Observer location: unknown — if the user names a place, use it; otherwise ask, or answer in general seasonal terms.")
         }
-        if let project = activeProject {
+        if let project = contextProject {
             lines.append("Currently viewing project: \(project.name.isEmpty ? "(untitled)" : project.name). Goal: \(project.goal). Rating: \(ratingDescription(project.rating)).\(project.isFavorite ? " Marked as a favorite." : "")")
-            if let session = activeSession {
-                lines.append("Currently in session: \(session.name). Planned objects: \(session.plannedObjects.joined(separator: ", ")). Rating: \(ratingDescription(session.rating)).\(session.isFavorite ? " Marked as a favorite." : "")")
+            if let session = contextSession {
+                lines.append("Currently viewing session: \(session.name). Planned objects: \(session.plannedObjects.joined(separator: ", ")). Rating: \(ratingDescription(session.rating)).\(session.isFavorite ? " Marked as a favorite." : "") Captures in this session: \(session.captures.count).")
             }
         }
         if let camera = connectedCamera {
@@ -718,7 +730,7 @@ final class CameraManager {
         if !equipmentLibrary.systems.isEmpty {
             let systemNames = equipmentLibrary.systems.map(\.name).joined(separator: ", ")
             lines.append("Equipment systems set up: \(systemNames).")
-            if let project = activeProject, let systemID = project.equipmentSystemID,
+            if let project = contextProject, let systemID = project.equipmentSystemID,
                let system = equipmentLibrary.system(withID: systemID) {
                 lines.append("Equipment assigned to the current project: \(system.name) (\(system.items.map(\.displayName).joined(separator: ", "))).")
             }

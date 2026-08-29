@@ -125,6 +125,12 @@ struct PlanetaryPostProcessingView: View {
     @State private var autoStretchTask: Task<Void, Never>?
     @State private var autoStretchCancelFlag: PlanetaryCancellationFlag?
 
+    // AI-suggested Stage 3-5 starting values, offered on the setup screen before any stacking has
+    // actually run — see `aiSuggestionCard`'s own doc comment.
+    @State private var isFetchingAIStackingSuggestion = false
+    @State private var aiStackingSuggestion: OllamaPlanner.PlanetaryStackingSuggestion?
+    @State private var aiStackingSuggestionErrorMessage: String?
+
     private enum SidebarTab: String, CaseIterable, Identifiable {
         case video = "Video"
         case singleShot = "Single Shot"
@@ -292,6 +298,7 @@ struct PlanetaryPostProcessingView: View {
                         : "Every frame in \(sourceURLs.first?.lastPathComponent ?? "this capture") gets scored and registered first, regardless of these settings — they only decide how the sharpest frames get combined afterwards. You can re-stack with different values later without reloading.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    aiSuggestionSection
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             stackingSection
@@ -326,6 +333,87 @@ struct PlanetaryPostProcessingView: View {
             }
             .padding(.vertical, 20)
         }
+    }
+
+    /// "Add at the start of post-process the AI suggestions for better-set parameters depending on
+    /// the picture and object (planet, deep sky)" — a planet/the Moon and a deep-sky object
+    /// genuinely want different Keep Best/stretch starting points, and this is the one moment that
+    /// matters: before any stacking has actually run, while every one of those choices is still
+    /// cheap to change. Sends `sourcePreview`'s own representative frame (once loaded) for the
+    /// model to actually look at, rather than guessing "planet vs. deep-sky" from the file name.
+    @ViewBuilder
+    private var aiSuggestionSection: some View {
+        if let suggestion = aiStackingSuggestion {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(suggestion.message).font(.caption)
+                HStack {
+                    Button("Apply") { applyAIStackingSuggestion(suggestion) }
+                        .controlSize(.small)
+                    Button("Dismiss") { aiStackingSuggestion = nil }
+                        .controlSize(.small)
+                }
+            }
+            .padding(8)
+            .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        } else {
+            HStack {
+                Button {
+                    Task { await fetchAIStackingSuggestion() }
+                } label: {
+                    if isFetchingAIStackingSuggestion {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("AI Suggest Settings", systemImage: "sparkles")
+                    }
+                }
+                .disabled(isFetchingAIStackingSuggestion || sourcePreview == nil)
+                if let aiStackingSuggestionErrorMessage {
+                    Text(aiStackingSuggestionErrorMessage).font(.caption).foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
+    private func fetchAIStackingSuggestion() async {
+        guard let sourcePreview,
+              let cgImage = sourcePreview.image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let imageData = AIVisionImageEncoder.jpegData(from: cgImage)
+        else {
+            aiStackingSuggestionErrorMessage = "Couldn't prepare this preview to send to the AI."
+            return
+        }
+        isFetchingAIStackingSuggestion = true
+        aiStackingSuggestionErrorMessage = nil
+        do {
+            let suggestion = try await CameraManager.makePlanner().suggestPlanetaryStackingSettings(
+                image: imageData, waveletLayerCount: waveletLayers.count
+            )
+            isFetchingAIStackingSuggestion = false
+            aiStackingSuggestion = suggestion
+        } catch {
+            isFetchingAIStackingSuggestion = false
+            aiStackingSuggestionErrorMessage = (error as? OllamaError)?.userFacingMessage ?? "Couldn't reach the AI provider."
+        }
+    }
+
+    private func applyAIStackingSuggestion(_ suggestion: OllamaPlanner.PlanetaryStackingSuggestion) {
+        if let value = suggestion.keepBestPercent { keepBestPercent = value }
+        if let rawMethod = suggestion.stackMethod {
+            if rawMethod.caseInsensitiveCompare("mean") == .orderedSame { stackMethod = .mean }
+            else if rawMethod.caseInsensitiveCompare("median") == .orderedSame { stackMethod = .median }
+        }
+        if let gains = suggestion.waveletLayerGains {
+            for (index, gain) in gains.enumerated() where index < waveletLayers.count {
+                waveletLayers[index].gain = gain
+            }
+        }
+        if let value = suggestion.denoise { denoise = value }
+        if let value = suggestion.alignRGBChannels { alignRGBChannels = value }
+        if let value = suggestion.blackPoint { blackPoint = value }
+        if let value = suggestion.whitePoint { whitePoint = value }
+        if let value = suggestion.useLogStretch { useLogStretch = value }
+        if let value = suggestion.logStretchIntensity { logStretchIntensity = value }
+        aiStackingSuggestion = nil
     }
 
     /// "Select the object before stacking, otherwise it duplicates the images" — registration

@@ -95,6 +95,7 @@
 		BFEE472143B742FAAE721F0D /* GradientExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */; };
 		4E7624307C5A42D095CF449A /* StillImageStacker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B74C3CF7C400A81BC4D89 /* StillImageStacker.swift */; };
 		5AA29BA6F6D16D2662BE036F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */; };
+		4544FD6DEC252B17932A6467 /* AIInstructionsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */; };
 		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
 		5C2442ADD1A7C168C808C1F0 /* FITSWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129AC416223DEE62CE827BBB /* FITSWriterTests.swift */; };
 		5D8A560925BE1D75D64E3AC7 /* GPUSharpnessScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA47EE4DF4E6417DBF9D6036 /* GPUSharpnessScorer.swift */; };
@@ -371,6 +372,7 @@
 		45347BEB6CA354F563145EEF /* skyformac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = skyformac.entitlements; sourceTree = "<group>"; };
 		4668DD1AFF704C72AB5B01D3 /* AIChatLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatLibrary.swift; sourceTree = "<group>"; };
 		466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIInstructionsSettingsView.swift; sourceTree = "<group>"; };
 		46F7B0CC8B6C296672D8C417 /* ToneCurve.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ToneCurve.swift; sourceTree = "<group>"; };
 		48947D4C4B2C34F7C9881290 /* DisplayStretchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisplayStretchTests.swift; sourceTree = "<group>"; };
 		49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = "compiled.mach-o.dylib"; path = libASICamera2.dylib; sourceTree = "<group>"; };
@@ -895,6 +897,7 @@
 				67F359368A5B9198F0F3224E /* EquipmentPage.swift */,
 				EE1AAD41550B27056C25269C /* RecallParametersView.swift */,
 				466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */,
+				8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */,
 				E88925FDFCDFD5CD1889D56E /* InsightsView.swift */,
 				C30CCC1098124C64AE6BBC87 /* GalleryView.swift */,
 				EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */,
@@ -1263,6 +1266,7 @@
 				EBC37D9D09994EA0A7F3F4FD /* EquipmentPage.swift in Sources */,
 				858D0DCDD9E15C7847E8A078 /* RecallParametersView.swift in Sources */,
 				5AA29BA6F6D16D2662BE036F /* SettingsView.swift in Sources */,
+				4544FD6DEC252B17932A6467 /* AIInstructionsSettingsView.swift in Sources */,
 				1A7076BEEAFB0EEA97237E13 /* InsightsData.swift in Sources */,
 				05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */,
 				2BC175A0D0EE4F638E5D7F5B /* GalleryView.swift in Sources */,
