@@ -29,19 +29,7 @@ struct SettingsView: View {
     @State private var geminiVertexRegionText = AppSettings.geminiVertexRegion ?? ""
     @State private var isImportingVertexServiceAccount = false
     @State private var vertexServiceAccountErrorMessage: String?
-    @State private var geminiImageModelText = AppSettings.geminiImageModel ?? SettingsView.geminiImageModelChoices[0]
-
-    /// Every current Gemini image-generation ("Nano Banana" family) model — verified directly
-    /// against Google's own model documentation, not guessed (a guessed Gemini model ID has
-    /// already 404'd in production once this session; the fix both times was checking the real
-    /// docs first). `gemini-2.5-flash-image` first/default since it's the longest-established GA
-    /// one.
-    static let geminiImageModelChoices = [
-        "gemini-2.5-flash-image",
-        "gemini-3.1-flash-lite-image",
-        "gemini-3.1-flash-image",
-        "gemini-3-pro-image",
-    ]
+    @State private var geminiImageModelText = AppSettings.geminiImageModel ?? GeminiImageEnhancer.availableModels[0]
 
     private var currentProjectsFolder: URL {
         customPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? ProjectStore.defaultRootDirectory()
@@ -279,7 +267,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Picker("AI Enhance Model", selection: $geminiImageModelText) {
-                            ForEach(Self.geminiImageModelChoices, id: \.self) { model in
+                            ForEach(GeminiImageEnhancer.availableModels, id: \.self) { model in
                                 Text(model).tag(model)
                             }
                         }

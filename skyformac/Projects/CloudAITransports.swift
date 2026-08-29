@@ -191,6 +191,21 @@ struct GeminiTransport: OllamaTransport {
 /// that, which is why `SingleImagePostProcessingView`'s "AI Enhance" button is Gemini-only — see
 /// its own doc comment for why the result gets a visible watermark once applied.
 enum GeminiImageEnhancer {
+    /// Every current Gemini image-generation ("Nano Banana" family) model — verified directly
+    /// against Google's own model documentation, not guessed (a guessed Gemini model ID has
+    /// already 404'd in production once this session; the fix both times was checking the real
+    /// docs first). `gemini-2.5-flash-image` first/default since it's the longest-established GA
+    /// one. A plain constant here (not on `SettingsView`, a `View` and therefore implicitly
+    /// `@MainActor`-isolated) so `enhanceWithAI()`'s own `Task.detached` can read it — confirmed
+    /// live: referencing a `SettingsView` static from a detached task is a real Swift 6
+    /// concurrency error CI's stricter Xcode caught (this app's local toolchain didn't).
+    static let availableModels = [
+        "gemini-2.5-flash-image",
+        "gemini-3.1-flash-lite-image",
+        "gemini-3.1-flash-image",
+        "gemini-3-pro-image",
+    ]
+
     enum EnhanceError: Error {
         /// The request succeeded, but Gemini's reply had no image part at all — e.g. it declined
         /// and only replied with text explaining why, or the chosen model doesn't actually support

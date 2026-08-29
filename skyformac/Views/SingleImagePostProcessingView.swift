@@ -674,7 +674,7 @@ struct SingleImagePostProcessingView: View {
             do {
                 let resultData = try await GeminiImageEnhancer.enhance(
                     image: imageData, apiKey: AppSettings.geminiAPIKey ?? "",
-                    model: AppSettings.geminiImageModel ?? SettingsView.geminiImageModelChoices[0],
+                    model: AppSettings.geminiImageModel ?? GeminiImageEnhancer.availableModels[0],
                     instructions: instructions
                 )
                 guard let source = CGImageSourceCreateWithData(resultData as CFData, nil),
