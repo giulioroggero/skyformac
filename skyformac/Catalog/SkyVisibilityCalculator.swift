@@ -41,10 +41,15 @@ enum SkyVisibilityCalculator {
             samples.append((sampleDate, altitude))
         }
 
-        guard let firstDusk = samples.first(where: { $0.altitude < sunAltitudeThresholdDegrees }),
-              let dawnIndex = samples.firstIndex(where: { $0.date > firstDusk.date && $0.altitude >= sunAltitudeThresholdDegrees })
-        else { return nil }
-        return (firstDusk.date, samples[dawnIndex].date)
+        // `nil` only means "the Sun never drops below the threshold at all" (polar day/high
+        // summer at high latitude) — genuinely no dark window to report. If it *does* drop below
+        // but never climbs back within the scanned 24h (deep polar winter, permanent darkness),
+        // that's the opposite extreme, not "no window": the rest of the scan is dark throughout,
+        // so the window runs to the end of what was actually sampled.
+        guard let firstDusk = samples.first(where: { $0.altitude < sunAltitudeThresholdDegrees }) else { return nil }
+        let dawnDate = samples.first(where: { $0.date > firstDusk.date && $0.altitude >= sunAltitudeThresholdDegrees })?.date
+            ?? samples.last!.date
+        return (firstDusk.date, dawnDate)
     }
 
     /// Every catalog object whose peak altitude during the night reaches at least

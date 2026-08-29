@@ -70,7 +70,10 @@
 		6CBB6C30AD46B0D8B8E10879 /* SkyVisibilityCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3CB1D5015708585E1A11E3 /* SkyVisibilityCalculator.swift */; };
 		1D9F263118E4EF5A11DC61AC /* PlanetaryPositionCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E40011E155559FFD579754 /* PlanetaryPositionCalculator.swift */; };
 		89CCAC925DCB4A6AAAAF881C /* SkyEventsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA6C161EB921725359BEA6C /* SkyEventsCalculator.swift */; };
+		59CD583EC45DF4AFBB18E170 /* SkyTonightCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74AFDE6661A15C048A2F81D6 /* SkyTonightCalculator.swift */; };
+		43A77BF71A43B61B31510798 /* SkyTonightMenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795F6920BCB735EEFB105E56 /* SkyTonightMenuBarView.swift */; };
 		0632A9F7EA2CCAE1CBF30B62 /* PlanetaryPositionCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900CB3275AF1CF55AA240958 /* PlanetaryPositionCalculatorTests.swift */; };
+		006C2BA5275C36C41CC0261B /* SkyTonightCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0951D60F57319D3D8FEBC85 /* SkyTonightCalculatorTests.swift */; };
 		4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */; };
 		422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */; };
 		43490D1033FA607BFEF52E50 /* bright_stars.json in Resources */ = {isa = PBXBuildFile; fileRef = FCB566CFCF9887C6E0E09CC3 /* bright_stars.json */; };
@@ -559,7 +562,10 @@
 		1C3CB1D5015708585E1A11E3 /* SkyVisibilityCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyVisibilityCalculator.swift; sourceTree = "<group>"; };
 		84E40011E155559FFD579754 /* PlanetaryPositionCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryPositionCalculator.swift; sourceTree = "<group>"; };
 		9CA6C161EB921725359BEA6C /* SkyEventsCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyEventsCalculator.swift; sourceTree = "<group>"; };
+		74AFDE6661A15C048A2F81D6 /* SkyTonightCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyTonightCalculator.swift; sourceTree = "<group>"; };
+		795F6920BCB735EEFB105E56 /* SkyTonightMenuBarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyTonightMenuBarView.swift; sourceTree = "<group>"; };
 		900CB3275AF1CF55AA240958 /* PlanetaryPositionCalculatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryPositionCalculatorTests.swift; sourceTree = "<group>"; };
+		F0951D60F57319D3D8FEBC85 /* SkyTonightCalculatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyTonightCalculatorTests.swift; sourceTree = "<group>"; };
 		D2CC29D2BF4A69C56F71CB12 /* FITSWriter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FITSWriter.swift; sourceTree = "<group>"; };
 		D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentModelsTests.swift; sourceTree = "<group>"; };
 		D4818A36287BA9478675E6C5 /* SirilElaborationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SirilElaborationService.swift; sourceTree = "<group>"; };
@@ -651,6 +657,7 @@
 				1C3CB1D5015708585E1A11E3 /* SkyVisibilityCalculator.swift */,
 				84E40011E155559FFD579754 /* PlanetaryPositionCalculator.swift */,
 				9CA6C161EB921725359BEA6C /* SkyEventsCalculator.swift */,
+				74AFDE6661A15C048A2F81D6 /* SkyTonightCalculator.swift */,
 				3643F2E7B1D449F1B5C4A2A1 /* CatalogRepository.swift */,
 			);
 			name = Catalog;
@@ -776,6 +783,7 @@
 				E9BD3A5FEA4BEEC9B08D7637 /* HorizontalCoordinatesTests.swift */,
 				7AFB113AC49EDD5CE0A07D41 /* SkyVisibilityCalculatorTests.swift */,
 				900CB3275AF1CF55AA240958 /* PlanetaryPositionCalculatorTests.swift */,
+				F0951D60F57319D3D8FEBC85 /* SkyTonightCalculatorTests.swift */,
 				3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */,
 				C09FC4720C6F24A5924FD077 /* ProjectArchiveTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
@@ -933,6 +941,7 @@
 				8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */,
 				A2F514788D8470C9BCF08D45 /* SkyVisibilityExplorerView.swift */,
 				1D9697EF4F18690E6A19E490 /* PHD2GuideLogView.swift */,
+				795F6920BCB735EEFB105E56 /* SkyTonightMenuBarView.swift */,
 				E88925FDFCDFD5CD1889D56E /* InsightsView.swift */,
 				C30CCC1098124C64AE6BBC87 /* GalleryView.swift */,
 				EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */,
@@ -1389,6 +1398,8 @@
 				6CBB6C30AD46B0D8B8E10879 /* SkyVisibilityCalculator.swift in Sources */,
 				1D9F263118E4EF5A11DC61AC /* PlanetaryPositionCalculator.swift in Sources */,
 				89CCAC925DCB4A6AAAAF881C /* SkyEventsCalculator.swift in Sources */,
+				59CD583EC45DF4AFBB18E170 /* SkyTonightCalculator.swift in Sources */,
+				43A77BF71A43B61B31510798 /* SkyTonightMenuBarView.swift in Sources */,
 				EF109FFB0C5449ACAE62F6D3 /* CatalogRepository.swift in Sources */,
 				62FDFFA0A3724251AAC9D828 /* SkyHUDView.swift in Sources */,
 				DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */,
@@ -1476,6 +1487,7 @@
 				E75FBE877DFE48E6D825A371 /* HorizontalCoordinatesTests.swift in Sources */,
 				E82A63B897B40520005E2D9E /* SkyVisibilityCalculatorTests.swift in Sources */,
 				0632A9F7EA2CCAE1CBF30B62 /* PlanetaryPositionCalculatorTests.swift in Sources */,
+				006C2BA5275C36C41CC0261B /* SkyTonightCalculatorTests.swift in Sources */,
 				39C4C19C83FD07F8D3A01A57 /* AstronomyKnowledgeBaseTests.swift in Sources */,
 				BECCD6DF404110DD2AE56339 /* ProjectArchiveTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,

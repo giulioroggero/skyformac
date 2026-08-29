@@ -32,6 +32,15 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   other) within a week of it, from a new low-precision planetary position model
   (`PlanetaryPositionCalculator`) — real satellite passes (the ISS, say) need frequently-updated
   orbital data this app has no source for, so those are left out rather than faked.
+- A new menu-bar item ("Sky Tonight"): at a glance, without opening the main window, see whether
+  tonight's actually dark from your set location, the Moon's phase, and which of your existing
+  sessions' planned objects clear the horizon tonight.
+
+### Fixed
+- `nightWindow` (the dark-window calculator behind "What to See"/Sky Tonight) returned "no window"
+  for a location in deep polar winter — the Sun never climbing back above the twilight threshold
+  within the scanned 24h was treated the same as it never *dropping* below it (polar day), when
+  it's the opposite case: permanent darkness. Now correctly reports the rest of the scan as dark.
 - A new "Guiding Log" page: import a PHD2 `.log` file (this app has no autoguiding loop of its own
   to generate one from) and see RMS/peak RA and Dec error, a chart of guide error over time, an
   RA/Dec orthogonality readout (are the two axes actually guiding independently, or is there real

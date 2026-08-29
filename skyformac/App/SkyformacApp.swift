@@ -28,5 +28,13 @@ struct SkyformacApp: App {
         .commands {
             SkyformacCommands(cameraManager: cameraManager)
         }
+
+        // "Should I even go out tonight" at a glance, without opening the main window — see
+        // `SkyTonightMenuBarView`'s own doc comment. `.window` style (not `.menu`) since this
+        // shows real content (a status line, a planned-object list), not just a row of commands.
+        MenuBarExtra("Sky Tonight", systemImage: "sparkles") {
+            SkyTonightMenuBarView(cameraManager: cameraManager)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
