@@ -17,6 +17,33 @@ struct SkyCatalogObject: Codable, Identifiable, Hashable, Sendable {
     var minorAxisArcmin: Double?
 
     var displayName: String { commonName ?? id }
+
+    /// A human-readable object type — the bundled catalogs already spell most of these out
+    /// ("Globular Cluster," "Planetary Nebula"), but Messier/Caldwell's own source data uses a
+    /// couple of short codes ("Gx," "*") this normalizes to match the rest.
+    var friendlyTypeName: String {
+        switch objectType {
+        case "Gx": "Galaxy"
+        case "*": "Star"
+        default: objectType
+        }
+    }
+
+    /// A representative SF Symbol for this object's type — used wherever a real per-object photo
+    /// isn't available (see `SkyVisibilityExplorerView`'s own doc comment on why this app doesn't
+    /// bundle or fetch one), so the object type is still visually scannable at a glance rather
+    /// than only readable as text.
+    var symbolName: String {
+        switch friendlyTypeName {
+        case "Galaxy", "Interacting Galaxies": "smallcircle.filled.circle"
+        case let type where type.contains("Nebula") || type == "HII Region": "cloud.fill"
+        case "Globular Cluster": "circle.grid.3x3.fill"
+        case "Open Cluster", "Cluster", "Cluster with Nebulosity", "Stellar Association": "sparkles"
+        case "Supernova Remnant": "flame.fill"
+        case "Star": "star.fill"
+        default: "circle.dashed"
+        }
+    }
 }
 
 enum SkyCatalog {

@@ -40,15 +40,16 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 - Opening an elaborated image full-screen (from the Gallery, a project, or a session's own gallery)
   now has Previous/Next controls (arrow buttons or the ← / → keys) to step through every other
   image in that same grid without closing the viewer. "Set as Thumbnail" and the "More" menu stay
-  scoped to
-  whichever image was actually opened, since navigating away lands on a different image's
+  scoped to whichever image was actually opened, since navigating away lands on a different image's
   project/session context those actions don't apply to.
-
-### Fixed
-- `nightWindow` (the dark-window calculator behind "What to See"/Sky Tonight) returned "no window"
-  for a location in deep polar winter — the Sun never climbing back above the twilight threshold
-  within the scanned 24h was treated the same as it never *dropping* below it (polar day), when
-  it's the opposite case: permanent darkness. Now correctly reports the rest of the scan as dark.
+- The Equipment page's toolbar was missing the "Home" button every other browser page already has.
+- Every "Common Tasks" tile is 35pt narrower, so all 8 fit in one row without needing to scroll;
+  reordered to Quick Start, New Project, All Projects, What to See, Gallery, Equipment, Insights,
+  Guiding Log.
+- "What to See" results now show each object's type (with a representative icon — see this
+  session's own note on why not a real per-object photo), magnitude, and peak time, and the list
+  can be sorted (name, type, magnitude, peak altitude, peak time, either direction) and filtered by
+  type.
 - A new "Guiding Log" page: import a PHD2 `.log` file (this app has no autoguiding loop of its own
   to generate one from) and see RMS/peak RA and Dec error, a chart of guide error over time, an
   RA/Dec orthogonality readout (are the two axes actually guiding independently, or is there real
@@ -58,6 +59,13 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   undoable, coalesced per gesture rather than one entry per intermediate slider tick.
 
 ### Fixed
+- A project/session page's Cover thumbnail column had an ambiguous horizontal alignment
+  (`.frame(width:)` with no explicit alignment) — made explicit as `.leading` to match the Stats/
+  Equipment/Tags row below it.
+- `nightWindow` (the dark-window calculator behind "What to See"/Sky Tonight) returned "no window"
+  for a location in deep polar winter — the Sun never climbing back above the twilight threshold
+  within the scanned 24h was treated the same as it never *dropping* below it (polar day), when
+  it's the opposite case: permanent darkness. Now correctly reports the rest of the scan as dark.
 - Planetary Post-Processing's "AI Suggest Settings" failing with a generic "the model's reply
   didn't contain a usable plan" gave no clue why. It now shows the model's own raw reply instead,
   so a non-vision-capable model answering in prose (the actual, confirmed failure mode) is

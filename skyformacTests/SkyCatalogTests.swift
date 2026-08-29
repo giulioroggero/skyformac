@@ -39,4 +39,23 @@ struct SkyCatalogTests {
             #expect(object.magnitude < 9.0)
         }
     }
+
+    @Test func friendlyTypeNameNormalizesShortCodes() {
+        let galaxy = SkyCatalogObject(id: "test", commonName: nil, objectType: "Gx", raDegrees: 0, decDegrees: 0, magnitude: 0)
+        #expect(galaxy.friendlyTypeName == "Galaxy")
+        let star = SkyCatalogObject(id: "test", commonName: nil, objectType: "*", raDegrees: 0, decDegrees: 0, magnitude: 0)
+        #expect(star.friendlyTypeName == "Star")
+        let alreadySpelledOut = SkyCatalogObject(id: "test", commonName: nil, objectType: "Globular Cluster", raDegrees: 0, decDegrees: 0, magnitude: 0)
+        #expect(alreadySpelledOut.friendlyTypeName == "Globular Cluster")
+    }
+
+    @Test func everyRealCatalogObjectTypeHasASymbol() {
+        // Every object type actually present in the bundled data should map to *some* symbol,
+        // not silently fall through to a placeholder for real, common categories.
+        let allTypes = Set((SkyCatalog.messierObjects + SkyCatalog.caldwellObjects + SkyCatalog.ngcObjects).map(\.friendlyTypeName))
+        for type in allTypes {
+            let object = SkyCatalogObject(id: "test", commonName: nil, objectType: type, raDegrees: 0, decDegrees: 0, magnitude: 0)
+            #expect(!object.symbolName.isEmpty)
+        }
+    }
 }

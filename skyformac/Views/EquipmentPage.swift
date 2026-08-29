@@ -6,15 +6,17 @@ import SwiftUI
 struct EquipmentPage: View {
     var library: EquipmentLibrary
     var cameraManager: CameraManager
+    var onHome: () -> Void
     var onSelect: (EquipmentSystem) -> Void
 
     @State private var isCreatingSystem: Bool
 
     /// `startsCreatingSystem`: "Equipment → Add New" opens straight into the "New System…" sheet
     /// instead of requiring a second click once the list page is showing.
-    init(library: EquipmentLibrary, cameraManager: CameraManager, onSelect: @escaping (EquipmentSystem) -> Void, startsCreatingSystem: Bool = false) {
+    init(library: EquipmentLibrary, cameraManager: CameraManager, onHome: @escaping () -> Void, onSelect: @escaping (EquipmentSystem) -> Void, startsCreatingSystem: Bool = false) {
         self.library = library
         self.cameraManager = cameraManager
+        self.onHome = onHome
         self.onSelect = onSelect
         self._isCreatingSystem = State(initialValue: startsCreatingSystem)
     }
@@ -50,6 +52,9 @@ struct EquipmentPage: View {
         }
         .navigationTitle("Equipment")
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button("Home", systemImage: "house", action: onHome)
+            }
             OpenAssistantToolbarItem(cameraManager: cameraManager)
             ToolbarItem {
                 Button("New System…", systemImage: "plus") { isCreatingSystem = true }

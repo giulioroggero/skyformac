@@ -313,6 +313,7 @@ struct ProjectsBrowserView: View {
             EquipmentPage(
                 library: cameraManager.equipmentLibrary,
                 cameraManager: cameraManager,
+                onHome: { path.removeAll() },
                 onSelect: { system in path.append(.equipmentSystem(system.id)) },
                 startsCreatingSystem: startsCreating
             )
@@ -764,7 +765,7 @@ struct ActionCard: View {
             // title/subtitle is longer on one line), so "Equipment"/"Insights"/"Settings" (short
             // titles, varying subtitle lengths) ended up visibly narrower than "New Project"/
             // "All Projects." Every "Common Tasks" card should read as one uniform row of tiles.
-            .frame(width: 180, alignment: .leading)
+            .frame(width: 145, alignment: .leading)
             .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)

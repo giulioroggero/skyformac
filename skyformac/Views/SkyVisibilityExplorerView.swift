@@ -4,7 +4,16 @@ import SwiftUI
 /// lat/long. Starting from that the user can create a new project, or a session in an existing
 /// project, or launch a capture for an existing session." — scans the bundled Messier/Caldwell/
 /// NGC catalog (`SkyCatalog`) against `SkyVisibilityCalculator` for a chosen night/location, and
-/// turns any result directly into one of those three actions.
+/// turns any result directly into one of those three actions. Each result also shows its type,
+/// magnitude, and peak time, and the whole list can be sorted/filtered by any of those.
+///
+/// "Add an image example of each object" — deliberately not a real per-object photo: bundling one
+/// for every catalog entry (hundreds of objects) would meaningfully bloat the app, and fetching
+/// one from the network on demand would be this app's first real network dependency, contrary to
+/// the "runs entirely locally, no telemetry, no account" stance the rest of it holds to (see
+/// `docs/distribution.md`). Each row instead gets a representative SF Symbol for its object type
+/// (`SkyCatalogObject.symbolName`) — genuinely just a type indicator, not presented as a photo of
+/// that specific object.
 struct SkyVisibilityExplorerView: View {
     var cameraManager: CameraManager
     /// Mirrors `NewProjectSheet`'s own completion closure — the caller decides what "created,
@@ -22,6 +31,14 @@ struct SkyVisibilityExplorerView: View {
     @State private var addingToProjectObject: SkyCatalogObject?
     @State private var launchingCaptureObject: SkyCatalogObject?
     @State private var conjunctions: [SkyEventsCalculator.Conjunction] = []
+    @State private var sortField: SortField = .peakAltitude
+    @State private var sortAscending = false
+    @State private var typeFilter: String?
+
+    private enum SortField: String, CaseIterable, Identifiable {
+        case name = "Name", type = "Type", magnitude = "Magnitude", peakAltitude = "Peak Altitude", peakTime = "Peak Time"
+        var id: String { rawValue }
+    }
 
     init(cameraManager: CameraManager, onCreateProject: @escaping (Project) -> Void, onOpenSession: @escaping (Project, Session) -> Void) {
         self.cameraManager = cameraManager
@@ -41,6 +58,25 @@ struct SkyVisibilityExplorerView: View {
 
     private var parsedLatitude: Double? { Double(latitudeText) }
     private var parsedLongitude: Double? { Double(longitudeText) }
+
+    /// Every distinct object type actually present in the current results — a dropdown listing
+    /// types that would filter everything out isn't useful, so this only ever shows what's here.
+    private var availableTypes: [String] {
+        Array(Set(results.map(\.object.friendlyTypeName))).sorted()
+    }
+
+    private var displayedResults: [SkyVisibilityCalculator.Result] {
+        let filtered = typeFilter.map { type in results.filter { $0.object.friendlyTypeName == type } } ?? results
+        let sorted: [SkyVisibilityCalculator.Result]
+        switch sortField {
+        case .name: sorted = filtered.sorted { $0.object.displayName < $1.object.displayName }
+        case .type: sorted = filtered.sorted { $0.object.friendlyTypeName < $1.object.friendlyTypeName }
+        case .magnitude: sorted = filtered.sorted { $0.object.magnitude < $1.object.magnitude }
+        case .peakAltitude: sorted = filtered.sorted { $0.maxAltitudeDegrees < $1.maxAltitudeDegrees }
+        case .peakTime: sorted = filtered.sorted { $0.timeOfMaxAltitude < $1.timeOfMaxAltitude }
+        }
+        return sortAscending ? sorted : sorted.reversed()
+    }
 
     var body: some View {
         ScrollView {
@@ -104,7 +140,28 @@ struct SkyVisibilityExplorerView: View {
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                         } else {
-                            ForEach(results) { result in
+                            HStack {
+                                Picker("Sort by", selection: $sortField) {
+                                    ForEach(SortField.allCases) { field in Text(field.rawValue).tag(field) }
+                                }
+                                .frame(width: 220)
+                                Button {
+                                    sortAscending.toggle()
+                                } label: {
+                                    Image(systemName: sortAscending ? "arrow.up" : "arrow.down")
+                                }
+                                .help(sortAscending ? "Ascending" : "Descending")
+
+                                Picker("Type", selection: $typeFilter) {
+                                    Text("All Types").tag(String?.none)
+                                    ForEach(availableTypes, id: \.self) { type in Text(type).tag(String?.some(type)) }
+                                }
+                                .frame(width: 220)
+                                Spacer()
+                            }
+                            .padding(.bottom, 4)
+
+                            ForEach(displayedResults) { result in
                                 resultRow(result)
                                 Divider()
                             }
@@ -139,10 +196,20 @@ struct SkyVisibilityExplorerView: View {
 
     @ViewBuilder
     private func resultRow(_ result: SkyVisibilityCalculator.Result) -> some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .top, spacing: 12) {
+            // A representative type icon, not a real photo of this specific object — see this
+            // file's own top-of-file doc comment for why an actual per-object thumbnail isn't
+            // something this app can offer without either bundling a large image set or adding a
+            // network dependency it deliberately doesn't have.
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(.quaternary)
+                Image(systemName: result.object.symbolName).font(.title2).foregroundStyle(.secondary)
+            }
+            .frame(width: 44, height: 44)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(result.object.displayName).font(.headline)
-                Text("\(result.object.objectType) · mag \(String(format: "%.1f", result.magnitudeOrPlaceholder))")
+                Text("\(result.object.friendlyTypeName) · mag \(String(format: "%.1f", result.magnitudeOrPlaceholder))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("Peaks at \(Int(result.maxAltitudeDegrees))° around \(Self.timeFormatter.string(from: result.timeOfMaxAltitude))")

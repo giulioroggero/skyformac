@@ -176,9 +176,8 @@ struct SessionDetailPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Row 1: Cover (a small, fixed-width thumbnail editor — see
-                // `CoverThumbnailEditor`'s own 120×80 image, it never needed a full-width row of
-                // its own) alongside the Session Summary, which takes the rest of the width.
+                // Row 1: Cover (a fixed-width thumbnail editor) alongside the Session Summary,
+                // which takes the rest of the width.
                 HStack(alignment: .top, spacing: 16) {
                     PageSection(title: "Cover") {
                         CoverThumbnailEditor(
@@ -198,7 +197,7 @@ struct SessionDetailPane: View {
                             }
                         )
                     }
-                    .frame(width: 280)
+                    .frame(width: 280, alignment: .leading)
 
                     PageSection(title: "Session Summary") {
                         HStack {

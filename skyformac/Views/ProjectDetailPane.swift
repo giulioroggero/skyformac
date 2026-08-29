@@ -118,7 +118,7 @@ struct ProjectDetailPane: View {
                             }
                         )
                     }
-                    .frame(width: 280)
+                    .frame(width: 280, alignment: .leading)
 
                     PageSection(title: "Project") {
                         HStack {
