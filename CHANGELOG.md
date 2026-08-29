@@ -21,6 +21,14 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- A new "What to See" page: pick a date, a location (or "Use Current Location"), and a minimum
+  altitude, and it scans the bundled Messier/Caldwell/NGC catalog against that night's actual dark
+  window to list every object that clears the threshold from there, sorted by how high it peaks
+  and when. Each result can directly become a new project, a new session added to an existing
+  project, or launch straight into the camera view against an existing session — no need to look
+  the object up separately and start from scratch.
+
 ## [0.6.2] - 2026-08-29
 
 ### Added

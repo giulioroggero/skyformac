@@ -15,6 +15,8 @@
 		2BC175A0D0EE4F638E5D7F5B /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30CCC1098124C64AE6BBC87 /* GalleryView.swift */; };
 		063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */; };
 		796E45DFCD2E4CD6AC0709C9 /* SolarPositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E716F844143A4630A8563A3F /* SolarPositionTests.swift */; };
+		E75FBE877DFE48E6D825A371 /* HorizontalCoordinatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BD3A5FEA4BEEC9B08D7637 /* HorizontalCoordinatesTests.swift */; };
+		E82A63B897B40520005E2D9E /* SkyVisibilityCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFB113AC49EDD5CE0A07D41 /* SkyVisibilityCalculatorTests.swift */; };
 		08A2998069B703FC94396BC9 /* ProjectSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */; };
 		095B435516723DB37892A1AD /* GraXpertElaborationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89576445CC21044FB95D0C4 /* GraXpertElaborationTests.swift */; };
 		099973C00C3E99A41739F432 /* AllSkyAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFBC991708FDCE0EA4CC1E /* AllSkyAnalyzer.swift */; };
@@ -61,6 +63,8 @@
 		3E1C633F7143E6BE817DFCC2 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
 		3E946BCE3689D6DF88FFE542 /* LiveWCSSolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2916DD5705E1C8396832843 /* LiveWCSSolver.swift */; };
 		19461A3994BE4A148DC67BAC /* SolarPosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54F43E5E00C493DB8A81F23 /* SolarPosition.swift */; };
+		E26C379CD60935AC066143E6 /* HorizontalCoordinates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AED44CD6FBBD3C1B0FDBB4C6 /* HorizontalCoordinates.swift */; };
+		6CBB6C30AD46B0D8B8E10879 /* SkyVisibilityCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3CB1D5015708585E1A11E3 /* SkyVisibilityCalculator.swift */; };
 		4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */; };
 		422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */; };
 		43490D1033FA607BFEF52E50 /* bright_stars.json in Resources */ = {isa = PBXBuildFile; fileRef = FCB566CFCF9887C6E0E09CC3 /* bright_stars.json */; };
@@ -95,6 +99,7 @@
 		BFEE472143B742FAAE721F0D /* GradientExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */; };
 		4E7624307C5A42D095CF449A /* StillImageStacker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5B74C3CF7C400A81BC4D89 /* StillImageStacker.swift */; };
 		5AA29BA6F6D16D2662BE036F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */; };
+		3D566667B59F7EA90BB29E93 /* SkyVisibilityExplorerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F514788D8470C9BCF08D45 /* SkyVisibilityExplorerView.swift */; };
 		4544FD6DEC252B17932A6467 /* AIInstructionsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */; };
 		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
 		5C2442ADD1A7C168C808C1F0 /* FITSWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129AC416223DEE62CE827BBB /* FITSWriterTests.swift */; };
@@ -372,6 +377,7 @@
 		45347BEB6CA354F563145EEF /* skyformac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = skyformac.entitlements; sourceTree = "<group>"; };
 		4668DD1AFF704C72AB5B01D3 /* AIChatLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatLibrary.swift; sourceTree = "<group>"; };
 		466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2F514788D8470C9BCF08D45 /* SkyVisibilityExplorerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyVisibilityExplorerView.swift; sourceTree = "<group>"; };
 		8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIInstructionsSettingsView.swift; sourceTree = "<group>"; };
 		46F7B0CC8B6C296672D8C417 /* ToneCurve.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ToneCurve.swift; sourceTree = "<group>"; };
 		48947D4C4B2C34F7C9881290 /* DisplayStretchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisplayStretchTests.swift; sourceTree = "<group>"; };
@@ -510,6 +516,8 @@
 		B4B6388ED3A137828CD46D07 /* AstronomyFilter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstronomyFilter.swift; sourceTree = "<group>"; };
 		B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyAtlasLookupTests.swift; sourceTree = "<group>"; };
 		E716F844143A4630A8563A3F /* SolarPositionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SolarPositionTests.swift; sourceTree = "<group>"; };
+		E9BD3A5FEA4BEEC9B08D7637 /* HorizontalCoordinatesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorizontalCoordinatesTests.swift; sourceTree = "<group>"; };
+		7AFB113AC49EDD5CE0A07D41 /* SkyVisibilityCalculatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyVisibilityCalculatorTests.swift; sourceTree = "<group>"; };
 		B7F990EF1378818CE22BE575 /* PlanetaryGPULuminanceConverter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryGPULuminanceConverter.swift; sourceTree = "<group>"; };
 		7643E7F974064883BBCB5C12 /* PlanetaryGPURegistrar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryGPURegistrar.swift; sourceTree = "<group>"; };
 		1B73FC507ABE4C7FA9CA975F /* PlanetaryGPUStacker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryGPUStacker.swift; sourceTree = "<group>"; };
@@ -535,6 +543,8 @@
 		D1F88E93C902EBE287E07893 /* HFDCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HFDCalculator.swift; sourceTree = "<group>"; };
 		D2916DD5705E1C8396832843 /* LiveWCSSolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveWCSSolver.swift; sourceTree = "<group>"; };
 		F54F43E5E00C493DB8A81F23 /* SolarPosition.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SolarPosition.swift; sourceTree = "<group>"; };
+		AED44CD6FBBD3C1B0FDBB4C6 /* HorizontalCoordinates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorizontalCoordinates.swift; sourceTree = "<group>"; };
+		1C3CB1D5015708585E1A11E3 /* SkyVisibilityCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyVisibilityCalculator.swift; sourceTree = "<group>"; };
 		D2CC29D2BF4A69C56F71CB12 /* FITSWriter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FITSWriter.swift; sourceTree = "<group>"; };
 		D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentModelsTests.swift; sourceTree = "<group>"; };
 		D4818A36287BA9478675E6C5 /* SirilElaborationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SirilElaborationService.swift; sourceTree = "<group>"; };
@@ -622,6 +632,8 @@
 				390BD552FE334BDBA04A7447 /* WCSProjection.swift */,
 				D2916DD5705E1C8396832843 /* LiveWCSSolver.swift */,
 				F54F43E5E00C493DB8A81F23 /* SolarPosition.swift */,
+				AED44CD6FBBD3C1B0FDBB4C6 /* HorizontalCoordinates.swift */,
+				1C3CB1D5015708585E1A11E3 /* SkyVisibilityCalculator.swift */,
 				3643F2E7B1D449F1B5C4A2A1 /* CatalogRepository.swift */,
 			);
 			name = Catalog;
@@ -744,6 +756,8 @@
 				85241F3AE7543ED31825BEA4 /* RatingAndFavoriteTests.swift */,
 				B77B1B491C23558DD23BAA63 /* SkyAtlasLookupTests.swift */,
 				E716F844143A4630A8563A3F /* SolarPositionTests.swift */,
+				E9BD3A5FEA4BEEC9B08D7637 /* HorizontalCoordinatesTests.swift */,
+				7AFB113AC49EDD5CE0A07D41 /* SkyVisibilityCalculatorTests.swift */,
 				3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */,
 				C09FC4720C6F24A5924FD077 /* ProjectArchiveTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
@@ -898,6 +912,7 @@
 				EE1AAD41550B27056C25269C /* RecallParametersView.swift */,
 				466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */,
 				8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */,
+				A2F514788D8470C9BCF08D45 /* SkyVisibilityExplorerView.swift */,
 				E88925FDFCDFD5CD1889D56E /* InsightsView.swift */,
 				C30CCC1098124C64AE6BBC87 /* GalleryView.swift */,
 				EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */,
@@ -1267,6 +1282,7 @@
 				858D0DCDD9E15C7847E8A078 /* RecallParametersView.swift in Sources */,
 				5AA29BA6F6D16D2662BE036F /* SettingsView.swift in Sources */,
 				4544FD6DEC252B17932A6467 /* AIInstructionsSettingsView.swift in Sources */,
+				3D566667B59F7EA90BB29E93 /* SkyVisibilityExplorerView.swift in Sources */,
 				1A7076BEEAFB0EEA97237E13 /* InsightsData.swift in Sources */,
 				05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */,
 				2BC175A0D0EE4F638E5D7F5B /* GalleryView.swift in Sources */,
@@ -1344,6 +1360,8 @@
 				37A64BE1A4544856BD8BC4A5 /* WCSProjection.swift in Sources */,
 				3E946BCE3689D6DF88FFE542 /* LiveWCSSolver.swift in Sources */,
 				19461A3994BE4A148DC67BAC /* SolarPosition.swift in Sources */,
+				E26C379CD60935AC066143E6 /* HorizontalCoordinates.swift in Sources */,
+				6CBB6C30AD46B0D8B8E10879 /* SkyVisibilityCalculator.swift in Sources */,
 				EF109FFB0C5449ACAE62F6D3 /* CatalogRepository.swift in Sources */,
 				62FDFFA0A3724251AAC9D828 /* SkyHUDView.swift in Sources */,
 				DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */,
@@ -1428,6 +1446,8 @@
 				98F4FDAC23E7AF3560828BFD /* RatingAndFavoriteTests.swift in Sources */,
 				063861FFBDD21A6D5E89F462 /* SkyAtlasLookupTests.swift in Sources */,
 				796E45DFCD2E4CD6AC0709C9 /* SolarPositionTests.swift in Sources */,
+				E75FBE877DFE48E6D825A371 /* HorizontalCoordinatesTests.swift in Sources */,
+				E82A63B897B40520005E2D9E /* SkyVisibilityCalculatorTests.swift in Sources */,
 				39C4C19C83FD07F8D3A01A57 /* AstronomyKnowledgeBaseTests.swift in Sources */,
 				BECCD6DF404110DD2AE56339 /* ProjectArchiveTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,

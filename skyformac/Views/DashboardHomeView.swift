@@ -24,6 +24,7 @@ struct DashboardHomeView: View {
     var onShowEquipment: () -> Void
     var onShowInsights: () -> Void
     var onShowGallery: () -> Void
+    var onShowSkyVisibility: () -> Void
     var onShowSettings: () -> Void
 
     /// Grouping "Explore" (Timeline/Recent Projects/Highlighted Sessions — all browsing past
@@ -189,6 +190,8 @@ struct DashboardHomeView: View {
                             ActionCard(title: "Equipment", icon: "wrench.and.screwdriver", tint: .gray, subtitle: "Cameras, mounts, and gear", action: onShowEquipment)
                             ActionCard(title: "Insights", icon: "chart.bar", tint: .purple, subtitle: "What you actually do most", action: onShowInsights)
                                 .accessibilityIdentifier("DashboardInsightsTile")
+                            ActionCard(title: "What to See", icon: "sparkles", tint: .indigo, subtitle: "Visible tonight, from here", action: onShowSkyVisibility)
+                                .accessibilityIdentifier("DashboardSkyVisibilityTile")
                         }
                         // Extra leading inset, deliberately more than `PageSection`'s own 16pt —
                         // this (and "Recent Projects" below) were observed to clip a real ~15-20pt

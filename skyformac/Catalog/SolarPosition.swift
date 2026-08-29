@@ -26,6 +26,23 @@ enum SolarPosition {
         return normalizedDegrees(rightAscensionRadians * 180 / .pi)
     }
 
+    /// The Sun's declination — needed (alongside `rightAscensionDegrees`) to compute the Sun's own
+    /// altitude at a given location/time, which is how `SkyVisibilityCalculator` finds the actual
+    /// start/end of a night's dark window rather than assuming a fixed clock time.
+    static func declinationDegrees(on date: Date = Date()) -> Double {
+        let j2000 = Date(timeIntervalSince1970: 946_728_000)
+        let daysSinceJ2000 = date.timeIntervalSince(j2000) / 86400
+
+        let meanLongitude = normalizedDegrees(280.460 + 0.9856474 * daysSinceJ2000)
+        let meanAnomalyRadians = normalizedDegrees(357.528 + 0.9856003 * daysSinceJ2000) * .pi / 180
+        let eclipticLongitude = meanLongitude + 1.915 * sin(meanAnomalyRadians) + 0.020 * sin(2 * meanAnomalyRadians)
+
+        let obliquityRadians = 23.439 * .pi / 180
+        let lambdaRadians = eclipticLongitude * .pi / 180
+        let declinationRadians = asin(sin(obliquityRadians) * sin(lambdaRadians))
+        return declinationRadians * 180 / .pi
+    }
+
     /// Roughly which RA band is up overnight — centered on the antisolar point (the Sun's own RA
     /// plus 180°, since that's what's opposite the Sun and therefore highest around local
     /// midnight), ± a generous 90° either side to cover "worth pointing at sometime this

@@ -190,6 +190,19 @@ final class SkyformacUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Overview"].waitForExistence(timeout: 10))
     }
 
+    func testSkyVisibilityTileOpensTheWhatToSeePage() throws {
+        let app = makeApp()
+        app.launch()
+
+        let skyVisibilityTile = app.buttons["DashboardSkyVisibilityTile"]
+        XCTAssertTrue(skyVisibilityTile.waitForExistence(timeout: 10))
+        let commonTasksScroll = app.scrollViews["CommonTasksScrollView"]
+        scrollCommonTasksTileIntoViewAndTap(skyVisibilityTile, within: commonTasksScroll)
+
+        // `SkyVisibilityExplorerView`'s own first `PageSection` title, unique to that page.
+        XCTAssertTrue(app.staticTexts["Where and When"].waitForExistence(timeout: 10))
+    }
+
     func testAllProjectsTileOpensTheProjectsList() throws {
         let app = makeApp()
         app.launch()
