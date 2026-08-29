@@ -505,7 +505,7 @@ struct SingleImagePostProcessingView: View {
                     }
                 }
                 .disabled(isEnhancingWithAI || isBusyWithAnyAITool || workingImage == nil)
-                .help("Sends this image to Google Gemini's own image-generation model for a genuine AI-regenerated enhancement — not this app's own filters. Requires Gemini selected as the AI provider in Settings (a plain API key, or Vertex AI with a service account). Watermarks the result \"AI - Sky For Mac.\"")
+                .help("Sends this image to Google Gemini's own image-generation model for a genuine AI-regenerated enhancement — not this app's own filters. Uses whatever's typed in the field to its left as the instruction, or a generic \"just improve this\" if it's empty. Requires Gemini selected as the AI provider in Settings (a plain API key, or Vertex AI with a service account). Watermarks the result \"AI - Sky For Mac.\"")
             }
             .padding(8)
             .background(.background, in: RoundedRectangle(cornerRadius: 8))
@@ -620,11 +620,27 @@ struct SingleImagePostProcessingView: View {
         scheduleRender()
     }
 
+    /// The generic instruction used when the chat bar's own text field is empty — "just make it
+    /// better" with no specific direction from the user.
+    private static let defaultAIEnhanceInstructions = """
+    Enhance this astrophotography image: reduce noise, improve contrast and sharpness, correct \
+    any color cast, and bring out faint detail — without distorting star shapes or changing the \
+    framing/aspect ratio. Return only the improved image.
+    """
+
     /// Gemini-only genuine pixel regeneration — see `aiAssistantSection`'s own doc comment for why
     /// Anthropic/Ollama can't do this at all. Bakes into `workingImage` the same one-shot way Magic
     /// Wand/Remove Cosmic Rays do, then watermarks the result before it lands there, so the
     /// watermark is a real, permanent part of the saved pixels rather than a UI overlay someone
     /// could accidentally export around.
+    ///
+    /// Whatever's currently typed into the chat bar's own text field becomes the enhancement
+    /// instruction ("remove the gradient and boost the nebula's red", say) instead of always using
+    /// the generic default — the same field the chat Send button reads, so a user only ever has
+    /// one place to type what they want and picks which button acts on it. Falls back to a generic
+    /// "just improve this" instruction when the field is empty. Recorded into the chat transcript
+    /// either way, so the bar reads as one continuous conversation regardless of which action a
+    /// given turn actually triggered.
     ///
     /// Only checks the provider is actually Gemini here — whether that means a plain API key or
     /// Vertex AI (and whether *that*'s fully configured) is `GeminiEndpoint.resolve`'s own job, so
@@ -639,18 +655,26 @@ struct SingleImagePostProcessingView: View {
             aiEnhanceErrorMessage = "Couldn't prepare this image to send to Gemini."
             return
         }
+        let customInstruction = aiChatInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let instructions: String
+        if customInstruction.isEmpty {
+            instructions = Self.defaultAIEnhanceInstructions
+        } else {
+            instructions = """
+            Enhance this astrophotography image as follows: \(customInstruction). Preserve star \
+            shapes and the image's framing/aspect ratio unless asked otherwise. Return only the \
+            improved image.
+            """
+            aiChatMessages.append(AssistantMessage(role: .user, text: customInstruction))
+            aiChatInput = ""
+        }
         isEnhancingWithAI = true
         aiEnhanceErrorMessage = nil
         Task.detached(priority: .userInitiated) {
             do {
                 let resultData = try await GeminiImageEnhancer.enhance(
                     image: imageData, apiKey: AppSettings.geminiAPIKey ?? "", model: "gemini-2.5-flash-image",
-                    instructions: """
-                    Enhance this astrophotography image: reduce noise, improve contrast and \
-                    sharpness, correct any color cast, and bring out faint detail — without \
-                    distorting star shapes or changing the framing/aspect ratio. Return only the \
-                    improved image.
-                    """
+                    instructions: instructions
                 )
                 guard let source = CGImageSourceCreateWithData(resultData as CFData, nil),
                       let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil),
@@ -666,6 +690,9 @@ struct SingleImagePostProcessingView: View {
                     self.isEnhancingWithAI = false
                     self.workingImage = watermarked
                     self.wasEnhancedByAI = true
+                    if !customInstruction.isEmpty {
+                        self.aiChatMessages.append(AssistantMessage(role: .assistant, text: "Applied AI Enhance with that instruction."))
+                    }
                     self.refreshStarMask()
                     self.scheduleRender()
                 }

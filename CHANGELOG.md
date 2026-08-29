@@ -20,6 +20,10 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Edit Image's "AI Enhance" now uses whatever's typed into the chat bar's own text field as its
+  instruction ("remove the gradient and boost the nebula's red," say) instead of only a generic
+  "just improve this" — one field, and either the Send button or AI Enhance acts on it, recorded
+  into the chat transcript either way so the bar reads as one continuous conversation.
 - An imported plain video file (`.mov`/`.mp4`/`.m4v`, from "Import…") can now be opened with
   "Post-Process…" the same way a `.serVideo` capture already could — `VideoFrameReader` decodes it
   into the same frame shape `SERReader` produces for a `.ser`, so the existing registration/
