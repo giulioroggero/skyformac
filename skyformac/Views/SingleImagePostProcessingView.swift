@@ -508,7 +508,7 @@ struct SingleImagePostProcessingView: View {
             }
             .buttonStyle(.bordered)
             .disabled(isEnhancingWithAI || isBusyWithAnyAITool || workingImage == nil)
-            .help("Sends this image to Google Gemini's own image-generation model for a genuine AI-regenerated enhancement — not this app's own filters. Requires Gemini selected as the AI provider in Settings, with an API key set. Watermarks the result \"AI - Sky For Mac.\"")
+            .help("Sends this image to Google Gemini's own image-generation model for a genuine AI-regenerated enhancement — not this app's own filters. Requires Gemini selected as the AI provider in Settings (a plain API key, or Vertex AI with a service account). Watermarks the result \"AI - Sky For Mac.\"")
             if let aiEnhanceErrorMessage {
                 Text(aiEnhanceErrorMessage).font(.caption).foregroundStyle(.red)
             }
@@ -631,10 +631,14 @@ struct SingleImagePostProcessingView: View {
     /// Wand/Remove Cosmic Rays do, then watermarks the result before it lands there, so the
     /// watermark is a real, permanent part of the saved pixels rather than a UI overlay someone
     /// could accidentally export around.
+    ///
+    /// Only checks the provider is actually Gemini here — whether that means a plain API key or
+    /// Vertex AI (and whether *that*'s fully configured) is `GeminiEndpoint.resolve`'s own job, so
+    /// this doesn't duplicate that validation and risk the two disagreeing.
     private func enhanceWithAI() {
         guard let workingImage else { return }
-        guard AppSettings.aiProvider == .gemini, let apiKey = AppSettings.geminiAPIKey, !apiKey.isEmpty else {
-            aiEnhanceErrorMessage = "AI Enhance needs Google Gemini selected as the AI provider in Settings, with an API key set."
+        guard AppSettings.aiProvider == .gemini else {
+            aiEnhanceErrorMessage = "AI Enhance needs Google Gemini selected as the AI provider in Settings."
             return
         }
         guard let imageData = AIVisionImageEncoder.jpegData(from: workingImage, quality: 0.92) else {
@@ -646,7 +650,7 @@ struct SingleImagePostProcessingView: View {
         Task.detached(priority: .userInitiated) {
             do {
                 let resultData = try await GeminiImageEnhancer.enhance(
-                    image: imageData, apiKey: apiKey, model: "gemini-2.5-flash-image",
+                    image: imageData, apiKey: AppSettings.geminiAPIKey ?? "", model: "gemini-2.5-flash-image",
                     instructions: """
                     Enhance this astrophotography image: reduce noise, improve contrast and \
                     sharpness, correct any color cast, and bring out faint detail — without \

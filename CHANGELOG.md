@@ -32,6 +32,12 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   filters, since neither Anthropic's nor a local Ollama model's API can output an edited image at
   all. The result is watermarked "AI - Sky For Mac" in its bottom-right corner so anyone looking at
   a shared image afterward can tell it wasn't purely this app's own deterministic tools.
+- Settings' Google Gemini provider gains a "Use Vertex AI" toggle — routes every Gemini request
+  through a GCP project's Vertex AI endpoint instead of the plain Gemini API, authenticated with an
+  imported service-account JSON key rather than a simple API key. Vertex has no `?key=` auth at
+  all, so this signs its own OAuth2 JWT Bearer assertion from the service account's private key
+  (`VertexServiceAccountAuthenticator`) and exchanges it for a real access token — no `gcloud` CLI
+  or Google Cloud SDK dependency, just `URLSession` and the Security framework.
 - Edit Image and Planetary Post-Processing's "Single Shot" tab gain an **AI** section with two
   on-device Core ML tools, both GPU/ANE-accelerated and run off the main thread:
   - **Remove Cosmic Rays** — a Core ML conversion of [deepCR](https://github.com/profjsb/deepCR)'s
@@ -72,6 +78,9 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   edge contrast.
 
 ### Fixed
+- Google Gemini's default model, `gemini-3.0-flash`, was never a real model ID — confirmed live:
+  Gemini's API rejected every request with "models/gemini-3.0-flash is not found." Defaults to
+  `gemini-2.5-flash` now, a real, stable, generally-available model ID.
 - "Remove Cosmic Rays" could crash the app outright (`EXC_BAD_ACCESS`) on a Mac with an ANE —
   the code assumed the Core ML model's output was always a packed `Float32` buffer, but which
   compute unit (ANE/GPU/CPU) actually ran the model — which varies by hardware — can change both

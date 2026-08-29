@@ -85,6 +85,7 @@
 		72590AC2A5D34250B98F5EFE /* MosaicComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF24A4AB94194CBA82E36353 /* MosaicComposer.swift */; };
 		FD85D767345948E388C099F0 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5916FF50E124AEB9BCBB8C3 /* KeychainStore.swift */; };
 		A7343DE804844DDEAA6F8D96 /* CloudAITransports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD29A6B3A07463BB8D49FAC /* CloudAITransports.swift */; };
+		1952287D0E1F28FF688A29FD /* VertexServiceAccountAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964860316B47EFD11EE28A15 /* VertexServiceAccountAuthenticator.swift */; };
 		B87F6FE9261E4419B4FE07E6 /* TikhonovDeconvolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */; };
 		DC439C23C466DDDE800F9490 /* AIVisionImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */; };
 		908C7EDC352AB9845696E5E9 /* AIWatermark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B74555EF35A6C42CE316CD /* AIWatermark.swift */; };
@@ -141,6 +142,7 @@
 		011E0725D1B7427AAB2C2201 /* KeychainStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D723D9AC944D3098D5A848 /* KeychainStoreTests.swift */; };
 		11B1A96C93F2495DA5E886C2 /* CloudAITransportsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C27A5491E064BA19E903697 /* CloudAITransportsTests.swift */; };
 		85B240D3659F4EE42F46F336 /* AIWatermarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43BC53334B936906EAFC750F /* AIWatermarkTests.swift */; };
+		AA14EA77CB9C3707ABC503E1 /* VertexServiceAccountAuthenticatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F05A1896A7C1A2185701F8 /* VertexServiceAccountAuthenticatorTests.swift */; };
 		03C46534C99E69C929066C9D /* AIVisionImageEncoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D808F2A47F54A097A233D732 /* AIVisionImageEncoderTests.swift */; };
 		234BFE9447EF4B92ABEDB512 /* TikhonovDeconvolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */; };
 		5F0AB3526F514D8D8B04F43A /* CosmicRayRemoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5504F654295404295FEBF18 /* CosmicRayRemoverTests.swift */; };
@@ -389,6 +391,7 @@
 		71D723D9AC944D3098D5A848 /* KeychainStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeychainStoreTests.swift; sourceTree = "<group>"; };
 		5C27A5491E064BA19E903697 /* CloudAITransportsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudAITransportsTests.swift; sourceTree = "<group>"; };
 		43BC53334B936906EAFC750F /* AIWatermarkTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIWatermarkTests.swift; sourceTree = "<group>"; };
+		C8F05A1896A7C1A2185701F8 /* VertexServiceAccountAuthenticatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VertexServiceAccountAuthenticatorTests.swift; sourceTree = "<group>"; };
 		D808F2A47F54A097A233D732 /* AIVisionImageEncoderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVisionImageEncoderTests.swift; sourceTree = "<group>"; };
 		9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TikhonovDeconvolverTests.swift; sourceTree = "<group>"; };
 		E5504F654295404295FEBF18 /* CosmicRayRemoverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CosmicRayRemoverTests.swift; sourceTree = "<group>"; };
@@ -488,6 +491,7 @@
 		FF24A4AB94194CBA82E36353 /* MosaicComposer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicComposer.swift; sourceTree = "<group>"; };
 		F5916FF50E124AEB9BCBB8C3 /* KeychainStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		8CD29A6B3A07463BB8D49FAC /* CloudAITransports.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudAITransports.swift; sourceTree = "<group>"; };
+		964860316B47EFD11EE28A15 /* VertexServiceAccountAuthenticator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VertexServiceAccountAuthenticator.swift; sourceTree = "<group>"; };
 		BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TikhonovDeconvolver.swift; sourceTree = "<group>"; };
 		D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVisionImageEncoder.swift; sourceTree = "<group>"; };
 		12B74555EF35A6C42CE316CD /* AIWatermark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIWatermark.swift; sourceTree = "<group>"; };
@@ -783,6 +787,7 @@
 				71D723D9AC944D3098D5A848 /* KeychainStoreTests.swift */,
 				5C27A5491E064BA19E903697 /* CloudAITransportsTests.swift */,
 				43BC53334B936906EAFC750F /* AIWatermarkTests.swift */,
+				C8F05A1896A7C1A2185701F8 /* VertexServiceAccountAuthenticatorTests.swift */,
 				D808F2A47F54A097A233D732 /* AIVisionImageEncoderTests.swift */,
 				9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */,
 				E5504F654295404295FEBF18 /* CosmicRayRemoverTests.swift */,
@@ -972,6 +977,7 @@
 				E6503F6FAB5EE60511276664 /* ProjectSearch.swift */,
 				6B7C615644A9BCEC78CE2465 /* OllamaPlanner.swift */,
 				8CD29A6B3A07463BB8D49FAC /* CloudAITransports.swift */,
+				964860316B47EFD11EE28A15 /* VertexServiceAccountAuthenticator.swift */,
 				659ACD8B5F1ABC8965FF7816 /* ProjectsLibrary.swift */,
 				0E40C3B7D92593FA18E2A97B /* InsightsData.swift */,
 				D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */,
@@ -1292,6 +1298,7 @@
 				72590AC2A5D34250B98F5EFE /* MosaicComposer.swift in Sources */,
 				FD85D767345948E388C099F0 /* KeychainStore.swift in Sources */,
 				A7343DE804844DDEAA6F8D96 /* CloudAITransports.swift in Sources */,
+				1952287D0E1F28FF688A29FD /* VertexServiceAccountAuthenticator.swift in Sources */,
 				B87F6FE9261E4419B4FE07E6 /* TikhonovDeconvolver.swift in Sources */,
 				DC439C23C466DDDE800F9490 /* AIVisionImageEncoder.swift in Sources */,
 				908C7EDC352AB9845696E5E9 /* AIWatermark.swift in Sources */,
@@ -1457,6 +1464,7 @@
 				011E0725D1B7427AAB2C2201 /* KeychainStoreTests.swift in Sources */,
 				11B1A96C93F2495DA5E886C2 /* CloudAITransportsTests.swift in Sources */,
 				85B240D3659F4EE42F46F336 /* AIWatermarkTests.swift in Sources */,
+				AA14EA77CB9C3707ABC503E1 /* VertexServiceAccountAuthenticatorTests.swift in Sources */,
 				03C46534C99E69C929066C9D /* AIVisionImageEncoderTests.swift in Sources */,
 				234BFE9447EF4B92ABEDB512 /* TikhonovDeconvolverTests.swift in Sources */,
 				5F0AB3526F514D8D8B04F43A /* CosmicRayRemoverTests.swift in Sources */,

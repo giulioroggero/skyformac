@@ -756,7 +756,7 @@ final class CameraManager {
             // fail against it rather than doing anything useful.
             return OllamaPlanner(model: model, transport: transport)
         case .gemini:
-            let model = AppSettings.geminiModel ?? "gemini-3.0-flash"
+            let model = AppSettings.geminiModel ?? "gemini-2.5-flash"
             let transport = GeminiTransport(apiKey: AppSettings.geminiAPIKey ?? "", model: model)
             return OllamaPlanner(model: model, transport: transport)
         }

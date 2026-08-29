@@ -85,19 +85,59 @@ struct AnthropicTransport: OllamaTransport {
     }
 }
 
+/// Resolves where a Gemini request actually goes and how it authenticates — the plain Gemini API
+/// (`generativelanguage.googleapis.com`, a simple `?key=` query param) by default, or Vertex AI
+/// (`{region}-aiplatform.googleapis.com`, an `Authorization: Bearer` token minted from a service
+/// account) when `AppSettings.geminiUsesVertex` is on. Shared by `GeminiTransport` and
+/// `GeminiImageEnhancer` since the request *body* (`contents`/`parts`/`generationConfig`) is
+/// identical either way — only the URL and auth differ, which is exactly what this factors out.
+enum GeminiEndpoint {
+    static let defaultVertexRegion = "us-central1"
+
+    static func resolve(model: String, apiKey: String) async throws -> (url: URL, authHeader: (name: String, value: String)?) {
+        guard AppSettings.geminiUsesVertex else {
+            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)")
+            else { throw OllamaError.badResponse(message: "Malformed Gemini API URL.") }
+            return (url, nil)
+        }
+        guard let projectID = AppSettings.geminiVertexProjectID, !projectID.isEmpty else {
+            throw OllamaError.badResponse(message: "Vertex AI is enabled but no GCP project ID is set in Settings.")
+        }
+        guard let serviceAccountJSON = AppSettings.geminiVertexServiceAccountJSON, !serviceAccountJSON.isEmpty else {
+            throw OllamaError.badResponse(message: "Vertex AI is enabled but no service account key is set in Settings.")
+        }
+        let region = AppSettings.geminiVertexRegion?.isEmpty == false ? AppSettings.geminiVertexRegion! : defaultVertexRegion
+        guard let url = URL(string: "https://\(region)-aiplatform.googleapis.com/v1/projects/\(projectID)/locations/\(region)/publishers/google/models/\(model):generateContent")
+        else { throw OllamaError.badResponse(message: "Malformed Vertex AI URL — check the project ID/region in Settings.") }
+        do {
+            let token = try await VertexServiceAccountAuthenticator.accessToken(serviceAccountJSON: serviceAccountJSON)
+            return (url, ("Authorization", "Bearer \(token)"))
+        } catch let error as VertexServiceAccountAuthenticator.AuthError {
+            let message: String
+            switch error {
+            case .malformedServiceAccountJSON: message = "The Vertex AI service account key in Settings isn't valid JSON."
+            case .invalidPrivateKey: message = "Couldn't read the private key in the Vertex AI service account JSON."
+            case .tokenExchangeFailed(let detail): message = detail ?? "Google rejected the Vertex AI service account credentials."
+            }
+            throw OllamaError.badResponse(message: message)
+        }
+    }
+}
+
 /// Same shape as `AnthropicTransport`, for Google's Gemini API — see that type's own doc comment
 /// for the full "why route through `OllamaTransport` instead of a parallel planner" reasoning.
 struct GeminiTransport: OllamaTransport {
     var apiKey: String
-    var model: String = "gemini-3.0-flash"
+    var model: String = "gemini-2.5-flash"
 
     func send(_ request: URLRequest) async throws -> Data {
         let prompt = try AnthropicTransport.extractPrompt(from: request)
         let images = AnthropicTransport.extractImages(from: request)
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)")!
+        let (url, authHeader) = try await GeminiEndpoint.resolve(model: model, apiKey: apiKey)
         var geminiRequest = URLRequest(url: url)
         geminiRequest.httpMethod = "POST"
         geminiRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let authHeader { geminiRequest.setValue(authHeader.value, forHTTPHeaderField: authHeader.name) }
         geminiRequest.timeoutInterval = 60
         // Gemini expects an `inlineData` part per attached image, ahead of the text part — same
         // "image(s) first, then text" ordering `AnthropicTransport.send` above uses.
@@ -140,10 +180,11 @@ enum GeminiImageEnhancer {
     }
 
     static func enhance(image: Data, apiKey: String, model: String, instructions: String) async throws -> Data {
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)")!
+        let (url, authHeader) = try await GeminiEndpoint.resolve(model: model, apiKey: apiKey)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let authHeader { request.setValue(authHeader.value, forHTTPHeaderField: authHeader.name) }
         request.timeoutInterval = 120
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "contents": [["parts": [

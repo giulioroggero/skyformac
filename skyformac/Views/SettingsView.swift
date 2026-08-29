@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The app's central preferences — a `.sheet` (this app is deliberately single-window; see
 /// `SkyformacApp`), not a real `Settings` scene. Currently just the Projects folder location —
@@ -23,6 +24,11 @@ struct SettingsView: View {
     @State private var aiProvider = AppSettings.aiProvider
     @State private var anthropicAPIKeyText = AppSettings.anthropicAPIKey ?? ""
     @State private var geminiAPIKeyText = AppSettings.geminiAPIKey ?? ""
+    @State private var geminiUsesVertex = AppSettings.geminiUsesVertex
+    @State private var geminiVertexProjectIDText = AppSettings.geminiVertexProjectID ?? ""
+    @State private var geminiVertexRegionText = AppSettings.geminiVertexRegion ?? ""
+    @State private var isImportingVertexServiceAccount = false
+    @State private var vertexServiceAccountErrorMessage: String?
 
     private var currentProjectsFolder: URL {
         customPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? ProjectStore.defaultRootDirectory()
@@ -217,12 +223,48 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     case .gemini:
-                        SecureField("API Key", text: $geminiAPIKeyText, prompt: Text("AIza…"))
-                            .onSubmit(applyAIProviderConfiguration)
-                            .onChange(of: geminiAPIKeyText) { _, _ in applyAIProviderConfiguration() }
-                        Text("Requests go to Google's own servers using this key — see [aistudio.google.com](https://aistudio.google.com/apikey) to create one. Not stored in this app's own preferences file; kept in the macOS Keychain.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Toggle("Use Vertex AI", isOn: $geminiUsesVertex)
+                            .onChange(of: geminiUsesVertex) { _, newValue in AppSettings.geminiUsesVertex = newValue }
+                        if geminiUsesVertex {
+                            // Vertex has no `?key=` auth at all — every request needs a real
+                            // GCP project plus a service-account-signed Bearer token
+                            // (`VertexServiceAccountAuthenticator`), not the plain API key below.
+                            TextField("GCP Project ID", text: $geminiVertexProjectIDText, prompt: Text("my-project-123"))
+                                .onChange(of: geminiVertexProjectIDText) { _, newValue in
+                                    AppSettings.geminiVertexProjectID = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                }
+                            TextField("Region", text: $geminiVertexRegionText, prompt: Text(GeminiEndpoint.defaultVertexRegion))
+                                .onChange(of: geminiVertexRegionText) { _, newValue in
+                                    AppSettings.geminiVertexRegion = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                }
+                            HStack {
+                                Button("Import Service Account JSON…") { isImportingVertexServiceAccount = true }
+                                if AppSettings.geminiVertexServiceAccountJSON?.isEmpty == false {
+                                    Label("Configured", systemImage: "checkmark.seal.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                            .fileImporter(isPresented: $isImportingVertexServiceAccount, allowedContentTypes: [.json]) { result in
+                                switch result {
+                                case .success(let url): importVertexServiceAccount(from: url)
+                                case .failure(let error): vertexServiceAccountErrorMessage = error.localizedDescription
+                                }
+                            }
+                            if let vertexServiceAccountErrorMessage {
+                                Text(vertexServiceAccountErrorMessage).font(.caption).foregroundStyle(.red)
+                            }
+                            Text("Requests go through your GCP project's Vertex AI endpoint, authenticated with this service account — see [cloud.google.com/vertex-ai/docs](https://cloud.google.com/vertex-ai/docs) for creating a project and a service account key (with the \"Vertex AI User\" role). The key is kept in the macOS Keychain, never this app's own preferences file.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            SecureField("API Key", text: $geminiAPIKeyText, prompt: Text("AIza…"))
+                                .onSubmit(applyAIProviderConfiguration)
+                                .onChange(of: geminiAPIKeyText) { _, _ in applyAIProviderConfiguration() }
+                            Text("Requests go to Google's own servers using this key — see [aistudio.google.com](https://aistudio.google.com/apikey) to create one. Not stored in this app's own preferences file; kept in the macOS Keychain.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 if aiProvider == .ollama {
@@ -321,6 +363,27 @@ struct SettingsView: View {
             anthropicAPIKey: anthropicAPIKeyText.trimmingCharacters(in: .whitespacesAndNewlines),
             geminiAPIKey: geminiAPIKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
         )
+    }
+
+    /// Reads the downloaded service-account JSON key file straight into the Keychain — a security-
+    /// scoped `fileImporter` URL only grants access for the duration of this call, so the read has
+    /// to happen right here rather than being deferred.
+    private func importVertexServiceAccount(from url: URL) {
+        let accessGranted = url.startAccessingSecurityScopedResource()
+        defer { if accessGranted { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            guard let json = String(data: data, encoding: .utf8),
+                  (try? JSONSerialization.jsonObject(with: data)) != nil
+            else {
+                vertexServiceAccountErrorMessage = "That file doesn't look like a valid JSON key."
+                return
+            }
+            AppSettings.geminiVertexServiceAccountJSON = json
+            vertexServiceAccountErrorMessage = nil
+        } catch {
+            vertexServiceAccountErrorMessage = "Couldn't read that file: \(error.localizedDescription)"
+        }
     }
 
     private func applyServerURL() {

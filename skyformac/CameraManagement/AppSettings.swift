@@ -41,6 +41,9 @@ enum AppSettings {
         case aiProvider
         case anthropicModel
         case geminiModel
+        case geminiUsesVertex
+        case geminiVertexProjectID
+        case geminiVertexRegion
         case sessionSuggestionSkill
         case isAssistantPanelVisible
         case isAssistantMinimized
@@ -439,6 +442,40 @@ enum AppSettings {
     static var geminiModel: String? {
         get { UserDefaults.standard.string(forKey: Key.geminiModel.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.geminiModel.rawValue) }
+    }
+
+    /// `true` routes every Gemini request through Vertex AI (a GCP project, billed/quota'd there)
+    /// instead of the plain Gemini API (`generativelanguage.googleapis.com`, billed against a
+    /// simple AI Studio API key) — same request/response JSON shape either way
+    /// (`GeminiTransport`/`GeminiImageEnhancer`'s own payload-building code is unchanged), only the
+    /// endpoint URL and how the request authenticates differ. See `geminiVertexServiceAccountJSON`.
+    static var geminiUsesVertex: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.geminiUsesVertex.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.geminiUsesVertex.rawValue) }
+    }
+
+    static var geminiVertexProjectID: String? {
+        get { UserDefaults.standard.string(forKey: Key.geminiVertexProjectID.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.geminiVertexProjectID.rawValue) }
+    }
+
+    /// e.g. `"us-central1"` — both part of the Vertex endpoint URL itself and the token's own
+    /// `aud`ience implicitly, via that URL. `nil`/empty falls back to `"us-central1"` at the call
+    /// site (`VertexEndpoint.resolve`) rather than here, so this getter still reports the user's
+    /// own literal, possibly-empty setting.
+    static var geminiVertexRegion: String? {
+        get { UserDefaults.standard.string(forKey: Key.geminiVertexRegion.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.geminiVertexRegion.rawValue) }
+    }
+
+    /// The full downloaded service-account JSON key file's contents (not just a path — the
+    /// credential itself), Keychain-backed like the plain API keys above since it's just as
+    /// sensitive (arguably more: it grants a JWT-mintable identity, not a single revocable key).
+    /// `VertexServiceAccountAuthenticator` parses `client_email`/`private_key`/`token_uri` out of
+    /// this at request time.
+    static var geminiVertexServiceAccountJSON: String? {
+        get { KeychainStore.string(forKey: "geminiVertexServiceAccountJSON") }
+        set { KeychainStore.set(newValue, forKey: "geminiVertexServiceAccountJSON") }
     }
 
     /// `true` when launched by `SkyformacUITests` (which sets `SKYFORMAC_UITEST_ROOT` —

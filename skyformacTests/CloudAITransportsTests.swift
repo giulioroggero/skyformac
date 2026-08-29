@@ -2,6 +2,11 @@ import Foundation
 import Testing
 @testable import skyformac
 
+/// `.serialized` — several tests below mutate real, shared `AppSettings.geminiUsesVertex`/etc.
+/// (`UserDefaults`/Keychain-backed, not an isolated test double), so running this suite's tests
+/// concurrently (Swift Testing's own default) let one test's settings mutation clobber another's
+/// mid-flight — confirmed live as a genuine race, not a real production bug.
+@Suite(.serialized)
 struct CloudAITransportsTests {
     @Test func extractPromptReadsThePromptFieldFromAnOllamaShapedRequest() throws {
         var request = URLRequest(url: URL(string: "http://localhost:11434/api/generate")!)
@@ -63,5 +68,63 @@ struct CloudAITransportsTests {
     @Test func extractImagesReturnsEmptyForARequestWithNoBody() {
         let request = URLRequest(url: URL(string: "http://localhost:11434/api/generate")!)
         #expect(AnthropicTransport.extractImages(from: request).isEmpty)
+    }
+
+    /// `AppSettings.geminiUsesVertex` is real `UserDefaults` — reset it (and the other Vertex
+    /// settings this touches) around every test here so none of them leak into each other or into
+    /// whatever this machine's real app usage has actually configured.
+    private func withCleanGeminiVertexSettings(_ body: () async throws -> Void) async rethrows {
+        let originalUsesVertex = AppSettings.geminiUsesVertex
+        let originalProjectID = AppSettings.geminiVertexProjectID
+        let originalRegion = AppSettings.geminiVertexRegion
+        let originalServiceAccountJSON = AppSettings.geminiVertexServiceAccountJSON
+        defer {
+            AppSettings.geminiUsesVertex = originalUsesVertex
+            AppSettings.geminiVertexProjectID = originalProjectID
+            AppSettings.geminiVertexRegion = originalRegion
+            AppSettings.geminiVertexServiceAccountJSON = originalServiceAccountJSON
+        }
+        try await body()
+    }
+
+    @Test func geminiEndpointResolvesThePlainAPIURLWhenVertexIsOff() async throws {
+        try await withCleanGeminiVertexSettings {
+            AppSettings.geminiUsesVertex = false
+            let (url, authHeader) = try await GeminiEndpoint.resolve(model: "gemini-2.5-flash", apiKey: "test-key")
+            #expect(url.absoluteString == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=test-key")
+            #expect(authHeader == nil)
+        }
+    }
+
+    @Test func geminiEndpointThrowsWithoutAProjectIDWhenVertexIsOn() async throws {
+        try await withCleanGeminiVertexSettings {
+            AppSettings.geminiUsesVertex = true
+            AppSettings.geminiVertexProjectID = nil
+            await #expect(throws: OllamaError.self) {
+                _ = try await GeminiEndpoint.resolve(model: "gemini-2.5-flash", apiKey: "")
+            }
+        }
+    }
+
+    @Test func geminiEndpointThrowsWithoutAServiceAccountWhenVertexIsOn() async throws {
+        try await withCleanGeminiVertexSettings {
+            AppSettings.geminiUsesVertex = true
+            AppSettings.geminiVertexProjectID = "my-project"
+            AppSettings.geminiVertexServiceAccountJSON = nil
+            await #expect(throws: OllamaError.self) {
+                _ = try await GeminiEndpoint.resolve(model: "gemini-2.5-flash", apiKey: "")
+            }
+        }
+    }
+
+    @Test func geminiEndpointThrowsForMalformedServiceAccountJSONWhenVertexIsOn() async throws {
+        try await withCleanGeminiVertexSettings {
+            AppSettings.geminiUsesVertex = true
+            AppSettings.geminiVertexProjectID = "my-project"
+            AppSettings.geminiVertexServiceAccountJSON = "not valid json"
+            await #expect(throws: OllamaError.self) {
+                _ = try await GeminiEndpoint.resolve(model: "gemini-2.5-flash", apiKey: "")
+            }
+        }
     }
 }
