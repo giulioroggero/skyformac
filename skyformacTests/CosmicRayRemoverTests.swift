@@ -80,6 +80,19 @@ struct CosmicRayRemoverTests {
         #expect(mask.height == 2)
     }
 
+    /// `float16BitsToDouble` replaced a direct `Float16` bind (arm64-only — a universal
+    /// x86_64+arm64 Release build fails to compile at all otherwise) with hand-rolled IEEE 754
+    /// half-precision bit math; this pins down that the conversion is actually correct against
+    /// known bit patterns, independent of `maskImage`'s own threshold-comparison behavior.
+    @Test func float16BitsToDoubleConvertsKnownBitPatterns() {
+        #expect(CosmicRayRemover.float16BitsToDouble(0x0000) == 0) // +0
+        #expect(CosmicRayRemover.float16BitsToDouble(0x8000) == 0) // -0
+        #expect(CosmicRayRemover.float16BitsToDouble(0x3C00) == 1.0) // 1.0
+        #expect(CosmicRayRemover.float16BitsToDouble(0xBC00) == -1.0) // -1.0
+        #expect(CosmicRayRemover.float16BitsToDouble(0x4000) == 2.0) // 2.0
+        #expect(abs(CosmicRayRemover.float16BitsToDouble(0x3800) - 0.5) < 1e-9) // 0.5
+    }
+
     @Test func maskImageHandlesAPackedFloat16Array() throws {
         let array = try MLMultiArray(shape: [1, 1, 2, 3], dataType: .float16)
         for i in 0..<6 { array[i] = NSNumber(value: i % 2 == 0 ? 0.0 : 1.0) }

@@ -127,12 +127,18 @@ enum CosmicRayRemover {
                 }
             }
         case .float16:
-            let pointer = array.dataPointer.bindMemory(to: Float16.self, capacity: elementCount)
+            // Not `Float16` (Swift's own native half-precision type) — its arithmetic is only
+            // available on arm64; a universal x86_64+arm64 Release archive fails to compile at
+            // all on the x86_64 slice with "'Float16' is unavailable in macOS" otherwise
+            // (confirmed live, cutting the v0.6.1 release). Reading the raw bits as `UInt16` and
+            // converting by hand is portable to every architecture and needs nothing but integer/
+            // floating-point math every Swift target already has.
+            let pointer = array.dataPointer.bindMemory(to: UInt16.self, capacity: elementCount)
             for y in 0..<height {
                 for x in 0..<width {
                     let offset = y * heightStride + x * widthStride
                     guard offset >= 0, offset < elementCount else { continue }
-                    pixels[y * width + x] = Double(pointer[offset]) >= threshold ? 255 : 0
+                    pixels[y * width + x] = Self.float16BitsToDouble(pointer[offset]) >= threshold ? 255 : 0
                 }
             }
         case .double:
@@ -204,5 +210,33 @@ enum CosmicRayRemover {
         else { return nil }
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         return context.makeImage()
+    }
+
+    /// Standard IEEE 754 half-precision (binary16) bit layout: 1 sign bit, 5 exponent bits (bias
+    /// 15), 10 fraction bits — converts by hand instead of via Swift's native `Float16` type,
+    /// which is only available on arm64 (see this function's own call site's doc comment for why
+    /// that matters for a universal binary). Doesn't need to handle every IEEE edge case exactly
+    /// (subnormals below the smallest representable magnitude flush toward zero, `inf`/`NaN`
+    /// aren't specially distinguished from a very large finite value) — `maskImage` only ever
+    /// compares the result against a plain threshold, not relying on exact bit-for-bit fidelity.
+    static func float16BitsToDouble(_ bits: UInt16) -> Double {
+        let sign = (bits & 0x8000) != 0 ? -1.0 : 1.0
+        let exponent = Int((bits >> 10) & 0x1F)
+        let fraction = Double(bits & 0x03FF)
+        let magnitude: Double
+        if exponent == 0 {
+            // Subnormal (or zero): value = fraction/1024 * 2^-14.
+            magnitude = (fraction / 1024) * pow(2, -14)
+        } else if exponent == 0x1F {
+            // Inf/NaN — no plain finite `Double` represents "half-precision NaN" exactly, but
+            // returning `.infinity` keeps a NaN-mask pixel firmly on one side of any real
+            // threshold instead of silently comparing as `false` the way an actual `Double.nan`
+            // comparison would.
+            magnitude = .infinity
+        } else {
+            // Normal: value = (1 + fraction/1024) * 2^(exponent-15).
+            magnitude = (1 + fraction / 1024) * pow(2, Double(exponent - 15))
+        }
+        return sign * magnitude
     }
 }

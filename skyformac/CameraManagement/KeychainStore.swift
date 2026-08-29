@@ -36,6 +36,13 @@ enum KeychainStore {
         credentialsDirectory.appendingPathComponent("dev-credentials.json")
     }
 
+    /// Guards every read-modify-write against the shared file — real `SecItem*` calls are already
+    /// atomic per-key, but a plain "load the whole file, mutate one key, write the whole file
+    /// back" isn't: two concurrent `set(_:forKey:)` calls (confirmed live via the test suite's own
+    /// parallel test execution — one call's write was silently lost, clobbered by another call's
+    /// stale in-memory copy saving over it) can race without this.
+    private static let lock = NSLock()
+
     private static func loadAll() -> [String: String] {
         guard let data = try? Data(contentsOf: credentialsFileURL),
               let decoded = try? JSONDecoder().decode([String: String].self, from: data)
@@ -53,10 +60,14 @@ enum KeychainStore {
     }
 
     static func string(forKey key: String) -> String? {
-        loadAll()[key]
+        lock.lock()
+        defer { lock.unlock() }
+        return loadAll()[key]
     }
 
     static func set(_ value: String?, forKey key: String) {
+        lock.lock()
+        defer { lock.unlock() }
         var credentials = loadAll()
         if let value, !value.isEmpty {
             credentials[key] = value
