@@ -92,7 +92,14 @@ struct AnthropicTransport: OllamaTransport {
 /// `GeminiImageEnhancer` since the request *body* (`contents`/`parts`/`generationConfig`) is
 /// identical either way — only the URL and auth differ, which is exactly what this factors out.
 enum GeminiEndpoint {
-    static let defaultVertexRegion = "us-central1"
+    /// Most current Gemini models (2.5+) on Vertex are only served from the "global" location, not
+    /// a specific region — pinning a region like `"us-central1"` 404s for exactly those models
+    /// even with an otherwise-correct project/model/credentials (confirmed live: switching this
+    /// default from `"us-central1"` to `"global"` is what actually fixed a real 404). A specific
+    /// region is still a valid, real Vertex location for models that *do* support one (mostly
+    /// older/regional-only ones) — a user who genuinely needs that (e.g. data residency) can still
+    /// set one explicitly in Settings; this is only the fallback when they haven't.
+    static let defaultVertexRegion = "global"
 
     static func resolve(model: String, apiKey: String) async throws -> (url: URL, authHeader: (name: String, value: String)?) {
         guard AppSettings.geminiUsesVertex else {
@@ -107,7 +114,7 @@ enum GeminiEndpoint {
             throw OllamaError.badResponse(message: "Vertex AI is enabled but no service account key is set in Settings.")
         }
         let region = AppSettings.geminiVertexRegion?.isEmpty == false ? AppSettings.geminiVertexRegion! : defaultVertexRegion
-        guard let url = URL(string: "https://\(region)-aiplatform.googleapis.com/v1/projects/\(projectID)/locations/\(region)/publishers/google/models/\(model):generateContent")
+        guard let url = vertexURL(projectID: projectID, region: region, model: model)
         else { throw OllamaError.badResponse(message: "Malformed Vertex AI URL — check the project ID/region in Settings.") }
         do {
             let token = try await VertexServiceAccountAuthenticator.accessToken(serviceAccountJSON: serviceAccountJSON)
@@ -121,6 +128,15 @@ enum GeminiEndpoint {
             }
             throw OllamaError.badResponse(message: message)
         }
+    }
+
+    /// The "global" location has no region prefix on the host at all —
+    /// `global-aiplatform.googleapis.com` doesn't exist; every other location *does* get one, e.g.
+    /// `us-central1-aiplatform.googleapis.com`. Pulled out as its own pure function so it's
+    /// testable without a real service account/network call the way `resolve` itself needs.
+    static func vertexURL(projectID: String, region: String, model: String) -> URL? {
+        let host = region == "global" ? "aiplatform.googleapis.com" : "\(region)-aiplatform.googleapis.com"
+        return URL(string: "https://\(host)/v1/projects/\(projectID)/locations/\(region)/publishers/google/models/\(model):generateContent")
     }
 }
 

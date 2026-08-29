@@ -87,6 +87,19 @@ struct CloudAITransportsTests {
         try await body()
     }
 
+    @Test func vertexURLUsesTheUnprefixedGlobalHostForTheGlobalLocation() {
+        let url = GeminiEndpoint.vertexURL(projectID: "my-project", region: "global", model: "gemini-2.5-flash")
+        #expect(url?.absoluteString == "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/gemini-2.5-flash:generateContent")
+    }
+
+    /// Most current Gemini models on Vertex only serve from "global" — a specific region is still
+    /// a real, valid Vertex location for models that support one, just not this app's own default
+    /// (see `GeminiEndpoint.defaultVertexRegion`'s own doc comment for why).
+    @Test func vertexURLPrefixesTheHostForASpecificRegion() {
+        let url = GeminiEndpoint.vertexURL(projectID: "my-project", region: "us-central1", model: "gemini-2.5-flash")
+        #expect(url?.absoluteString == "https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent")
+    }
+
     @Test func geminiEndpointResolvesThePlainAPIURLWhenVertexIsOff() async throws {
         try await withCleanGeminiVertexSettings {
             AppSettings.geminiUsesVertex = false

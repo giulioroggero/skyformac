@@ -81,6 +81,11 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
 - Google Gemini's default model, `gemini-3.0-flash`, was never a real model ID — confirmed live:
   Gemini's API rejected every request with "models/gemini-3.0-flash is not found." Defaults to
   `gemini-2.5-flash` now, a real, stable, generally-available model ID.
+- Vertex AI requests 404'd outright — the default region (`us-central1`) doesn't serve current
+  Gemini models at all; confirmed live, most of them are only available from Vertex's "global"
+  location, which also needs an unprefixed host (`aiplatform.googleapis.com`, not
+  `global-aiplatform.googleapis.com`). `global` is now the default; a specific region is still
+  honored for the older/regional-only models that do support one.
 - "Remove Cosmic Rays" could crash the app outright (`EXC_BAD_ACCESS`) on a Mac with an ANE —
   the code assumed the Core ML model's output was always a packed `Float32` buffer, but which
   compute unit (ANE/GPU/CPU) actually ran the model — which varies by hardware — can change both
