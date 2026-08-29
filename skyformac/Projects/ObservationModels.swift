@@ -107,12 +107,15 @@ struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
 
         /// Whether a timeline's own kind badge (`CaptureKindBadge`) offers a direct
         /// post-processing shortcut for this kind — `true` for anything `CaptureDetailPage`'s own
-        /// Process group has a button for (Post-Process for `.serVideo`, Edit Image for a still
-        /// image), `false` for `.recording`/`.video` (nothing in this app post-processes either).
+        /// Process group has a button for (Post-Process for `.serVideo`/`.video` via
+        /// `PlanetaryPostProcessor`'s registration/stacking pipeline — `VideoFrameReader` reads an
+        /// ordinary video file into the same frame shape `SERReader` does for a `.ser` — Edit
+        /// Image for a still image), `false` only for `.recording` (a continuous-capture *folder*
+        /// of frames, not a single file this app's own readers can open at all).
         var isPostProcessable: Bool {
             switch self {
-            case .fits, .png, .tiff, .serVideo: return true
-            case .recording, .video: return false
+            case .fits, .png, .tiff, .serVideo, .video: return true
+            case .recording: return false
             }
         }
     }

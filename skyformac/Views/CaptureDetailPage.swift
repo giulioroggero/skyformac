@@ -591,13 +591,14 @@ struct CaptureDetailPage: View {
     }
 
     /// This capture's own single most likely next action — "Post-Process…" for a `.serVideo`
-    /// burst, "Edit Image…" for a finished `.fits`/`.png`/`.tiff` frame — as a prominent button
-    /// directly under the image itself, not a line item buried inside `actionsList` alongside
-    /// Show in Finder/Move to Session/Delete. `nil` for `.recording` (no in-app processing exists
-    /// for a continuous-recording folder), matching `actionsList`'s own kind gating.
+    /// burst or an imported `.video` file, "Edit Image…" for a finished `.fits`/`.png`/`.tiff`
+    /// frame — as a prominent button directly under the image itself, not a line item buried
+    /// inside `actionsList` alongside Show in Finder/Move to Session/Delete. `nil` for
+    /// `.recording` (no in-app processing exists for a continuous-recording folder), matching
+    /// `actionsList`'s own kind gating.
     @ViewBuilder
     private var primaryActionButton: some View {
-        if capture.kind == .serVideo {
+        if capture.kind == .serVideo || capture.kind == .video {
             Button {
                 startPostProcessing()
             } label: {

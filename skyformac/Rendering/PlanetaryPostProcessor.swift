@@ -88,10 +88,10 @@ enum PlanetaryPostProcessor {
     /// `width`/`height` for the whole burst, taken from `frames.first`) rather than a clear error.
     static func loadSequence(from urls: [URL]) throws -> LoadedSequence {
         guard let firstURL = urls.first else { throw LoadSequenceError.noURLs }
-        let first = try SERReader.read(from: firstURL)
+        let first = try readFrames(from: firstURL)
         var allFrames = first.frames
         for url in urls.dropFirst() {
-            let parsed = try SERReader.read(from: url)
+            let parsed = try readFrames(from: url)
             guard parsed.width == first.width, parsed.height == first.height else {
                 throw LoadSequenceError.inconsistentDimensions(url)
             }
@@ -101,6 +101,17 @@ enum PlanetaryPostProcessor {
             allFrames.append(contentsOf: parsed.frames)
         }
         return LoadedSequence(frames: allFrames, isColorCamera: first.isColorCamera, bayerPattern: first.bayerPattern)
+    }
+
+    /// Dispatches by the file's own extension — this app's own `.ser` planetary format via
+    /// `SERReader`, or an ordinary imported video (`.mov`/`.mp4`/`.m4v`, from `MediaImporter`'s
+    /// `.video` capture kind) via `VideoFrameReader`. Both return the same `SERReader.ParsedSER`
+    /// shape, so nothing above this needs its own awareness of which format a given file was.
+    private static func readFrames(from url: URL) throws -> SERReader.ParsedSER {
+        switch url.pathExtension.lowercased() {
+        case "mov", "mp4", "m4v": return try VideoFrameReader.read(from: url)
+        default: return try SERReader.read(from: url)
+        }
     }
 
     /// Human-readable name for the log/UI — `bayerPattern.rawValue` alone ("Bayer pattern 0")

@@ -166,9 +166,9 @@ struct ObservationTimelineView: View {
     /// `startPostProcessing()`.
     private func startPostProcessing(for entry: TimelineEntry) {
         switch entry.capture.kind {
-        case .serVideo: openPostProcessingWindow(for: entry)
+        case .serVideo, .video: openPostProcessingWindow(for: entry)
         case .fits, .png, .tiff: openEditingImageWindow(for: entry)
-        case .recording, .video: break
+        case .recording: break
         }
     }
 

@@ -88,6 +88,8 @@
 		1952287D0E1F28FF688A29FD /* VertexServiceAccountAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964860316B47EFD11EE28A15 /* VertexServiceAccountAuthenticator.swift */; };
 		B87F6FE9261E4419B4FE07E6 /* TikhonovDeconvolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */; };
 		DC439C23C466DDDE800F9490 /* AIVisionImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */; };
+		DC966BEFB210B6D006BBD60D /* VideoFrameReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF815577D2BF001E928C3A2 /* VideoFrameReader.swift */; };
+		2DBD3D86C68D56EA142B1977 /* VideoFrameReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 244CBA965773D96A4B054809 /* VideoFrameReaderTests.swift */; };
 		908C7EDC352AB9845696E5E9 /* AIWatermark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B74555EF35A6C42CE316CD /* AIWatermark.swift */; };
 		8AEAA5949A8A4E2896E642E9 /* CosmicRayRemover.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A88CA18F0845FE9DE61DD6 /* CosmicRayRemover.swift */; };
 		BFEE472143B742FAAE721F0D /* GradientExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */; };
@@ -494,6 +496,8 @@
 		964860316B47EFD11EE28A15 /* VertexServiceAccountAuthenticator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VertexServiceAccountAuthenticator.swift; sourceTree = "<group>"; };
 		BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TikhonovDeconvolver.swift; sourceTree = "<group>"; };
 		D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVisionImageEncoder.swift; sourceTree = "<group>"; };
+		DCF815577D2BF001E928C3A2 /* VideoFrameReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoFrameReader.swift; sourceTree = "<group>"; };
+		244CBA965773D96A4B054809 /* VideoFrameReaderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoFrameReaderTests.swift; sourceTree = "<group>"; };
 		12B74555EF35A6C42CE316CD /* AIWatermark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIWatermark.swift; sourceTree = "<group>"; };
 		F5A88CA18F0845FE9DE61DD6 /* CosmicRayRemover.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CosmicRayRemover.swift; sourceTree = "<group>"; };
 		A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GradientExtractor.swift; sourceTree = "<group>"; };
@@ -788,6 +792,7 @@
 				5C27A5491E064BA19E903697 /* CloudAITransportsTests.swift */,
 				43BC53334B936906EAFC750F /* AIWatermarkTests.swift */,
 				C8F05A1896A7C1A2185701F8 /* VertexServiceAccountAuthenticatorTests.swift */,
+				244CBA965773D96A4B054809 /* VideoFrameReaderTests.swift */,
 				D808F2A47F54A097A233D732 /* AIVisionImageEncoderTests.swift */,
 				9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */,
 				E5504F654295404295FEBF18 /* CosmicRayRemoverTests.swift */,
@@ -1061,6 +1066,7 @@
 				BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */,
 				F5A88CA18F0845FE9DE61DD6 /* CosmicRayRemover.swift */,
 				D8C77A4F12D96A161888C5DC /* AIVisionImageEncoder.swift */,
+				DCF815577D2BF001E928C3A2 /* VideoFrameReader.swift */,
 				12B74555EF35A6C42CE316CD /* AIWatermark.swift */,
 				A8B87DCBD8914FAABB4BAC95 /* GradientExtractor.swift */,
 				7E5B74C3CF7C400A81BC4D89 /* StillImageStacker.swift */,
@@ -1301,6 +1307,7 @@
 				1952287D0E1F28FF688A29FD /* VertexServiceAccountAuthenticator.swift in Sources */,
 				B87F6FE9261E4419B4FE07E6 /* TikhonovDeconvolver.swift in Sources */,
 				DC439C23C466DDDE800F9490 /* AIVisionImageEncoder.swift in Sources */,
+				DC966BEFB210B6D006BBD60D /* VideoFrameReader.swift in Sources */,
 				908C7EDC352AB9845696E5E9 /* AIWatermark.swift in Sources */,
 				8AEAA5949A8A4E2896E642E9 /* CosmicRayRemover.swift in Sources */,
 				BFEE472143B742FAAE721F0D /* GradientExtractor.swift in Sources */,
@@ -1465,6 +1472,7 @@
 				11B1A96C93F2495DA5E886C2 /* CloudAITransportsTests.swift in Sources */,
 				85B240D3659F4EE42F46F336 /* AIWatermarkTests.swift in Sources */,
 				AA14EA77CB9C3707ABC503E1 /* VertexServiceAccountAuthenticatorTests.swift in Sources */,
+				2DBD3D86C68D56EA142B1977 /* VideoFrameReaderTests.swift in Sources */,
 				03C46534C99E69C929066C9D /* AIVisionImageEncoderTests.swift in Sources */,
 				234BFE9447EF4B92ABEDB512 /* TikhonovDeconvolverTests.swift in Sources */,
 				5F0AB3526F514D8D8B04F43A /* CosmicRayRemoverTests.swift in Sources */,

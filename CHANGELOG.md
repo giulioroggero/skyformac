@@ -20,6 +20,12 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- An imported plain video file (`.mov`/`.mp4`/`.m4v`, from "Import…") can now be opened with
+  "Post-Process…" the same way a `.serVideo` capture already could — `VideoFrameReader` decodes it
+  into the same frame shape `SERReader` produces for a `.ser`, so the existing registration/
+  stacking pipeline (`PlanetaryPostProcessor`) works on an imported video without needing its own
+  separate editor. Imported still images (`.fits`/`.png`/`.tiff`, including JPEG/HEIC) were already
+  fully editable via "Edit Image…" — only imported video was actually missing this.
 - Edit Image gains an **AI Assistant** section, grounded in the actual image currently shown in
   the preview (not just a text description of the sliders) — attaches a JPEG of the live preview
   to every question sent to whichever AI provider is set in Settings, so it can answer "what's

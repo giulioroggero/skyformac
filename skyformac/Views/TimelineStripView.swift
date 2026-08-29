@@ -207,13 +207,13 @@ private struct TimelineThumbnailView: View {
     }
 
     /// `CaptureKindBadge`'s tap target — the same two Skyformac tools `CaptureDetailPage`'s own
-    /// Process group offers, routed by kind (`.serVideo` → Planetary Post-Processing, a still
-    /// image → Edit Image); `CaptureKindBadge` itself never offers a tap for anything else.
+    /// Process group offers, routed by kind (`.serVideo`/`.video` → Planetary Post-Processing, a
+    /// still image → Edit Image); `CaptureKindBadge` itself never offers a tap for anything else.
     private func startPostProcessing() {
         switch capture.kind {
-        case .serVideo: openPostProcessingWindow()
+        case .serVideo, .video: openPostProcessingWindow()
         case .fits, .png, .tiff: openEditingImageWindow()
-        case .recording, .video: break
+        case .recording: break
         }
     }
 
