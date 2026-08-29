@@ -307,13 +307,20 @@ struct SingleImagePostProcessingView: View {
 
     private var magicWandSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Auto-Fix").font(.title3.bold())
+            HStack {
+                Text("Auto-Fix").font(.title3.bold())
+                Spacer()
+                Button("Reset") { reset() }
+                    .disabled(isBusyWithAnyAITool)
+            }
             Text("Analyzes the image and picks color/contrast adjustments automatically — the same technology behind Photos.app's \"Auto Enhance.\" Manual sliders below still apply on top afterward.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             // Two per row, not one long `HStack` — with "Remove Background Gradient"'s own long
             // label in the mix, a single row of four+ buttons stopped fitting the sidebar's width
             // at all and became unreadable (truncated/wrapped labels running into each other).
+            // Reset moved up next to the section title, and Compare to Original takes the slot
+            // freed up next to Remove Gradient, keeping this a clean two-per-row grid.
             Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
                 GridRow {
                     Button {
@@ -350,15 +357,13 @@ struct SingleImagePostProcessingView: View {
                     }
                     .disabled(isBusyWithAnyAITool)
                     .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
-                    Button("Reset") { reset() }
+                    Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
+                        .toggleStyle(.button)
                         .frame(maxWidth: .infinity)
-                        .disabled(isBusyWithAnyAITool)
+                        .help("Show the untouched original stacked above the current edit, instead of only the edit.")
                 }
             }
             .buttonStyle(.bordered)
-            Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
-                .toggleStyle(.button)
-                .help("Show the untouched original stacked above the current edit, instead of only the edit.")
             if let gradientErrorMessage {
                 Text(gradientErrorMessage).font(.caption).foregroundStyle(.red)
             }

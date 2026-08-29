@@ -2,6 +2,8 @@ import CoreGraphics
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import Foundation
+import Vision
+import simd
 
 /// A 2D similarity transform (uniform scale + rotation + translation) — the same 4-degrees-of-
 /// freedom shape `LiveWCSSolver.solve` fits for pixel<->sky, just for plain pixel<->pixel here.
@@ -143,15 +145,84 @@ enum MosaicStarMatcher {
     }
 }
 
+/// Registers one tile against its neighbor using Vision's own general-purpose homographic image
+/// registration — unlike `MosaicStarMatcher` below (which needs an anonymous *point* source, i.e.
+/// stars specifically), this locks onto whatever local structure the content actually offers:
+/// lunar craters/terminator detail, terrestrial edges and texture, building silhouettes — anything
+/// with enough contrast for Vision's own internal keypoint detector to find and match, not just
+/// star fields. `MosaicComposer.compose` reaches for this only when `MosaicStarMatcher` can't find
+/// enough point-source matches — exactly the Moon/terrestrial case, where there are no stars to
+/// match at all. Star matching stays authoritative for real star fields: it's a precise fit tuned
+/// for that exact shape (anonymous point sources), and a synthetic or sparse starfield can give
+/// Vision's own generic keypoint detector too little real texture to lock onto reliably.
+enum GenericImageRegistrar {
+    /// Approximates Vision's fitted homography as a similarity transform (rotation + uniform scale
+    /// + translation) so it can share `MosaicComposer`'s existing `CGAffineTransform`-based canvas
+    /// placement — any genuine perspective component Vision found is folded into this least-squares
+    /// fit rather than applied exactly (a true projective warp would need the compositor itself
+    /// rewritten around `CIFilter.perspectiveTransform`; for the pan-style sweep a mosaic actually
+    /// is, the residual is negligible). `nil` if Vision couldn't register the pair at all, or if
+    /// what it found looks degenerate (near-zero or wildly implausible scale) rather than a real
+    /// two-tile overlap.
+    static func similarityTransform(reference: CGImage, floating: CGImage) -> Similarity2DTransform? {
+        let request = VNHomographicImageRegistrationRequest(targetedCGImage: floating, options: [:])
+        guard (try? VNImageRequestHandler(cgImage: reference, options: [:]).perform([request])) != nil,
+              let observation = request.results?.first as? VNImageHomographicAlignmentObservation
+        else { return nil }
+
+        let floatingSize = CGSize(width: floating.width, height: floating.height)
+        let referenceSize = CGSize(width: reference.width, height: reference.height)
+        // Corners plus the center — a handful of samples spread across the tile, not just its
+        // corners, so the similarity fit below tracks the true homography well even where Vision
+        // found real (if modest) perspective distortion, not only a clean rotate/scale/pan.
+        let samplePoints = [
+            CGPoint(x: 0, y: 0), CGPoint(x: floatingSize.width, y: 0),
+            CGPoint(x: 0, y: floatingSize.height), CGPoint(x: floatingSize.width, y: floatingSize.height),
+            CGPoint(x: floatingSize.width / 2, y: floatingSize.height / 2),
+        ]
+        let targetPoints = samplePoints.map {
+            referencePixelPoint(forFloatingPixel: $0, floatingSize: floatingSize, referenceSize: referenceSize, warpTransform: observation.warpTransform)
+        }
+        guard let fitted = SimilarityTransformFitter.fit(source: samplePoints, target: targetPoints) else { return nil }
+        // Reject an implausible fit rather than trust a registration Vision itself found
+        // ambiguous — same spirit as `MosaicStarMatcher.match`'s own `minimumVotes` threshold.
+        let scaleSquared = fitted.a * fitted.a + fitted.b * fitted.b
+        guard scaleSquared > 0.04, scaleSquared < 25 else { return nil }
+        return fitted
+    }
+
+    /// `warpTransform` operates in Vision's own resolution-independent, bottom-left-origin,
+    /// normalized `[0,1]x[0,1]` coordinate space for *both* images — converts a floating-tile pixel
+    /// point (this app's usual top-left-origin, y-down convention) through that normalized
+    /// homography and back into the reference tile's own pixel space, doing the homogeneous divide
+    /// explicitly rather than assuming the third row is trivial (it generally isn't, for a real
+    /// perspective fit).
+    private static func referencePixelPoint(
+        forFloatingPixel point: CGPoint, floatingSize: CGSize, referenceSize: CGSize, warpTransform matrix: simd_float3x3
+    ) -> CGPoint {
+        let normalizedFloating = simd_float3(
+            Float(point.x / floatingSize.width), Float(1 - point.y / floatingSize.height), 1
+        )
+        let transformed = matrix * normalizedFloating
+        let normalizedReferenceX = CGFloat(transformed.x / transformed.z)
+        let normalizedReferenceY = CGFloat(transformed.y / transformed.z)
+        return CGPoint(
+            x: normalizedReferenceX * referenceSize.width,
+            y: (1 - normalizedReferenceY) * referenceSize.height
+        )
+    }
+}
+
 /// Composes several overlapping-but-offset captures (different tiles of the Moon, adjacent fields
-/// of a wide object like Andromeda) into one larger image — real star-pattern-based tile
-/// registration, unlike `PlanetaryPostProcessor`'s own registration/stacking, which assumes every
-/// frame shares the *same* field of view and only corrects small sub-pixel jitter between them
-/// (its own `alignRGBChannels` explicitly discards a large offset as noise — exactly what a real
-/// tile boundary looks like to it). Reuses `StarDetector` for per-tile star detection; the
-/// triangle-matching/transform-fitting math above is new (see each type's own doc comment for
-/// exactly how it relates to this codebase's existing catalog-matching/WCS-fitting code) since
-/// nothing existing generalizes to two anonymous, arbitrarily-offset point sets.
+/// of a wide object like Andromeda, or any other overlapping photo set) into one larger image.
+/// `MosaicStarMatcher`'s star-pattern triangle matching handles real star fields; when it can't
+/// find enough point-source matches (no stars at all — lunar craters, a plain terrestrial photo),
+/// `GenericImageRegistrar`'s Vision-based generic feature registration takes over, so this works on
+/// any overlapping photo set, not just starfields.
+/// Unlike `PlanetaryPostProcessor`'s own registration/stacking, which assumes every frame shares
+/// the *same* field of view and only corrects small sub-pixel jitter between them (its own
+/// `alignRGBChannels` explicitly discards a large offset as noise — exactly what a real tile
+/// boundary looks like to it), this expects tiles to be substantially offset from one another.
 enum MosaicComposer {
     enum ComposeError: Error {
         case tooFewTiles
@@ -177,14 +248,24 @@ enum MosaicComposer {
         // Sequential registration — each tile matched against the one right before it (the
         // natural capture order for a swept mosaic, where adjacent tiles overlap but tile 0 and
         // tile 4 likely don't), then chained into tile 0's own coordinate system via
-        // `concatenating`.
+        // `concatenating`. Star-pattern matching is tried first (precise, when there are real stars
+        // to match); a tile pair with no detectable stars at all (lunar craters, a terrestrial
+        // photo) falls back to `GenericImageRegistrar`'s Vision-based generic feature registration.
         var transforms: [Similarity2DTransform] = [.identity]
         for i in 1..<tiles.count {
             let matches = MosaicStarMatcher.match(starPointsPerTile[i - 1], starPointsPerTile[i])
-            guard matches.count >= 2 else { throw ComposeError.insufficientOverlap(tileIndex: i) }
-            let sourcePoints = matches.map { starPointsPerTile[i][$0.indexB] }
-            let targetPoints = matches.map { starPointsPerTile[i - 1][$0.indexA] }
-            guard let tileToPrevious = SimilarityTransformFitter.fit(source: sourcePoints, target: targetPoints)
+            let starFit: Similarity2DTransform? = matches.count >= 2
+                ? SimilarityTransformFitter.fit(
+                    source: matches.map { starPointsPerTile[i][$0.indexB] },
+                    target: matches.map { starPointsPerTile[i - 1][$0.indexA] }
+                )
+                : nil
+            // Star-pattern matching stays authoritative when it finds enough points — a real
+            // asterism gives a precise fit Vision's generic keypoints can't necessarily beat.
+            // Vision only takes over when there simply aren't enough point sources to match,
+            // exactly the case a lunar or terrestrial tile pair hits (no stars at all).
+            guard let tileToPrevious = starFit
+                ?? GenericImageRegistrar.similarityTransform(reference: tiles[i - 1], floating: tiles[i])
             else { throw ComposeError.insufficientOverlap(tileIndex: i) }
             transforms.append(transforms[i - 1].concatenating(tileToPrevious))
         }

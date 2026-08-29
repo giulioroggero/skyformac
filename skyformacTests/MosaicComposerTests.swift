@@ -140,4 +140,53 @@ struct MosaicComposerTests {
         #expect(composed.width > 340)
         #expect(composed.height >= 300)
     }
+
+    /// A deterministic noise texture — real per-pixel structure (unlike `makeStarFieldImage`'s
+    /// point sources on a flat black background), the same kind of content a Moon crater field or
+    /// a terrestrial photo actually offers `StarDetector` nothing to find in. A tiny seeded LCG
+    /// (not `Int.random`, for a reproducible test) fills every pixel independently, giving Vision's
+    /// own generic keypoint detector plenty of local contrast to lock onto.
+    private func makeNoiseTextureImage(width: Int, height: Int, seed: UInt64 = 1) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        var state = seed
+        func nextByte() -> UInt8 {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return UInt8((state >> 56) & 0xFF)
+        }
+        for i in 0..<(width * height) {
+            let value = nextByte()
+            pixels[i * 4] = value
+            pixels[i * 4 + 1] = value
+            pixels[i * 4 + 2] = value
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    /// A crop of a shared noise texture, top-left origin — mirrors
+    /// `composeProducesACanvasLargerThanEitherTileAlone`'s "two tiles, one translated" shape, just
+    /// with real overlapping image content instead of a matched pair of star positions.
+    private func crop(_ image: CGImage, x: Int, y: Int, width: Int, height: Int) -> CGImage {
+        image.cropping(to: CGRect(x: x, y: y, width: width, height: height))!
+    }
+
+    /// The exact scenario this composer previously couldn't handle at all — no stars, no
+    /// point-source content of any kind, just two overlapping crops of an ordinary photo (what a
+    /// Moon mosaic's crater detail, or a plain terrestrial panorama, actually looks like).
+    /// `MosaicStarMatcher` finds nothing to match here; `GenericImageRegistrar`'s Vision-based
+    /// generic feature registration is what makes this succeed instead of throwing
+    /// `insufficientOverlap`.
+    @Test func composeRegistersOverlappingTilesWithNoDetectableStars() throws {
+        let master = makeNoiseTextureImage(width: 460, height: 340)
+        let tileA = crop(master, x: 0, y: 0, width: 340, height: 300)
+        let tileB = crop(master, x: 60, y: 0, width: 340, height: 300)
+
+        let composed = try MosaicComposer.compose(tiles: [tileA, tileB])
+        #expect(composed.width > 340)
+        #expect(composed.height >= 300)
+    }
 }

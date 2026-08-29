@@ -84,6 +84,15 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   went out with an empty key and Anthropic's API reported it as "x-api-key header is required,"
   which reads like the key was never entered rather than just never saved. Now saves as you type,
   same as every other Settings field.
+- "Compose Mosaic…" only ever worked on starfields — `MosaicStarMatcher`'s point-source matching
+  had nothing to grab onto on a Moon mosaic's crater/terminator detail or a plain terrestrial
+  photo, so those tile sets always failed to register. Falls back to Vision's own general-purpose
+  homographic image registration (`GenericImageRegistrar`) whenever a tile pair has too few
+  matchable stars — locks onto whatever real structure the content offers instead, so a lunar or
+  terrestrial mosaic composes the same way a starfield one always did.
+- Edit Image's Auto-Fix section had Reset and Compare to Original crammed awkwardly into the
+  button grid — Reset now sits beside the "Auto-Fix" title itself, and Compare to Original fills
+  the slot next to Remove Gradient, both freeing up a cleaner two-per-row button grid.
 - `scripts/build_astro_catalog.py`'s own header comment (and this changelog/SBOM) incorrectly
   cited Stellarium's bundled DSO catalog data as CC-BY-SA-4.0 — verified against Stellarium's own
   `COPYING`/`CREDITS.md`: the catalog data is GPLv2 (CC-BY-SA-4.0 only applies to specific
