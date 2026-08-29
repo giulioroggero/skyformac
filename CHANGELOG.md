@@ -83,6 +83,14 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   function (seeing, focus, diffraction) actually destroyed, instead of just boosting existing
   edge contrast.
 
+### Changed
+- Debug (local development) builds now store API keys/service-account credentials in a plain file
+  under `~/Library/Application Support/Skyformac` instead of the macOS Keychain — an ad-hoc-signed
+  dev build has no stable Team ID, so every rebuild is a "different" app from the Keychain's own
+  access-control perspective and it re-prompts for access on every relaunch after a rebuild no
+  matter how many times "Always Allow" is clicked. Release builds (the actual distributed app)
+  are unaffected and keep using the real Keychain.
+
 ### Fixed
 - Google Gemini's default model, `gemini-3.0-flash`, was never a real model ID — confirmed live:
   Gemini's API rejected every request with "models/gemini-3.0-flash is not found." Defaults to
