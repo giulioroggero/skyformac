@@ -21,6 +21,7 @@ struct SkyVisibilityExplorerView: View {
     @State private var hasCalculated = false
     @State private var addingToProjectObject: SkyCatalogObject?
     @State private var launchingCaptureObject: SkyCatalogObject?
+    @State private var conjunctions: [SkyEventsCalculator.Conjunction] = []
 
     init(cameraManager: CameraManager, onCreateProject: @escaping (Project) -> Void, onOpenSession: @escaping (Project, Session) -> Void) {
         self.cameraManager = cameraManager
@@ -71,6 +72,28 @@ struct SkyVisibilityExplorerView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(parsedLatitude == nil || parsedLongitude == nil || isCalculating)
                         if isCalculating { ProgressView().controlSize(.small) }
+                    }
+                }
+
+                PageSection(title: "Sky Events") {
+                    LabeledContent("Moon Phase") {
+                        Text("\(moonPhase.phaseName) (\(Int(moonPhase.illuminatedFraction * 100))% illuminated)")
+                    }
+                    if hasCalculated {
+                        if conjunctions.isEmpty {
+                            Text("No planet/Moon conjunctions within a week of this date.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(conjunctions) { conjunction in
+                                Text("\(conjunction.bodyA) – \(conjunction.bodyB): \(String(format: "%.1f", conjunction.separationDegrees))° apart on \(Self.dateFormatter.string(from: conjunction.date))")
+                                    .font(.caption)
+                            }
+                        }
+                    } else {
+                        Text("Planet/Moon conjunctions within a week of this date show up after you find what's visible.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -155,20 +178,35 @@ struct SkyVisibilityExplorerView: View {
         let target = catalog
         let selectedDate = date
         let minAlt = minAltitude
-        let computed = await Task.detached(priority: .userInitiated) {
-            SkyVisibilityCalculator.visibleObjects(
+        let (computedResults, computedConjunctions) = await Task.detached(priority: .userInitiated) { () -> ([SkyVisibilityCalculator.Result], [SkyEventsCalculator.Conjunction]) in
+            let visible = SkyVisibilityCalculator.visibleObjects(
                 in: target, on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, minAltitudeDegrees: minAlt
             )
+            let calendar = Calendar(identifier: .gregorian)
+            let windowStart = calendar.date(byAdding: .day, value: -7, to: selectedDate) ?? selectedDate
+            let windowEnd = calendar.date(byAdding: .day, value: 7, to: selectedDate) ?? selectedDate
+            let events = SkyEventsCalculator.conjunctions(in: windowStart...windowEnd)
+            return (visible, events)
         }.value
-        results = computed
+        results = computedResults
+        conjunctions = computedConjunctions
         isCalculating = false
         hasCalculated = true
     }
+
+    private var moonPhase: SkyEventsCalculator.MoonPhase { SkyEventsCalculator.moonPhase(on: date) }
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .none
         formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
         return formatter
     }()
 }

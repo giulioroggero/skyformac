@@ -27,7 +27,11 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   window to list every object that clears the threshold from there, sorted by how high it peaks
   and when. Each result can directly become a new project, a new session added to an existing
   project, or launch straight into the camera view against an existing session — no need to look
-  the object up separately and start from scratch.
+  the object up separately and start from scratch. Also shows the Moon's phase for the selected
+  date and any planet/Moon conjunctions (naked-eye planets plus the Moon passing within 5° of each
+  other) within a week of it, from a new low-precision planetary position model
+  (`PlanetaryPositionCalculator`) — real satellite passes (the ISS, say) need frequently-updated
+  orbital data this app has no source for, so those are left out rather than faked.
 - A new "Guiding Log" page: import a PHD2 `.log` file (this app has no autoguiding loop of its own
   to generate one from) and see RMS/peak RA and Dec error, a chart of guide error over time, an
   RA/Dec orthogonality readout (are the two axes actually guiding independently, or is there real
