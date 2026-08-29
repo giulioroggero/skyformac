@@ -72,8 +72,8 @@ for every new tag.
 
 | Artifact | Tag | Size | Checksum (SHA-256) |
 | --- | --- | --- | --- |
-| `skyformac-v0.6.0-macOS.dmg` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 11.7 MB | `26b5a4aa43b5e280d0b592971f9f6fcfa1c43a4cb6df098bb42ada33df3c89cc` |
-| `skyformac-v0.6.0-macOS.zip` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 10.0 MB | `c266a499b0955aaf1b7ad9093d5110cb0b9b546e7434c61946f41f31cd51cb21` |
+| `skyformac-v0.6.1-macOS.dmg` | [v0.6.1](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.1) | 13.0 MB | `df71aa1e6fd80ee79f4023116c108e48b69c4d420a58b4a3d97649018fbbc733` |
+| `skyformac-v0.6.1-macOS.zip` | [v0.6.1](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.1) | 11.2 MB | `7874cd349b2e913737bf9d7d5374a8dd22190a1bf24cdfab43ae661f13037a05` |
 
 Both built via the "Ad-hoc manual releases" process in `docs/distribution.md` (ad-hoc codesigning,
 not a notarized Developer ID build); `Casks/skyformac.rb`'s own `sha256` is kept in sync with the
