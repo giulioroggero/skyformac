@@ -20,6 +20,21 @@ actually tagged. Tags on GitHub: [v0.6.1](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- The sidebar AI assistant's context and action vocabulary is extended beyond project/session/
+  camera facts: it now knows the current Live Stack/Lucky Imaging state (method, frame count,
+  gain/exposure/mode, GPU vs CPU render path), a summary of the Gallery (elaborated image count,
+  most recent titles), and which equipment system is assigned to the current project. It can also
+  now *propose* (always with an Approve/Reject confirmation, like every other assistant action)
+  starting/stopping Live Stack, starting a Lucky Imaging burst, stacking an already-completed
+  burst's sharpest frames, and creating a new equipment system.
+- The assistant panel is now reachable from the Gallery and Equipment pages too (previously only
+  Home, Project, Session, Capture, and the live camera view).
+- Settings gains an "AI Enhance Model" picker for Edit Image's AI Enhance — previously hardcoded to
+  `gemini-2.5-flash-image`; now choose among every current Gemini image-generation model
+  (`gemini-2.5-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3.1-flash-image`,
+  `gemini-3-pro-image`).
+
 ## [0.6.1] - 2026-08-29
 
 ### Added

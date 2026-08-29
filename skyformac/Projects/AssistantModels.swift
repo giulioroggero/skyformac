@@ -54,6 +54,16 @@ enum AssistantAction: Equatable, Sendable {
     /// Any subset of these may be `nil` — the assistant only proposes changing what it actually
     /// has an opinion on, leaving the rest of the current setup untouched.
     case applyCameraSettings(gain: Int?, exposureSeconds: Double?, mode: AcquisitionMode?)
+    /// Starts or stops Live Stack — needs a connected camera; see
+    /// `CameraManager.confirmAssistantAction()`.
+    case setLiveStacking(enabled: Bool)
+    /// Starts a Lucky Imaging burst of `frameCount` frames — needs a connected camera.
+    case startLuckyImagingBurst(frameCount: Int)
+    /// Stacks the sharpest `fraction` (0...1) of an already-completed Lucky Imaging burst — needs
+    /// one in progress/complete (`CameraManager.luckyImagingSession != nil`).
+    case stackLuckyImagingBest(fraction: Double)
+    /// Creates a new, empty equipment rig by name — mirrors `.createProject`'s own shape.
+    case createEquipmentSystem(name: String)
 }
 
 /// A proposed action plus the plain-English explanation shown alongside its Approve/Reject

@@ -41,6 +41,7 @@ enum AppSettings {
         case aiProvider
         case anthropicModel
         case geminiModel
+        case geminiImageModel
         case geminiUsesVertex
         case geminiVertexProjectID
         case geminiVertexRegion
@@ -442,6 +443,15 @@ enum AppSettings {
     static var geminiModel: String? {
         get { UserDefaults.standard.string(forKey: Key.geminiModel.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Key.geminiModel.rawValue) }
+    }
+
+    /// Which Gemini image-generation ("Nano Banana" family) model Edit Image's "AI Enhance" uses
+    /// — a separate setting from `geminiModel` above, since that one's for the text/vision chat
+    /// and this family of models is a genuinely different capability (only some Gemini models can
+    /// output an edited image at all). `nil` picks `GeminiImageEnhancer`'s own default.
+    static var geminiImageModel: String? {
+        get { UserDefaults.standard.string(forKey: Key.geminiImageModel.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.geminiImageModel.rawValue) }
     }
 
     /// `true` routes every Gemini request through Vertex AI (a GCP project, billed/quota'd there)

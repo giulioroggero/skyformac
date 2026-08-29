@@ -308,6 +308,7 @@ struct ProjectsBrowserView: View {
         case .equipment(let startsCreating):
             EquipmentPage(
                 library: cameraManager.equipmentLibrary,
+                cameraManager: cameraManager,
                 onSelect: { system in path.append(.equipmentSystem(system.id)) },
                 startsCreatingSystem: startsCreating
             )

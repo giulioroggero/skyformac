@@ -673,7 +673,8 @@ struct SingleImagePostProcessingView: View {
         Task.detached(priority: .userInitiated) {
             do {
                 let resultData = try await GeminiImageEnhancer.enhance(
-                    image: imageData, apiKey: AppSettings.geminiAPIKey ?? "", model: "gemini-2.5-flash-image",
+                    image: imageData, apiKey: AppSettings.geminiAPIKey ?? "",
+                    model: AppSettings.geminiImageModel ?? SettingsView.geminiImageModelChoices[0],
                     instructions: instructions
                 )
                 guard let source = CGImageSourceCreateWithData(resultData as CFData, nil),

@@ -53,6 +53,7 @@ struct GalleryView: View {
             ToolbarItem(placement: .navigation) {
                 Button("Back", systemImage: "chevron.left", action: onBack)
             }
+            OpenAssistantToolbarItem(cameraManager: cameraManager)
         }
     }
 }

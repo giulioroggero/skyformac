@@ -369,6 +369,62 @@ struct OllamaPlannerTests {
         #expect(response == .action(.applyCameraSettings(gain: 200, exposureSeconds: nil, mode: nil), message: "Bump the gain?"))
     }
 
+    @Test func respondParsesASetLiveStackingProposal() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "setLiveStacking", "enabled": true, "message": "Start Live Stack?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "start live stacking", context: "", history: [])
+        #expect(response == .action(.setLiveStacking(enabled: true), message: "Start Live Stack?"))
+    }
+
+    @Test func respondParsesAStartLuckyImagingBurstProposal() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "startLuckyImagingBurst", "frameCount": 100, "message": "Start a burst?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "do a lucky imaging burst", context: "", history: [])
+        #expect(response == .action(.startLuckyImagingBurst(frameCount: 100), message: "Start a burst?"))
+    }
+
+    @Test func respondRejectsAZeroFrameCountLuckyImagingBurst() async {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "startLuckyImagingBurst", "frameCount": 0, "message": "Start a burst?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.invalidPlanJSON) {
+            try await planner.respond(to: "do a lucky imaging burst", context: "", history: [])
+        }
+    }
+
+    @Test func respondParsesAStackLuckyImagingBestProposal() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "stackLuckyImagingBest", "fraction": 0.2, "message": "Stack the best 20%?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "stack the best frames", context: "", history: [])
+        #expect(response == .action(.stackLuckyImagingBest(fraction: 0.2), message: "Stack the best 20%?"))
+    }
+
+    @Test func respondRejectsAnOutOfRangeStackFraction() async {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "stackLuckyImagingBest", "fraction": 1.5, "message": "Stack?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        await #expect(throws: OllamaError.invalidPlanJSON) {
+            try await planner.respond(to: "stack the best frames", context: "", history: [])
+        }
+    }
+
+    @Test func respondParsesACreateEquipmentSystemProposal() async throws {
+        let transport = FakeTransport()
+        transport.responseText = #"{"kind": "createEquipmentSystem", "name": "Backyard Rig", "message": "Create it?"}"#
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "add a new equipment system", context: "", history: [])
+        #expect(response == .action(.createEquipmentSystem(name: "Backyard Rig"), message: "Create it?"))
+    }
+
     @Test func respondThrowsInvalidPlanJSONForAnUnknownKind() async {
         let transport = FakeTransport()
         transport.responseText = #"{"kind": "doSomethingElse"}"#

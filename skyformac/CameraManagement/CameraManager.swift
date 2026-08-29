@@ -499,6 +499,34 @@ final class CameraManager {
             if let mode { preset.mode = mode }
             applyAcquisitionPreset(preset)
             assistantMessages.append(AssistantMessage(role: .assistant, text: "Applied the suggested camera settings."))
+
+        case .setLiveStacking(let enabled):
+            guard connectedCamera != nil else {
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "No camera is connected, so I couldn't apply that."))
+                return
+            }
+            isLiveStackingEnabled = enabled
+            assistantMessages.append(AssistantMessage(role: .assistant, text: enabled ? "Started Live Stack." : "Stopped Live Stack."))
+
+        case .startLuckyImagingBurst(let frameCount):
+            guard connectedCamera != nil else {
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "No camera is connected, so I couldn't apply that."))
+                return
+            }
+            startLuckyImagingBurst(frameCount: frameCount)
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Started a Lucky Imaging burst of \(frameCount) frames."))
+
+        case .stackLuckyImagingBest(let fraction):
+            guard luckyImagingSession != nil else {
+                assistantMessages.append(AssistantMessage(role: .assistant, text: "There's no Lucky Imaging burst to stack right now."))
+                return
+            }
+            stackLuckyImagingBest(fraction: fraction)
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Stacked the sharpest \(Int(fraction * 100))% of the burst."))
+
+        case .createEquipmentSystem(let name):
+            equipmentLibrary.createSystem(name: name)
+            assistantMessages.append(AssistantMessage(role: .assistant, text: "Created equipment system \"\(name)\"."))
         }
     }
 
@@ -609,6 +637,22 @@ final class CameraManager {
         }
         if let camera = connectedCamera {
             lines.append("Connected camera: \(camera.name).")
+            // "Extend AI context to Capture Live (with all kinds of capture and stacking/lucky
+            // imaging)" — a question or proposed settings change while actually watching the live
+            // view needs to know what's running right now, not just that a camera exists.
+            let preset = currentAcquisitionPreset(name: "")
+            var liveState = "Current acquisition mode: \(preset.mode.rawValue)."
+            if let gain = preset.gain { liveState += " Gain: \(gain)." }
+            if let exposureSeconds = preset.exposureSeconds { liveState += " Exposure: \(exposureSeconds)s." }
+            liveState += " Render path: \(useMetalRenderer ? "GPU (Metal)" : "CPU")."
+            if isLiveStackingEnabled {
+                liveState += " Live Stack is running (\(liveStackMethod.label) method), \(liveStackedFrameCount) frame(s) accumulated so far\(effectiveLiveStackPaused ? ", currently paused" : "")."
+            }
+            if let session = luckyImagingSession {
+                let progress = luckyImagingProgress ?? (captured: session.capturedCount, total: session.targetFrameCount)
+                liveState += " Lucky Imaging burst in progress: \(progress.captured)/\(progress.total) frames captured\(isLuckyImagingBurstComplete ? " (complete, ready to stack)" : "")\(isLuckyImagingPaused ? ", currently paused" : "")."
+            }
+            lines.append(liveState)
         } else {
             lines.append("No camera is currently connected.")
         }
@@ -642,6 +686,24 @@ final class CameraManager {
                 "\(action.object): \(action.presetSummary) (rated \(action.rating)/5)"
             }
             lines.append("Highly rated past actions and the settings used — the best evidence for \"what settings work well\":\n" + summaries.joined(separator: "\n"))
+        }
+        // "Extend AI context to Gallery" — a question like "what's my best image of M31" needs to
+        // know what's actually in the gallery, not just capture counts.
+        let elaboratedImages = activeProjects.flatMap(\.elaboratedImages)
+        if !elaboratedImages.isEmpty {
+            lines.append("Total elaborated/gallery images across all projects: \(elaboratedImages.count).")
+            let recentTitles = elaboratedImages.sorted { $0.date > $1.date }.prefix(5).map(\.displayLabel)
+            lines.append("Most recent gallery images: \(recentTitles.joined(separator: ", ")).")
+        }
+        // "Extend AI context to Equipment" — which rig is assigned to the project currently being
+        // viewed, plus what other rigs exist to propose switching to/creating.
+        if !equipmentLibrary.systems.isEmpty {
+            let systemNames = equipmentLibrary.systems.map(\.name).joined(separator: ", ")
+            lines.append("Equipment systems set up: \(systemNames).")
+            if let project = activeProject, let systemID = project.equipmentSystemID,
+               let system = equipmentLibrary.system(withID: systemID) {
+                lines.append("Equipment assigned to the current project: \(system.name) (\(system.items.map(\.displayName).joined(separator: ", "))).")
+            }
         }
         // Grounds a small local model in general astronomy facts it doesn't reliably know on its
         // own (season a Messier object is best placed, that Venus is only ever visible near dawn/
@@ -2031,7 +2093,7 @@ final class CameraManager {
     /// Not `let` — `updateOllamaConfiguration(serverURL:model:)` rebuilds this in place whenever
     /// Settings or the AI panel's own model menu changes the server URL or pinned model.
     private(set) var ollamaPlanner: OllamaPlanner
-    let equipmentLibrary = EquipmentLibrary()
+    let equipmentLibrary: EquipmentLibrary
     var activeProject: Project?
     var activeSession: Session? {
         didSet {
@@ -2288,13 +2350,15 @@ final class CameraManager {
     init(
         projectStore: ProjectStore = ProjectStore(), locationProvider: CoreLocationProvider = CoreLocationProvider(),
         ollamaPlanner: OllamaPlanner = CameraManager.makePlanner(),
-        aiChatLibrary: AIChatLibrary = AIChatLibrary()
+        aiChatLibrary: AIChatLibrary = AIChatLibrary(),
+        equipmentLibrary: EquipmentLibrary = EquipmentLibrary()
     ) {
         self.projectStore = projectStore
         self.locationProvider = locationProvider
         self.projectsLibrary = ProjectsLibrary(store: projectStore)
         self.ollamaPlanner = ollamaPlanner
         self.aiChatLibrary = aiChatLibrary
+        self.equipmentLibrary = equipmentLibrary
         AstronomyKnowledgeBase.ensureDefaultsExist()
         refreshCameraList()
         // `activeProject` starts `nil` on every launch, full stop — there's no "resume last

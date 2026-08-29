@@ -16,11 +16,13 @@ struct CameraManagerAssistantTests {
     private func makeManager() -> (manager: CameraManager, root: URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let chatsRoot = root.appendingPathComponent("AIChats")
+        let equipmentRoot = root.appendingPathComponent("Equipment")
         return (
             CameraManager(
                 projectStore: ProjectStore(rootDirectory: root),
                 ollamaPlanner: OllamaPlanner(transport: UnreachableOllamaTransport()),
-                aiChatLibrary: AIChatLibrary(rootDirectory: chatsRoot)
+                aiChatLibrary: AIChatLibrary(rootDirectory: chatsRoot),
+                equipmentLibrary: EquipmentLibrary(rootDirectory: equipmentRoot)
             ),
             root
         )
@@ -102,6 +104,48 @@ struct CameraManagerAssistantTests {
 
         #expect(manager.assistantPendingAction == nil)
         #expect(manager.assistantMessages.last?.text.contains("No camera is connected") == true)
+    }
+
+    @Test func confirmingSetLiveStackingWithNoCameraConnectedReportsItInstead() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.assistantPendingAction = AssistantPendingAction(action: .setLiveStacking(enabled: true), message: "Start?")
+
+        manager.confirmAssistantAction()
+
+        #expect(manager.assistantMessages.last?.text.contains("No camera is connected") == true)
+        #expect(!manager.isLiveStackingEnabled)
+    }
+
+    @Test func confirmingStartLuckyImagingBurstWithNoCameraConnectedReportsItInstead() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.assistantPendingAction = AssistantPendingAction(action: .startLuckyImagingBurst(frameCount: 50), message: "Start?")
+
+        manager.confirmAssistantAction()
+
+        #expect(manager.assistantMessages.last?.text.contains("No camera is connected") == true)
+    }
+
+    @Test func confirmingStackLuckyImagingBestWithNoBurstReportsItInstead() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.assistantPendingAction = AssistantPendingAction(action: .stackLuckyImagingBest(fraction: 0.2), message: "Stack?")
+
+        manager.confirmAssistantAction()
+
+        #expect(manager.assistantMessages.last?.text.contains("no Lucky Imaging burst") == true)
+    }
+
+    @Test func confirmingCreateEquipmentSystemAddsItToTheLibrary() {
+        let (manager, root) = makeManager()
+        defer { try? FileManager.default.removeItem(at: root) }
+        manager.assistantPendingAction = AssistantPendingAction(action: .createEquipmentSystem(name: "Backyard Rig"), message: "Create it?")
+
+        manager.confirmAssistantAction()
+
+        #expect(manager.equipmentLibrary.systems.contains { $0.name == "Backyard Rig" })
+        #expect(manager.assistantMessages.last?.text.contains("Backyard Rig") == true)
     }
 
     @Test func rejectingClearsThePendingActionAndRecordsIt() {

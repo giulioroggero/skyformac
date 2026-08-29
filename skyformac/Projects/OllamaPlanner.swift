@@ -163,6 +163,9 @@ struct OllamaPlanner: Sendable {
         var gain: Int?
         var exposureSeconds: Double?
         var mode: String?
+        var enabled: Bool?
+        var frameCount: Int?
+        var fraction: Double?
     }
 
     var baseURL: URL
@@ -331,6 +334,22 @@ struct OllamaPlanner: Sendable {
             let mode = raw.mode.flatMap(AcquisitionMode.init(rawValue:))
             let message = raw.message ?? "Apply the suggested camera settings?"
             return .action(.applyCameraSettings(gain: raw.gain, exposureSeconds: raw.exposureSeconds, mode: mode), message: message)
+        case "setLiveStacking":
+            guard let enabled = raw.enabled else { throw OllamaError.invalidPlanJSON }
+            let message = raw.message ?? (enabled ? "Start Live Stack?" : "Stop Live Stack?")
+            return .action(.setLiveStacking(enabled: enabled), message: message)
+        case "startLuckyImagingBurst":
+            guard let frameCount = raw.frameCount, frameCount > 0 else { throw OllamaError.invalidPlanJSON }
+            let message = raw.message ?? "Start a Lucky Imaging burst of \(frameCount) frames?"
+            return .action(.startLuckyImagingBurst(frameCount: frameCount), message: message)
+        case "stackLuckyImagingBest":
+            guard let fraction = raw.fraction, fraction > 0, fraction <= 1 else { throw OllamaError.invalidPlanJSON }
+            let message = raw.message ?? "Stack the sharpest \(Int(fraction * 100))% of the Lucky Imaging burst?"
+            return .action(.stackLuckyImagingBest(fraction: fraction), message: message)
+        case "createEquipmentSystem":
+            guard let name = raw.name, !name.isEmpty else { throw OllamaError.invalidPlanJSON }
+            let message = raw.message ?? "Create a new equipment system named \"\(name)\"?"
+            return .action(.createEquipmentSystem(name: name), message: message)
         case "reply":
             return .reply(raw.text ?? raw.message ?? "")
         default:
@@ -559,20 +578,28 @@ struct OllamaPlanner: Sendable {
         \(historyText.isEmpty ? "" : "Recent conversation:\n\(historyText)\n")\
         User message: \(message)
 
-        You can either just answer (insight, advice, what to see next), or propose ONE of: \
-        creating a new project, creating a new session, or changing the camera's gain/exposure/mode. \
-        Never claim to have already done something — a proposal is only ever applied after the user \
-        approves it separately, so always include a short "message" field describing the proposal in \
-        plain English for that approval step.
+        You can either just answer (insight, advice, what to see next, what's in the gallery, which \
+        equipment is set up), or propose ONE of: creating a new project, creating a new session, \
+        changing the camera's gain/exposure/mode, starting or stopping Live Stack, starting a Lucky \
+        Imaging burst, stacking an already-completed Lucky Imaging burst's sharpest frames, or \
+        creating a new equipment system. Never claim to have already done something — a proposal is \
+        only ever applied after the user approves it separately, so always include a short "message" \
+        field describing the proposal in plain English for that approval step.
 
         Respond with ONLY a JSON object, no other text, in exactly one of these shapes:
         {"kind": "reply", "text": "your answer"}
         {"kind": "createProject", "name": "...", "goal": "...", "message": "..."}
         {"kind": "createSession", "projectName": "...", "name": "...", "goal": "...", "plannedObjects": ["..."], "message": "..."}
         {"kind": "applyCameraSettings", "gain": 100, "exposureSeconds": 2.0, "mode": "liveStack", "message": "..."}
+        {"kind": "setLiveStacking", "enabled": true, "message": "..."}
+        {"kind": "startLuckyImagingBurst", "frameCount": 100, "message": "..."}
+        {"kind": "stackLuckyImagingBest", "fraction": 0.2, "message": "..."}
+        {"kind": "createEquipmentSystem", "name": "...", "message": "..."}
         For applyCameraSettings, "mode" must be exactly one of "liveStack", "luckyImaging", or "both" \
         if included, and any of gain/exposureSeconds/mode may be omitted if you're not proposing to \
-        change that one.
+        change that one. setLiveStacking/startLuckyImagingBurst/stackLuckyImagingBest all need a \
+        connected camera (see the context above) — don't propose them when none is connected. \
+        "fraction" for stackLuckyImagingBest is 0...1 (e.g. 0.2 for "the sharpest 20%").
         """
     }
 
