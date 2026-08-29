@@ -86,7 +86,7 @@ for a cloud provider selected in Settings.
 
 | Feature | Provider(s) | Where |
 | --- | --- | --- |
-| Session/project planning, sidebar assistant, tag suggestions, descriptions | Ollama (local, any installed model — no fixed version dependency), Anthropic Claude (`claude-3-5-haiku-latest` default), Google Gemini (`gemini-2.0-flash` default) | `skyformac/Projects/OllamaPlanner.swift`, `skyformac/Projects/CloudAITransports.swift` |
+| Session/project planning, sidebar assistant, tag suggestions, descriptions | Ollama (local, any installed model — no fixed version dependency), Anthropic Claude (`claude-sonnet-5` default), Google Gemini (`gemini-3.0-flash` default) | `skyformac/Projects/OllamaPlanner.swift`, `skyformac/Projects/CloudAITransports.swift` |
 
 ## Keeping this file current
 

@@ -16,9 +16,7 @@ import Foundation
 /// the full reasoning. Each cloud provider here is a small, dependency-free `URLSession` call.
 struct AnthropicTransport: OllamaTransport {
     var apiKey: String
-    /// Fast and inexpensive — appropriate for the short planning/classification prompts
-    /// `OllamaPlanner` sends, matching that type's own `preferredModel` reasoning for Ollama.
-    var model: String = "claude-3-5-haiku-latest"
+    var model: String = "claude-sonnet-5"
 
     func send(_ request: URLRequest) async throws -> Data {
         let prompt = try Self.extractPrompt(from: request)
@@ -73,7 +71,7 @@ struct AnthropicTransport: OllamaTransport {
 /// for the full "why route through `OllamaTransport` instead of a parallel planner" reasoning.
 struct GeminiTransport: OllamaTransport {
     var apiKey: String
-    var model: String = "gemini-2.0-flash"
+    var model: String = "gemini-3.0-flash"
 
     func send(_ request: URLRequest) async throws -> Data {
         let prompt = try AnthropicTransport.extractPrompt(from: request)

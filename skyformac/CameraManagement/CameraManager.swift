@@ -747,7 +747,7 @@ final class CameraManager {
         case .ollama:
             return OllamaPlanner(baseURL: AppSettings.ollamaServerURL, model: AppSettings.ollamaModel)
         case .anthropic:
-            let model = AppSettings.anthropicModel ?? "claude-3-5-haiku-latest"
+            let model = AppSettings.anthropicModel ?? "claude-sonnet-5"
             let transport = AnthropicTransport(apiKey: AppSettings.anthropicAPIKey ?? "", model: model)
             // `model:` set explicitly (never `nil`) — `OllamaPlanner.resolveModel()`'s own
             // "nil means auto-detect via Ollama's /api/tags" fallback has no equivalent for a
@@ -756,7 +756,7 @@ final class CameraManager {
             // fail against it rather than doing anything useful.
             return OllamaPlanner(model: model, transport: transport)
         case .gemini:
-            let model = AppSettings.geminiModel ?? "gemini-2.0-flash"
+            let model = AppSettings.geminiModel ?? "gemini-3.0-flash"
             let transport = GeminiTransport(apiKey: AppSettings.geminiAPIKey ?? "", model: model)
             return OllamaPlanner(model: model, transport: transport)
         }
