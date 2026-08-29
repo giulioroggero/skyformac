@@ -717,10 +717,13 @@ final class CameraManager {
     /// immediately, unlike the Projects/Equipment folder settings: there's no destructive side
     /// effect to redirecting where the next network request goes, unlike relocating files a
     /// `ProjectStore`/`EquipmentLibrary` already has open.
+    /// Unconditional — always rebuilds `ollamaPlanner` against Ollama, regardless of
+    /// `AppSettings.aiProvider`. Safe: `SettingsView`'s own "AI (Ollama)" section (the only real
+    /// caller) is only ever shown at all when `aiProvider == .ollama` already, so in practice this
+    /// never fires while a cloud provider is the active selection.
     func updateOllamaConfiguration(serverURL: URL, model: String?) {
         AppSettings.ollamaServerURL = serverURL
         AppSettings.ollamaModel = model
-        guard AppSettings.aiProvider == .ollama else { return }
         ollamaPlanner = OllamaPlanner(baseURL: serverURL, model: model)
     }
 

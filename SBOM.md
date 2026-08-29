@@ -45,16 +45,16 @@ this ships inside the app itself; a user running Sky for Mac needs none of it.
 
 | File | Size | Source | License | Checksum (SHA-256) |
 | --- | --- | --- | --- | --- |
-| `skyformac/Resources/SkyCatalog/messier.json` | 23,854 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `05e640fe8dc5e6e20beb8b1a6d5066fb69429be41659a63d1c31580ccc975655` |
-| `skyformac/Resources/SkyCatalog/caldwell.json` | 24,584 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `93dc33fa7ea52889262b5b469b67e77114852c876d0e5aa608f5079377a53490` |
-| `skyformac/Resources/SkyCatalog/ngc.json` | 50,597 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `42d3cc61ddb96dbfb7bd8153418b693eee1e342685115f240adacbbf27523dc3` |
+| `skyformac/Resources/SkyCatalog/messier.json` | 23,854 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `05e640fe8dc5e6e20beb8b1a6d5066fb69429be41659a63d1c31580ccc975655` |
+| `skyformac/Resources/SkyCatalog/caldwell.json` | 24,584 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `93dc33fa7ea52889262b5b469b67e77114852c876d0e5aa608f5079377a53490` |
+| `skyformac/Resources/SkyCatalog/ngc.json` | 50,597 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 | `42d3cc61ddb96dbfb7bd8153418b693eee1e342685115f240adacbbf27523dc3` |
 | `skyformac/Resources/SkyCatalog/bright_stars.json` | 1,881 B | Hand-curated by this project (~14 stars) | Sky for Mac's own GPLv3 | `1c3fbf8b2bf7c8541a4c014dc036fb00ffce8edebe1280ede1fa8f9e896c6fac` |
-| `skyformac/Resources/AstroCatalog/astro_catalog.sqlite` | 327,680 B | Built by `scripts/build_astro_catalog.py` from Stellarium's DSO catalog + the `bright_stars.json` above | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `353daf63024573835c56fbe7a9fba911302cce5458778d3af5da58aa257218f9` |
+| `skyformac/Resources/AstroCatalog/astro_catalog.sqlite` | 327,680 B | Built by `scripts/build_astro_catalog.py` from Stellarium's DSO catalog + the `bright_stars.json` above | GPLv2 | `353daf63024573835c56fbe7a9fba911302cce5458778d3af5da58aa257218f9` |
 
-¹ `scripts/build_astro_catalog.py`'s own header comment cites the Stellarium data specifically as
-CC-BY-SA-4.0, while `THIRD_PARTY_NOTICES.md` characterizes the whole Stellarium project as GPLv2 —
-these haven't been reconciled against Stellarium's actual per-file licensing; treat this row's
-license as provisional until that's checked.
+Stellarium's own `COPYING` file (GPLv2) governs `nebulae/default/catalog.txt`/`names.dat` — its
+`CREDITS.md` carves out CC-BY-SA-4.0 for specific texture/image assets elsewhere in that project,
+not this catalog data. (An earlier version of this file, and of `scripts/build_astro_catalog.py`'s
+own header comment, incorrectly cited CC-BY-SA-4.0 for the catalog data itself — corrected.)
 
 ## Scripts
 

@@ -75,18 +75,86 @@ enum CosmicRayRemover {
         return try repair(image, maskImage: maskImage)
     }
 
-    /// `MLMultiArray`'s own `(1, 1, H, W)` float32 layout, thresholded and rendered into a plain
-    /// grayscale `CGImage` the same size as the model's output — white where the model flagged
-    /// damage, black elsewhere, ready to drive `repair(_:maskImage:)`'s blend.
-    private static func maskImage(from array: MLMultiArray, threshold: Double) -> CGImage? {
+    /// `MLMultiArray`'s own `(1, 1, H, W)` layout, thresholded and rendered into a plain grayscale
+    /// `CGImage` the same size as the model's output — white where the model flagged damage,
+    /// black elsewhere, ready to drive `repair(_:maskImage:)`'s blend.
+    ///
+    /// - Important: This crashed in the field (a real `EXC_BAD_ACCESS`, `CosmicRayRemover
+    ///   .maskImage`) on a Mac with an ANE, because the original version assumed a packed,
+    ///   contiguous `Float32` buffer sized exactly `width * height` — but Core ML is free to hand
+    ///   back a different element type and/or a padded/strided layout depending on which compute
+    ///   unit (ANE, GPU, CPU) actually ran the model, which varies by hardware and is exactly what
+    ///   `computeUnits = .all` invites it to do. Reading past the *real* (possibly smaller, or
+    ///   differently-typed) buffer with a hardcoded `Float32` stride is what walked off the end of
+    ///   allocated memory. Branching on `array.dataType` and indexing via `array.strides` (not an
+    ///   assumed packed layout) is what actually keeps this correct regardless of which compute
+    ///   unit produced the output.
+    /// `internal`, not `private` — `CosmicRayRemoverTests` exercises this directly with
+    /// hand-built `MLMultiArray`s (a non-`Float32` `dataType`, a padded/strided layout) to cover
+    /// exactly the failure mode that crashed in the field, which depends on which compute unit
+    /// (ANE/GPU/CPU) actually ran the real model — not something a test can reliably force Core
+    /// ML into picking on any given machine.
+    static func maskImage(from array: MLMultiArray, threshold: Double) -> CGImage? {
         guard array.shape.count == 4 else { return nil }
         let height = array.shape[2].intValue
         let width = array.shape[3].intValue
         guard width > 0, height > 0 else { return nil }
+        let heightStride = array.strides[2].intValue
+        let widthStride = array.strides[3].intValue
+
+        // The buffer's real required size from its own shape/strides — *not* `array.count`
+        // (the logical element count, `shape.reduce(1, *)`), which undercounts whenever any
+        // stride introduces padding a compute unit added for its own alignment/vectorization
+        // reasons. Using `array.count` here was a second, subtler bug on top of the original
+        // "assumed packed `Float32`" one: it made every per-pixel bounds check below reject
+        // legitimate offsets past the logical count, silently dropping real pixels instead of
+        // crashing — caught by `CosmicRayRemoverTests
+        // .maskImageRespectsAPaddedRowStrideRatherThanAssumingPackedLayout`, which failed against
+        // this exact miscalculation before being fixed.
+        let elementCount = zip(array.shape, array.strides).reduce(0) { total, dimension in
+            total + (dimension.0.intValue - 1) * dimension.1.intValue
+        } + 1
+
         var pixels = [UInt8](repeating: 0, count: width * height)
-        let pointer = array.dataPointer.bindMemory(to: Float32.self, capacity: width * height)
-        for i in 0..<(width * height) {
-            pixels[i] = Double(pointer[i]) >= threshold ? 255 : 0
+        switch array.dataType {
+        case .float32:
+            let pointer = array.dataPointer.bindMemory(to: Float32.self, capacity: elementCount)
+            for y in 0..<height {
+                for x in 0..<width {
+                    let offset = y * heightStride + x * widthStride
+                    guard offset >= 0, offset < elementCount else { continue }
+                    pixels[y * width + x] = Double(pointer[offset]) >= threshold ? 255 : 0
+                }
+            }
+        case .float16:
+            let pointer = array.dataPointer.bindMemory(to: Float16.self, capacity: elementCount)
+            for y in 0..<height {
+                for x in 0..<width {
+                    let offset = y * heightStride + x * widthStride
+                    guard offset >= 0, offset < elementCount else { continue }
+                    pixels[y * width + x] = Double(pointer[offset]) >= threshold ? 255 : 0
+                }
+            }
+        case .double:
+            let pointer = array.dataPointer.bindMemory(to: Double.self, capacity: elementCount)
+            for y in 0..<height {
+                for x in 0..<width {
+                    let offset = y * heightStride + x * widthStride
+                    guard offset >= 0, offset < elementCount else { continue }
+                    pixels[y * width + x] = pointer[offset] >= threshold ? 255 : 0
+                }
+            }
+        case .int32:
+            let pointer = array.dataPointer.bindMemory(to: Int32.self, capacity: elementCount)
+            for y in 0..<height {
+                for x in 0..<width {
+                    let offset = y * heightStride + x * widthStride
+                    guard offset >= 0, offset < elementCount else { continue }
+                    pixels[y * width + x] = Double(pointer[offset]) >= threshold ? 255 : 0
+                }
+            }
+        @unknown default:
+            return nil
         }
         guard let colorSpace = CGColorSpace(name: CGColorSpace.linearGray),
               let context = CGContext(

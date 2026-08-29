@@ -100,6 +100,39 @@ struct TikhonovDeconvolverTests {
         #expect(abs(center - 100) < 5)
     }
 
+    /// A real regression the earlier hand-rolled blur implementation hit in the field: it was
+    /// genuinely *minutes*-slow on a full-resolution astro image (a cache-hostile strided column
+    /// pass, plus scalar-loop edge padding, both repeated per iteration per channel), which read
+    /// as a hang since nothing else in the UI communicated progress. This is a coarse smoke check,
+    /// not a strict benchmark (CI machines vary) — its point is to catch a return to
+    /// "many seconds to minutes" for something around the resolution a real ASI camera frame
+    /// might be, not to enforce a tight performance budget.
+    @Test func deconvolveOfARealisticSizedImageCompletesQuickly() throws {
+        let width = 1920, height = 1080
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for i in 0..<(width * height) {
+            let offset = i * 4
+            let value = UInt8((i * 7919) % 256) // deterministic pseudo-noise, not flat
+            pixels[offset] = value
+            pixels[offset + 1] = value
+            pixels[offset + 2] = value
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        let image = context.makeImage()!
+
+        let start = DispatchTime.now()
+        let result = try TikhonovDeconvolver.deconvolve(image, amount: 1)
+        let elapsedSeconds = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+
+        #expect(result.width == width)
+        #expect(result.height == height)
+        #expect(elapsedSeconds < 15)
+    }
+
     @Test func deconvolveThrowsForAZeroSizeImage() {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let context = CGContext(

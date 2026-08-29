@@ -3,7 +3,9 @@
 
 - Stellarium's bundled DSO catalog (nebulae/default/catalog.txt + names.dat) for
   NGC/IC/Messier galaxies, nebulae, and clusters — see
-  https://github.com/Stellarium/stellarium, CC-BY-SA-4.0 data.
+  https://github.com/Stellarium/stellarium (GPLv2, per that repo's own COPYING file; its
+  CREDITS.md carves out CC-BY-SA-4.0 for specific texture/image assets only, not this
+  catalog data, which falls under the project's general GPLv2).
 - This repo's own hand-curated skyformac/Resources/SkyCatalog/bright_stars.json for the
   bright-star layer (Stellarium's own star catalog is a proprietary binary format not
   worth reverse-engineering for a ~14-star list).

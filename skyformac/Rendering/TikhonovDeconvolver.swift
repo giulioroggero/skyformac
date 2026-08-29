@@ -112,39 +112,46 @@ enum TikhonovDeconvolver {
     /// handling, so each row/column is padded by replicating its own edge value (`radius` samples
     /// on each side) before convolving, then the padding is dropped — plain zero-padding would
     /// darken every image's border with each iteration, which replication avoids.
+    /// A single native `vImageConvolve_PlanarF` call over the 1D kernel's own outer-product 2D
+    /// form, with `kvImageEdgeExtend` for edge replication — replaces an earlier hand-rolled
+    /// separable (row-pass then column-pass) implementation that was real-world *minutes* slow on
+    /// a full-resolution astro image: its column pass walked `input` with a `width`-sized stride
+    /// (`horizontal[y * width + x]` for fixed `x`, varying `y`), which is about as cache-hostile
+    /// an access pattern as exists, on top of doing the row/column edge-padding with plain scalar
+    /// Swift loops instead of a vectorized copy. `vImage`'s own implementation is professionally
+    /// vectorized/multithreaded C, which more than makes up for trading two O(width·height·K)
+    /// separable passes for one O(width·height·K²) 2D pass at the kernel sizes this actually uses
+    /// (K ≈ 5...15).
     private static func separableGaussianBlur(_ input: [Float], width: Int, height: Int, kernel: [Float]) -> [Float] {
-        let radius = (kernel.count - 1) / 2
-        var horizontal = [Float](repeating: 0, count: width * height)
-        var paddedRow = [Float](repeating: 0, count: width + radius * 2)
-        var rowResult = [Float](repeating: 0, count: width)
-        for y in 0..<height {
-            let rowStart = y * width
-            for x in 0..<radius { paddedRow[x] = input[rowStart] }
-            for x in 0..<width { paddedRow[radius + x] = input[rowStart + x] }
-            for x in 0..<radius { paddedRow[radius + width + x] = input[rowStart + width - 1] }
-            paddedRow.withUnsafeBufferPointer { paddedPointer in
-                kernel.withUnsafeBufferPointer { kernelPointer in
-                    vDSP_conv(paddedPointer.baseAddress!, 1, kernelPointer.baseAddress!, 1, &rowResult, 1, vDSP_Length(width), vDSP_Length(kernel.count))
-                }
+        let kernelSize = kernel.count
+        var kernel2D = [Float](repeating: 0, count: kernelSize * kernelSize)
+        for ky in 0..<kernelSize {
+            for kx in 0..<kernelSize {
+                kernel2D[ky * kernelSize + kx] = kernel[ky] * kernel[kx]
             }
-            for x in 0..<width { horizontal[rowStart + x] = rowResult[x] }
         }
 
-        var vertical = [Float](repeating: 0, count: width * height)
-        var paddedColumn = [Float](repeating: 0, count: height + radius * 2)
-        var columnResult = [Float](repeating: 0, count: height)
-        for x in 0..<width {
-            for y in 0..<radius { paddedColumn[y] = horizontal[x] }
-            for y in 0..<height { paddedColumn[radius + y] = horizontal[y * width + x] }
-            for y in 0..<radius { paddedColumn[radius + height + y] = horizontal[(height - 1) * width + x] }
-            paddedColumn.withUnsafeBufferPointer { paddedPointer in
-                kernel.withUnsafeBufferPointer { kernelPointer in
-                    vDSP_conv(paddedPointer.baseAddress!, 1, kernelPointer.baseAddress!, 1, &columnResult, 1, vDSP_Length(height), vDSP_Length(kernel.count))
+        var mutableInput = input
+        var output = [Float](repeating: 0, count: width * height)
+        mutableInput.withUnsafeMutableBufferPointer { inputPointer in
+            output.withUnsafeMutableBufferPointer { outputPointer in
+                var srcBuffer = vImage_Buffer(
+                    data: inputPointer.baseAddress!, height: vImagePixelCount(height),
+                    width: vImagePixelCount(width), rowBytes: width * MemoryLayout<Float>.stride
+                )
+                var dstBuffer = vImage_Buffer(
+                    data: outputPointer.baseAddress!, height: vImagePixelCount(height),
+                    width: vImagePixelCount(width), rowBytes: width * MemoryLayout<Float>.stride
+                )
+                kernel2D.withUnsafeBufferPointer { kernelPointer in
+                    _ = vImageConvolve_PlanarF(
+                        &srcBuffer, &dstBuffer, nil, 0, 0, kernelPointer.baseAddress!,
+                        UInt32(kernelSize), UInt32(kernelSize), 0, vImage_Flags(kvImageEdgeExtend)
+                    )
                 }
             }
-            for y in 0..<height { vertical[y * width + x] = columnResult[y] }
         }
-        return vertical
+        return output
     }
 
     /// Reads `image` into three `Float` (0...255-scaled) planes — plain `UInt8` would silently

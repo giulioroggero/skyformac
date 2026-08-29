@@ -60,6 +60,30 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   edge contrast.
 
 ### Fixed
+- "Remove Cosmic Rays" could crash the app outright (`EXC_BAD_ACCESS`) on a Mac with an ANE —
+  the code assumed the Core ML model's output was always a packed `Float32` buffer, but which
+  compute unit (ANE/GPU/CPU) actually ran the model — which varies by hardware — can change both
+  its element type and its memory layout. Now branches on the array's own reported type and
+  indexes via its own strides instead of assuming a fixed layout; a second, subtler miscalculation
+  this surfaced (using the array's logical element count as if it were the physical buffer's
+  capacity, silently dropping real pixels near any padded row) is fixed too.
+- "Tikhonov Deconvolution" could take minutes on a full-resolution image with no progress feedback
+  at all, reading as a hang — its Gaussian blur pass has been replaced with a single native
+  `vImage` convolution instead of a hand-rolled row/column loop whose column pass was extremely
+  cache-unfriendly; the same test image now completes in a couple of seconds.
+- The Edit Image sidebar's Auto-Fix button row (Magic Wand/Center Object/Remove Background
+  Gradient/Reset/Compare) had grown too many long-labeled buttons for one line and become
+  unreadable — now two buttons per row, with Compare to Original on its own row below. The AI
+  section's own two buttons (also long-labeled) are now one per row, full width. Both sections
+  moved to the very end of the sidebar (after every other adjustment), and Compare mode's split
+  view now supports the same pinch-zoom/drag-to-pan as the normal preview, sharing one zoom/pan
+  state between both halves — moving one moves the other, and the zoom level survives toggling
+  Compare on and off.
+- `scripts/build_astro_catalog.py`'s own header comment (and this changelog/SBOM) incorrectly
+  cited Stellarium's bundled DSO catalog data as CC-BY-SA-4.0 — verified against Stellarium's own
+  `COPYING`/`CREDITS.md`: the catalog data is GPLv2 (CC-BY-SA-4.0 only applies to specific
+  texture/image assets elsewhere in that project). `THIRD_PARTY_NOTICES.md`'s existing GPLv2
+  characterization was already correct.
 - "Compose Mosaic…"/"Stack…" failed outright with a cryptic `CGImageRenderer.LoadError` if any
   selected tile was corrupt/unreadable (e.g. an interrupted write) — unreadable tiles are now
   skipped and named in the UI instead, only failing if fewer than 2 usable tiles remain.

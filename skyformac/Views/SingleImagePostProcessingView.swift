@@ -158,13 +158,13 @@ struct SingleImagePostProcessingView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     magicWandSection
                     Divider()
-                    aiSection
-                    Divider()
                     cropSection
                     Divider()
                     rotateSection
                     Divider()
                     ImageAdjustmentsControls(adjustments: $adjustments, onChange: scheduleRender)
+                    Divider()
+                    aiSection
                 }
                 .padding(16)
             }
@@ -221,9 +221,13 @@ struct SingleImagePostProcessingView: View {
         }
     }
 
-    /// One half of the vertical compare split — no zoom/pan gesture of its own (unlike the
-    /// single-image pane above): comparing two images at a glance is the point, and each already
-    /// gets roughly half the pane's height, which is plenty to judge "did this actually help."
+    /// One half of the vertical compare split — shares the exact same `zoomScale`/`zoomOffset`/
+    /// `dragStartOffset` state the single-image preview above uses, rather than each half (or
+    /// compare mode as a whole) having its own: "if the image is zoomed keep the already set
+    /// zoom" falls out for free since toggling `isComparingToOriginal` never touches that state,
+    /// and "if the user moves one image, move the other" falls out for free too, since dragging
+    /// *either* half updates the one shared `zoomOffset` both halves render from — there's no
+    /// separate synchronization to get right.
     @ViewBuilder
     private func labeledComparisonImage(_ label: String, image: CGImage?) -> some View {
         ZStack(alignment: .topLeading) {
@@ -233,6 +237,23 @@ struct SingleImagePostProcessingView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .padding(8)
+                    .scaleEffect(zoomScale)
+                    .offset(zoomOffset)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in zoomScale = min(max(1, value), Self.maxZoomScale) }
+                    )
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                guard zoomScale > 1 else { return }
+                                zoomOffset = CGSize(
+                                    width: dragStartOffset.width + value.translation.width,
+                                    height: dragStartOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in dragStartOffset = zoomOffset }
+                    )
             } else {
                 ProgressView()
             }
@@ -290,45 +311,54 @@ struct SingleImagePostProcessingView: View {
             Text("Analyzes the image and picks color/contrast adjustments automatically — the same technology behind Photos.app's \"Auto Enhance.\" Manual sliders below still apply on top afterward.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            HStack {
-                Button {
-                    applyMagicWand()
-                } label: {
-                    if isApplyingMagicWand {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Magic Wand", systemImage: "wand.and.stars")
+            // Two per row, not one long `HStack` — with "Remove Background Gradient"'s own long
+            // label in the mix, a single row of four+ buttons stopped fitting the sidebar's width
+            // at all and became unreadable (truncated/wrapped labels running into each other).
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                GridRow {
+                    Button {
+                        applyMagicWand()
+                    } label: {
+                        if isApplyingMagicWand {
+                            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+                        } else {
+                            Label("Magic Wand", systemImage: "wand.and.stars").frame(maxWidth: .infinity)
+                        }
                     }
-                }
-                .disabled(isBusyWithAnyAITool)
-                Button {
-                    centerObject()
-                } label: {
-                    if isCenteringObject {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Center Object", systemImage: "scope")
-                    }
-                }
-                .disabled(isBusyWithAnyAITool)
-                .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
-                Button {
-                    removeBackgroundGradient()
-                } label: {
-                    if isRemovingGradient {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Remove Background Gradient", systemImage: "square.stack.3d.forward.dottedline")
-                    }
-                }
-                .disabled(isBusyWithAnyAITool)
-                .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
-                Button("Reset") { reset() }
                     .disabled(isBusyWithAnyAITool)
-                Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
-                    .toggleStyle(.button)
-                    .help("Show the untouched original stacked above the current edit, instead of only the edit.")
+                    Button {
+                        centerObject()
+                    } label: {
+                        if isCenteringObject {
+                            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+                        } else {
+                            Label("Center Object", systemImage: "scope").frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(isBusyWithAnyAITool)
+                    .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
+                }
+                GridRow {
+                    Button {
+                        removeBackgroundGradient()
+                    } label: {
+                        if isRemovingGradient {
+                            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+                        } else {
+                            Label("Remove Gradient", systemImage: "square.stack.3d.forward.dottedline").frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(isBusyWithAnyAITool)
+                    .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
+                    Button("Reset") { reset() }
+                        .frame(maxWidth: .infinity)
+                        .disabled(isBusyWithAnyAITool)
+                }
             }
+            .buttonStyle(.bordered)
+            Toggle("Compare to Original", systemImage: "rectangle.split.1x2", isOn: $isComparingToOriginal)
+                .toggleStyle(.button)
+                .help("Show the untouched original stacked above the current edit, instead of only the edit.")
             if let gradientErrorMessage {
                 Text(gradientErrorMessage).font(.caption).foregroundStyle(.red)
             }
@@ -345,14 +375,17 @@ struct SingleImagePostProcessingView: View {
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("AI").font(.title3.bold())
-            HStack {
+            // One per row, full width — with labels this long ("Tikhonov Deconvolution"), side by
+            // side in the sidebar's own width stopped being readable, same fix as the Auto-Fix
+            // section's own button row above.
+            VStack(alignment: .leading, spacing: 8) {
                 Button {
                     removeCosmicRays()
                 } label: {
                     if isRemovingCosmicRays {
-                        ProgressView().controlSize(.small)
+                        ProgressView().controlSize(.small).frame(maxWidth: .infinity)
                     } else {
-                        Label("Remove Cosmic Rays", systemImage: "sparkle")
+                        Label("Remove Cosmic Rays", systemImage: "sparkle").frame(maxWidth: .infinity)
                     }
                 }
                 .disabled(!CosmicRayRemover.isAvailable || isBusyWithAnyAITool)
@@ -361,14 +394,15 @@ struct SingleImagePostProcessingView: View {
                     applyTikhonovDeconvolution()
                 } label: {
                     if isApplyingTikhonovDeconvolution {
-                        ProgressView().controlSize(.small)
+                        ProgressView().controlSize(.small).frame(maxWidth: .infinity)
                     } else {
-                        Label("Tikhonov Deconvolution", systemImage: "wand.and.rays")
+                        Label("Tikhonov Deconvolution", systemImage: "wand.and.rays").frame(maxWidth: .infinity)
                     }
                 }
                 .disabled(isBusyWithAnyAITool)
                 .help("Regularized deblurring (Tikhonov/Landweber) — a smoother, more noise-robust alternative to the Sharpen section's own Deconvolution slider below.")
             }
+            .buttonStyle(.bordered)
             if let aiToolErrorMessage {
                 Text(aiToolErrorMessage).font(.caption).foregroundStyle(.red)
             }

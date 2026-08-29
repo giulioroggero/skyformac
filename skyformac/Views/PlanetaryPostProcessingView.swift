@@ -688,55 +688,71 @@ struct PlanetaryPostProcessingView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            HStack {
-                Button {
-                    applyMagicWandToSingleShot()
-                } label: {
-                    if isApplyingMagicWandToSingleShot {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Magic Wand (Auto-Fix)", systemImage: "wand.and.stars")
+            // Two per row, not one long `HStack` — see `SingleImagePostProcessingView
+            // .magicWandSection`'s own comment for why (the labels stopped fitting the sidebar's
+            // width and became unreadable).
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                GridRow {
+                    Button {
+                        applyMagicWandToSingleShot()
+                    } label: {
+                        if isApplyingMagicWandToSingleShot {
+                            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+                        } else {
+                            Label("Magic Wand", systemImage: "wand.and.stars").frame(maxWidth: .infinity)
+                        }
                     }
-                }
-                .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
-                Button {
-                    centerSingleShotObject()
-                } label: {
-                    if isCenteringObject {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Center Object", systemImage: "scope")
+                    .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
+                    Button {
+                        centerSingleShotObject()
+                    } label: {
+                        if isCenteringObject {
+                            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+                        } else {
+                            Label("Center Object", systemImage: "scope").frame(maxWidth: .infinity)
+                        }
                     }
+                    .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
+                    .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
                 }
-                .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
-                .help("Shifts the image so its brightest area lands in the exact middle of the frame.")
-                Button {
-                    removeBackgroundGradientFromSingleShot()
-                } label: {
-                    if isRemovingGradientFromSingleShot {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Remove Background Gradient", systemImage: "square.stack.3d.forward.dottedline")
+                GridRow {
+                    Button {
+                        removeBackgroundGradientFromSingleShot()
+                    } label: {
+                        if isRemovingGradientFromSingleShot {
+                            ProgressView().controlSize(.small).frame(maxWidth: .infinity)
+                        } else {
+                            Label("Remove Gradient", systemImage: "square.stack.3d.forward.dottedline").frame(maxWidth: .infinity)
+                        }
                     }
+                    .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
+                    .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
                 }
-                .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
-                .help("Samples plain sky background away from stars/nebulosity, fits a smooth gradient, and subtracts it — light pollution/moon glow/vignetting removal.")
             }
+            .buttonStyle(.bordered)
             if let singleShotGradientErrorMessage {
                 Text(singleShotGradientErrorMessage).font(.caption).foregroundStyle(.red)
             }
 
-            // Same on-device AI tools as `SingleImagePostProcessingView.aiSection` — see that
-            // property's own doc comment for why these bake into `stackedPreviewImage` as one-shot
-            // actions rather than living in `ImageAdjustmentsControls`' shared sliders.
-            HStack {
+            // "In single shot use the edit functionalities of the edit image from capture page —
+            // don't duplicate the code" — the exact same Color/Clean Up/Sharpen/Astronomy Tools
+            // controls `SingleImagePostProcessingView`'s own sections use, not a second,
+            // independently maintained copy of the same ~15 sliders.
+            ImageAdjustmentsControls(adjustments: $singleShotAdjustments, onChange: applySingleShotAdjustments)
+
+            // Same on-device AI tools as `SingleImagePostProcessingView.aiSection`, last on the
+            // page like that one — see that property's own doc comment for why these bake into
+            // `stackedPreviewImage` as one-shot actions rather than living in
+            // `ImageAdjustmentsControls`' shared sliders.
+            Text("AI").font(.title3.bold())
+            VStack(alignment: .leading, spacing: 8) {
                 Button {
                     removeCosmicRaysFromSingleShot()
                 } label: {
                     if isRemovingCosmicRaysFromSingleShot {
-                        ProgressView().controlSize(.small)
+                        ProgressView().controlSize(.small).frame(maxWidth: .infinity)
                     } else {
-                        Label("Remove Cosmic Rays", systemImage: "sparkle")
+                        Label("Remove Cosmic Rays", systemImage: "sparkle").frame(maxWidth: .infinity)
                     }
                 }
                 .disabled(stackedPreviewImage == nil || !CosmicRayRemover.isAvailable || isBusyWithAnySingleShotTool)
@@ -745,23 +761,18 @@ struct PlanetaryPostProcessingView: View {
                     applyTikhonovDeconvolutionToSingleShot()
                 } label: {
                     if isApplyingTikhonovDeconvolutionToSingleShot {
-                        ProgressView().controlSize(.small)
+                        ProgressView().controlSize(.small).frame(maxWidth: .infinity)
                     } else {
-                        Label("Tikhonov Deconvolution", systemImage: "wand.and.rays")
+                        Label("Tikhonov Deconvolution", systemImage: "wand.and.rays").frame(maxWidth: .infinity)
                     }
                 }
                 .disabled(stackedPreviewImage == nil || isBusyWithAnySingleShotTool)
                 .help("Regularized deblurring (Tikhonov/Landweber) — a smoother, more noise-robust alternative to the Sharpen section's own Deconvolution slider below.")
             }
+            .buttonStyle(.bordered)
             if let singleShotAIToolErrorMessage {
                 Text(singleShotAIToolErrorMessage).font(.caption).foregroundStyle(.red)
             }
-
-            // "In single shot use the edit functionalities of the edit image from capture page —
-            // don't duplicate the code" — the exact same Color/Clean Up/Sharpen/Astronomy Tools
-            // controls `SingleImagePostProcessingView`'s own sections use, not a second,
-            // independently maintained copy of the same ~15 sliders.
-            ImageAdjustmentsControls(adjustments: $singleShotAdjustments, onChange: applySingleShotAdjustments)
         }
     }
 
