@@ -28,8 +28,7 @@ All other source code written for "Sky for Mac" remains governed strictly by the
 
   See `scripts/models/convert_deepcr.py` for the exact conversion (architecture reconstructed
   directly from the checkpoint's own weights, validated to within ~4e-5 per pixel against the
-  original PyTorch model) and `SBOM.md` for the full model/dependency inventory, including which
-  other researched models (NAFNet, SwinIR, diffusion4astro) aren't yet bundled and why.
+  original PyTorch model) and `SBOM.md` for the full model/dependency inventory.
 
 All other AI-assisted features in "Sky for Mac" (the sidebar assistant, session planning) call
 out to a local Ollama server or a cloud API (Anthropic, Google Gemini) the user configures with

@@ -26,8 +26,7 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
     cosmic-ray mask model (BSD-3-Clause), repairing flagged pixels with a median-filtered fill.
   - **Tikhonov Deconvolution** — regularized deblurring (Landweber iteration) via Accelerate/vDSP,
     a smoother, more noise-robust alternative to the existing Richardson-Lucy Deconvolution slider.
-  See `SBOM.md`/`THIRD_PARTY_NOTICES.md` for exactly what's bundled, its license, and which other
-  researched models (NAFNet, SwinIR, diffusion4astro) aren't yet bundled and why.
+  See `SBOM.md`/`THIRD_PARTY_NOTICES.md` for exactly what's bundled and its license.
 - Settings gains an AI Provider picker — Ollama (local, the existing default) or, with your own
   API key stored in the macOS Keychain, Anthropic Claude or Google Gemini — for the sidebar
   assistant and session-planning features.

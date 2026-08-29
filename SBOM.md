@@ -1,67 +1,98 @@
 # Software Bill of Materials
 
-What "Sky for Mac" is actually built from and ships with — source dependencies, vendored
-binaries, and bundled AI model weights. Kept up to date alongside the code: any commit that adds,
-upgrades, or removes something on this list updates this file in the same push. See
-[`LICENSE.md`](LICENSE.md) for the full license text of everything with its own license below,
-and [`docs/architecture.md`](docs/architecture.md) for how each of these actually fits into the
-app.
+Every third-party binary, model, script, data file, and distributable artifact "Sky for Mac"
+ships or is built with — each with its version/commit, license, and a checksum where one applies.
+Kept up to date alongside the code: any commit that adds, upgrades, or removes something on this
+list updates this file in the same push. See [`LICENSE.md`](LICENSE.md) and
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for full license text, and
+[`docs/architecture.md`](docs/architecture.md) for how each of these fits into the app.
 
 ## First-party
 
-| Component | Description |
-| --- | --- |
-| Sky for Mac (this repository) | GPLv3, © Giulio Roggero — every `.swift` file under `skyformac/` not listed as vendored/third-party below. |
+| Component | Version | License |
+| --- | --- | --- |
+| Sky for Mac (this repository) | 0.6.0 (`MARKETING_VERSION`, `skyformac.xcodeproj`) | GPLv3 (+ the ZWO SDK linking exception, see `LICENSE.md`) |
 
-## Build toolchain (not distributed with the app)
+## Build toolchain
 
-| Tool | Used for |
-| --- | --- |
-| Xcode / Swift 6 | Building the app itself. |
-| Python 3, PyTorch, coremltools | One-time, offline conversion of third-party model weights (PyTorch → Core ML) — see `scripts/models/`. Never bundled with or required by the shipped app; a user running the app needs none of this. |
+Used to build the app and, separately, to convert third-party model weights offline — none of
+this ships inside the app itself; a user running Sky for Mac needs none of it.
+
+| Tool | Version (as last built/verified) | Used for |
+| --- | --- | --- |
+| Xcode | 26.6 (build 17F113) | Building the app. |
+| Swift | 6.0 (main target; `SWIFT_VERSION` in `skyformac.xcodeproj/project.pbxproj`) | Language/toolchain. |
+| macOS deployment target | 14.0 (`MACOSX_DEPLOYMENT_TARGET`) | Minimum supported OS. |
+| Python | 3.x (via `pyenv`) | Running the one-time model-conversion/catalog-build scripts below. |
+| PyTorch | 2.6.0 | Loading `deepCR`'s checkpoint for conversion (`scripts/models/convert_deepcr.py`). |
+| coremltools | 9.0 | PyTorch → Core ML conversion. |
+| Pillow (PIL) | latest available at conversion time | Validating the converted model's output against the original in `convert_deepcr.py`. |
 
 ## Vendored binaries
 
-| Component | Version/commit | License | How it's used |
-| --- | --- | --- | --- |
-| ZWO ASI Camera SDK (`libASICamera2.dylib`, `Vendor/ZWO/`) | Vendored as provided by ZWO Co., Ltd. | Proprietary (ZWO) — see `LICENSE.md`'s own special exception permitting this | Camera control (`skyformac/Bridging/ZWOSDK`) — no source, closed-source binary only. |
+| Component | Version/identity | License | Checksum | How it's used |
+| --- | --- | --- | --- | --- |
+| ZWO ASI Camera SDK (`libASICamera2.dylib`, universal x86_64+arm64, `Vendor/ZWO/lib/`) | Not embedded as a version string in the binary itself (call `ASIGetSDKVersion()` at runtime for the exact string, e.g. `"1, 13, 0503"`-shaped) — vendored 2026-08-08 | Proprietary (ZWO Co., Ltd.) — see `LICENSE.md`'s linking exception | SHA-256 `ed667802a10f6da9b841f58ef71e5cf578ab68998ebcd537b0cc2fbaf67af39f` | Camera control (`skyformac/Bridging/ZWOSDK`) — closed-source binary only, no source. |
+| `Vendor/ZWO/include/ASICamera2.h` | Matching header, vendored alongside the dylib above | Proprietary (ZWO Co., Ltd.) | — | C API declarations for the Swift bridge. |
 
 ## Bundled AI models
 
-| Model | Source | License | Format/size | Purpose |
+| Model | Source commit | License | Format/size | Checksum | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| Cosmic-ray/hot-pixel mask (`skyformac/Resources/Models/DeepCRCosmicRayMask.mlpackage`) | [profjsb/deepCR](https://github.com/profjsb/deepCR) commit `2943485` (2024-04-18), `learned_models/mask/ACS-WFC.pth` | BSD-3-Clause (full text in `LICENSE.md`) | Core ML `mlprogram`, 220KB, flexible 64–4096px grayscale input | Weight file (`weights/weight.bin`) SHA-256 `e7cb7dd5be21f8e6d82ae02ed3267e01b90e377368f1d00a16fad3ae2132a956` | Edit Image / Planetary Post-Processing's "AI" section → "Remove Cosmic Rays". Converted via `scripts/models/convert_deepcr.py`, validated against the original PyTorch checkpoint (max per-pixel output difference ≈ 4×10⁻⁵). |
+
+## Bundled data
+
+| File | Size | Source | License | Checksum (SHA-256) |
 | --- | --- | --- | --- | --- |
-| Cosmic-ray/hot-pixel mask (`DeepCRCosmicRayMask.mlpackage`) | [profjsb/deepCR](https://github.com/profjsb/deepCR), commit `2943485` (2024-04-18), `learned_models/mask/ACS-WFC.pth` | BSD-3-Clause (full text in `LICENSE.md`) | Core ML `mlprogram`, ~220KB, flexible 64–4096px grayscale input | Edit Image / Planetary Post-Processing's "AI" section → "Remove Cosmic Rays". `UNet2Sigmoid` (2-level U-Net, Conv-BatchNorm-ReLU blocks), converted via `scripts/models/convert_deepcr.py`; validated against the original PyTorch checkpoint (max per-pixel output difference ≈ 4×10⁻⁵). Weight file SHA-256: `e7cb7dd5be21f8e6d82ae02ed3267e01b90e377368f1d00a16fad3ae2132a956`. |
+| `skyformac/Resources/SkyCatalog/messier.json` | 23,854 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `05e640fe8dc5e6e20beb8b1a6d5066fb69429be41659a63d1c31580ccc975655` |
+| `skyformac/Resources/SkyCatalog/caldwell.json` | 24,584 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `93dc33fa7ea52889262b5b469b67e77114852c876d0e5aa608f5079377a53490` |
+| `skyformac/Resources/SkyCatalog/ngc.json` | 50,597 B | Extracted from Stellarium's bundled DSO catalog | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `42d3cc61ddb96dbfb7bd8153418b693eee1e342685115f240adacbbf27523dc3` |
+| `skyformac/Resources/SkyCatalog/bright_stars.json` | 1,881 B | Hand-curated by this project (~14 stars) | Sky for Mac's own GPLv3 | `1c3fbf8b2bf7c8541a4c014dc036fb00ffce8edebe1280ede1fa8f9e896c6fac` |
+| `skyformac/Resources/AstroCatalog/astro_catalog.sqlite` | 327,680 B | Built by `scripts/build_astro_catalog.py` from Stellarium's DSO catalog + the `bright_stars.json` above | GPLv2 (per `THIRD_PARTY_NOTICES.md`)¹ | `353daf63024573835c56fbe7a9fba911302cce5458778d3af5da58aa257218f9` |
 
-### Researched, not bundled
+¹ `scripts/build_astro_catalog.py`'s own header comment cites the Stellarium data specifically as
+CC-BY-SA-4.0, while `THIRD_PARTY_NOTICES.md` characterizes the whole Stellarium project as GPLv2 —
+these haven't been reconciled against Stellarium's actual per-file licensing; treat this row's
+license as provisional until that's checked.
 
-Three more models were evaluated for the same "AI" section and are **not** included in this
-build — listed here for transparency and so a future contributor doesn't re-research the same
-ground from scratch:
+## Scripts
 
-| Model | License | Why it isn't bundled |
-| --- | --- | --- |
-| [astrodeepnet/diffusion4astro](https://github.com/astrodeepnet/diffusion4astro) (Bayesian deconvolution via a diffusion model) | MIT | No pretrained weights are published by the authors anywhere (repo, releases, or linked storage) — only training code. Converting/bundling this would require training a model from scratch, which is outside what this app's own build process does. |
-| [megvii-research/NAFNet](https://github.com/megvii-research/NAFNet) (CNN-based image restoration) | MIT (own code) + Apache-2.0 (BasicSR-derived portions) | Pretrained weights are hosted on Google Drive/Baidu Netdisk only, both of which block the kind of scripted/headless download this project's build process would need. Architecture itself (plain convs, no attention) is otherwise straightforward to convert. |
-| [JingyunLiang/SwinIR](https://github.com/JingyunLiang/SwinIR) (Swin Transformer-based image restoration) | Apache-2.0 | Weights are fetchable (GitHub Releases), but the architecture's windowed self-attention (shifted windows, relative position bias, attention masks) is a substantially harder coremltools conversion than the other candidates — attempting it without dedicated validation time risked shipping a silently-incorrect conversion, which is worse than not shipping it at all. |
+| Script | Lines | Checksum (SHA-256) | Purpose |
+| --- | --- | --- | --- |
+| `scripts/release.sh` | 106 | `5543909d859ef672af689fd185722ee04db20cde552405bf403adba786dca787` | Builds/signs/notarizes a distributable `.dmg` via a real Developer ID certificate (not used for any release published so far — see `docs/distribution.md`'s "Ad-hoc manual releases" section for what's actually used instead). |
+| `scripts/models/convert_deepcr.py` | 135 | `cca4e777db5681f730159124ee24bc0a5ce308c34ae7cccb668d36932dac5871` | One-time PyTorch → Core ML conversion for the bundled cosmic-ray model (see above). |
+| `scripts/build_astro_catalog.py` | 179 | `9093b8396096f68a3e7aeb0106c2bd4a0b2d7c7dcc60874c1ff725622de96042` | One-time build of `astro_catalog.sqlite` (see above). |
+| `scripts/Fix Gatekeeper Warning.command` | 67 | `a18e984f892af01bc1a37a7d34644140fbb40f4f2e850630a0929761f3badd7e` | Ships *inside* the `.dmg`/`.zip` release assets (not run at build time) — clears the quarantine flag on an ad-hoc-signed, non-notarized build so Gatekeeper allows it to launch. |
 
-`AlessandroGhiotto/deconvolution-Tikhonov` (classical Tikhonov-regularized deconvolution, not a
-neural network) is **not** in this table because nothing from that repository was used — its
-LICENSE file is absent (all rights reserved, no reuse permission granted), so
-`TikhonovDeconvolver.swift` is an original Swift/Accelerate implementation of the well-known
-Tikhonov/Landweber regularization technique itself, not a port of that repo's code.
+## Distributed release artifacts
+
+The latest tagged release's actual built/published assets — rebuilt (and this table updated)
+for every new tag.
+
+| Artifact | Tag | Size | Checksum (SHA-256) |
+| --- | --- | --- | --- |
+| `skyformac-v0.6.0-macOS.dmg` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 12,275,218 B | `26b5a4aa43b5e280d0b592971f9f6fcfa1c43a4cb6df098bb42ada33df3c89cc` |
+| `skyformac-v0.6.0-macOS.zip` | [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0) | 10,484,776 B | `c266a499b0955aaf1b7ad9093d5110cb0b9b546e7434c61946f41f31cd51cb21` |
+
+Both built via the "Ad-hoc manual releases" process in `docs/distribution.md` (ad-hoc codesigning,
+not a notarized Developer ID build); `Casks/skyformac.rb`'s own `sha256` is kept in sync with the
+`.dmg` row above.
 
 ## AI features that call out to a service, not a bundled model
 
-No weights ship for these — they need the user's own local Ollama install or their own API key.
+No weights ship for these — they need the user's own local Ollama install, or their own API key
+for a cloud provider selected in Settings.
 
 | Feature | Provider(s) | Where |
 | --- | --- | --- |
-| Session/project planning, sidebar assistant, tag suggestions, descriptions | Ollama (local), Anthropic Claude, Google Gemini — user-selected in Settings | `skyformac/Projects/OllamaPlanner.swift` and its Anthropic/Gemini counterparts |
+| Session/project planning, sidebar assistant, tag suggestions, descriptions | Ollama (local, any installed model — no fixed version dependency), Anthropic Claude (`claude-3-5-haiku-latest` default), Google Gemini (`gemini-2.0-flash` default) | `skyformac/Projects/OllamaPlanner.swift`, `skyformac/Projects/CloudAITransports.swift` |
 
 ## Keeping this file current
 
 Update this file in the same commit whenever you:
-- Add, upgrade, or remove a vendored binary or bundled model.
+- Add, upgrade, or remove a vendored binary, bundled model, bundled data file, or script.
+- Cut a new release — update the "Distributed release artifacts" table with the new tag's real
+  asset sizes/checksums (`shasum -a 256`).
 - Add a new external service integration (even one with no bundled weights, like an LLM API).
-- Convert and bundle one of the "researched, not bundled" models above — move its row up into
-  "Bundled AI models" with the same detail level (source commit, license, size, SHA-256, purpose).
+- Bump the ZWO SDK, Xcode/Swift version, or any conversion-toolchain version listed above.
