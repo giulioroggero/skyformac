@@ -218,6 +218,7 @@
 		CCF0728B4862D30DFC88CE0F /* StarNetElaborationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 238549CA84E6FC23DEB5860A /* StarNetElaborationService.swift */; };
 		CCF6E0ADA01D388356646E28 /* SharpnessScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E5F55953A1FF914B2B0198 /* SharpnessScorer.swift */; };
 		D0928FCDD5BE2BFBA792C89B /* AssistantChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */; };
+		F372AD70BE1898DFD8A0222C /* ChatBubbleRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34ED0F7B5ED1FDC2BCB21AF7 /* ChatBubbleRendering.swift */; };
 		D46D68D1BDC34143FD29E400 /* DashboardHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */; };
 		D49C73CF5EA2075A596A84D7 /* ObservationTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E58BB115186A5229E3FC09 /* ObservationTimelineView.swift */; };
 		D62AF7B09D4BBCBAE0BB9B40 /* SERWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1268AC14C8DB94BC5F57BE9 /* SERWriterTests.swift */; };
@@ -364,6 +365,7 @@
 		4089426A8BBA2693D11316F9 /* ThumbnailGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGenerator.swift; sourceTree = "<group>"; };
 		52191D54438F4ACFA4CA91B4 /* MediaImporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaImporter.swift; sourceTree = "<group>"; };
 		40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantChatPanel.swift; sourceTree = "<group>"; };
+		34ED0F7B5ED1FDC2BCB21AF7 /* ChatBubbleRendering.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatBubbleRendering.swift; sourceTree = "<group>"; };
 		41A74554FF1E98E12617F232 /* GPUSharpnessScorerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUSharpnessScorerTests.swift; sourceTree = "<group>"; };
 		43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WebcamCaptureEngine.swift; sourceTree = "<group>"; };
 		45347BEB6CA354F563145EEF /* skyformac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = skyformac.entitlements; sourceTree = "<group>"; };
@@ -897,6 +899,7 @@
 				C30CCC1098124C64AE6BBC87 /* GalleryView.swift */,
 				EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */,
 				40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */,
+				34ED0F7B5ED1FDC2BCB21AF7 /* ChatBubbleRendering.swift */,
 				3BB808D7623A429743A9F5AF /* AtlasView.swift */,
 				49D4FD515ECEDE7E301D814D /* AssistantChatPanelController.swift */,
 				7C7A02CC02BDD7A1184DC158 /* LogViewerView.swift */,
@@ -1345,6 +1348,7 @@
 				723E3781A0BDB1023C983253 /* AstronomyKnowledgeBase.swift in Sources */,
 				FC937EB1EE3B6DA870560471 /* ProjectArchive.swift in Sources */,
 				D0928FCDD5BE2BFBA792C89B /* AssistantChatPanel.swift in Sources */,
+				F372AD70BE1898DFD8A0222C /* ChatBubbleRendering.swift in Sources */,
 				7C6D4B3F157385668C70D9B1 /* AtlasView.swift in Sources */,
 				EBB1EA59D75CF501A809E896 /* AssistantChatPanelController.swift in Sources */,
 				DA68ED3148F213FDE739E66D /* StorageSettingsView.swift in Sources */,

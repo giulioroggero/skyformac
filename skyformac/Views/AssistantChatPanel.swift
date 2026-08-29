@@ -248,35 +248,10 @@ struct AssistantChatPanel: View {
         cameraManager.startAssistantMessage(text)
     }
 
-    @ViewBuilder
+    /// See `ChatBubbleRendering` — shared with Edit Image's own AI Assistant bar so the two don't
+    /// keep separate copies of the same Markdown handling/bubble styling.
     private func messageBubble(_ message: AssistantMessage) -> some View {
-        HStack {
-            if message.role == .assistant { Spacer(minLength: 24) }
-            markdownText(message.text)
-                .font(.callout)
-                .padding(8)
-                .background(
-                    message.role == .user ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 8)
-                )
-                .textSelection(.enabled)
-            if message.role == .user { Spacer(minLength: 24) }
-        }
-    }
-
-    /// "Render better the output of AI" — the model routinely answers in Markdown (`**M31**`,
-    /// bullet lists), which a plain `Text(message.text)` showed as literal asterisks/dashes
-    /// instead of real formatting. `.inlineOnlyPreservingWhitespace` renders bold/italic/inline
-    /// code and keeps the model's own line breaks exactly as written (a paragraph of prose with
-    /// a few bolded terms, this app's actual use case) without attempting block-level layout
-    /// (real bulleted lists, headings) that `Text` can't render distinctly anyway. Falls back to
-    /// the raw string on a parse failure — malformed Markdown from a small model shouldn't ever
-    /// make a reply disappear.
-    private func markdownText(_ raw: String) -> Text {
-        if let attributed = try? AttributedString(markdown: raw, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-            return Text(attributed)
-        }
-        return Text(raw)
+        ChatBubbleRendering.bubble(message)
     }
 
     @ViewBuilder

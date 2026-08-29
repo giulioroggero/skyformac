@@ -125,6 +125,8 @@ struct SingleImagePostProcessingView: View {
                 Spacer()
             case .ready:
                 readyBody
+                Divider()
+                aiAssistantBar
             }
         }
         .frame(minWidth: Self.minWindowSize.width, maxWidth: .infinity, minHeight: Self.minWindowSize.height, maxHeight: .infinity)
@@ -184,8 +186,6 @@ struct SingleImagePostProcessingView: View {
                     ImageAdjustmentsControls(adjustments: $adjustments, onChange: scheduleRender)
                     Divider()
                     aiSection
-                    Divider()
-                    aiAssistantSection
                 }
                 .padding(16)
             }
@@ -454,30 +454,33 @@ struct SingleImagePostProcessingView: View {
     /// "AI Enhance" that sends the image to Gemini's own image-generation model and gets a
     /// regenerated one back, watermarked "AI - Sky For Mac" in its bottom-right corner so anyone
     /// looking at it afterward can tell it wasn't purely this app's own filters.
-    private var aiAssistantSection: some View {
+    /// Unlike every other section on this page, this is *not* inside the sidebar's own
+    /// `ScrollView` — it's a persistent bar spanning the full window, below both the preview pane
+    /// and the sidebar, always visible regardless of how far the sidebar's been scrolled. A chat
+    /// input buried at the bottom of a long scrollable sliders list — where it originally
+    /// lived — reads as "this page has no chat at all" rather than "scroll down for it."
+    private var aiAssistantBar: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("AI Assistant").font(.title3.bold())
-            Text("Grounded in the image currently shown in the preview — ask what's wrong with it, or ask it to suggest adjustments. Uses whichever AI provider is set in Settings.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
             if !aiChatMessages.isEmpty {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(aiChatMessages) { message in
-                            aiChatBubble(message)
+                            ChatBubbleRendering.bubble(message)
                         }
                     }
                 }
-                .frame(maxHeight: 180)
+                .frame(maxHeight: 140)
             }
 
             if let pendingAISuggestion {
                 aiSuggestionCard(pendingAISuggestion)
             }
 
-            HStack {
-                TextField("Ask about this image…", text: $aiChatInput, axis: .vertical)
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.secondary)
+                TextField("Ask AI about this image, or ask it to fix something…", text: $aiChatInput, axis: .vertical)
+                    .textFieldStyle(.plain)
                     .lineLimit(1...3)
                     .onSubmit(sendAIChatMessage)
                 Button {
@@ -490,25 +493,27 @@ struct SingleImagePostProcessingView: View {
                     }
                 }
                 .disabled(isAIChatThinking || aiChatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || previewImage == nil)
+                .help("Grounded in the image currently shown in the preview — uses whichever AI provider is set in Settings.")
+                Divider().frame(height: 20)
+                Button {
+                    enhanceWithAI()
+                } label: {
+                    if isEnhancingWithAI {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("AI Enhance", systemImage: "sparkles.rectangle.stack")
+                    }
+                }
+                .disabled(isEnhancingWithAI || isBusyWithAnyAITool || workingImage == nil)
+                .help("Sends this image to Google Gemini's own image-generation model for a genuine AI-regenerated enhancement — not this app's own filters. Requires Gemini selected as the AI provider in Settings (a plain API key, or Vertex AI with a service account). Watermarks the result \"AI - Sky For Mac.\"")
             }
+            .padding(8)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator))
+
             if let aiChatErrorMessage {
                 Text(aiChatErrorMessage).font(.caption).foregroundStyle(.red)
             }
-
-            Divider()
-
-            Button {
-                enhanceWithAI()
-            } label: {
-                if isEnhancingWithAI {
-                    ProgressView().controlSize(.small).frame(maxWidth: .infinity)
-                } else {
-                    Label("AI Enhance (Gemini)", systemImage: "sparkles.rectangle.stack").frame(maxWidth: .infinity)
-                }
-            }
-            .buttonStyle(.bordered)
-            .disabled(isEnhancingWithAI || isBusyWithAnyAITool || workingImage == nil)
-            .help("Sends this image to Google Gemini's own image-generation model for a genuine AI-regenerated enhancement — not this app's own filters. Requires Gemini selected as the AI provider in Settings (a plain API key, or Vertex AI with a service account). Watermarks the result \"AI - Sky For Mac.\"")
             if let aiEnhanceErrorMessage {
                 Text(aiEnhanceErrorMessage).font(.caption).foregroundStyle(.red)
             }
@@ -518,19 +523,8 @@ struct SingleImagePostProcessingView: View {
                     .foregroundStyle(.secondary)
             }
         }
-    }
-
-    @ViewBuilder
-    private func aiChatBubble(_ message: AssistantMessage) -> some View {
-        HStack {
-            if message.role == .assistant { EmptyView() } else { Spacer(minLength: 24) }
-            Text(message.text)
-                .font(.caption)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(message.role == .user ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-            if message.role == .user { EmptyView() } else { Spacer(minLength: 24) }
-        }
+        .padding(12)
+        .background(.thinMaterial)
     }
 
     @ViewBuilder

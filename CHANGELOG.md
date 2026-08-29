@@ -92,6 +92,12 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   are unaffected and keep using the real Keychain.
 
 ### Fixed
+- Edit Image's AI Assistant chat bar was buried at the very bottom of the sidebar's own long
+  scrollable sliders list — easy to miss entirely, reading as "this page has no chat" rather than
+  "scroll down for it." It's now a persistent bar spanning the full window, below both the preview
+  pane and the sidebar, always visible regardless of scroll position — the same place AI Enhance
+  now lives too. Also reuses the sidebar assistant's own Markdown-rendering/bubble styling
+  (`ChatBubbleRendering`, factored out of `AssistantChatPanel`) instead of a separate, plainer copy.
 - Google Gemini's default model, `gemini-3.0-flash`, was never a real model ID — confirmed live:
   Gemini's API rejected every request with "models/gemini-3.0-flash is not found." Defaults to
   `gemini-2.5-flash` now, a real, stable, generally-available model ID.
