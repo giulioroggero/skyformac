@@ -203,14 +203,23 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     case .anthropic:
+                        // Saved on every keystroke, not just `.onSubmit` — a `SecureField` a user
+                        // fills in and then just closes Settings without pressing Return (the
+                        // common case; nothing else here needs Return to "commit") used to leave
+                        // `AppSettings.anthropicAPIKey` `nil` forever, silently sending every
+                        // request with an *empty* `x-api-key` header — confirmed live: Anthropic's
+                        // API rejects that with "x-api-key header is required," which reads like
+                        // the key was never entered at all rather than what was actually wrong.
                         SecureField("API Key", text: $anthropicAPIKeyText, prompt: Text("sk-ant-…"))
                             .onSubmit(applyAIProviderConfiguration)
+                            .onChange(of: anthropicAPIKeyText) { _, _ in applyAIProviderConfiguration() }
                         Text("Requests go to Anthropic's own servers using this key — see [console.anthropic.com](https://console.anthropic.com) to create one. Not stored in this app's own preferences file; kept in the macOS Keychain.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     case .gemini:
                         SecureField("API Key", text: $geminiAPIKeyText, prompt: Text("AIza…"))
                             .onSubmit(applyAIProviderConfiguration)
+                            .onChange(of: geminiAPIKeyText) { _, _ in applyAIProviderConfiguration() }
                         Text("Requests go to Google's own servers using this key — see [aistudio.google.com](https://aistudio.google.com/apikey) to create one. Not stored in this app's own preferences file; kept in the macOS Keychain.")
                             .font(.caption)
                             .foregroundStyle(.secondary)

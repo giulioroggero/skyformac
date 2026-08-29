@@ -79,6 +79,11 @@ actually tagged. Tags on GitHub: [v0.6.0](https://github.com/giulioroggero/skyfo
   view now supports the same pinch-zoom/drag-to-pan as the normal preview, sharing one zoom/pan
   state between both halves — moving one moves the other, and the zoom level survives toggling
   Compare on and off.
+- Settings' Anthropic/Gemini API Key field only saved to the Keychain on pressing Return
+  (`.onSubmit`) — typing a key and simply closing Settings left it unsaved, so the next request
+  went out with an empty key and Anthropic's API reported it as "x-api-key header is required,"
+  which reads like the key was never entered rather than just never saved. Now saves as you type,
+  same as every other Settings field.
 - `scripts/build_astro_catalog.py`'s own header comment (and this changelog/SBOM) incorrectly
   cited Stellarium's bundled DSO catalog data as CC-BY-SA-4.0 — verified against Stellarium's own
   `COPYING`/`CREDITS.md`: the catalog data is GPLv2 (CC-BY-SA-4.0 only applies to specific
