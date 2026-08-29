@@ -21,6 +21,17 @@ actually tagged. Tags on GitHub: [v0.6.1](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Capture Detail's AI chat can now actually see the capture currently on screen (a JPEG snapshot,
+  the same vision-grounding Edit Image's own AI Assistant already does) — "what is that?" gets a
+  real answer instead of only ever guessing from surrounding metadata. Updates automatically when
+  stepping through captures with Previous/Next.
+- The AI Assistant panel gains a genuine full-screen mode (filling the whole window, not opening a
+  second OS window) via a new toggle button in its header, alongside a redesigned empty state: a
+  brand-new conversation shows a centered, 4-line-tall composer instead of the same cramped
+  bottom-anchored input bar a populated conversation uses; the input can always grow past its
+  starting height as a message gets longer.
+- "New Chat" is now its own icon-only button, to the left of the history button, instead of being
+  buried as the first item inside that menu.
 - The sidebar AI assistant's context and action vocabulary is extended beyond project/session/
   camera facts: it now knows the current Live Stack/Lucky Imaging state (method, frame count,
   gain/exposure/mode, GPU vs CPU render path), a summary of the Gallery (elaborated image count,
@@ -34,6 +45,16 @@ actually tagged. Tags on GitHub: [v0.6.1](https://github.com/giulioroggero/skyfo
   `gemini-2.5-flash-image`; now choose among every current Gemini image-generation model
   (`gemini-2.5-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3.1-flash-image`,
   `gemini-3-pro-image`).
+
+### Fixed
+- The sidebar assistant surfaced "the model's reply didn't contain a usable plan — try again, or
+  try a different model" for perfectly normal conversational questions (confirmed live: "what is
+  the best session?") whenever the model ignored the "respond with ONLY a JSON object" instruction
+  and just answered in plain prose. Falls back to showing that plain-text answer directly instead
+  of treating it as an error.
+- The AI Enhance-produced watermark ("AI - Sky For Mac") was too opaque, standing out more than
+  intended against the image. Both the label and its background box are now noticeably more
+  transparent.
 
 ## [0.6.1] - 2026-08-29
 

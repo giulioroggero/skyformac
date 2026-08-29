@@ -27,7 +27,7 @@ enum AIWatermark {
         let font = CTFontCreateWithName("Helvetica-Bold" as CFString, fontSize, nil)
         let attributed = NSAttributedString(string: text, attributes: [
             .font: font,
-            .foregroundColor: CGColor(red: 1, green: 1, blue: 1, alpha: 0.92),
+            .foregroundColor: CGColor(red: 1, green: 1, blue: 1, alpha: 0.55),
         ])
         let line = CTLineCreateWithAttributedString(attributed)
         let bounds = CTLineGetBoundsWithOptions(line, .useOpticalBounds)
@@ -41,7 +41,7 @@ enum AIWatermark {
         // simply the box's own right edge sitting `margin` in from the image's own right edge.
         let boxOrigin = CGPoint(x: CGFloat(image.width) - boxWidth - margin, y: margin)
         let boxRect = CGRect(x: boxOrigin.x, y: boxOrigin.y, width: boxWidth, height: boxHeight)
-        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.5))
+        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.25))
         context.addPath(CGPath(roundedRect: boxRect, cornerWidth: 6, cornerHeight: 6, transform: nil))
         context.fillPath()
 

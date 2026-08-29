@@ -217,6 +217,13 @@ struct CaptureDetailPage: View {
         .focusEffectDisabled()
         .focused($isFocused)
         .onAppear { isFocused = true }
+        // "What is that?" needs the assistant to actually see this capture, not just its
+        // metadata — `.task(id:)` (not `.onAppear`) so this also refreshes when Previous/Next
+        // Capture swaps `capture` without this view itself disappearing and reappearing.
+        .task(id: capture.id) {
+            cameraManager.assistantContextImage = previewImage?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
+        .onDisappear { cameraManager.assistantContextImage = nil }
         .onKeyPress(.leftArrow) {
             guard let onPreviousCapture else { return .ignored }
             onPreviousCapture()

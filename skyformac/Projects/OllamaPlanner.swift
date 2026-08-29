@@ -311,10 +311,26 @@ struct OllamaPlanner: Sendable {
     /// last few turns folded into the prompt as plain text, since `/api/generate` has no
     /// conversation state of its own — the same reasoning `planProject`'s clarification round trip
     /// already relies on.
-    func respond(to message: String, context: String, history: [AssistantMessage]) async throws -> AssistantResponse {
-        let text = try await generate(prompt: Self.assistantPrompt(message: message, context: context, history: history))
-        guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.invalidPlanJSON }
-        guard let raw = try? JSONDecoder().decode(AssistantRawResponse.self, from: json) else { throw OllamaError.invalidPlanJSON }
+    /// `image`, when given (a JPEG-encoded snapshot of whatever's currently on screen — a
+    /// capture, an elaborated image), is attached the same way `discussImage` attaches Edit
+    /// Image's own preview — "what is that?" about a capture needs the assistant to actually see
+    /// it, not just its filename/metadata in `context`. Every cloud transport already threads an
+    /// attached image through (see `AnthropicTransport`/`GeminiTransport`'s own doc comments); a
+    /// local Ollama model needs to itself be vision-capable for this to actually see anything.
+    func respond(to message: String, context: String, history: [AssistantMessage], image: Data? = nil) async throws -> AssistantResponse {
+        let text = try await generate(prompt: Self.assistantPrompt(message: message, context: context, history: history), image: image)
+        guard let json = Self.extractJSONObject(from: text), let raw = try? JSONDecoder().decode(AssistantRawResponse.self, from: json) else {
+            // A model that ignores the "respond with ONLY a JSON object" instruction and just
+            // answers a conversational question in plain prose instead (confirmed live: "what's
+            // my best session?" against a real provider) shouldn't read as a hard failure — the
+            // whole point of the "reply" kind is that a plain answer is a perfectly valid
+            // response, so falling back to treating the raw text as one directly is strictly
+            // friendlier than surfacing "didn't contain a usable plan" for what's actually a
+            // normal answer, just not in the requested envelope.
+            let stripped = Self.stripReasoningPreamble(from: text)
+            guard !stripped.isEmpty else { throw OllamaError.invalidPlanJSON }
+            return .reply(stripped)
+        }
         switch raw.kind {
         case "createProject":
             guard let name = raw.name, !name.isEmpty else { throw OllamaError.invalidPlanJSON }
@@ -572,7 +588,10 @@ struct OllamaPlanner: Sendable {
         }.joined(separator: "\n")
         return """
         You are an assistant embedded in the sidebar of an astrophotography capture app, grounded \
-        in the current page's own context below — use it, don't ignore it.
+        in the current page's own context below — use it, don't ignore it. If an image is \
+        attached, it's a snapshot of whatever's currently on screen (a capture, an elaborated \
+        image) — actually look at it before answering a question like "what is that?" rather than \
+        guessing from the context text alone.
         Context:
         \(context)
         \(historyText.isEmpty ? "" : "Recent conversation:\n\(historyText)\n")\

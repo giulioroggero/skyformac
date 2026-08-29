@@ -425,6 +425,19 @@ struct OllamaPlannerTests {
         #expect(response == .action(.createEquipmentSystem(name: "Backyard Rig"), message: "Create it?"))
     }
 
+    /// The exact bug reported live: asking "what's the best session?" against a real provider got
+    /// back a plain-prose answer (no JSON at all, ignoring the "respond with ONLY a JSON object"
+    /// instruction) and the whole request surfaced as "the model's reply didn't contain a usable
+    /// plan" instead of just showing the answer.
+    @Test func respondFallsBackToAPlainReplyWhenTheModelIgnoresTheJSONFormat() async throws {
+        let transport = FakeTransport()
+        transport.responseText = "Your best session so far looks like the one from last Tuesday — highest-rated and most captures."
+        let planner = OllamaPlanner(transport: transport)
+
+        let response = try await planner.respond(to: "what is the best session?", context: "", history: [])
+        #expect(response == .reply("Your best session so far looks like the one from last Tuesday — highest-rated and most captures."))
+    }
+
     @Test func respondThrowsInvalidPlanJSONForAnUnknownKind() async {
         let transport = FakeTransport()
         transport.responseText = #"{"kind": "doSomethingElse"}"#

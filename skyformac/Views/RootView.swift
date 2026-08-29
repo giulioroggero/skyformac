@@ -46,46 +46,70 @@ struct RootView: View {
         }
     }
 
-    private var mainContent: some View {
-        HStack(spacing: 0) {
-            Group {
-                if cameraManager.activeSession == nil {
-                    // Deliberately NOT `.nightModeTint`ed, unlike most other top-level pages —
-                    // this whole browsing hierarchy (`DashboardHomeView`, `ProjectDetailPane`,
-                    // `SessionDetailPane`, `CaptureDetailPage`, the Observation Timeline) is full
-                    // of actual capture thumbnails/previews, not just chrome. A blanket tint here
-                    // once red-multiplied every one of them — real astrophotos rendering solid
-                    // red while reviewing past sessions, not just the surrounding UI (reported as
-                    // "the capture become red"). `.colorMultiply` has no per-descendant "opt out"
-                    // (unlike `PreviewView`'s live image, which is simply never placed under a
-                    // tinted ancestor in the first place) — retinting only this hierarchy's own
-                    // chrome would need tint applied section-by-section throughout every one of
-                    // those views, not one modifier here, so for now this page just stays
-                    // untinted rather than risk the same bug again.
-                    ProjectsBrowserView(cameraManager: cameraManager)
-                } else {
-                    ContentView()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    /// Whether the docked assistant panel should take over the *entire* main content area right
+    /// now — see `CameraManager.isAssistantFullScreen`'s own doc comment. Never true while
+    /// detached/minimized (those have their own separate presentations already) or mid-session
+    /// (the hard "assistant is detached-only in camera mode" backstop `mainContent`'s own docked-
+    /// sidebar condition already relies on).
+    private var isShowingAssistantFullScreen: Bool {
+        cameraManager.isAssistantPanelVisible && cameraManager.isAssistantFullScreen
+            && !cameraManager.isAssistantDetached && !cameraManager.isAssistantMinimized
+            && cameraManager.activeSession == nil
+    }
 
-            // "A chat on the right bar of all pages" — sits alongside whichever of the two above
-            // is showing, rather than being reimplemented per page, so it's one continuous
-            // conversation regardless of where the user navigates. The `activeSession == nil`
-            // check is a hard backstop for "in camera mode the AI is only detached" — `CameraManager
-            // .syncAssistantDockStateForCameraMode()` already forces `isAssistantDetached` true the
-            // moment a session starts, but this guarantees the sidebar copy never renders even if
-            // that state were ever somehow out of sync.
-            if cameraManager.isAssistantPanelVisible && !cameraManager.isAssistantDetached && cameraManager.activeSession == nil {
-                if cameraManager.isAssistantMinimized {
-                    Divider()
-                    AssistantMinimizedRail(cameraManager: cameraManager)
-                        .nightModeTint(cameraManager)
-                } else {
-                    AssistantResizeHandle(width: $assistantPanelWidth)
-                    AssistantChatPanel(cameraManager: cameraManager)
-                        .frame(width: assistantPanelWidth)
-                        .nightModeTint(cameraManager)
+    private var mainContent: some View {
+        Group {
+            if isShowingAssistantFullScreen {
+                // "Enlarge" the assistant to fill the whole window instead of opening a second OS
+                // window — see `CameraManager.isAssistantFullScreen`'s own doc comment for why.
+                AssistantChatPanel(cameraManager: cameraManager)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .nightModeTint(cameraManager)
+            } else {
+                HStack(spacing: 0) {
+                    Group {
+                        if cameraManager.activeSession == nil {
+                            // Deliberately NOT `.nightModeTint`ed, unlike most other top-level
+                            // pages — this whole browsing hierarchy (`DashboardHomeView`,
+                            // `ProjectDetailPane`, `SessionDetailPane`, `CaptureDetailPage`, the
+                            // Observation Timeline) is full of actual capture thumbnails/previews,
+                            // not just chrome. A blanket tint here once red-multiplied every one
+                            // of them — real astrophotos rendering solid red while reviewing past
+                            // sessions, not just the surrounding UI (reported as "the capture
+                            // become red"). `.colorMultiply` has no per-descendant "opt out"
+                            // (unlike `PreviewView`'s live image, which is simply never placed
+                            // under a tinted ancestor in the first place) — retinting only this
+                            // hierarchy's own chrome would need tint applied section-by-section
+                            // throughout every one of those views, not one modifier here, so for
+                            // now this page just stays untinted rather than risk the same bug
+                            // again.
+                            ProjectsBrowserView(cameraManager: cameraManager)
+                        } else {
+                            ContentView()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    // "A chat on the right bar of all pages" — sits alongside whichever of the two
+                    // above is showing, rather than being reimplemented per page, so it's one
+                    // continuous conversation regardless of where the user navigates. The
+                    // `activeSession == nil` check is a hard backstop for "in camera mode the AI
+                    // is only detached" — `CameraManager.syncAssistantDockStateForCameraMode()`
+                    // already forces `isAssistantDetached` true the moment a session starts, but
+                    // this guarantees the sidebar copy never renders even if that state were ever
+                    // somehow out of sync.
+                    if cameraManager.isAssistantPanelVisible && !cameraManager.isAssistantDetached && cameraManager.activeSession == nil {
+                        if cameraManager.isAssistantMinimized {
+                            Divider()
+                            AssistantMinimizedRail(cameraManager: cameraManager)
+                                .nightModeTint(cameraManager)
+                        } else {
+                            AssistantResizeHandle(width: $assistantPanelWidth)
+                            AssistantChatPanel(cameraManager: cameraManager)
+                                .frame(width: assistantPanelWidth)
+                                .nightModeTint(cameraManager)
+                        }
+                    }
                 }
             }
         }

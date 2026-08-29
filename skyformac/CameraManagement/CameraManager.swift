@@ -374,6 +374,23 @@ final class CameraManager {
     var isAssistantDetached = AppSettings.isAssistantDetached {
         didSet { AppSettings.isAssistantDetached = isAssistantDetached }
     }
+    /// When `true` (docked mode only — meaningless while detached into its own floating window),
+    /// `RootView` shows the assistant panel filling the *entire* main content area instead of a
+    /// narrow sidebar strip, hiding whatever page was showing underneath — "enlarge" as a real
+    /// full-window mode, like Claude Code's own chat panel expand button, rather than opening a
+    /// second OS window (`isAssistantDetached`'s own floating `NSPanel`, a `nonactivatingPanel`
+    /// with a fixed off-center screen position — confirmed live, easy to mistake for the chat
+    /// having just closed, since the sidebar copy vanishes and the replacement panel doesn't
+    /// visibly take over anywhere obvious). Deliberately not persisted (`AppSettings`) — a
+    /// transient view state, not a preference, the same "starts fresh every launch" treatment
+    /// `isLiveStackingEnabled` gets for the identical reason.
+    var isAssistantFullScreen = false
+    /// A snapshot of whatever's currently on screen — set by whichever page is actually showing
+    /// an image (`CaptureDetailPage`, for now) so "what is that?" can be answered by actually
+    /// looking at it, the same vision-grounding `SingleImagePostProcessingView`'s own AI Assistant
+    /// already does for Edit Image. `nil` on any page with nothing relevant to show (Home,
+    /// Equipment, a `.recording`/`.serVideo` capture with no single representative frame).
+    var assistantContextImage: CGImage?
     var isAssistantThinking = false
     let aiChatLibrary: AIChatLibrary
     /// The chat currently shown in `assistantMessages` — `nil` means "not saved yet," which is
@@ -436,7 +453,8 @@ final class CameraManager {
         isAssistantThinking = true
         defer { isAssistantThinking = false }
         do {
-            let response = try await ollamaPlanner.respond(to: trimmed, context: assistantContext(), history: assistantMessages)
+            let image = assistantContextImage.flatMap { AIVisionImageEncoder.jpegData(from: $0) }
+            let response = try await ollamaPlanner.respond(to: trimmed, context: assistantContext(), history: assistantMessages, image: image)
             switch response {
             case .reply(let replyText):
                 assistantMessages.append(AssistantMessage(role: .assistant, text: replyText))
