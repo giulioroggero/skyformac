@@ -31,6 +31,13 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   astronomy. It now anchors on the evening the picked moment's night actually belongs to.
 
 ### Added
+- Sky Map dots are now clickable (opens the same object detail sheet a list row does), show the
+  object's name on hover, show altitude-ring degree labels, and the whole dial can be zoomed
+  (pinch, or the new +/-/Reset controls) to separate dots that are crowded together near the
+  horizon.
+- The object detail sheet now has the same "New Project…"/"Add Session to Existing Project…"/
+  "Launch Capture for Existing Session…" actions a list row's own menu offers, for a deep-sky
+  catalog object — acting on an object no longer requires closing the sheet to find its row again.
 - "What to See"'s "Time of Day" slider now spans a full 48 hours (was 24), centered on 23:59 of
   the picked date — both the night before and the night after are reachable without re-picking a
   date, and each night still reads as one contiguous stretch on its own half of the track.

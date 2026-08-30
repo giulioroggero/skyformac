@@ -6,6 +6,19 @@ import SwiftUI
 /// (`AppSettings.isOnlineObjectInfoEnabled`) and one-tap AstroBin/Reddit searches (a browser
 /// hand-off, not a request this app makes itself, so those work regardless of that toggle).
 struct SkyVisibilityObjectDetailView: View {
+    /// The same three actions a "What to See" row's own `Menu` offers — surfaced here too so
+    /// acting on an object doesn't require closing the detail sheet first to find its row again.
+    /// `nil` when there's nothing a catalog action could apply to (a planet/the Moon isn't a fixed
+    /// `SkyCatalogObject`, and `SkyObjectLinkView`'s call site — a session's own planned-objects
+    /// list, say — has no `CameraManager` to act through at all).
+    struct DetailActions {
+        var canAddToSession: Bool
+        var canLaunchCapture: Bool
+        var onNewProject: () -> Void
+        var onAddToSession: () -> Void
+        var onLaunchCapture: () -> Void
+    }
+
     let title: String
     let subtitle: String
     let symbolName: String
@@ -15,6 +28,7 @@ struct SkyVisibilityObjectDetailView: View {
     /// `nil` for planets/the Moon — see this file's own doc comment on why an SDSS cutout doesn't
     /// apply to those.
     let skyCoordinates: (raDegrees: Double, decDegrees: Double)?
+    var actions: DetailActions?
     var onDismiss: () -> Void
 
     @State private var wikipediaSummary: WikipediaLookupService.Summary?
@@ -44,6 +58,16 @@ struct SkyVisibilityObjectDetailView: View {
                         .frame(width: 56, height: 56)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if let actions {
+                        PageSection(title: "Actions") {
+                            Button("New Project…", action: actions.onNewProject)
+                            Button("Add Session to Existing Project…", action: actions.onAddToSession)
+                                .disabled(!actions.canAddToSession)
+                            Button("Launch Capture for Existing Session…", action: actions.onLaunchCapture)
+                                .disabled(!actions.canLaunchCapture)
                         }
                     }
 

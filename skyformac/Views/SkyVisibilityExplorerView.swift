@@ -75,6 +75,9 @@ struct SkyVisibilityExplorerView: View {
         /// `nil` for planets/the Moon — a real-sky-survey cutout is meaningless for a body that
         /// moves, and SDSS's own imagery doesn't cover the solar system anyway.
         let skyCoordinates: (raDegrees: Double, decDegrees: Double)?
+        /// `nil` for planets/the Moon — there's no fixed `SkyCatalogObject` to hang "New Project"/
+        /// "Add to Session"/"Launch Capture" off of for something that isn't a catalog entry.
+        let catalogObject: SkyCatalogObject?
     }
 
     private enum SortField: String, CaseIterable, Identifiable {
@@ -269,20 +272,24 @@ struct SkyVisibilityExplorerView: View {
         let objectDots = displayedResults.map { result in
             SkyCompassView.Dot(
                 id: result.id,
+                displayName: result.object.displayName,
                 azimuthDegrees: currentAzimuth(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees),
                 altitudeDegrees: currentAltitude(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees),
                 magnitude: result.object.magnitude,
-                isClearOfHorizon: isClearOfHorizon(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees)
+                isClearOfHorizon: isClearOfHorizon(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees),
+                onSelect: { openDetail(for: result) }
             )
         }
         let planetDots = planetResults.compactMap { planet -> SkyCompassView.Dot? in
             guard let position = planetEquatorial(planet) else { return nil }
             return SkyCompassView.Dot(
                 id: planet.id,
+                displayName: planet.name,
                 azimuthDegrees: currentAzimuth(raDegrees: position.raDegrees, decDegrees: position.decDegrees),
                 altitudeDegrees: currentAltitude(raDegrees: position.raDegrees, decDegrees: position.decDegrees),
                 magnitude: planet.magnitude,
-                isClearOfHorizon: isClearOfHorizon(raDegrees: position.raDegrees, decDegrees: position.decDegrees)
+                isClearOfHorizon: isClearOfHorizon(raDegrees: position.raDegrees, decDegrees: position.decDegrees),
+                onSelect: { openDetail(for: planet) }
             )
         }
         return objectDots + planetDots
@@ -438,6 +445,7 @@ struct SkyVisibilityExplorerView: View {
                 title: subject.title, subtitle: subject.subtitle, symbolName: subject.symbolName,
                 riseTime: subject.riseTime, peakTime: subject.peakTime, setTime: subject.setTime,
                 skyCoordinates: subject.skyCoordinates,
+                actions: subject.catalogObject.map { object in detailActions(for: object) },
                 onDismiss: { detailSubject = nil }
             )
         }
@@ -447,6 +455,44 @@ struct SkyVisibilityExplorerView: View {
         cameraManager.projectsLibrary.activeProjects.flatMap { project in
             project.sessions.map { SkyObjectSessionCandidate(project: project, session: $0) }
         }
+    }
+
+    private func openDetail(for result: SkyVisibilityCalculator.Result) {
+        detailSubject = DetailSubject(
+            title: result.object.displayName,
+            subtitle: "\(result.object.friendlyTypeName) · magnitude \(String(format: "%.1f", result.magnitudeOrPlaceholder))",
+            symbolName: result.object.symbolName,
+            riseTime: result.riseTime, peakTime: result.timeOfMaxAltitude, setTime: result.setTime,
+            skyCoordinates: (result.object.raDegrees, result.object.decDegrees), catalogObject: result.object
+        )
+    }
+
+    /// The same three actions `resultRow`'s own `Menu` offers, wired for the detail sheet instead
+    /// — each dismisses the detail sheet first, since "Add to Session"/"Launch Capture" present
+    /// their own sheet off `addingToProjectObject`/`launchingCaptureObject`, and only one sheet can
+    /// be presented from this view at a time.
+    private func detailActions(for object: SkyCatalogObject) -> SkyVisibilityObjectDetailView.DetailActions {
+        SkyVisibilityObjectDetailView.DetailActions(
+            canAddToSession: !cameraManager.projectsLibrary.activeProjects.isEmpty,
+            canLaunchCapture: !sessionCandidates.isEmpty,
+            onNewProject: {
+                detailSubject = nil
+                var project = Project.newProject(name: object.displayName, goal: "Observe \(object.displayName)")
+                let session = Session.newSession(name: object.displayName, goal: "Observe \(object.displayName)", plannedObjects: [object.displayName])
+                project.sessions = [session]
+                if (try? cameraManager.projectsLibrary.save(project)) != nil {
+                    onCreateProject(project)
+                }
+            },
+            onAddToSession: {
+                detailSubject = nil
+                addingToProjectObject = object
+            },
+            onLaunchCapture: {
+                detailSubject = nil
+                launchingCaptureObject = object
+            }
+        )
     }
 
     @ViewBuilder
@@ -473,14 +519,16 @@ struct SkyVisibilityExplorerView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .onTapGesture {
-            detailSubject = DetailSubject(
-                title: planet.name, subtitle: "Solar system body",
-                symbolName: planet.name == "Moon" ? "moon.fill" : "circle.fill",
-                riseTime: planet.riseTime, peakTime: planet.timeOfMaxAltitude, setTime: planet.setTime,
-                skyCoordinates: nil
-            )
-        }
+        .onTapGesture { openDetail(for: planet) }
+    }
+
+    private func openDetail(for planet: SkyVisibilityCalculator.PlanetResult) {
+        detailSubject = DetailSubject(
+            title: planet.name, subtitle: "Solar system body",
+            symbolName: planet.name == "Moon" ? "moon.fill" : "circle.fill",
+            riseTime: planet.riseTime, peakTime: planet.timeOfMaxAltitude, setTime: planet.setTime,
+            skyCoordinates: nil, catalogObject: nil
+        )
     }
 
     /// A compact altitude-vs-time sparkline for one result row — time on the x-axis, altitude on
@@ -580,15 +628,7 @@ struct SkyVisibilityExplorerView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .onTapGesture {
-            detailSubject = DetailSubject(
-                title: result.object.displayName,
-                subtitle: "\(result.object.friendlyTypeName) · magnitude \(String(format: "%.1f", result.magnitudeOrPlaceholder))",
-                symbolName: result.object.symbolName,
-                riseTime: result.riseTime, peakTime: result.timeOfMaxAltitude, setTime: result.setTime,
-                skyCoordinates: (result.object.raDegrees, result.object.decDegrees)
-            )
-        }
+        .onTapGesture { openDetail(for: result) }
     }
 
     /// The "sort by A, then by B" + "filter by type/magnitude/direction/my horizon" controls for
@@ -927,10 +967,12 @@ private struct LaunchCaptureForSkyObjectSheet: View {
 private struct SkyCompassView: View {
     struct Dot: Identifiable {
         let id: String
+        let displayName: String
         let azimuthDegrees: Double
         let altitudeDegrees: Double
         let magnitude: Double
         let isClearOfHorizon: Bool
+        var onSelect: () -> Void
     }
 
     let dots: [Dot]
@@ -939,51 +981,137 @@ private struct SkyCompassView: View {
 
     private let diameter: CGFloat = 320
     private let margin: CGFloat = 26
+    private let minZoom: CGFloat = 1
+    private let maxZoom: CGFloat = 3
+
+    @State private var baseZoom: CGFloat = 1
+    @GestureState private var gestureZoom: CGFloat = 1
+    @State private var hoveredDotID: String?
+
+    private var zoom: CGFloat { min(max(baseZoom * gestureZoom, minZoom), maxZoom) }
 
     var body: some View {
-        ZStack {
-            Canvas { context, size in
-                let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                let radius = min(size.width, size.height) / 2 - margin
+        VStack(spacing: 6) {
+            ZStack {
+                Canvas { context, size in
+                    let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                    let radius = min(size.width, size.height) / 2 - margin
 
-                for altitude in stride(from: 0.0, through: 90.0, by: 30.0) {
-                    let r = radius * CGFloat(1 - altitude / 90)
-                    context.stroke(
-                        Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)),
-                        with: .color(.secondary.opacity(0.25))
-                    )
+                    for altitude in stride(from: 0.0, through: 90.0, by: 30.0) {
+                        let r = radius * CGFloat(1 - altitude / 90)
+                        context.stroke(
+                            Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)),
+                            with: .color(.secondary.opacity(0.25))
+                        )
+                        let labelPoint = CGPoint(x: center.x + 4, y: center.y - r)
+                        context.draw(
+                            Text("\(Int(altitude))°").font(.caption2).foregroundStyle(.secondary),
+                            at: labelPoint, anchor: .leading
+                        )
+                    }
+
+                    context.fill(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.18)))
+                    context.stroke(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.65)), lineWidth: 1.5)
+
+                    for direction in CardinalDirection.allCases {
+                        let point = pointOnDial(center: center, radius: radius + margin * 0.55, azimuthDegrees: direction.azimuthDegrees, altitudeDegrees: 0)
+                        context.draw(
+                            Text(direction.rawValue).font(.caption.bold()).foregroundStyle(.secondary),
+                            at: point
+                        )
+                    }
+
+                    for dot in dots {
+                        let point = pointOnDial(center: center, radius: radius, azimuthDegrees: dot.azimuthDegrees, altitudeDegrees: dot.altitudeDegrees)
+                        let diameter = dotDiameter(forMagnitude: dot.magnitude)
+                        let rect = CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2, width: diameter, height: diameter)
+                        let isHovered = dot.id == hoveredDotID
+                        context.fill(
+                            Path(ellipseIn: rect),
+                            with: .color(dot.isClearOfHorizon ? .yellow : .secondary.opacity(0.5))
+                        )
+                        if isHovered {
+                            context.stroke(Path(ellipseIn: rect.insetBy(dx: -2, dy: -2)), with: .color(.white), lineWidth: 1.5)
+                        }
+                    }
                 }
+                .frame(width: diameter, height: diameter)
+                .background(Circle().fill(Color.black.opacity(0.85)))
 
-                context.fill(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.18)))
-                context.stroke(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.65)), lineWidth: 1.5)
-
-                for direction in CardinalDirection.allCases {
-                    let point = pointOnDial(center: center, radius: radius + margin * 0.55, azimuthDegrees: direction.azimuthDegrees, altitudeDegrees: 0)
-                    context.draw(
-                        Text(direction.rawValue).font(.caption.bold()).foregroundStyle(.secondary),
-                        at: point
-                    )
-                }
-
-                for dot in dots {
-                    let point = pointOnDial(center: center, radius: radius, azimuthDegrees: dot.azimuthDegrees, altitudeDegrees: dot.altitudeDegrees)
-                    let diameter = dotDiameter(forMagnitude: dot.magnitude)
-                    let rect = CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2, width: diameter, height: diameter)
-                    context.fill(Path(ellipseIn: rect), with: .color(dot.isClearOfHorizon ? .yellow : .secondary.opacity(0.5)))
-                }
-            }
-            .frame(width: diameter, height: diameter)
-            .background(Circle().fill(Color.black.opacity(0.85)))
-
-            if isEditable {
                 GeometryReader { proxy in
-                    ForEach(CardinalDirection.allCases) { direction in
-                        horizonHandle(direction: direction, in: proxy.size)
+                    ForEach(dots) { dot in
+                        dotHitTarget(dot, in: proxy.size)
+                    }
+                    if isEditable {
+                        ForEach(CardinalDirection.allCases) { direction in
+                            horizonHandle(direction: direction, in: proxy.size)
+                        }
                     }
                 }
             }
+            .frame(width: diameter, height: diameter)
+            .scaleEffect(zoom, anchor: .center)
+            .clipped()
+            .gesture(
+                MagnificationGesture()
+                    .updating($gestureZoom) { value, state, _ in state = value }
+                    .onEnded { value in baseZoom = min(max(baseZoom * value, minZoom), maxZoom) }
+            )
+            .overlay(alignment: .top) {
+                if let hoveredDotID, let hovered = dots.first(where: { $0.id == hoveredDotID }) {
+                    Text(hovered.displayName)
+                        .font(.caption.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.black.opacity(0.75), in: Capsule())
+                        .foregroundStyle(.white)
+                        .padding(.top, 4)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    baseZoom = max(baseZoom - 0.5, minZoom)
+                } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                }
+                .disabled(baseZoom <= minZoom)
+                Button("Reset Zoom") { baseZoom = 1 }
+                    .disabled(baseZoom == 1)
+                Button {
+                    baseZoom = min(baseZoom + 0.5, maxZoom)
+                } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .disabled(baseZoom >= maxZoom)
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
         }
-        .frame(width: diameter, height: diameter)
+    }
+
+    /// An invisible, generously-sized tap/hover target centered on the dot's own drawn position —
+    /// the actual painted dot can be just a few points across (a dim, high-magnitude object), too
+    /// small to reliably hit or hover on its own.
+    @ViewBuilder
+    private func dotHitTarget(_ dot: Dot, in size: CGSize) -> some View {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let radius = min(size.width, size.height) / 2 - margin
+        let point = pointOnDial(center: center, radius: radius, azimuthDegrees: dot.azimuthDegrees, altitudeDegrees: dot.altitudeDegrees)
+        let targetSize = max(dotDiameter(forMagnitude: dot.magnitude) + 12, 18)
+        Circle()
+            .fill(Color.clear)
+            .frame(width: targetSize, height: targetSize)
+            .contentShape(Circle())
+            .position(point)
+            .onTapGesture { dot.onSelect() }
+            .onHover { hovering in
+                if hovering {
+                    hoveredDotID = dot.id
+                } else if hoveredDotID == dot.id {
+                    hoveredDotID = nil
+                }
+            }
     }
 
     private func horizonPath(center: CGPoint, radius: CGFloat) -> Path {
