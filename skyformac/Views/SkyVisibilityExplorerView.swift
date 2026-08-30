@@ -31,9 +31,11 @@ struct SkyVisibilityExplorerView: View {
     /// re-pointed when the user picks a genuinely different date (the `DatePicker`) or hits
     /// "Tonight" — never by the slider's own dragging, which only ever moves `date`'s time.
     @State private var sliderAnchorDay: Date
+    @State private var isDraggingTime = false
+    @State private var sliderDragValue: Double = 24
+    @State private var sliderCommitTask: Task<Void, Never>?
     @State private var latitudeText: String
     @State private var longitudeText: String
-    @State private var minAltitude: Double = 20
     @State private var results: [SkyVisibilityCalculator.Result] = []
     @State private var isCalculating = false
     @State private var hasCalculated = false
@@ -49,6 +51,7 @@ struct SkyVisibilityExplorerView: View {
     @State private var isHorizonClearanceFilterEnabled = false
     @State private var horizonProfile: HorizonProfile = AppSettings.horizonProfile
     @State private var isEditingHorizon = false
+    @State private var skyMapWindowController: DetachedContentWindowController?
     @State private var fovWidthArcmin: Double = AppSettings.fieldOfViewWidthArcmin
     @State private var fovHeightArcmin: Double = AppSettings.fieldOfViewHeightArcmin
     @State private var isFieldOfViewFilterEnabled = false
@@ -132,6 +135,44 @@ struct SkyVisibilityExplorerView: View {
             get: { date.timeIntervalSince(sliderCenter) / 3600 + 24 },
             set: { newValue in date = sliderCenter.addingTimeInterval((newValue - 24) * 3600) }
         )
+    }
+
+    /// The slider's own on-screen position and the "committed" `date` everything else (per-row
+    /// altitude readings, the Sky Map, the debounced recalculation) reacts to are deliberately
+    /// decoupled: dragging moves `sliderDragValue` immediately (so the thumb and its time label
+    /// feel responsive), but `date` itself — and everything expensive that depends on it — only
+    /// updates when the drag is released or the thumb sits still for a full second. Without this,
+    /// every single tick of a drag would re-render every result row's chart and the whole Sky Map.
+    private var timeSliderBinding: Binding<Double> {
+        Binding(
+            get: { isDraggingTime ? sliderDragValue : timeOfDayBinding.wrappedValue },
+            set: { newValue in
+                isDraggingTime = true
+                sliderDragValue = newValue
+                scheduleSliderCommit()
+            }
+        )
+    }
+
+    /// What the slider's own time label should show — the live drag position while actively
+    /// scrubbing (immediate feedback), the real committed `date` otherwise.
+    private var displayedSliderDate: Date {
+        isDraggingTime ? sliderCenter.addingTimeInterval((sliderDragValue - 24) * 3600) : date
+    }
+
+    private func scheduleSliderCommit() {
+        sliderCommitTask?.cancel()
+        sliderCommitTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            commitSliderValue()
+        }
+    }
+
+    private func commitSliderValue() {
+        sliderCommitTask?.cancel()
+        timeOfDayBinding.wrappedValue = sliderDragValue
+        isDraggingTime = false
     }
 
     /// The `DatePicker`'s own binding — writing through this (rather than `$date` directly) is
@@ -283,6 +324,61 @@ struct SkyVisibilityExplorerView: View {
         }
     }
 
+    private struct SensorSizePreset: Identifiable {
+        let id: String
+        let displayName: String
+        let widthMM: Double
+        let heightMM: Double
+    }
+
+    /// Physical sensor dimensions for the cameras already in `EquipmentCatalog` — reusing those
+    /// same names (rather than inventing an unrelated list) since they're what a user setting this
+    /// up is likely to actually recognize, even though `EquipmentItem` itself doesn't store sensor
+    /// size and this preset list isn't read back from a saved `EquipmentSystem`. Widely-published
+    /// nominal sensor sizes, not exact-to-the-micron datasheet values — plenty for "roughly what
+    /// field of view would this give me."
+    private static let sensorSizePresets: [SensorSizePreset] = [
+        SensorSizePreset(id: "camera.zwo.asi678mc", displayName: "ZWO ASI678MC (1/1.8″)", widthMM: 7.4, heightMM: 5.3),
+        SensorSizePreset(id: "camera.zwo.asi294mc", displayName: "ZWO ASI294MC Pro (4/3″)", widthMM: 19.1, heightMM: 13.0),
+        SensorSizePreset(id: "camera.zwo.asi224mc", displayName: "ZWO ASI224MC (1/3″)", widthMM: 4.8, heightMM: 3.6),
+        SensorSizePreset(id: "camera.qhy.qhy268m", displayName: "QHYCCD QHY268M (APS-C)", widthMM: 23.5, heightMM: 15.7),
+        SensorSizePreset(id: "camera.canon.eosra", displayName: "Canon EOS Ra (Full Frame)", widthMM: 36.0, heightMM: 24.0),
+    ]
+
+    private struct EyepiecePreset: Identifiable {
+        let id: String
+        let displayName: String
+        let focalLengthMM: Double
+        let apparentFieldDegrees: Double
+    }
+
+    /// Same reasoning as `sensorSizePresets`, for the eyepieces already in `EquipmentCatalog` —
+    /// published nominal apparent field of view per model (Plössls are conventionally ~50°, a
+    /// named "82°" eyepiece is exactly that by design, X-Cel LX is a ~60°-class design).
+    private static let eyepiecePresets: [EyepiecePreset] = [
+        EyepiecePreset(id: "eyepiece.televue.plossl25", displayName: "Tele Vue Plössl 25mm", focalLengthMM: 25, apparentFieldDegrees: 50),
+        EyepiecePreset(id: "eyepiece.explorescientific.82-14", displayName: "Explore Scientific 82° 14mm", focalLengthMM: 14, apparentFieldDegrees: 82),
+        EyepiecePreset(id: "eyepiece.celestron.xcel7", displayName: "Celestron X-Cel LX 7mm", focalLengthMM: 7, apparentFieldDegrees: 60),
+    ]
+
+    /// Sensor width/height projected through a telescope's focal length — the standard small-angle
+    /// approximation (3438 arcmin per radian) astrophotography FOV calculators use.
+    private func applyCameraFieldOfView(sensor: SensorSizePreset, telescope: TelescopeProfile) {
+        let arcminPerMM = 3438.0 / telescope.focalLengthMillimeters
+        fovWidthArcmin = (sensor.widthMM * arcminPerMM).rounded()
+        fovHeightArcmin = (sensor.heightMM * arcminPerMM).rounded()
+    }
+
+    /// An eyepiece's true field is its own apparent field divided by the magnification it gives on
+    /// this telescope (telescope focal length ÷ eyepiece focal length) — a circular field, so width
+    /// and height both get the same value rather than a true rectangular frame.
+    private func applyEyepieceFieldOfView(eyepiece: EyepiecePreset, telescope: TelescopeProfile) {
+        let magnification = telescope.focalLengthMillimeters / eyepiece.focalLengthMM
+        let trueFieldArcmin = (eyepiece.apparentFieldDegrees / magnification) * 60
+        fovWidthArcmin = trueFieldArcmin.rounded()
+        fovHeightArcmin = trueFieldArcmin.rounded()
+    }
+
     /// The Moon/planet's RA/Dec right now — pulled out since `altitudeNowText(planet:)` and the
     /// sky-map dots both need a planet's live position, not just the peak-tonight snapshot
     /// `PlanetResult` itself stores.
@@ -295,15 +391,6 @@ struct SkyVisibilityExplorerView: View {
             return (equatorial.rightAscensionDegrees, equatorial.declinationDegrees)
         }
         return nil
-    }
-
-    /// Whether every compass direction has the same obstruction altitude — the default, unedited
-    /// `HorizonProfile.clear` (everything at 0°) counts, and so would any other flat value, but the
-    /// moment one direction differs from the rest, a single "Minimum Altitude" number can no
-    /// longer represent what the profile already says more precisely.
-    private var isHorizonProfileUniform: Bool {
-        let rounded = horizonProfile.altitudesDegrees.map { ($0 * 10).rounded() / 10 }
-        return Set(rounded).count <= 1
     }
 
     /// Every filtered deep-sky result plus every planet/Moon result, projected onto the sky-map
@@ -403,15 +490,9 @@ struct SkyVisibilityExplorerView: View {
                 }
 
                 if hasCalculated {
-                    PageSection(title: "Sky Map") {
-                        skyMapSection
-                    }
-                }
-
-                if hasCalculated {
                     PageSection(title: "Planets & Moon Tonight") {
                         if planetResults.isEmpty {
-                            Text("No planets or the Moon clear \(Int(minAltitude))° tonight from this location.")
+                            Text("No planets or the Moon clear your horizon tonight from this location.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                         } else {
@@ -424,9 +505,9 @@ struct SkyVisibilityExplorerView: View {
                 }
 
                 if hasCalculated {
-                    PageSection(title: "\(results.count) Object\(results.count == 1 ? "" : "s") Above \(Int(minAltitude))°") {
+                    PageSection(title: "\(results.count) Object\(results.count == 1 ? "" : "s")") {
                         if results.isEmpty {
-                            Text("Nothing in the catalog clears that altitude on this night from this location — try a lower minimum altitude or a different date.")
+                            Text("Nothing in the catalog clears your horizon on this night from this location — adjust your horizon profile in the Sky Map, or try a different date.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                         } else {
@@ -435,8 +516,22 @@ struct SkyVisibilityExplorerView: View {
                                 .frame(width: 260)
                                 .padding(.bottom, 4)
 
-                            sortAndFilterControls
-                                .padding(.bottom, 4)
+                            // The Sky Map sits beside the filters rather than in its own section
+                            // further down the page — it's itself a filter (and an editor for the
+                            // horizon profile the filters/scan both use), not just an illustration.
+                            HStack(alignment: .top, spacing: 24) {
+                                sortAndFilterControls
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Sky Map").font(.subheadline.bold())
+                                        Spacer()
+                                        Button("Detach…") { openSkyMapWindow() }
+                                    }
+                                    skyMapSection
+                                }
+                            }
+                            .padding(.bottom, 4)
 
                             ForEach(displayedResults) { result in
                                 resultRow(result)
@@ -453,7 +548,10 @@ struct SkyVisibilityExplorerView: View {
         .onChange(of: date) { _, _ in scheduleRecalculation() }
         .onChange(of: latitudeText) { _, _ in scheduleRecalculation() }
         .onChange(of: longitudeText) { _, _ in scheduleRecalculation() }
-        .onChange(of: minAltitude) { _, _ in scheduleRecalculation() }
+        .onChange(of: horizonProfile) { _, newValue in
+            AppSettings.horizonProfile = newValue
+            scheduleRecalculation()
+        }
         .sheet(item: $addingToProjectObject) { object in
             AddSkyObjectToProjectSheet(candidates: cameraManager.projectsLibrary.activeProjects) { project in
                 let session = Session.newSession(name: object.displayName, goal: "Observe \(object.displayName)", plannedObjects: [object.displayName])
@@ -675,10 +773,13 @@ struct SkyVisibilityExplorerView: View {
                         .help("Jump to tonight's dark sky — after sunset, once astronomical twilight ends")
                 }
                 HStack {
-                    Slider(value: timeOfDayBinding, in: 0...48, step: 5.0 / 60)
-                    Text(Self.sliderDateTimeFormatter.string(from: date)).monospacedDigit().frame(width: 110, alignment: .trailing)
+                    Slider(
+                        value: timeSliderBinding, in: 0...48, step: 5.0 / 60,
+                        onEditingChanged: { editing in if !editing { commitSliderValue() } }
+                    )
+                    Text(Self.sliderDateTimeFormatter.string(from: displayedSliderDate)).monospacedDigit().frame(width: 110, alignment: .trailing)
                 }
-                .help("Scrub through 48 hours centered on midnight tonight, Stellarium-style — a filter on \"what's visible right now\" just as much as type or magnitude are.")
+                .help("Scrub through 48 hours centered on midnight tonight, Stellarium-style — a filter on \"what's visible right now\" just as much as type or magnitude are. Updates once you release or pause for a second, not on every tick.")
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -688,6 +789,27 @@ struct SkyVisibilityExplorerView: View {
                     Text("×")
                     TextField("Height", value: $fovHeightArcmin, format: .number).frame(width: 60)
                     Text("arcmin")
+                    Menu("Examples…") {
+                        Menu("From Camera + Telescope") {
+                            ForEach(Self.sensorSizePresets) { sensor in
+                                Menu(sensor.displayName) {
+                                    ForEach(TelescopeProfile.allCases) { telescope in
+                                        Button(telescope.rawValue) { applyCameraFieldOfView(sensor: sensor, telescope: telescope) }
+                                    }
+                                }
+                            }
+                        }
+                        Menu("From Eyepiece + Telescope") {
+                            ForEach(Self.eyepiecePresets) { eyepiece in
+                                Menu(eyepiece.displayName) {
+                                    ForEach(TelescopeProfile.allCases) { telescope in
+                                        Button(telescope.rawValue) { applyEyepieceFieldOfView(eyepiece: eyepiece, telescope: telescope) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .help("Fill in width/height from a common camera+telescope pairing or an eyepiece's own true field, instead of working out the arcminutes by hand.")
                     Toggle("Hide objects too large to fit", isOn: $isFieldOfViewFilterEnabled)
                 }
                 Text("Shown per object below as \"Fits/Small/Partially fits/Too large\" — objects with no published angular size aren't judged either way.")
@@ -791,6 +913,24 @@ struct SkyVisibilityExplorerView: View {
     /// the editor for `horizonProfile` — "Edit My Horizon" swaps in draggable handles on the same
     /// dial instead of a separate control, since the whole point is seeing the obstruction shape
     /// against the actual sky it's blocking.
+    /// Opens the Sky Map in a real, independently movable/resizable window — the same
+    /// `DetachedContentWindowController` Post-Processing/Edit Image use, not a bigger sheet, since
+    /// a sheet can't be dragged to a second monitor or resized past what this page declares. The
+    /// window's content is `skyMapSection` itself (not a copy), so editing the horizon there
+    /// updates the exact same `horizonProfile` this page's own filters and scan already read.
+    private func openSkyMapWindow() {
+        skyMapWindowController = DetachedContentWindowController(
+            title: "Sky Map", contentSize: NSSize(width: 460, height: 620), minSize: NSSize(width: 380, height: 480),
+            onClose: { skyMapWindowController = nil }
+        ) {
+            ScrollView {
+                skyMapSection
+                    .padding(20)
+            }
+        }
+        skyMapWindowController?.showWindow(nil)
+    }
+
     @ViewBuilder
     private var skyMapSection: some View {
         if parsedLatitude == nil || parsedLongitude == nil {
@@ -799,18 +939,7 @@ struct SkyVisibilityExplorerView: View {
                 .foregroundStyle(.secondary)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                LabeledContent("Minimum Altitude") {
-                    Stepper(value: $minAltitude, in: 0...80, step: 5) {
-                        Text("\(Int(minAltitude))°")
-                    }
-                }
-                .disabled(!isHorizonProfileUniform)
-                if !isHorizonProfileUniform {
-                    Text("Disabled: your horizon profile below isn't a flat line anymore, so it's already a more precise per-direction cutoff than one minimum-altitude number.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text("Dot size is relative brightness (magnitude); the shaded edge is your own horizon obstruction, not the mathematical one.")
+                Text("This *is* what decides what's visible — an object only counts as \"visible\" if it clears this shape somewhere in its own direction, not a separate flat altitude number. Dot size is relative brightness (magnitude); the shaded edge is your own horizon obstruction, not the mathematical one.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 SkyCompassView(dots: skyMapDots, horizonProfile: $horizonProfile, isEditable: isEditingHorizon)
@@ -822,9 +951,6 @@ struct SkyVisibilityExplorerView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
-            .onChange(of: horizonProfile) { _, newValue in
-                AppSettings.horizonProfile = newValue
             }
         }
     }
@@ -851,17 +977,17 @@ struct SkyVisibilityExplorerView: View {
         isCalculating = true
         let target = catalog
         let selectedDate = date
-        let minAlt = minAltitude
+        let profile = horizonProfile
         let (computedResults, computedConjunctions, computedPlanets, computedResultCurves, computedPlanetCurves) = await Task.detached(priority: .userInitiated) { () -> ([SkyVisibilityCalculator.Result], [SkyEventsCalculator.Conjunction], [SkyVisibilityCalculator.PlanetResult], [String: [SkyVisibilityCalculator.AltitudeSample]], [String: [SkyVisibilityCalculator.AltitudeSample]]) in
             let visible = SkyVisibilityCalculator.visibleObjects(
-                in: target, on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, minAltitudeDegrees: minAlt
+                in: target, on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, horizonProfile: profile
             )
             let calendar = Calendar(identifier: .gregorian)
             let windowStart = calendar.date(byAdding: .day, value: -7, to: selectedDate) ?? selectedDate
             let windowEnd = calendar.date(byAdding: .day, value: 7, to: selectedDate) ?? selectedDate
             let events = SkyEventsCalculator.conjunctions(in: windowStart...windowEnd)
             let planets = SkyVisibilityCalculator.visiblePlanets(
-                on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, minAltitudeDegrees: minAlt
+                on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, horizonProfile: profile
             )
 
             var resultCurves: [String: [SkyVisibilityCalculator.AltitudeSample]] = [:]

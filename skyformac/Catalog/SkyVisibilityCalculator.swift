@@ -60,7 +60,13 @@ struct HorizonProfile: Codable, Equatable, Sendable {
     /// One altitude value per `CardinalDirection.allCases`, in that order.
     var altitudesDegrees: [Double]
 
-    static let clear = HorizonProfile(altitudesDegrees: Array(repeating: 0, count: CardinalDirection.allCases.count))
+    static let clear = HorizonProfile.uniform(0)
+
+    /// The same obstruction altitude in every direction — a flat "minimum altitude" number
+    /// expressed as a `HorizonProfile`, the shape every visibility scan actually consumes now.
+    static func uniform(_ altitudeDegrees: Double) -> HorizonProfile {
+        HorizonProfile(altitudesDegrees: Array(repeating: altitudeDegrees, count: CardinalDirection.allCases.count))
+    }
 
     func altitude(for direction: CardinalDirection) -> Double {
         guard let index = CardinalDirection.allCases.firstIndex(of: direction), altitudesDegrees.indices.contains(index) else { return 0 }
@@ -221,9 +227,47 @@ enum SkyVisibilityCalculator {
     /// synchronously — cheap enough (a few hundred objects × ~30 samples each, plain trig) to not
     /// need its own background-thread contract, but callers still wrap it in a `Task` since it's
     /// still real work on the UI's behalf.
+    /// Scans `sampleCount + 1` evenly-spaced samples from `windowStart`, returning the highest
+    /// altitude that clears `horizonProfile` in whatever direction it's in *at that moment*
+    /// (`clearsHorizon: true`), or — if it never does — the highest altitude reached regardless
+    /// (`clearsHorizon: false`, so a caller can still exclude it while reporting a meaningful
+    /// "best it ever got" rather than a meaningless first-sample default). Direction-aware because
+    /// an object's azimuth moves through the night just as much as its altitude does — its peak
+    /// altitude moment and its best-facing moment aren't necessarily the same one.
+    private static func bestHorizonClearingPlacement(
+        sampleCount: Int, windowStart: Date, sampleInterval: TimeInterval,
+        latitudeDegrees: Double, longitudeDegrees: Double, horizonProfile: HorizonProfile,
+        raAt: (Date) -> Double, decAt: (Date) -> Double
+    ) -> (altitude: Double, time: Date, clearsHorizon: Bool) {
+        var bestAltitude = -90.0
+        var bestTime = windowStart
+        var clearsHorizonAtBest = false
+        for i in 0...sampleCount {
+            let sampleDate = windowStart.addingTimeInterval(Double(i) * sampleInterval)
+            let (altitude, azimuth) = HorizontalCoordinates.altitudeAzimuth(
+                raDegrees: raAt(sampleDate), decDegrees: decAt(sampleDate),
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, on: sampleDate
+            )
+            let clearsHorizon = altitude > horizonProfile.altitudeDegrees(atAzimuthDegrees: azimuth)
+            if clearsHorizon && (!clearsHorizonAtBest || altitude > bestAltitude) {
+                bestAltitude = altitude
+                bestTime = sampleDate
+                clearsHorizonAtBest = true
+            } else if !clearsHorizonAtBest && altitude > bestAltitude {
+                bestAltitude = altitude
+                bestTime = sampleDate
+            }
+        }
+        return (bestAltitude, bestTime, clearsHorizonAtBest)
+    }
+
+    /// "Visible" now means "clears the observer's own horizon" (`horizonProfile` — flat 0° by
+    /// default, i.e. the plain mathematical horizon, unless the caller passes a real per-direction
+    /// profile), not an arbitrary flat altitude floor — there's no astronomically meaningful
+    /// "20°," only whatever this particular sky actually has in the way.
     static func visibleObjects(
         in catalog: [SkyCatalogObject], on date: Date, latitudeDegrees: Double, longitudeDegrees: Double,
-        minAltitudeDegrees: Double = 20
+        horizonProfile: HorizonProfile = .clear
     ) -> [Result] {
         guard let window = nightWindow(for: date, latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees) else {
             return []
@@ -234,26 +278,17 @@ enum SkyVisibilityCalculator {
         var results: [Result] = []
         results.reserveCapacity(catalog.count)
         for object in catalog {
-            var bestAltitude = -90.0
-            var bestTime = window.start
-            for i in 0...sampleCount {
-                let sampleDate = window.start.addingTimeInterval(Double(i) * sampleInterval)
-                let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
-                    raDegrees: object.raDegrees, decDegrees: object.decDegrees,
-                    latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, on: sampleDate
-                )
-                if altitude > bestAltitude {
-                    bestAltitude = altitude
-                    bestTime = sampleDate
-                }
-            }
-            if bestAltitude >= minAltitudeDegrees {
-                let (rise, set) = riseAndSetTimes(
-                    raDegrees: object.raDegrees, decDegrees: object.decDegrees,
-                    latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, around: bestTime
-                )
-                results.append(Result(object: object, maxAltitudeDegrees: bestAltitude, timeOfMaxAltitude: bestTime, riseTime: rise, setTime: set))
-            }
+            let placement = bestHorizonClearingPlacement(
+                sampleCount: sampleCount, windowStart: window.start, sampleInterval: sampleInterval,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, horizonProfile: horizonProfile,
+                raAt: { _ in object.raDegrees }, decAt: { _ in object.decDegrees }
+            )
+            guard placement.clearsHorizon else { continue }
+            let (rise, set) = riseAndSetTimes(
+                raDegrees: object.raDegrees, decDegrees: object.decDegrees,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, around: placement.time
+            )
+            results.append(Result(object: object, maxAltitudeDegrees: placement.altitude, timeOfMaxAltitude: placement.time, riseTime: rise, setTime: set))
         }
         return results.sorted { $0.maxAltitudeDegrees > $1.maxAltitudeDegrees }
     }
@@ -275,7 +310,7 @@ enum SkyVisibilityCalculator {
     /// a fixed `SkyCatalogObject` position (they move night to night), so `PlanetaryPositionCalculator`
     /// computes each one fresh for `date` instead of reading from the bundled catalog.
     static func visiblePlanets(
-        on date: Date, latitudeDegrees: Double, longitudeDegrees: Double, minAltitudeDegrees: Double = 20
+        on date: Date, latitudeDegrees: Double, longitudeDegrees: Double, horizonProfile: HorizonProfile = .clear
     ) -> [PlanetResult] {
         guard let window = nightWindow(for: date, latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees) else {
             return []
@@ -283,18 +318,12 @@ enum SkyVisibilityCalculator {
         let sampleInterval: TimeInterval = 20 * 60
         let sampleCount = max(1, Int(window.end.timeIntervalSince(window.start) / sampleInterval))
 
-        func bestPlacement(raAt: (Date) -> Double, decAt: (Date) -> Double) -> (altitude: Double, time: Date) {
-            var bestAltitude = -90.0
-            var bestTime = window.start
-            for i in 0...sampleCount {
-                let sampleDate = window.start.addingTimeInterval(Double(i) * sampleInterval)
-                let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
-                    raDegrees: raAt(sampleDate), decDegrees: decAt(sampleDate),
-                    latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, on: sampleDate
-                )
-                if altitude > bestAltitude { bestAltitude = altitude; bestTime = sampleDate }
-            }
-            return (bestAltitude, bestTime)
+        func bestPlacement(raAt: @escaping (Date) -> Double, decAt: @escaping (Date) -> Double) -> (altitude: Double, time: Date, clearsHorizon: Bool) {
+            bestHorizonClearingPlacement(
+                sampleCount: sampleCount, windowStart: window.start, sampleInterval: sampleInterval,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, horizonProfile: horizonProfile,
+                raAt: raAt, decAt: decAt
+            )
         }
 
         var results: [PlanetResult] = []
@@ -303,7 +332,7 @@ enum SkyVisibilityCalculator {
                 raAt: { PlanetaryPositionCalculator.position(of: planet, on: $0).rightAscensionDegrees },
                 decAt: { PlanetaryPositionCalculator.position(of: planet, on: $0).declinationDegrees }
             )
-            guard placement.altitude >= minAltitudeDegrees else { continue }
+            guard placement.clearsHorizon else { continue }
             let position = PlanetaryPositionCalculator.position(of: planet, on: placement.time)
             let (rise, set) = riseAndSetTimes(
                 raDegrees: position.rightAscensionDegrees, decDegrees: position.declinationDegrees,
@@ -319,7 +348,7 @@ enum SkyVisibilityCalculator {
             raAt: { PlanetaryPositionCalculator.moonPosition(on: $0).equatorial.rightAscensionDegrees },
             decAt: { PlanetaryPositionCalculator.moonPosition(on: $0).equatorial.declinationDegrees }
         )
-        if moonPlacement.altitude >= minAltitudeDegrees {
+        if moonPlacement.clearsHorizon {
             let position = PlanetaryPositionCalculator.moonPosition(on: moonPlacement.time).equatorial
             let (rise, set) = riseAndSetTimes(
                 raDegrees: position.rightAscensionDegrees, decDegrees: position.declinationDegrees,

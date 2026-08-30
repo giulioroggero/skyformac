@@ -39,7 +39,7 @@ struct SkyVisibilityCalculatorTests {
             raDegrees: 0, decDegrees: 90, magnitude: 0
         )
         let results = SkyVisibilityCalculator.visibleObjects(
-            in: [ncp], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 30
+            in: [ncp], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, horizonProfile: .uniform(30)
         )
         #expect(results.count == 1)
         #expect(abs((results.first?.maxAltitudeDegrees ?? 0) - 45) < 1)
@@ -51,7 +51,7 @@ struct SkyVisibilityCalculatorTests {
             raDegrees: 0, decDegrees: 90, magnitude: 0
         )
         let results = SkyVisibilityCalculator.visibleObjects(
-            in: [ncp], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 60
+            in: [ncp], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, horizonProfile: .uniform(60)
         )
         #expect(results.isEmpty)
     }
@@ -60,7 +60,7 @@ struct SkyVisibilityCalculatorTests {
         let a = SkyCatalogObject(id: "a", commonName: nil, objectType: "test", raDegrees: 0, decDegrees: 60, magnitude: 0)
         let b = SkyCatalogObject(id: "b", commonName: nil, objectType: "test", raDegrees: 200, decDegrees: 80, magnitude: 0)
         let results = SkyVisibilityCalculator.visibleObjects(
-            in: [a, b], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 0
+            in: [a, b], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9
         )
         #expect(results.count == 2)
         // A general invariant on the actual sort output, rather than a hand-derived expected
@@ -72,7 +72,7 @@ struct SkyVisibilityCalculatorTests {
     @Test func circumpolarObjectsHaveNoRiseOrSetTime() {
         let ncp = SkyCatalogObject(id: "ncp-test", commonName: nil, objectType: "test", raDegrees: 0, decDegrees: 90, magnitude: 0)
         let results = SkyVisibilityCalculator.visibleObjects(
-            in: [ncp], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 30
+            in: [ncp], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, horizonProfile: .uniform(30)
         )
         #expect(results.first?.riseTime == nil)
         #expect(results.first?.setTime == nil)
@@ -83,7 +83,7 @@ struct SkyVisibilityCalculatorTests {
         // rises and sets within a 24h period rather than staying up (or down) the whole time.
         let equatorial = SkyCatalogObject(id: "eq-test", commonName: nil, objectType: "test", raDegrees: 180, decDegrees: 0, magnitude: 0)
         let results = SkyVisibilityCalculator.visibleObjects(
-            in: [equatorial], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 20
+            in: [equatorial], on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, horizonProfile: .uniform(20)
         )
         guard let result = results.first else {
             Issue.record("expected this object to clear 20° at some point")
@@ -95,7 +95,7 @@ struct SkyVisibilityCalculatorTests {
 
     @Test func visiblePlanetsReturnsStructurallyConsistentResults() {
         let results = SkyVisibilityCalculator.visiblePlanets(
-            on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 0
+            on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9
         )
         for result in results {
             #expect(result.maxAltitudeDegrees >= 0)
@@ -109,7 +109,7 @@ struct SkyVisibilityCalculatorTests {
 
     @Test func visiblePlanetsExcludesEverythingAtAnImpossibleThreshold() {
         let results = SkyVisibilityCalculator.visiblePlanets(
-            on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, minAltitudeDegrees: 95
+            on: Self.midLatitudeDate, latitudeDegrees: 45, longitudeDegrees: 9, horizonProfile: .uniform(95)
         )
         #expect(results.isEmpty)
     }

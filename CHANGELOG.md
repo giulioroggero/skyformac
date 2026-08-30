@@ -22,6 +22,24 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Changed
+- The "Time of Day" slider now only updates the rest of the page (per-row altitude readings, the
+  Sky Map, the debounced recalculation) once you release it or hold it still for a second — the
+  thumb and its own time label still move immediately while dragging, but nothing expensive
+  re-renders on every single tick anymore.
+- The Field of View fields now have an "Examples…" menu that fills them in from a common camera +
+  telescope pairing or an eyepiece's own true field, instead of requiring the arcminute math to be
+  done by hand first.
+- "What to See" no longer uses a flat "minimum altitude" to decide what counts as visible — an
+  object (or planet/the Moon) is visible if it clears the Sky Map's own horizon profile somewhere
+  in its own direction during the night, full stop. The results count is now just "N Objects," not
+  "N Objects Above 20°," since there's no longer a single angle behind that number. The Minimum
+  Altitude control is gone; the Sky Map itself (0° everywhere by default — the plain mathematical
+  horizon — until you draw a real one) is what decides this now.
+- The Sky Map moved to sit beside "Sort by"/"Filter by" (same row, right side) instead of its own
+  section further down the page — it's a filter and a horizon-profile editor now, not just an
+  illustration, so it belongs next to the other filters. It can also be popped out into its own
+  real, resizable window ("Detach…") to work on it at a larger size without losing the rest of the
+  page.
 - "What to See" now opens with "Date & Time" defaulted to tonight at 23:00 instead of the literal
   current moment — opening the page in the afternoon shouldn't default every reading to broad
   daylight when the page is for planning tonight's imaging.
