@@ -56,6 +56,7 @@ struct SkyVisibilityExplorerView: View {
 
     private enum SortField: String, CaseIterable, Identifiable {
         case name = "Name", type = "Type", magnitude = "Magnitude", peakAltitude = "Peak Altitude", peakTime = "Peak Time"
+        case currentAltitude = "Current Altitude"
         var id: String { rawValue }
     }
 
@@ -116,8 +117,23 @@ struct SkyVisibilityExplorerView: View {
         case .magnitude: sorted = filtered.sorted { $0.object.magnitude < $1.object.magnitude }
         case .peakAltitude: sorted = filtered.sorted { $0.maxAltitudeDegrees < $1.maxAltitudeDegrees }
         case .peakTime: sorted = filtered.sorted { $0.timeOfMaxAltitude < $1.timeOfMaxAltitude }
+        case .currentAltitude:
+            sorted = filtered.sorted {
+                currentAltitude(raDegrees: $0.object.raDegrees, decDegrees: $0.object.decDegrees)
+                    < currentAltitude(raDegrees: $1.object.raDegrees, decDegrees: $1.object.decDegrees)
+            }
         }
         return sortAscending ? sorted : sorted.reversed()
+    }
+
+    /// The numeric value behind both `altitudeNowText(raDegrees:decDegrees:)` and the "Current
+    /// Altitude" sort — `-90` (always sorts last) when there's no location to compute it from yet,
+    /// so picking that sort before entering coordinates doesn't silently do nothing.
+    private func currentAltitude(raDegrees: Double, decDegrees: Double) -> Double {
+        guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return -90 }
+        return HorizontalCoordinates.altitudeAzimuth(
+            raDegrees: raDegrees, decDegrees: decDegrees, latitudeDegrees: latitude, longitudeDegrees: longitude, on: date
+        ).altitude
     }
 
     var body: some View {
@@ -125,7 +141,11 @@ struct SkyVisibilityExplorerView: View {
             VStack(alignment: .leading, spacing: 16) {
                 PageSection(title: "Where and When") {
                     LabeledContent("Date & Time") {
-                        DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
+                        HStack {
+                            DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
+                            Button("Tonight") { date = Date() }
+                                .help("Jump back to right now")
+                        }
                     }
                     Text("The date picks which night to scan; the time is used for each result's own \"Altitude Now\" reading below.")
                         .font(.caption)
@@ -166,6 +186,17 @@ struct SkyVisibilityExplorerView: View {
                 PageSection(title: "Sky Events") {
                     LabeledContent("Moon Phase") {
                         Text("\(moonPhase.phaseName) (\(Int(moonPhase.illuminatedFraction * 100))% illuminated)")
+                    }
+                    if let sunTimes {
+                        LabeledContent("Sunset / Sunrise") {
+                            Text("\(Self.timeFormatter.string(from: sunTimes.sunset)) / \(Self.timeFormatter.string(from: sunTimes.sunrise))")
+                        }
+                    } else if parsedLatitude != nil && parsedLongitude != nil {
+                        LabeledContent("Sunset / Sunrise") {
+                            Text("Sun doesn't set below the horizon on this date/location (polar day).")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     if hasCalculated {
                         if conjunctions.isEmpty {
@@ -336,10 +367,8 @@ struct SkyVisibilityExplorerView: View {
     /// whole, unaffected by the exact hour picked, but this reads the object's real altitude at
     /// that exact moment.
     private func altitudeNowText(raDegrees: Double, decDegrees: Double) -> String? {
-        guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return nil }
-        let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
-            raDegrees: raDegrees, decDegrees: decDegrees, latitudeDegrees: latitude, longitudeDegrees: longitude, on: date
-        )
+        guard parsedLatitude != nil, parsedLongitude != nil else { return nil }
+        let altitude = currentAltitude(raDegrees: raDegrees, decDegrees: decDegrees)
         return "Altitude at \(Self.timeFormatter.string(from: date)): \(Int(altitude))°"
     }
 
@@ -478,6 +507,17 @@ struct SkyVisibilityExplorerView: View {
     }
 
     private var moonPhase: SkyEventsCalculator.MoonPhase { SkyEventsCalculator.moonPhase(on: date) }
+
+    /// `nightWindow`'s own dusk/dawn scan, at a 0° threshold instead of its default -12° — the Sun
+    /// crossing the true horizon is exactly sunset/sunrise, not just "dark enough to image." `nil`
+    /// without a location, or during a polar-day stretch where the Sun never actually sets.
+    private var sunTimes: (sunset: Date, sunrise: Date)? {
+        guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return nil }
+        guard let window = SkyVisibilityCalculator.nightWindow(
+            for: date, latitudeDegrees: latitude, longitudeDegrees: longitude, sunAltitudeThresholdDegrees: 0
+        ) else { return nil }
+        return (window.start, window.end)
+    }
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()

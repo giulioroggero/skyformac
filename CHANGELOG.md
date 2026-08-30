@@ -22,6 +22,9 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- "What to See" gains a "Current Altitude" sort option (how high each object is *right now*, at
+  the picked time, rather than only its peak tonight), a "Tonight" button next to "Date & Time"
+  that jumps straight back to the current moment, and a Sunset/Sunrise readout in Sky Events.
 - "What to See" now also lists the Moon and every naked-eye planet that clears the minimum
   altitude, each with its rise/peak/set time, alongside the deep-sky catalog results — and every
   result row (deep-sky or planet) opens a detail sheet on tap showing when it rises, peaks, and is
