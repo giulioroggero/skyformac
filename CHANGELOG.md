@@ -27,10 +27,18 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   result row (deep-sky or planet) opens a detail sheet on tap showing when it rises, peaks, and is
   no longer visible.
 - That detail sheet can also show a Wikipedia description and photo — a new "Online Object Info"
-  toggle in Settings › AI (off by default) gates this, since it's the only place Skyformac makes a
-  live network request; "Search on AstroBin…"/"Search r/astrophotography…" just open your browser
-  and work regardless of that toggle. First phase of a larger planned integration (Gaia/HYG for
-  precise stellar data, exoplanet catalogs still to come).
+  toggle in Settings › Community (on by default) gates this, since it's the only place Skyformac
+  makes a live network request; "Search on AstroBin…"/"Search r/astrophotography…" just open your
+  browser and work regardless of that toggle. First phase of a larger planned integration (Gaia/HYG
+  for precise stellar data, exoplanet catalogs still to come).
+- That same detail sheet is now reachable from other pages too, wherever an object name is
+  shown — Live Capture's planned-objects hint and a session's own planned-objects field — via a
+  new `SkyObjectResolver`/`SkyObjectLinkView` that resolves a bare object name into everything the
+  sheet needs on its own. The sheet itself is now 2.5x wider and 1.5x taller.
+- "What to See" gains a search field (filters results by name), a "Time of Day" slider (Stellarium-
+  style — scrubbing it moves the same "Date & Time" picker, and updates each result's own
+  "Altitude Now" reading live), and a per-row altitude-vs-time chart (a full day's rise/set curve,
+  with a marker for the currently-picked time).
 - The detail sheet also shows a real per-object sky-survey photo from SDSS SkyServer's own public
   image-cutout service (centered on the object's actual RA/Dec), gated by the same "Online Object
   Info" toggle — coverage is real but limited to SDSS's own footprint (mostly northern
@@ -70,6 +78,9 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   worm-gear periodic error and its period.
 - Edit Image gains Undo/Redo buttons (⌘Z/⇧⌘Z) — every adjustment slider and crop edit is now
   undoable, coalesced per gesture rather than one entry per intermediate slider tick.
+- Settings reorganized: "AI" now has a segmented Models/Instructions switch instead of two separate
+  tabs, and Siril/GraXpert/StarNet are merged into one "Integrations" tab (same segmented-switch
+  approach).
 
 ### Fixed
 - A project/session page's Cover thumbnail column had an ambiguous horizontal alignment

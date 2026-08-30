@@ -8,6 +8,7 @@ struct CommunitySettingsView: View {
     @State private var issues: [GitHubIssue] = []
     @State private var loadState: LoadState = .loading
     @State private var showingOnlyOpen = false
+    @State private var isOnlineObjectInfoEnabled = AppSettings.isOnlineObjectInfoEnabled
 
     private enum LoadState: Equatable {
         case loading, loaded, failed(String)
@@ -19,6 +20,18 @@ struct CommunitySettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Enable Online Object Info", isOn: $isOnlineObjectInfoEnabled)
+                    .onChange(of: isOnlineObjectInfoEnabled) { _, newValue in
+                        AppSettings.isOnlineObjectInfoEnabled = newValue
+                    }
+                Text("When on, tapping an object in \"What to See\" (or anywhere else an object name is shown) fetches its description/photo from Wikipedia and a real sky-survey image from SDSS's own public APIs — the only place Skyformac makes a live network request. On by default. \"Search on AstroBin\"/\"Search r/astrophotography\" there just open your browser and work either way.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            Divider()
+
             HStack {
                 Label("\(openIssues.count) open", systemImage: "exclamationmark.circle")
                     .foregroundStyle(.orange)

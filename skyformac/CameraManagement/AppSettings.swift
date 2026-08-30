@@ -670,13 +670,21 @@ enum AppSettings {
     /// "Elaborate…" prompts the user to turn this on here rather than silently doing nothing (or
     /// silently shelling out) when it's off. See `SirilElaborationService`.
     /// Gates every live network call `SkyVisibilityExplorerView`'s object detail sheet makes
-    /// (Wikipedia's public REST API for a description/thumbnail) — off by default, since this is
-    /// the one place in the app that reaches the network at all, and "no telemetry, no network
-    /// dependency" (see `docs/distribution.md`) is otherwise true everywhere else. Turning this on
-    /// doesn't affect the "Search on AstroBin"/"Search on Reddit" links, which just open the
-    /// user's own browser — no request this app itself makes either way.
+    /// (Wikipedia/SDSS's own public APIs for a description/thumbnail/sky-survey image) — this is
+    /// the one place in the app that reaches the network at all, so "no telemetry, no network
+    /// dependency" (see `docs/distribution.md`) no longer holds universally once this is on.
+    /// Enabled by default (moved to Settings › Community, alongside the other "connects to the
+    /// outside world for community/reference info" toggle there) — a deliberate call that the
+    /// value of seeing a description/photo outweighs staying silent by default here, unlike this
+    /// app's other opt-in integrations (Siril/GraXpert/StarNet), which stay off by default since
+    /// those actually shell out to a separate local app. Turning this off doesn't affect the
+    /// "Search on AstroBin"/"Search on Reddit" links, which just open the user's own browser — no
+    /// request this app itself makes either way.
     static var isOnlineObjectInfoEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: Key.isOnlineObjectInfoEnabled.rawValue) }
+        get {
+            if UserDefaults.standard.object(forKey: Key.isOnlineObjectInfoEnabled.rawValue) == nil { return true }
+            return UserDefaults.standard.bool(forKey: Key.isOnlineObjectInfoEnabled.rawValue)
+        }
         set { UserDefaults.standard.set(newValue, forKey: Key.isOnlineObjectInfoEnabled.rawValue) }
     }
 

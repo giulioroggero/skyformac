@@ -55,7 +55,7 @@ struct SkyVisibilityObjectDetailView: View {
 
                     PageSection(title: "About") {
                         if !AppSettings.isOnlineObjectInfoEnabled {
-                            Text("Enable \"Online Object Info\" in Settings › AI to see a Wikipedia description and photo here.")
+                            Text("Enable \"Online Object Info\" in Settings › Community to see a Wikipedia description and photo here.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                         } else if isLoadingWikipedia {
@@ -80,7 +80,7 @@ struct SkyVisibilityObjectDetailView: View {
                     if skyCoordinates != nil {
                         PageSection(title: "Sky Survey Image") {
                             if !AppSettings.isOnlineObjectInfoEnabled {
-                                Text("Enable \"Online Object Info\" in Settings › AI to see an SDSS sky-survey cutout here.")
+                                Text("Enable \"Online Object Info\" in Settings › Community to see an SDSS sky-survey cutout here.")
                                     .font(.callout)
                                     .foregroundStyle(.secondary)
                             } else if isLoadingSDSSImage {
@@ -111,7 +111,7 @@ struct SkyVisibilityObjectDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(width: 460, height: 560)
+        .frame(width: 460 * 2.5, height: 560 * 1.5)
         .task { await loadWikipediaSummaryIfEnabled() }
         .task { await loadSDSSImageIfEnabled() }
     }

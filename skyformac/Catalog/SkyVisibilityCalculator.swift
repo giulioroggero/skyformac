@@ -27,7 +27,10 @@ enum SkyVisibilityCalculator {
     /// crossings on either side — "rises" (below → above) before the peak, "sets" (above → below)
     /// after it. Not the same sampling pass `visibleObjects` already did to find the peak itself,
     /// since a rise/set can fall well outside the dark window that pass was scoped to.
-    private static func riseAndSetTimes(
+    /// Not `private` — `SkyObjectResolver` reuses this directly for the "look this object up from
+    /// anywhere in the app" flow, where there's no already-computed peak to hang it off of the way
+    /// `visibleObjects`'s own internal call does.
+    static func riseAndSetTimes(
         raDegrees: Double, decDegrees: Double, latitudeDegrees: Double, longitudeDegrees: Double,
         around peakTime: Date, sampleInterval: TimeInterval = 10 * 60
     ) -> (rise: Date?, set: Date?) {
@@ -90,6 +93,32 @@ enum SkyVisibilityCalculator {
         let dawnDate = samples.first(where: { $0.date > firstDusk.date && $0.altitude >= sunAltitudeThresholdDegrees })?.date
             ?? samples.last!.date
         return (firstDusk.date, dawnDate)
+    }
+
+    /// The highest altitude a single fixed RA/Dec position reaches during tonight's dark window,
+    /// and when — the single-object version of what `visibleObjects`'s own inner loop computes
+    /// per catalog entry, pulled out so `SkyObjectResolver` (looking an object up from some other
+    /// page, with no whole-catalog scan to piggyback on) can get the same answer for just one.
+    /// `nil` only when there's no dark window tonight at all (see `nightWindow`'s own doc comment).
+    static func peakTonight(
+        raDegrees: Double, decDegrees: Double, latitudeDegrees: Double, longitudeDegrees: Double, on date: Date
+    ) -> (altitude: Double, time: Date)? {
+        guard let window = nightWindow(for: date, latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees) else {
+            return nil
+        }
+        let sampleInterval: TimeInterval = 20 * 60
+        let sampleCount = max(1, Int(window.end.timeIntervalSince(window.start) / sampleInterval))
+        var bestAltitude = -90.0
+        var bestTime = window.start
+        for i in 0...sampleCount {
+            let sampleDate = window.start.addingTimeInterval(Double(i) * sampleInterval)
+            let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
+                raDegrees: raDegrees, decDegrees: decDegrees,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, on: sampleDate
+            )
+            if altitude > bestAltitude { bestAltitude = altitude; bestTime = sampleDate }
+        }
+        return (bestAltitude, bestTime)
     }
 
     /// Every catalog object whose peak altitude during the night reaches at least
@@ -198,5 +227,35 @@ enum SkyVisibilityCalculator {
         }
 
         return results.sorted { $0.maxAltitudeDegrees > $1.maxAltitudeDegrees }
+    }
+
+    struct AltitudeSample: Identifiable, Sendable {
+        var id: Date { time }
+        let time: Date
+        let altitudeDegrees: Double
+    }
+
+    /// A full-day altitude-vs-time curve for one fixed RA/Dec position — the data behind each "What
+    /// to See" result's own small altitude chart. Spans midnight to midnight of `date`'s own
+    /// calendar day (not just the dark window `visibleObjects` scopes its peak-finding to), so the
+    /// chart shows the whole rise-to-set shape, daylight portions included.
+    static func altitudeCurve(
+        raDegrees: Double, decDegrees: Double, latitudeDegrees: Double, longitudeDegrees: Double,
+        on date: Date, sampleIntervalMinutes: Int = 15
+    ) -> [AltitudeSample] {
+        let calendar = Calendar(identifier: .gregorian)
+        let startOfDay = calendar.startOfDay(for: date)
+        let sampleCount = (24 * 60) / sampleIntervalMinutes
+        var samples: [AltitudeSample] = []
+        samples.reserveCapacity(sampleCount + 1)
+        for i in 0...sampleCount {
+            let sampleDate = startOfDay.addingTimeInterval(Double(i * sampleIntervalMinutes * 60))
+            let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
+                raDegrees: raDegrees, decDegrees: decDegrees,
+                latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, on: sampleDate
+            )
+            samples.append(AltitudeSample(time: sampleDate, altitudeDegrees: altitude))
+        }
+        return samples
     }
 }

@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 /// "A database of sky objects with what can be seen in a certain period of time, at what
@@ -36,6 +37,9 @@ struct SkyVisibilityExplorerView: View {
     @State private var typeFilter: String?
     @State private var planetResults: [SkyVisibilityCalculator.PlanetResult] = []
     @State private var detailSubject: DetailSubject?
+    @State private var searchText = ""
+    @State private var resultCurves: [String: [SkyVisibilityCalculator.AltitudeSample]] = [:]
+    @State private var planetCurves: [String: [SkyVisibilityCalculator.AltitudeSample]] = [:]
 
     private struct DetailSubject: Identifiable {
         let id = UUID()
@@ -71,6 +75,23 @@ struct SkyVisibilityExplorerView: View {
         SkyCatalog.messierObjects + SkyCatalog.caldwellObjects + SkyCatalog.ngcObjects
     }
 
+    /// The "move time like Stellarium" slider — reads/writes the same `date` the DatePicker above
+    /// does, as hours-since-midnight of its own calendar day, so dragging one moves the other.
+    private var timeOfDayBinding: Binding<Double> {
+        Binding(
+            get: {
+                let calendar = Calendar(identifier: .gregorian)
+                let components = calendar.dateComponents([.hour, .minute], from: date)
+                return Double(components.hour ?? 0) + Double(components.minute ?? 0) / 60
+            },
+            set: { newValue in
+                let calendar = Calendar(identifier: .gregorian)
+                let startOfDay = calendar.startOfDay(for: date)
+                date = startOfDay.addingTimeInterval(newValue * 3600)
+            }
+        )
+    }
+
     private var parsedLatitude: Double? { Double(latitudeText) }
     private var parsedLongitude: Double? { Double(longitudeText) }
 
@@ -81,7 +102,13 @@ struct SkyVisibilityExplorerView: View {
     }
 
     private var displayedResults: [SkyVisibilityCalculator.Result] {
-        let filtered = typeFilter.map { type in results.filter { $0.object.friendlyTypeName == type } } ?? results
+        var filtered = typeFilter.map { type in results.filter { $0.object.friendlyTypeName == type } } ?? results
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSearch.isEmpty {
+            filtered = filtered.filter {
+                $0.object.displayName.localizedCaseInsensitiveContains(trimmedSearch) || $0.object.id.localizedCaseInsensitiveContains(trimmedSearch)
+            }
+        }
         let sorted: [SkyVisibilityCalculator.Result]
         switch sortField {
         case .name: sorted = filtered.sorted { $0.object.displayName < $1.object.displayName }
@@ -97,9 +124,19 @@ struct SkyVisibilityExplorerView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PageSection(title: "Where and When") {
-                    LabeledContent("Date") {
-                        DatePicker("", selection: $date, displayedComponents: .date).labelsHidden()
+                    LabeledContent("Date & Time") {
+                        DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
                     }
+                    Text("The date picks which night to scan; the time is used for each result's own \"Altitude Now\" reading below.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    LabeledContent("Time of Day") {
+                        HStack {
+                            Slider(value: timeOfDayBinding, in: 0...24, step: 5.0 / 60)
+                            Text(Self.timeFormatter.string(from: date)).monospacedDigit().frame(width: 60, alignment: .trailing)
+                        }
+                    }
+                    .help("Scrub through the day, Stellarium-style — moves the same \"Date & Time\" above.")
                     LabeledContent("Latitude") {
                         TextField("e.g. 45.4642", text: $latitudeText).frame(width: 140)
                     }
@@ -170,6 +207,11 @@ struct SkyVisibilityExplorerView: View {
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                         } else {
+                            TextField("Search by name…", text: $searchText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 260)
+                                .padding(.bottom, 4)
+
                             HStack {
                                 Picker("Sort by", selection: $sortField) {
                                     ForEach(SortField.allCases) { field in Text(field.rawValue).tag(field) }
@@ -245,8 +287,14 @@ struct SkyVisibilityExplorerView: View {
                 Text(riseSetSummary(rise: planet.riseTime, peak: planet.timeOfMaxAltitude, set: planet.setTime, peakAltitude: planet.maxAltitudeDegrees))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let altitudeNow = altitudeNowText(planet: planet) {
+                    Text(altitudeNow).font(.caption2).foregroundStyle(.tertiary)
+                }
             }
             Spacer()
+            if let curve = planetCurves[planet.name] {
+                altitudeChart(curve)
+            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
@@ -260,10 +308,58 @@ struct SkyVisibilityExplorerView: View {
         }
     }
 
+    /// A compact altitude-vs-time sparkline for one result row — time on the x-axis, altitude on
+    /// y, plus a vertical rule marking the currently-picked "Date & Time" so it's obvious at a
+    /// glance where "now" falls on the object's own rise/set curve.
+    @ViewBuilder
+    private func altitudeChart(_ samples: [SkyVisibilityCalculator.AltitudeSample]) -> some View {
+        Chart {
+            ForEach(samples) { sample in
+                LineMark(x: .value("Time", sample.time), y: .value("Altitude", sample.altitudeDegrees))
+            }
+            RuleMark(y: .value("Horizon", 0)).foregroundStyle(.secondary.opacity(0.4))
+            RuleMark(x: .value("Now", date)).foregroundStyle(.orange.opacity(0.7))
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .frame(width: 140, height: 40)
+    }
+
     private func riseSetSummary(rise: Date?, peak: Date, set: Date?, peakAltitude: Double) -> String {
         let riseText = rise.map(Self.timeFormatter.string) ?? "already up"
         let setText = set.map(Self.timeFormatter.string) ?? "still up at dawn"
         return "Rises \(riseText), peaks at \(Int(peakAltitude))° around \(Self.timeFormatter.string(from: peak)), \(set == nil ? setText : "sets \(setText)")"
+    }
+
+    /// The reason changing the "Date & Time" field's *time* component (not just its date) does
+    /// something visible — the peak/rise/set fields above are all about tonight's dark window as a
+    /// whole, unaffected by the exact hour picked, but this reads the object's real altitude at
+    /// that exact moment.
+    private func altitudeNowText(raDegrees: Double, decDegrees: Double) -> String? {
+        guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return nil }
+        let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
+            raDegrees: raDegrees, decDegrees: decDegrees, latitudeDegrees: latitude, longitudeDegrees: longitude, on: date
+        )
+        return "Altitude at \(Self.timeFormatter.string(from: date)): \(Int(altitude))°"
+    }
+
+    private func altitudeNowText(planet: SkyVisibilityCalculator.PlanetResult) -> String? {
+        guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return nil }
+        let position: (raDegrees: Double, decDegrees: Double)
+        if planet.name == "Moon" {
+            let moon = PlanetaryPositionCalculator.moonPosition(on: date).equatorial
+            position = (moon.rightAscensionDegrees, moon.declinationDegrees)
+        } else if let matched = PlanetaryPositionCalculator.Planet(rawValue: planet.name) {
+            let equatorial = PlanetaryPositionCalculator.position(of: matched, on: date)
+            position = (equatorial.rightAscensionDegrees, equatorial.declinationDegrees)
+        } else {
+            return nil
+        }
+        let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
+            raDegrees: position.raDegrees, decDegrees: position.decDegrees,
+            latitudeDegrees: latitude, longitudeDegrees: longitude, on: date
+        )
+        return "Altitude at \(Self.timeFormatter.string(from: date)): \(Int(altitude))°"
     }
 
     @ViewBuilder
@@ -287,8 +383,14 @@ struct SkyVisibilityExplorerView: View {
                 Text(riseSetSummary(rise: result.riseTime, peak: result.timeOfMaxAltitude, set: result.setTime, peakAltitude: result.maxAltitudeDegrees))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let altitudeNow = altitudeNowText(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees) {
+                    Text(altitudeNow).font(.caption2).foregroundStyle(.tertiary)
+                }
             }
             Spacer()
+            if let curve = resultCurves[result.id] {
+                altitudeChart(curve)
+            }
             Menu {
                 Button("New Project…") {
                     var project = Project.newProject(name: result.object.displayName, goal: "Observe \(result.object.displayName)")
@@ -327,7 +429,7 @@ struct SkyVisibilityExplorerView: View {
         let target = catalog
         let selectedDate = date
         let minAlt = minAltitude
-        let (computedResults, computedConjunctions, computedPlanets) = await Task.detached(priority: .userInitiated) { () -> ([SkyVisibilityCalculator.Result], [SkyEventsCalculator.Conjunction], [SkyVisibilityCalculator.PlanetResult]) in
+        let (computedResults, computedConjunctions, computedPlanets, computedResultCurves, computedPlanetCurves) = await Task.detached(priority: .userInitiated) { () -> ([SkyVisibilityCalculator.Result], [SkyEventsCalculator.Conjunction], [SkyVisibilityCalculator.PlanetResult], [String: [SkyVisibilityCalculator.AltitudeSample]], [String: [SkyVisibilityCalculator.AltitudeSample]]) in
             let visible = SkyVisibilityCalculator.visibleObjects(
                 in: target, on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, minAltitudeDegrees: minAlt
             )
@@ -338,11 +440,39 @@ struct SkyVisibilityExplorerView: View {
             let planets = SkyVisibilityCalculator.visiblePlanets(
                 on: selectedDate, latitudeDegrees: latitude, longitudeDegrees: longitude, minAltitudeDegrees: minAlt
             )
-            return (visible, events, planets)
+
+            var resultCurves: [String: [SkyVisibilityCalculator.AltitudeSample]] = [:]
+            for result in visible {
+                resultCurves[result.id] = SkyVisibilityCalculator.altitudeCurve(
+                    raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees,
+                    latitudeDegrees: latitude, longitudeDegrees: longitude, on: selectedDate
+                )
+            }
+            var planetCurves: [String: [SkyVisibilityCalculator.AltitudeSample]] = [:]
+            for planet in planets {
+                let position: (raDegrees: Double, decDegrees: Double)
+                if planet.name == "Moon" {
+                    let moon = PlanetaryPositionCalculator.moonPosition(on: selectedDate).equatorial
+                    position = (moon.rightAscensionDegrees, moon.declinationDegrees)
+                } else if let matched = PlanetaryPositionCalculator.Planet(rawValue: planet.name) {
+                    let equatorial = PlanetaryPositionCalculator.position(of: matched, on: selectedDate)
+                    position = (equatorial.rightAscensionDegrees, equatorial.declinationDegrees)
+                } else {
+                    continue
+                }
+                planetCurves[planet.name] = SkyVisibilityCalculator.altitudeCurve(
+                    raDegrees: position.raDegrees, decDegrees: position.decDegrees,
+                    latitudeDegrees: latitude, longitudeDegrees: longitude, on: selectedDate
+                )
+            }
+
+            return (visible, events, planets, resultCurves, planetCurves)
         }.value
         results = computedResults
         conjunctions = computedConjunctions
         planetResults = computedPlanets
+        resultCurves = computedResultCurves
+        planetCurves = computedPlanetCurves
         isCalculating = false
         hasCalculated = true
     }

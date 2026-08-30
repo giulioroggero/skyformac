@@ -23,6 +23,15 @@ enum SkyAtlasLookup {
     /// ("a comet," something not in Messier or the bright-star list) simply has nowhere fixed to
     /// place it either.
     static func position(forObjectName name: String) -> Position? {
+        catalogObject(forObjectName: name).map { Position(raDegrees: $0.raDegrees, decDegrees: $0.decDegrees) }
+    }
+
+    /// Same resolution as `position(forObjectName:)`, but returns the full matched
+    /// `SkyCatalogObject` — its type/magnitude/display name, not just where to plot it. Added for
+    /// `SkyObjectResolver`, which needs those to show the same detail sheet "What to See" itself
+    /// shows, from anywhere in the app an object name appears (a session's planned objects, a
+    /// capture's target).
+    static func catalogObject(forObjectName name: String) -> SkyCatalogObject? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
@@ -34,29 +43,29 @@ enum SkyAtlasLookup {
         // used.
         if let messierID = catalogID(prefix: "M", in: trimmed),
            let match = SkyCatalog.messierObjects.first(where: { $0.id.caseInsensitiveCompare(messierID) == .orderedSame }) {
-            return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
+            return match
         }
         if let caldwellID = catalogID(prefix: "C", in: trimmed),
            let match = SkyCatalog.caldwellObjects.first(where: { $0.id.caseInsensitiveCompare(caldwellID) == .orderedSame }) {
-            return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
+            return match
         }
         // "NGC" itself is 3 letters, unlike Messier/Caldwell's single-letter prefixes — tried as
         // its own literal prefix (not `catalogID`'s generic single-char form) alongside "IC".
         if let ngcID = catalogID(prefix: "NGC", in: trimmed) ?? catalogID(prefix: "IC", in: trimmed),
            let match = SkyCatalog.ngcObjects.first(where: { $0.id.caseInsensitiveCompare(ngcID) == .orderedSame }) {
-            return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
+            return match
         }
 
         let namedObjects: [SkyCatalogObject] = SkyCatalog.messierObjects + SkyCatalog.caldwellObjects + SkyCatalog.ngcObjects
         if let match = namedObjects.first(where: { $0.commonName?.caseInsensitiveCompare(trimmed) == .orderedSame }) {
-            return Position(raDegrees: match.raDegrees, decDegrees: match.decDegrees)
+            return match
         }
 
         for star in SkyCatalog.brightStars {
             let idMatches = star.id.caseInsensitiveCompare(trimmed) == .orderedSame
             let nameMatches = star.commonName.map { $0.caseInsensitiveCompare(trimmed) == .orderedSame } ?? false
             if idMatches || nameMatches {
-                return Position(raDegrees: star.raDegrees, decDegrees: star.decDegrees)
+                return star
             }
         }
 

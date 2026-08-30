@@ -29,7 +29,8 @@ struct SettingsView: View {
     @State private var isImportingVertexServiceAccount = false
     @State private var vertexServiceAccountErrorMessage: String?
     @State private var geminiImageModelText = AppSettings.geminiImageModel ?? GeminiImageEnhancer.availableModels[0]
-    @State private var isOnlineObjectInfoEnabled = AppSettings.isOnlineObjectInfoEnabled
+    @State private var aiSettingsSegment = 0
+    @State private var integrationsSegment = 0
 
     private var currentProjectsFolder: URL {
         customPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? ProjectStore.defaultRootDirectory()
@@ -87,18 +88,12 @@ struct SettingsView: View {
                     .tabItem { Label("Folders", systemImage: "folder") }
                 renderingForm
                     .tabItem { Label("Rendering", systemImage: "camera.aperture") }
-                aiForm
+                aiTabContent
                     .tabItem { Label("AI", systemImage: "sparkles") }
-                AIInstructionsSettingsView()
-                    .tabItem { Label("AI Instructions", systemImage: "text.bubble") }
                 StorageSettingsView(cameraManager: cameraManager)
                     .tabItem { Label("Storage", systemImage: "internaldrive") }
-                SirilSettingsView()
-                    .tabItem { Label("Siril", systemImage: "wand.and.stars") }
-                GraXpertSettingsView()
-                    .tabItem { Label("GraXpert", systemImage: "sparkles.square.filled.on.square") }
-                StarNetSettingsView()
-                    .tabItem { Label("StarNet", systemImage: "star.slash") }
+                integrationsTabContent
+                    .tabItem { Label("Integrations", systemImage: "puzzlepiece.extension") }
                 CommunitySettingsView()
                     .tabItem { Label("Community", systemImage: "person.2") }
             }
@@ -195,6 +190,47 @@ struct SettingsView: View {
                 }
         }
         .formStyle(.grouped)
+    }
+
+    /// The "AI" tab combines model/provider config and every task's editable system instructions
+    /// in one place (previously two separate tabs) — a segmented switch between two independent
+    /// root views rather than nesting one `Form` inside another, which macOS doesn't render
+    /// cleanly.
+    private var aiTabContent: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $aiSettingsSegment) {
+                Text("Models & Provider").tag(0)
+                Text("Instructions").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding()
+            if aiSettingsSegment == 0 {
+                aiForm
+            } else {
+                AIInstructionsSettingsView()
+            }
+        }
+    }
+
+    /// "Aggregate in an Integrations tab: Siril, GraXpert, StarNet" — same segmented-switch
+    /// approach as `aiTabContent`, for the same reason.
+    private var integrationsTabContent: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $integrationsSegment) {
+                Text("Siril").tag(0)
+                Text("GraXpert").tag(1)
+                Text("StarNet").tag(2)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding()
+            switch integrationsSegment {
+            case 0: SirilSettingsView()
+            case 1: GraXpertSettingsView()
+            default: StarNetSettingsView()
+            }
+        }
     }
 
     private var aiForm: some View {
@@ -342,15 +378,6 @@ struct SettingsView: View {
                 }
                 }
 
-                Section("Online Object Info") {
-                    Toggle("Enable Online Object Info", isOn: $isOnlineObjectInfoEnabled)
-                        .onChange(of: isOnlineObjectInfoEnabled) { _, newValue in
-                            AppSettings.isOnlineObjectInfoEnabled = newValue
-                        }
-                    Text("When on, tapping an object in \"What to See\" fetches its description and photo from Wikipedia's public API. This is the only place Skyformac makes a live network request — off by default. \"Search on AstroBin\"/\"Search r/astrophotography\" there just open your browser and work either way.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
         }
         .formStyle(.grouped)
     }

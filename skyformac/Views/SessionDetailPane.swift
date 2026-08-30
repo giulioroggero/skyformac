@@ -217,6 +217,10 @@ struct SessionDetailPane: View {
                             .onChange(of: goal) { _, _ in save() }
                         TextField("Objects (comma separated)", text: $plannedObjectsText, prompt: Text("M13, M57, Saturn"))
                             .onChange(of: plannedObjectsText) { _, _ in savePlannedObjects() }
+                        if !session.plannedObjects.isEmpty {
+                            SkyObjectListLinkView(objectNames: session.plannedObjects, location: session.location ?? project.location)
+                                .font(.caption)
+                        }
                         Toggle("Planned Date", isOn: $hasPlannedDate)
                             .onChange(of: hasPlannedDate) { _, isOn in savePlannedDate(isOn ? plannedDate : nil) }
                         if hasPlannedDate {

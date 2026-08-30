@@ -61,11 +61,14 @@ struct ContentView: View {
     private var plannedObjectsHint: some View {
         if let objects = cameraManager.activeSession?.plannedObjects, !objects.isEmpty {
             Divider().frame(height: 14)
-            Label(objects.joined(separator: ", "), systemImage: "scope")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .help("This session's planned objects: \(objects.joined(separator: ", "))")
+            HStack(spacing: 4) {
+                Image(systemName: "scope")
+                SkyObjectListLinkView(objectNames: objects, location: cameraManager.locationProvider.lastLocation)
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .help("This session's planned objects: \(objects.joined(separator: ", ")) — click one for details")
         }
     }
 

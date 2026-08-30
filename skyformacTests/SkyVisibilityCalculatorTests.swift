@@ -113,4 +113,26 @@ struct SkyVisibilityCalculatorTests {
         )
         #expect(results.isEmpty)
     }
+
+    @Test func altitudeCurveSpansMidnightToMidnightOfTheGivenDay() {
+        let calendar = Calendar(identifier: .gregorian)
+        let date = calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 14))!
+        let samples = SkyVisibilityCalculator.altitudeCurve(
+            raDegrees: 0, decDegrees: 90, latitudeDegrees: 45, longitudeDegrees: 9, on: date
+        )
+        #expect(samples.first?.time == calendar.startOfDay(for: date))
+        #expect(samples.last!.time.timeIntervalSince(samples.first!.time) <= 24 * 3600)
+        #expect(samples.count > 1)
+    }
+
+    @Test func altitudeCurveMatchesTheNorthCelestialPoleInvariant() {
+        // The same "altitude == latitude, constant all night" fact used elsewhere in this file —
+        // every sample on the curve should show it too, not just a single spot-checked moment.
+        let samples = SkyVisibilityCalculator.altitudeCurve(
+            raDegrees: 0, decDegrees: 90, latitudeDegrees: 45, longitudeDegrees: 9, on: Self.midLatitudeDate
+        )
+        for sample in samples {
+            #expect(abs(sample.altitudeDegrees - 45) < 0.5)
+        }
+    }
 }

@@ -76,6 +76,7 @@
 		006C2BA5275C36C41CC0261B /* SkyTonightCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0951D60F57319D3D8FEBC85 /* SkyTonightCalculatorTests.swift */; };
 		B35A433EB17865B3D88921CF /* WikipediaLookupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8B2DF526CB5440F5362E9BC /* WikipediaLookupServiceTests.swift */; };
 		954E0F9647C3F67E9688309D /* SDSSImageCutoutServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83DE1F0DCF42BD42D519B5F6 /* SDSSImageCutoutServiceTests.swift */; };
+		A668E96D1F13EED0ECD9B8A4 /* SkyObjectResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC8958D6399008EB90895827 /* SkyObjectResolverTests.swift */; };
 		4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */; };
 		422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */; };
 		43490D1033FA607BFEF52E50 /* bright_stars.json in Resources */ = {isa = PBXBuildFile; fileRef = FCB566CFCF9887C6E0E09CC3 /* bright_stars.json */; };
@@ -114,6 +115,8 @@
 		BE256F92D03B01CFDF12B93C /* PHD2GuideLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9697EF4F18690E6A19E490 /* PHD2GuideLogView.swift */; };
 		DDA21B025F8BC35540D62484 /* WikipediaLookupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2C2FB3AAC03207933FAC88 /* WikipediaLookupService.swift */; };
 		9039BD5C0267E306848C65AA /* SDSSImageCutoutService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F6A6D9902462FAFCB6B44E /* SDSSImageCutoutService.swift */; };
+		C3243BFAA529A32E60B1D9F0 /* SkyObjectResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6A399575B5B8CD4A75FA422 /* SkyObjectResolver.swift */; };
+		29196A3C16BA8B7980A77626 /* SkyObjectLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574A31DDE7DC99C88052A9D0 /* SkyObjectLinkView.swift */; };
 		4E1F4FA2015020299F02BB41 /* SkyVisibilityObjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7DCFE6CEC2B8B237A5E2BF2 /* SkyVisibilityObjectDetailView.swift */; };
 		4544FD6DEC252B17932A6467 /* AIInstructionsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */; };
 		5AAF3DB35F0BA266748D1462 /* CameraManagerOllamaConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC51EAC3F33AAD929054D6 /* CameraManagerOllamaConfigurationTests.swift */; };
@@ -399,6 +402,8 @@
 		1D9697EF4F18690E6A19E490 /* PHD2GuideLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PHD2GuideLogView.swift; sourceTree = "<group>"; };
 		2C2C2FB3AAC03207933FAC88 /* WikipediaLookupService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WikipediaLookupService.swift; sourceTree = "<group>"; };
 		71F6A6D9902462FAFCB6B44E /* SDSSImageCutoutService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SDSSImageCutoutService.swift; sourceTree = "<group>"; };
+		E6A399575B5B8CD4A75FA422 /* SkyObjectResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyObjectResolver.swift; sourceTree = "<group>"; };
+		574A31DDE7DC99C88052A9D0 /* SkyObjectLinkView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyObjectLinkView.swift; sourceTree = "<group>"; };
 		A7DCFE6CEC2B8B237A5E2BF2 /* SkyVisibilityObjectDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyVisibilityObjectDetailView.swift; sourceTree = "<group>"; };
 		8A7B75CF1158765A4B3CC159 /* AIInstructionsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIInstructionsSettingsView.swift; sourceTree = "<group>"; };
 		46F7B0CC8B6C296672D8C417 /* ToneCurve.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ToneCurve.swift; sourceTree = "<group>"; };
@@ -576,6 +581,7 @@
 		F0951D60F57319D3D8FEBC85 /* SkyTonightCalculatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyTonightCalculatorTests.swift; sourceTree = "<group>"; };
 		B8B2DF526CB5440F5362E9BC /* WikipediaLookupServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WikipediaLookupServiceTests.swift; sourceTree = "<group>"; };
 		83DE1F0DCF42BD42D519B5F6 /* SDSSImageCutoutServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SDSSImageCutoutServiceTests.swift; sourceTree = "<group>"; };
+		EC8958D6399008EB90895827 /* SkyObjectResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkyObjectResolverTests.swift; sourceTree = "<group>"; };
 		D2CC29D2BF4A69C56F71CB12 /* FITSWriter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FITSWriter.swift; sourceTree = "<group>"; };
 		D3816F505C4E9157049E95BA /* EquipmentModelsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentModelsTests.swift; sourceTree = "<group>"; };
 		D4818A36287BA9478675E6C5 /* SirilElaborationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SirilElaborationService.swift; sourceTree = "<group>"; };
@@ -668,6 +674,7 @@
 				84E40011E155559FFD579754 /* PlanetaryPositionCalculator.swift */,
 				9CA6C161EB921725359BEA6C /* SkyEventsCalculator.swift */,
 				74AFDE6661A15C048A2F81D6 /* SkyTonightCalculator.swift */,
+				E6A399575B5B8CD4A75FA422 /* SkyObjectResolver.swift */,
 				3643F2E7B1D449F1B5C4A2A1 /* CatalogRepository.swift */,
 			);
 			name = Catalog;
@@ -796,6 +803,7 @@
 				F0951D60F57319D3D8FEBC85 /* SkyTonightCalculatorTests.swift */,
 				B8B2DF526CB5440F5362E9BC /* WikipediaLookupServiceTests.swift */,
 				83DE1F0DCF42BD42D519B5F6 /* SDSSImageCutoutServiceTests.swift */,
+				EC8958D6399008EB90895827 /* SkyObjectResolverTests.swift */,
 				3F7EBC060836D0B378D8D3EE /* AstronomyKnowledgeBaseTests.swift */,
 				C09FC4720C6F24A5924FD077 /* ProjectArchiveTests.swift */,
 				94E116BAE29C4CABCA11421E /* CameraManagerSessionLifecycleTests.swift */,
@@ -954,6 +962,7 @@
 				A2F514788D8470C9BCF08D45 /* SkyVisibilityExplorerView.swift */,
 				1D9697EF4F18690E6A19E490 /* PHD2GuideLogView.swift */,
 				A7DCFE6CEC2B8B237A5E2BF2 /* SkyVisibilityObjectDetailView.swift */,
+				574A31DDE7DC99C88052A9D0 /* SkyObjectLinkView.swift */,
 				795F6920BCB735EEFB105E56 /* SkyTonightMenuBarView.swift */,
 				E88925FDFCDFD5CD1889D56E /* InsightsView.swift */,
 				C30CCC1098124C64AE6BBC87 /* GalleryView.swift */,
@@ -1332,6 +1341,8 @@
 				BE256F92D03B01CFDF12B93C /* PHD2GuideLogView.swift in Sources */,
 				DDA21B025F8BC35540D62484 /* WikipediaLookupService.swift in Sources */,
 				9039BD5C0267E306848C65AA /* SDSSImageCutoutService.swift in Sources */,
+				C3243BFAA529A32E60B1D9F0 /* SkyObjectResolver.swift in Sources */,
+				29196A3C16BA8B7980A77626 /* SkyObjectLinkView.swift in Sources */,
 				4E1F4FA2015020299F02BB41 /* SkyVisibilityObjectDetailView.swift in Sources */,
 				1A7076BEEAFB0EEA97237E13 /* InsightsData.swift in Sources */,
 				05B7A0DC3515F05569AD31DB /* InsightsView.swift in Sources */,
@@ -1508,6 +1519,7 @@
 				006C2BA5275C36C41CC0261B /* SkyTonightCalculatorTests.swift in Sources */,
 				B35A433EB17865B3D88921CF /* WikipediaLookupServiceTests.swift in Sources */,
 				954E0F9647C3F67E9688309D /* SDSSImageCutoutServiceTests.swift in Sources */,
+				A668E96D1F13EED0ECD9B8A4 /* SkyObjectResolverTests.swift in Sources */,
 				39C4C19C83FD07F8D3A01A57 /* AstronomyKnowledgeBaseTests.swift in Sources */,
 				BECCD6DF404110DD2AE56339 /* ProjectArchiveTests.swift in Sources */,
 				8C9D01944E32FEB56E44B731 /* CameraManagerSessionLifecycleTests.swift in Sources */,
