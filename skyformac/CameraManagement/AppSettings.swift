@@ -73,6 +73,7 @@ enum AppSettings {
         case fieldOfViewWidthArcmin
         case fieldOfViewHeightArcmin
         case skyVisibilityConfig
+        case galleryLibrary
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -346,6 +347,21 @@ enum AppSettings {
                 return
             }
             UserDefaults.standard.set(data, forKey: Key.skyVisibilityConfig.rawValue)
+        }
+    }
+
+    /// The Gallery's own folders/albums/favorites — one shared library across every project's
+    /// elaborated images, not scoped to any one project (matching the Gallery page itself).
+    static var galleryLibrary: GalleryLibrary {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Key.galleryLibrary.rawValue),
+                  let decoded = try? JSONDecoder().decode(GalleryLibrary.self, from: data)
+            else { return GalleryLibrary() }
+            return decoded
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            UserDefaults.standard.set(data, forKey: Key.galleryLibrary.rawValue)
         }
     }
 

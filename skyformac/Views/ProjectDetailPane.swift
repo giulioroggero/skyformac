@@ -984,6 +984,18 @@ private struct ThirdPartyToolsMenu: View {
 /// result is itself just a `.tif` file. "Info…" shows what actually produced it (source, recipe,
 /// size on disk) and offers "Re-elaborate…" to run it again with different parameters — a new,
 /// separate entry alongside this one, not a replacement, so both remain comparable.
+/// The Gallery-only extras `ElaboratedImageCard`'s context menu offers when `galleryActions` is
+/// set — favoriting and album membership, both backed by `GalleryView`'s own `GalleryLibrary`
+/// state so the sidebar/pinned-favorites row update immediately rather than only on next open.
+struct GalleryCardActions {
+    var isFavorite: Bool
+    var canAddFavorite: Bool
+    var albums: [GalleryAlbum]
+    var onToggleFavorite: () -> Void
+    var onAddToAlbum: (GalleryAlbum.ID) -> Void
+    var onCreateAlbumWithImage: () -> Void
+}
+
 struct ElaboratedImageCard: View {
     let project: Project
     let image: ElaboratedImage
@@ -993,6 +1005,10 @@ struct ElaboratedImageCard: View {
     /// of them without closing and reopening a new window. Empty (the default) means "just this
     /// one image, no navigation," so existing call sites don't need to opt in.
     var siblings: [(project: Project, image: ElaboratedImage)] = []
+    /// Non-`nil` only from `GalleryView`'s own card presentation — Favorites/"Add to Album" only
+    /// make sense there (that's the one place with a sidebar/pinned row to reflect them), not on a
+    /// single project's or session's own gallery.
+    var galleryActions: GalleryCardActions?
 
     @State private var isConfirmingDelete = false
     @State private var isShowingDetail = false
@@ -1144,6 +1160,22 @@ struct ElaboratedImageCard: View {
                 onSendToStarNet: { startSendingToStarNet() },
                 onOpenInPixInsight: { try? PixInsightAppLauncher.open(fileURL) }
             )
+            if let galleryActions {
+                Divider()
+                Button(
+                    galleryActions.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                    systemImage: galleryActions.isFavorite ? "star.slash" : "star",
+                    action: galleryActions.onToggleFavorite
+                )
+                .disabled(!galleryActions.isFavorite && !galleryActions.canAddFavorite)
+                Menu("Add to Album") {
+                    ForEach(galleryActions.albums) { album in
+                        Button(album.name) { galleryActions.onAddToAlbum(album.id) }
+                    }
+                    if !galleryActions.albums.isEmpty { Divider() }
+                    Button("New Album…", action: galleryActions.onCreateAlbumWithImage)
+                }
+            }
         }
         .sheet(isPresented: $isShowingDetail) {
             ElaboratedImageDetailSheet(

@@ -23,6 +23,11 @@ actually tagged. Tags on GitHub: [v0.6.3](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Gallery now has a Photos-style sidebar: Favorites (up to 6 images, pinned in their own row above
+  "All Photos"), user-created Albums (one level of Folders to group them in), and "Auto-Organize" —
+  one click creates an album per distinct object name found across your elaborated images' own
+  sessions, without touching anything you made or renamed by hand. Every image card gains "Add to
+  Favorites"/"Add to Album…" in its context menu, right there in the Gallery grid.
 - "What to See" now remembers latitude/longitude, sort, and every filter across relaunches. Date &
   Time is remembered too, but only if it's still "tonight" by the time the page reopens (today's
   evening through 6am the next morning) — anything older falls back to the usual tonight-at-23:00

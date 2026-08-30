@@ -18,6 +18,7 @@
 		E75FBE877DFE48E6D825A371 /* HorizontalCoordinatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BD3A5FEA4BEEC9B08D7637 /* HorizontalCoordinatesTests.swift */; };
 		E82A63B897B40520005E2D9E /* SkyVisibilityCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFB113AC49EDD5CE0A07D41 /* SkyVisibilityCalculatorTests.swift */; };
 		08A2998069B703FC94396BC9 /* ProjectSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */; };
+		FE5AF1B3A5A80895111C8CDA /* GalleryLibraryModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F290EA4C046210DBBFE3A7 /* GalleryLibraryModelsTests.swift */; };
 		095B435516723DB37892A1AD /* GraXpertElaborationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89576445CC21044FB95D0C4 /* GraXpertElaborationTests.swift */; };
 		099973C00C3E99A41739F432 /* AllSkyAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFBC991708FDCE0EA4CC1E /* AllSkyAnalyzer.swift */; };
 		09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */; };
@@ -259,6 +260,7 @@
 		DE4EEA337C5F391C74D4A6F0 /* LiveStackDynamicStretchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5F61391F907340F7096C136 /* LiveStackDynamicStretchTests.swift */; };
 		DF1F573D9B50E463B4D11456 /* AIDescriptionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4DBC0079BEAE3B722AD59FA /* AIDescriptionContext.swift */; };
 		E06CA48D0F91C0D87E7D2FED /* ObservationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C1927858D0564ECE3183F6 /* ObservationModels.swift */; };
+		82383BD74400CDB8514AE095 /* GalleryLibraryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209FA110E001BBE89A75DE0A /* GalleryLibraryModels.swift */; };
 		E27273C1437161A8B073027E /* DiskSpaceChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA796E075478701D2A6AC5A /* DiskSpaceChecker.swift */; };
 		E28DA7DEA33DAEA6E13B624C /* CGImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 384B2470BBD31B41755AA16F /* CGImageRenderer.swift */; };
 		E2EAC3EFFD26B34D7DBF5C7F /* MetalFrameRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFECDB2BCC9D0B85F291E1BD /* MetalFrameRenderer.swift */; };
@@ -515,6 +517,7 @@
 		F559202BC8594D7BB8C548C9 /* AstroBinPublisher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AstroBinPublisher.swift; sourceTree = "<group>"; };
 		A02A314E31D15C5B5C2D51CB /* CameraManagerCaptureNoteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraManagerCaptureNoteTests.swift; sourceTree = "<group>"; };
 		A1C1927858D0564ECE3183F6 /* ObservationModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationModels.swift; sourceTree = "<group>"; };
+		209FA110E001BBE89A75DE0A /* GalleryLibraryModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GalleryLibraryModels.swift; sourceTree = "<group>"; };
 		A58B778D665C2941AEAB0293 /* StreakDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreakDetectorTests.swift; sourceTree = "<group>"; };
 		A60E80083BB3A2A7B05436F7 /* EquipmentLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EquipmentLibraryTests.swift; sourceTree = "<group>"; };
 		A6C4A2686DAF1E9180672A49 /* MetalFrameRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetalFrameRendererTests.swift; sourceTree = "<group>"; };
@@ -554,6 +557,7 @@
 		BAC872B515085B7D11644CA5 /* AllSkyAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AllSkyAnalyzerTests.swift; sourceTree = "<group>"; };
 		BCC3074349F7D44055727ADF /* CTupleConversions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CTupleConversions.swift; sourceTree = "<group>"; };
 		BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectSearchTests.swift; sourceTree = "<group>"; };
+		22F290EA4C046210DBBFE3A7 /* GalleryLibraryModelsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GalleryLibraryModelsTests.swift; sourceTree = "<group>"; };
 		BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveStackerTests.swift; sourceTree = "<group>"; };
 		BFECDB2BCC9D0B85F291E1BD /* MetalFrameRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetalFrameRenderer.swift; sourceTree = "<group>"; };
 		C09FC4720C6F24A5924FD077 /* ProjectArchiveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectArchiveTests.swift; sourceTree = "<group>"; };
@@ -777,6 +781,7 @@
 				3F4CDD606BCE2156ABE3B064 /* CoreLocationProviderTests.swift */,
 				EFEE87CD4961B04418AE9312 /* CameraManagerActiveSessionLocationTests.swift */,
 				BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */,
+				22F290EA4C046210DBBFE3A7 /* GalleryLibraryModelsTests.swift */,
 				79AC1FEA6E74EB19701D1F40 /* OllamaPlannerTests.swift */,
 				90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */,
 				65CB451FDD91720BFEAD314F /* CameraManagerFirstRunTests.swift */,
@@ -1044,6 +1049,7 @@
 			isa = PBXGroup;
 			children = (
 				A1C1927858D0564ECE3183F6 /* ObservationModels.swift */,
+				209FA110E001BBE89A75DE0A /* GalleryLibraryModels.swift */,
 				33E254AB7CC9CB2A2ABAC6DD /* ProjectStore.swift */,
 				F697DCCE35D7667955614A48 /* EquipmentModels.swift */,
 				DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */,
@@ -1299,6 +1305,7 @@
 				E4495077D3085CD19C1E0D5D /* AppLog.swift in Sources */,
 				3A3D0F6CB865CD988868E4B3 /* LogViewerView.swift in Sources */,
 				E06CA48D0F91C0D87E7D2FED /* ObservationModels.swift in Sources */,
+				82383BD74400CDB8514AE095 /* GalleryLibraryModels.swift in Sources */,
 				09F8E3473075EA68B9BB8CA2 /* ProjectStore.swift in Sources */,
 				4527E949643DEA91F18F3AC3 /* EquipmentModels.swift in Sources */,
 				9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */,
@@ -1493,6 +1500,7 @@
 				DA96C7BDE9B70B89381E23B8 /* CoreLocationProviderTests.swift in Sources */,
 				2F8C5EC8137C671D4279BEBE /* CameraManagerActiveSessionLocationTests.swift in Sources */,
 				08A2998069B703FC94396BC9 /* ProjectSearchTests.swift in Sources */,
+				FE5AF1B3A5A80895111C8CDA /* GalleryLibraryModelsTests.swift in Sources */,
 				1E39FF799CAC5407841A7354 /* OllamaPlannerTests.swift in Sources */,
 				AC88102D5E61CA51F4A2E951 /* ProjectsLibraryTests.swift in Sources */,
 				6AFC98108D279D263E9C0156 /* CameraManagerFirstRunTests.swift in Sources */,
