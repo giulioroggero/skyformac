@@ -21,6 +21,11 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Changed
+- "What to See" now opens with "Date & Time" defaulted to tonight at 23:00 instead of the literal
+  current moment — opening the page in the afternoon shouldn't default every reading to broad
+  daylight when the page is for planning tonight's imaging.
+
 ### Fixed
 - `nightWindow` (the "when does it actually get dark" scan behind Sunset/Sunrise, every rise/peak/
   set time, and "Tonight") used to anchor its 24h scan on literal noon of the picked date's own

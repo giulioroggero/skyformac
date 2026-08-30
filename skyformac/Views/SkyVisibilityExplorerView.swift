@@ -22,7 +22,7 @@ struct SkyVisibilityExplorerView: View {
     var onCreateProject: (Project) -> Void
     var onOpenSession: (Project, Session) -> Void
 
-    @State private var date = Date()
+    @State private var date: Date
     /// The calendar day the "Time of Day" slider is currently centered on — deliberately separate
     /// state from `date` itself, not derived from it on every access: `date`'s own calendar day
     /// flips at midnight, exactly the instant a user is most likely to scrub across, so if the
@@ -96,7 +96,12 @@ struct SkyVisibilityExplorerView: View {
         let location = cameraManager.locationProvider.lastLocation
         _latitudeText = State(initialValue: location.map { String(format: "%.4f", $0.latitude) } ?? "")
         _longitudeText = State(initialValue: location.map { String(format: "%.4f", $0.longitude) } ?? "")
-        _sliderAnchorDay = State(initialValue: Date())
+        let today = Date()
+        // 23:00 rather than literal "now" — opening the page at, say, 4pm shouldn't default every
+        // reading to broad daylight when the whole point of the page is planning tonight's imaging.
+        let defaultDate = Calendar(identifier: .gregorian).date(bySettingHour: 23, minute: 0, second: 0, of: today) ?? today
+        _date = State(initialValue: defaultDate)
+        _sliderAnchorDay = State(initialValue: today)
     }
 
     /// Messier + Caldwell + NGC — real deep-sky imaging targets. Bright stars are left out on
