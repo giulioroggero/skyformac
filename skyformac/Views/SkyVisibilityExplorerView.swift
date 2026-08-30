@@ -78,23 +78,52 @@ struct SkyVisibilityExplorerView: View {
 
     /// The "move time like Stellarium" slider — reads/writes the same `date` the DatePicker above
     /// does, as hours-since-midnight of its own calendar day, so dragging one moves the other.
+    /// Noon-to-noon, not midnight-to-midnight — a midnight-to-midnight slider splits an actual
+    /// night (dusk today through dawn tomorrow) across its two far edges instead of showing it as
+    /// one contiguous stretch. `0` is noon of "tonight"'s own evening, `12` is the midnight in the
+    /// middle, `24` is noon the following day — so the whole night sits centered on the slider,
+    /// which is the whole point of a "scrub through tonight" control. This is also exactly the
+    /// same noon anchor `SkyVisibilityCalculator.nightWindow` already scans from, so a value here
+    /// always lands within the same night "Find What's Visible" computes for `date`'s date.
     private var timeOfDayBinding: Binding<Double> {
         Binding(
             get: {
                 let calendar = Calendar(identifier: .gregorian)
-                let components = calendar.dateComponents([.hour, .minute], from: date)
-                return Double(components.hour ?? 0) + Double(components.minute ?? 0) / 60
+                // Which calendar day's *evening* this moment belongs to: a pre-noon time (early
+                // morning) is still part of the night that started the *previous* day's evening.
+                let hour = calendar.component(.hour, from: date)
+                let eveningDay = hour < 12 ? calendar.date(byAdding: .day, value: -1, to: date) ?? date : date
+                let referenceNoon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: eveningDay) ?? date
+                return date.timeIntervalSince(referenceNoon) / 3600 + 12
             },
             set: { newValue in
                 let calendar = Calendar(identifier: .gregorian)
-                let startOfDay = calendar.startOfDay(for: date)
-                date = startOfDay.addingTimeInterval(newValue * 3600)
+                let hour = calendar.component(.hour, from: date)
+                let eveningDay = hour < 12 ? calendar.date(byAdding: .day, value: -1, to: date) ?? date : date
+                let referenceNoon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: eveningDay) ?? date
+                date = referenceNoon.addingTimeInterval((newValue - 12) * 3600)
             }
         )
     }
 
     private var parsedLatitude: Double? { Double(latitudeText) }
     private var parsedLongitude: Double? { Double(longitudeText) }
+
+    /// "Tonight" means *night*, not "whatever the wall clock says right now" — jump to the
+    /// midpoint of astronomical darkness (sunset + twilight through sunrise), computed from
+    /// today's date at this location, so the slider and results land on actual sky-dark sky
+    /// rather than, say, 10am. Falls back to right now if there's no location yet to compute a
+    /// night window from, or the sun never gets dark enough tonight (polar day).
+    private func jumpToTonight() {
+        guard let latitude = parsedLatitude, let longitude = parsedLongitude,
+              let window = SkyVisibilityCalculator.nightWindow(
+                  for: Date(), latitudeDegrees: latitude, longitudeDegrees: longitude, sunAltitudeThresholdDegrees: -12
+              ) else {
+            date = Date()
+            return
+        }
+        date = window.start.addingTimeInterval(window.end.timeIntervalSince(window.start) / 2)
+    }
 
     /// Every distinct object type actually present in the current results — a dropdown listing
     /// types that would filter everything out isn't useful, so this only ever shows what's here.
@@ -143,8 +172,8 @@ struct SkyVisibilityExplorerView: View {
                     LabeledContent("Date & Time") {
                         HStack {
                             DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
-                            Button("Tonight") { date = Date() }
-                                .help("Jump back to right now")
+                            Button("Tonight") { jumpToTonight() }
+                                .help("Jump to tonight's dark sky — after sunset, once astronomical twilight ends")
                         }
                     }
                     Text("The date picks which night to scan; the time is used for each result's own \"Altitude Now\" reading below.")
