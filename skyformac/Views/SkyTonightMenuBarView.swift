@@ -6,6 +6,7 @@ import SwiftUI
 /// convenience a dedicated always-there status item gives over a page you have to navigate to.
 struct SkyTonightMenuBarView: View {
     var cameraManager: CameraManager
+    @Environment(\.openWindow) private var openWindow
 
     private var plannedObjectNames: [String] {
         cameraManager.projectsLibrary.activeProjects.flatMap(\.sessions).flatMap(\.plannedObjects)
@@ -48,11 +49,26 @@ struct SkyTonightMenuBarView: View {
                 }
             }
             Divider()
-            Button("Open Skyformac…") { NSApp.activate(ignoringOtherApps: true) }
+            Button("Open Skyformac…") { openMainWindow() }
             Button("Quit Skyformac") { NSApp.terminate(nil) }
         }
         .padding(12)
         .frame(width: 280)
+    }
+
+    /// `NSApp.activate` alone only brings an already-open window forward — closing the main
+    /// window doesn't quit this app (no window-count-based termination), so it's entirely
+    /// possible to have zero windows open (every detached one — Post-Processing, Edit Image —
+    /// closed too) with the app still running. In that case activation alone shows nothing at
+    /// all; `openWindow()` asks SwiftUI for a fresh instance of the app's one `WindowGroup`, which
+    /// lands back on `ContentView` (the camera/capture screen) rather than the Projects browser
+    /// whenever `CameraManager.activeSession` is still set — exactly "go back to the capture" for
+    /// a session that was mid-run when every window happened to close.
+    private func openMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if !cameraManager.isMainWindowVisible {
+            openWindow(id: "main")
+        }
     }
 
     private static let timeFormatter: DateFormatter = {

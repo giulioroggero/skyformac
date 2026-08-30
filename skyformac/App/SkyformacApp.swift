@@ -20,7 +20,11 @@ struct SkyformacApp: App {
         // `cameraManager.isHelpPresented`), not a second `Window` scene, so there's never a
         // second entry in the Window menu/Mission Control to manage. `RootView` swaps between the
         // Projects browser and `ContentView` in place, in this same window, for the same reason.
-        WindowGroup {
+        // Explicit `id` (not the no-`id` default) so `SkyTonightMenuBarView` can target this
+        // exact scene with `openWindow(id: "main")` when the menu bar's "Open Skyformac…" finds
+        // zero windows open — `OpenWindowAction` on this SDK requires an `id`/`value` argument,
+        // there's no bare no-argument overload to fall back on.
+        WindowGroup(id: "main") {
             RootView()
                 .environment(cameraManager)
         }

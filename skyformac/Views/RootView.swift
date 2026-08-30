@@ -44,6 +44,8 @@ struct RootView: View {
             try? await Task.sleep(for: .seconds(2.2))
             withAnimation(.easeOut(duration: 0.4)) { isShowingSplash = false }
         }
+        .onAppear { cameraManager.isMainWindowVisible = true }
+        .onDisappear { cameraManager.isMainWindowVisible = false }
     }
 
     /// Whether the docked assistant panel should take over the *entire* main content area right

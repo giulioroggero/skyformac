@@ -345,6 +345,15 @@ final class CameraManager {
     var isRecallParametersPresented = false
     var isSettingsPresented = false
 
+    /// Whether the app's one `WindowGroup` window is currently on screen — `RootView` sets this
+    /// in `.onAppear`/`.onDisappear`. Closing that window doesn't quit the app (no custom
+    /// `applicationShouldTerminateAfterLastWindowClosed` override), so the app can keep running
+    /// with genuinely zero windows — a detached window (Post-Processing, Edit Image, the Assistant
+    /// panel) can outlive the main window entirely. `SkyTonightMenuBarView`'s "Open Skyformac…"
+    /// reads this to know whether `NSApp.activate` alone is enough, or whether it also needs to
+    /// ask SwiftUI for a fresh instance of that window via `openWindow()`.
+    var isMainWindowVisible = false
+
     // MARK: - Sidebar assistant
 
     /// Shown by default — "a chat on the right bar of all pages," not something buried behind a

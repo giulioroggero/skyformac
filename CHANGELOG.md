@@ -22,7 +22,13 @@ actually tagged. Tags on GitHub: [v0.6.3](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- "Open Skyformac…" in the Sky Tonight menu-bar item only ever called `NSApp.activate`, which
+  brings an already-open window forward but shows nothing if there isn't one — closing the main
+  window doesn't quit the app, so it's entirely possible to end up with zero windows open (e.g.
+  after closing a detached Post-Processing window with the main window already closed). It now
+  asks SwiftUI for a fresh window when none is open, which lands back on the camera/capture screen
+  rather than the Projects browser if a session was still active.
 
 ## [0.6.3] - 2026-08-30
 
