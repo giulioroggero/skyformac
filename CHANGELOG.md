@@ -22,7 +22,28 @@ actually tagged. Tags on GitHub: [v0.6.3](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- "What to See" now remembers latitude/longitude, sort, and every filter across relaunches. Date &
+  Time is remembered too, but only if it's still "tonight" by the time the page reopens (today's
+  evening through 6am the next morning) — anything older falls back to the usual tonight-at-23:00
+  default rather than reopening onto a stale night.
+- The "Time of Day" slider gained a compact manual-entry field (type or step an exact hour/minute)
+  next to it, for anyone who'd rather enter a time directly than scrub for it.
+
+### Changed
+- The Sky Map's detached window now centers the dial and lets it grow to fill the window as it's
+  resized, instead of sitting fixed-size in a corner.
+
 ### Fixed
+- The "Time of Day" slider felt unresponsive even after the earlier release/pause-commit change —
+  its drag state lived directly on "What to See"'s own view, so every tick still re-rendered the
+  entire page (every result row's chart, the whole Sky Map) regardless. Split into its own small
+  view so a drag only re-renders the slider itself.
+- Opening an image in the full-screen viewer (or hitting "Fit to Window") could leave it sitting
+  off-center instead of actually centered — `NSScrollView.magnify(toFit:)` zooms correctly but
+  doesn't guarantee a centered scroll position on its own. Now explicitly centered after every fit.
+- Gallery had two "<" (back) buttons next to Home — a redundant custom one alongside the
+  `NavigationStack`'s own automatic back button. Removed the redundant one.
 - "Open Skyformac…" in the Sky Tonight menu-bar item only ever called `NSApp.activate`, which
   brings an already-open window forward but shows nothing if there isn't one — closing the main
   window doesn't quit the app, so it's entirely possible to end up with zero windows open (e.g.

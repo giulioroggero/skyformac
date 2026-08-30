@@ -72,6 +72,7 @@ enum AppSettings {
         case horizonProfile
         case fieldOfViewWidthArcmin
         case fieldOfViewHeightArcmin
+        case skyVisibilityConfig
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -329,6 +330,23 @@ enum AppSettings {
     static var fieldOfViewHeightArcmin: Double {
         get { UserDefaults.standard.object(forKey: Key.fieldOfViewHeightArcmin.rawValue) != nil ? UserDefaults.standard.double(forKey: Key.fieldOfViewHeightArcmin.rawValue) : 40 }
         set { UserDefaults.standard.set(newValue, forKey: Key.fieldOfViewHeightArcmin.rawValue) }
+    }
+
+    /// "What to See"'s own last-used location/sort/filters — `nil` the first time the page is ever
+    /// opened, at which point it falls back to its own built-in defaults (current location,
+    /// tonight at 23:00, sort by peak altitude, no filters).
+    static var skyVisibilityConfig: SkyVisibilityConfig? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Key.skyVisibilityConfig.rawValue) else { return nil }
+            return try? JSONDecoder().decode(SkyVisibilityConfig.self, from: data)
+        }
+        set {
+            guard let newValue, let data = try? JSONEncoder().encode(newValue) else {
+                UserDefaults.standard.removeObject(forKey: Key.skyVisibilityConfig.rawValue)
+                return
+            }
+            UserDefaults.standard.set(data, forKey: Key.skyVisibilityConfig.rawValue)
+        }
     }
 
     // MARK: - Custom folder resolution

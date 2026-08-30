@@ -25,6 +25,24 @@ final class ImageZoomController {
     func zoomToFit() {
         guard let scrollView, imageSize.width > 0, imageSize.height > 0 else { return }
         scrollView.animator().magnify(toFit: NSRect(origin: .zero, size: imageSize))
+        Self.center(scrollView)
+    }
+
+    /// `NSScrollView.magnify(toFit:)` zooms so the given rect fills the frame, but doesn't
+    /// guarantee the scroll position lands centered — for an image whose fitted aspect ratio
+    /// doesn't exactly match the viewport's, it can leave the image sitting off to one edge
+    /// instead of in the middle. Called right after every fit (initial open, "Fit to Window") to
+    /// make "centered" actually true rather than incidental.
+    fileprivate static func center(_ scrollView: NSScrollView) {
+        guard let documentView = scrollView.documentView else { return }
+        let clipBounds = scrollView.contentView.bounds
+        let docFrame = documentView.frame
+        let centeredOrigin = NSPoint(
+            x: max(0, (docFrame.width - clipBounds.width) / 2),
+            y: max(0, (docFrame.height - clipBounds.height) / 2)
+        )
+        scrollView.contentView.scroll(to: centeredOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     private func step(by factor: CGFloat) {
@@ -73,6 +91,7 @@ private struct ZoomableImageView: NSViewRepresentable {
         guard !context.coordinator.hasFitted, scrollView.bounds.width > 0, scrollView.bounds.height > 0 else { return }
         context.coordinator.hasFitted = true
         scrollView.magnify(toFit: NSRect(origin: .zero, size: image.size))
+        ImageZoomController.center(scrollView)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }

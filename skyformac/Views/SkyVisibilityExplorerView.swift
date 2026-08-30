@@ -1,6 +1,31 @@
 import Charts
 import SwiftUI
 
+/// Everything "What to See" remembers across relaunches — persisted as one blob
+/// (`AppSettings.skyVisibilityConfig`) rather than one `UserDefaults` key per field, since it's
+/// all read/written together at the same few moments (load on open, save on any change). Sort
+/// field and cardinal directions are stored by raw string rather than referencing
+/// `SkyVisibilityExplorerView.SortField`/`CardinalDirection` directly, so this stays decodable
+/// even if a future case gets renamed — an unrecognized string is just dropped, not a decode
+/// failure for the whole blob.
+struct SkyVisibilityConfig: Codable, Sendable {
+    var latitudeText: String
+    var longitudeText: String
+    var date: Date
+    var sortCriteria: [SortCriterionData]
+    var typeFilters: [String]
+    var cardinalFilters: [String]
+    var isMagnitudeFilterEnabled: Bool
+    var maxMagnitudeFilter: Double
+    var isHorizonClearanceFilterEnabled: Bool
+    var isFieldOfViewFilterEnabled: Bool
+
+    struct SortCriterionData: Codable, Sendable {
+        var field: String
+        var ascending: Bool
+    }
+}
+
 /// "A database of sky objects with what can be seen in a certain period of time, at what
 /// lat/long. Starting from that the user can create a new project, or a session in an existing
 /// project, or launch a capture for an existing session." — scans the bundled Messier/Caldwell/
@@ -31,9 +56,6 @@ struct SkyVisibilityExplorerView: View {
     /// re-pointed when the user picks a genuinely different date (the `DatePicker`) or hits
     /// "Tonight" — never by the slider's own dragging, which only ever moves `date`'s time.
     @State private var sliderAnchorDay: Date
-    @State private var isDraggingTime = false
-    @State private var sliderDragValue: Double = 24
-    @State private var sliderCommitTask: Task<Void, Never>?
     @State private var latitudeText: String
     @State private var longitudeText: String
     @State private var results: [SkyVisibilityCalculator.Result] = []
@@ -64,7 +86,7 @@ struct SkyVisibilityExplorerView: View {
     /// One entry in the "sort by A, then by B…" list — order in the array is priority order
     /// (earlier entries break ties in later ones), so "current altitude, then magnitude" and
     /// "magnitude, then current altitude" are genuinely different orderings, not the same set.
-    private struct SortCriterion: Identifiable {
+    private struct SortCriterion: Identifiable, Equatable {
         let id = UUID()
         var field: SortField
         var ascending: Bool
@@ -96,15 +118,56 @@ struct SkyVisibilityExplorerView: View {
         self.cameraManager = cameraManager
         self.onCreateProject = onCreateProject
         self.onOpenSession = onOpenSession
+        let saved = AppSettings.skyVisibilityConfig
         let location = cameraManager.locationProvider.lastLocation
-        _latitudeText = State(initialValue: location.map { String(format: "%.4f", $0.latitude) } ?? "")
-        _longitudeText = State(initialValue: location.map { String(format: "%.4f", $0.longitude) } ?? "")
+        _latitudeText = State(initialValue: saved?.latitudeText ?? location.map { String(format: "%.4f", $0.latitude) } ?? "")
+        _longitudeText = State(initialValue: saved?.longitudeText ?? location.map { String(format: "%.4f", $0.longitude) } ?? "")
+
         let today = Date()
         // 23:00 rather than literal "now" — opening the page at, say, 4pm shouldn't default every
         // reading to broad daylight when the whole point of the page is planning tonight's imaging.
         let defaultDate = Calendar(identifier: .gregorian).date(bySettingHour: 23, minute: 0, second: 0, of: today) ?? today
-        _date = State(initialValue: defaultDate)
-        _sliderAnchorDay = State(initialValue: today)
+        // A saved date only wins if it's still "tonight" by the time the page is reopened — the
+        // same night's evening through the following dawn (up to 6am), not some older night a
+        // saved value happened to be sitting on. Anything stale falls back to the 23:00 default
+        // above rather than reopening onto a date that's no longer relevant.
+        let calendar = Calendar(identifier: .gregorian)
+        let todayStart = calendar.startOfDay(for: today)
+        let tomorrow6am = calendar.date(byAdding: .hour, value: 30, to: todayStart) ?? today
+        if let savedDate = saved?.date, savedDate >= todayStart, savedDate < tomorrow6am {
+            _date = State(initialValue: savedDate)
+            _sliderAnchorDay = State(initialValue: savedDate)
+        } else {
+            _date = State(initialValue: defaultDate)
+            _sliderAnchorDay = State(initialValue: today)
+        }
+
+        if let saved {
+            let restoredCriteria = saved.sortCriteria.compactMap { entry in
+                SortField(rawValue: entry.field).map { SortCriterion(field: $0, ascending: entry.ascending) }
+            }
+            _sortCriteria = State(initialValue: restoredCriteria.isEmpty ? [SortCriterion(field: .peakAltitude, ascending: false)] : restoredCriteria)
+            _typeFilters = State(initialValue: Set(saved.typeFilters))
+            _cardinalFilters = State(initialValue: Set(saved.cardinalFilters.compactMap(CardinalDirection.init(rawValue:))))
+            _isMagnitudeFilterEnabled = State(initialValue: saved.isMagnitudeFilterEnabled)
+            _maxMagnitudeFilter = State(initialValue: saved.maxMagnitudeFilter)
+            _isHorizonClearanceFilterEnabled = State(initialValue: saved.isHorizonClearanceFilterEnabled)
+            _isFieldOfViewFilterEnabled = State(initialValue: saved.isFieldOfViewFilterEnabled)
+        }
+    }
+
+    /// Persists everything `SkyVisibilityConfig` tracks — called after any change to one of those
+    /// fields (see the `.onChange` chain in `body`) so the next time this page opens, it picks up
+    /// where this session left off rather than resetting to built-in defaults.
+    private func saveConfig() {
+        AppSettings.skyVisibilityConfig = SkyVisibilityConfig(
+            latitudeText: latitudeText, longitudeText: longitudeText, date: date,
+            sortCriteria: sortCriteria.map { SkyVisibilityConfig.SortCriterionData(field: $0.field.rawValue, ascending: $0.ascending) },
+            typeFilters: Array(typeFilters), cardinalFilters: cardinalFilters.map(\.rawValue),
+            isMagnitudeFilterEnabled: isMagnitudeFilterEnabled, maxMagnitudeFilter: maxMagnitudeFilter,
+            isHorizonClearanceFilterEnabled: isHorizonClearanceFilterEnabled,
+            isFieldOfViewFilterEnabled: isFieldOfViewFilterEnabled
+        )
     }
 
     /// Messier + Caldwell + NGC — real deep-sky imaging targets. Bright stars are left out on
@@ -123,62 +186,10 @@ struct SkyVisibilityExplorerView: View {
         return calendar.date(bySettingHour: 23, minute: 59, second: 0, of: sliderAnchorDay) ?? sliderAnchorDay
     }
 
-    /// The "move time like Stellarium" slider — reads/writes the same `date` the DatePicker above
-    /// does, as hours offset from `sliderCenter`. Spans a full 48 hours (`0...48`, `24` at the
-    /// center) rather than one 24-hour day, so both the night before *and* the night after the
-    /// picked date are reachable without ever having to re-pick a date — the center itself sits at
-    /// 23:59, not midday, so either night reads as one contiguous stretch on its own half of the
-    /// track instead of being split across the two ends the way a plain midnight-to-midnight
-    /// slider would.
-    private var timeOfDayBinding: Binding<Double> {
-        Binding(
-            get: { date.timeIntervalSince(sliderCenter) / 3600 + 24 },
-            set: { newValue in date = sliderCenter.addingTimeInterval((newValue - 24) * 3600) }
-        )
-    }
-
-    /// The slider's own on-screen position and the "committed" `date` everything else (per-row
-    /// altitude readings, the Sky Map, the debounced recalculation) reacts to are deliberately
-    /// decoupled: dragging moves `sliderDragValue` immediately (so the thumb and its time label
-    /// feel responsive), but `date` itself — and everything expensive that depends on it — only
-    /// updates when the drag is released or the thumb sits still for a full second. Without this,
-    /// every single tick of a drag would re-render every result row's chart and the whole Sky Map.
-    private var timeSliderBinding: Binding<Double> {
-        Binding(
-            get: { isDraggingTime ? sliderDragValue : timeOfDayBinding.wrappedValue },
-            set: { newValue in
-                isDraggingTime = true
-                sliderDragValue = newValue
-                scheduleSliderCommit()
-            }
-        )
-    }
-
-    /// What the slider's own time label should show — the live drag position while actively
-    /// scrubbing (immediate feedback), the real committed `date` otherwise.
-    private var displayedSliderDate: Date {
-        isDraggingTime ? sliderCenter.addingTimeInterval((sliderDragValue - 24) * 3600) : date
-    }
-
-    private func scheduleSliderCommit() {
-        sliderCommitTask?.cancel()
-        sliderCommitTask = Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            guard !Task.isCancelled else { return }
-            commitSliderValue()
-        }
-    }
-
-    private func commitSliderValue() {
-        sliderCommitTask?.cancel()
-        timeOfDayBinding.wrappedValue = sliderDragValue
-        isDraggingTime = false
-    }
-
     /// The `DatePicker`'s own binding — writing through this (rather than `$date` directly) is
-    /// what re-centers `sliderAnchorDay` on an explicit date pick, without the slider's own
-    /// dragging (which only ever writes `date` through `timeOfDayBinding`) doing the same on every
-    /// keystroke of scrubbing through midnight.
+    /// what re-centers `sliderAnchorDay` on an explicit date pick, without the "Time of Day"
+    /// slider's own dragging (`TimeOfDaySliderView`, which only ever writes `date` directly)
+    /// doing the same on every keystroke of scrubbing through midnight.
     private var dateBinding: Binding<Date> {
         Binding(
             get: { date },
@@ -528,7 +539,7 @@ struct SkyVisibilityExplorerView: View {
                                         Spacer()
                                         Button("Detach…") { openSkyMapWindow() }
                                     }
-                                    skyMapSection
+                                    skyMapSection(fillsAvailableSpace: false)
                                 }
                             }
                             .padding(.bottom, 4)
@@ -545,13 +556,20 @@ struct SkyVisibilityExplorerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("What to See")
-        .onChange(of: date) { _, _ in scheduleRecalculation() }
-        .onChange(of: latitudeText) { _, _ in scheduleRecalculation() }
-        .onChange(of: longitudeText) { _, _ in scheduleRecalculation() }
+        .onChange(of: date) { _, _ in scheduleRecalculation(); saveConfig() }
+        .onChange(of: latitudeText) { _, _ in scheduleRecalculation(); saveConfig() }
+        .onChange(of: longitudeText) { _, _ in scheduleRecalculation(); saveConfig() }
         .onChange(of: horizonProfile) { _, newValue in
             AppSettings.horizonProfile = newValue
             scheduleRecalculation()
         }
+        .onChange(of: sortCriteria) { _, _ in saveConfig() }
+        .onChange(of: typeFilters) { _, _ in saveConfig() }
+        .onChange(of: cardinalFilters) { _, _ in saveConfig() }
+        .onChange(of: isMagnitudeFilterEnabled) { _, _ in saveConfig() }
+        .onChange(of: maxMagnitudeFilter) { _, _ in saveConfig() }
+        .onChange(of: isHorizonClearanceFilterEnabled) { _, _ in saveConfig() }
+        .onChange(of: isFieldOfViewFilterEnabled) { _, _ in saveConfig() }
         .sheet(item: $addingToProjectObject) { object in
             AddSkyObjectToProjectSheet(candidates: cameraManager.projectsLibrary.activeProjects) { project in
                 let session = Session.newSession(name: object.displayName, goal: "Observe \(object.displayName)", plannedObjects: [object.displayName])
@@ -772,14 +790,7 @@ struct SkyVisibilityExplorerView: View {
                     Button("Tonight") { jumpToTonight() }
                         .help("Jump to tonight's dark sky — after sunset, once astronomical twilight ends")
                 }
-                HStack {
-                    Slider(
-                        value: timeSliderBinding, in: 0...48, step: 5.0 / 60,
-                        onEditingChanged: { editing in if !editing { commitSliderValue() } }
-                    )
-                    Text(Self.sliderDateTimeFormatter.string(from: displayedSliderDate)).monospacedDigit().frame(width: 110, alignment: .trailing)
-                }
-                .help("Scrub through 48 hours centered on midnight tonight, Stellarium-style — a filter on \"what's visible right now\" just as much as type or magnitude are. Updates once you release or pause for a second, not on every tick.")
+                TimeOfDaySliderView(date: $date, sliderCenter: sliderCenter)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -918,21 +929,27 @@ struct SkyVisibilityExplorerView: View {
     /// a sheet can't be dragged to a second monitor or resized past what this page declares. The
     /// window's content is `skyMapSection` itself (not a copy), so editing the horizon there
     /// updates the exact same `horizonProfile` this page's own filters and scan already read.
+    /// Not a `ScrollView` here (unlike a typical detached-window body) — `fillsAvailableSpace`
+    /// means the dial itself is meant to grow and re-center as the window resizes, which a
+    /// scrolling container would just clip instead of allowing.
     private func openSkyMapWindow() {
         skyMapWindowController = DetachedContentWindowController(
-            title: "Sky Map", contentSize: NSSize(width: 460, height: 620), minSize: NSSize(width: 380, height: 480),
+            title: "Sky Map", contentSize: NSSize(width: 640, height: 720), minSize: NSSize(width: 380, height: 480),
             onClose: { skyMapWindowController = nil }
         ) {
-            ScrollView {
-                skyMapSection
-                    .padding(20)
-            }
+            skyMapSection(fillsAvailableSpace: true)
+                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         skyMapWindowController?.showWindow(nil)
     }
 
+    /// `fillsAvailableSpace`: the embedded (next-to-filters) presentation keeps a fixed, compact
+    /// dial so it doesn't fight the results list for room; the detached window (see
+    /// `openSkyMapWindow`) instead lets the dial expand and stay centered as the window itself
+    /// resizes, since there it's the only thing on screen.
     @ViewBuilder
-    private var skyMapSection: some View {
+    private func skyMapSection(fillsAvailableSpace: Bool) -> some View {
         if parsedLatitude == nil || parsedLongitude == nil {
             Text("Enter a location above to see the sky map.")
                 .font(.callout)
@@ -942,7 +959,10 @@ struct SkyVisibilityExplorerView: View {
                 Text("This *is* what decides what's visible — an object only counts as \"visible\" if it clears this shape somewhere in its own direction, not a separate flat altitude number. Dot size is relative brightness (magnitude); the shaded edge is your own horizon obstruction, not the mathematical one.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                SkyCompassView(dots: skyMapDots, horizonProfile: $horizonProfile, isEditable: isEditingHorizon)
+                SkyCompassView(
+                    dots: skyMapDots, horizonProfile: $horizonProfile, isEditable: isEditingHorizon,
+                    fillsAvailableSpace: fillsAvailableSpace
+                )
                 Button(isEditingHorizon ? "Done Editing My Horizon" : "Edit My Horizon…") {
                     isEditingHorizon.toggle()
                 }
@@ -952,6 +972,7 @@ struct SkyVisibilityExplorerView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .frame(maxWidth: fillsAvailableSpace ? .infinity : nil, maxHeight: fillsAvailableSpace ? .infinity : nil)
         }
     }
 
@@ -1046,14 +1067,6 @@ struct SkyVisibilityExplorerView: View {
         return formatter
     }()
 
-    /// Shows the weekday alongside the time — the slider's own value display needs it now that it
-    /// spans 48 hours (two different calendar days), unlike every other time-only reading in this
-    /// view that's always about "tonight" specifically.
-    private static let sliderDateTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEE HH:mm")
-        return formatter
-    }()
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -1161,6 +1174,100 @@ private struct LaunchCaptureForSkyObjectSheet: View {
 /// per object. Also the horizon-obstruction editor — `isEditable` swaps in drag handles on the
 /// same 8 compass anchors `horizonProfile` stores, so the shape being edited is always shown
 /// against the actual sky it's meant to be excluding.
+/// The "move time like Stellarium" slider, split out into its own view so a drag only re-renders
+/// this small subview instead of the entire "What to See" page (every result row's chart, the
+/// whole Sky Map) on every single tick — when this lived as plain `@State` on the parent view,
+/// each tick's state change forced a full re-evaluation of that whole page's body, which is what
+/// actually made the slider feel unresponsive despite the drag/commit split already in place.
+///
+/// Spans a full 48 hours (`0...48`, `24` at `sliderCenter`) rather than one 24-hour day, so both
+/// the night before *and* the night after the picked date are reachable without re-picking a date
+/// — `sliderCenter` (23:59 of the picked evening) sits at the middle, not the edge, so either
+/// night reads as one contiguous stretch on its own half of the track. Dragging moves this view's
+/// own `dragValue` immediately (so the thumb and its label feel responsive) but only writes the
+/// real `date` binding — and everything expensive that depends on it — on release or a second's
+/// pause. A compact `DatePicker` alongside it offers direct keyboard/stepper entry for anyone who'd
+/// rather type an exact time than scrub for it; typing there commits immediately, no throttle.
+private struct TimeOfDaySliderView: View {
+    @Binding var date: Date
+    var sliderCenter: Date
+
+    @State private var isDragging = false
+    @State private var dragValue: Double = 24
+    @State private var commitTask: Task<Void, Never>?
+
+    private var committedValue: Double {
+        date.timeIntervalSince(sliderCenter) / 3600 + 24
+    }
+
+    private var displayedDate: Date {
+        isDragging ? sliderCenter.addingTimeInterval((dragValue - 24) * 3600) : date
+    }
+
+    private var sliderBinding: Binding<Double> {
+        Binding(
+            get: { isDragging ? dragValue : committedValue },
+            set: { newValue in
+                isDragging = true
+                dragValue = newValue
+                scheduleCommit()
+            }
+        )
+    }
+
+    /// The manual-entry `DatePicker`'s own binding — shows the live scrub position while
+    /// dragging (so it never looks stale next to a moving thumb), but a direct edit here commits
+    /// straight to `date` and cancels any pending drag-commit rather than fighting with it.
+    private var manualEntryBinding: Binding<Date> {
+        Binding(
+            get: { displayedDate },
+            set: { newValue in
+                commitTask?.cancel()
+                isDragging = false
+                date = newValue
+            }
+        )
+    }
+
+    var body: some View {
+        HStack {
+            Slider(
+                value: sliderBinding, in: 0...48, step: 5.0 / 60,
+                onEditingChanged: { editing in if !editing { commit() } }
+            )
+            Text(Self.dayTimeFormatter.string(from: displayedDate))
+                .monospacedDigit()
+                .frame(width: 110, alignment: .trailing)
+            DatePicker("", selection: manualEntryBinding, displayedComponents: .hourAndMinute)
+                .labelsHidden()
+                .datePickerStyle(.field)
+                .frame(width: 80)
+        }
+        .help("Scrub through 48 hours centered on midnight tonight, Stellarium-style — a filter on \"what's visible right now\" just as much as type or magnitude are. Updates once you release or pause for a second, not on every tick. Or type/step an exact time in the field on the right.")
+    }
+
+    private func scheduleCommit() {
+        commitTask?.cancel()
+        commitTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            commit()
+        }
+    }
+
+    private func commit() {
+        commitTask?.cancel()
+        date = sliderCenter.addingTimeInterval((dragValue - 24) * 3600)
+        isDragging = false
+    }
+
+    private static let dayTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEE HH:mm")
+        return formatter
+    }()
+}
+
 private struct SkyCompassView: View {
     struct Dot: Identifiable {
         let id: String
@@ -1175,8 +1282,11 @@ private struct SkyCompassView: View {
     let dots: [Dot]
     @Binding var horizonProfile: HorizonProfile
     var isEditable: Bool
+    /// `false` (the default): a fixed, compact dial for sitting next to the filters list. `true`
+    /// (the detached window): the dial expands to fill whatever space it's given and stays
+    /// centered as that space changes — see `openSkyMapWindow`'s own doc comment.
+    var fillsAvailableSpace: Bool = false
 
-    private let diameter: CGFloat = 320
     private let margin: CGFloat = 26
     private let minZoom: CGFloat = 1
     private let maxZoom: CGFloat = 3
@@ -1189,80 +1299,16 @@ private struct SkyCompassView: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            ZStack {
-                Canvas { context, size in
-                    let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                    let radius = min(size.width, size.height) / 2 - margin
-
-                    for altitude in stride(from: 0.0, through: 90.0, by: 30.0) {
-                        let r = radius * CGFloat(1 - altitude / 90)
-                        context.stroke(
-                            Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)),
-                            with: .color(.secondary.opacity(0.25))
-                        )
-                        let labelPoint = CGPoint(x: center.x + 4, y: center.y - r)
-                        context.draw(
-                            Text("\(Int(altitude))°").font(.caption2).foregroundStyle(.secondary),
-                            at: labelPoint, anchor: .leading
-                        )
+            Group {
+                if fillsAvailableSpace {
+                    GeometryReader { outer in
+                        let side = max(120, min(outer.size.width, outer.size.height))
+                        dial(side: side)
+                            .position(x: outer.size.width / 2, y: outer.size.height / 2)
                     }
-
-                    context.fill(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.18)))
-                    context.stroke(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.65)), lineWidth: 1.5)
-
-                    for direction in CardinalDirection.allCases {
-                        let point = pointOnDial(center: center, radius: radius + margin * 0.55, azimuthDegrees: direction.azimuthDegrees, altitudeDegrees: 0)
-                        context.draw(
-                            Text(direction.rawValue).font(.caption.bold()).foregroundStyle(.secondary),
-                            at: point
-                        )
-                    }
-
-                    for dot in dots {
-                        let point = pointOnDial(center: center, radius: radius, azimuthDegrees: dot.azimuthDegrees, altitudeDegrees: dot.altitudeDegrees)
-                        let diameter = dotDiameter(forMagnitude: dot.magnitude)
-                        let rect = CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2, width: diameter, height: diameter)
-                        let isHovered = dot.id == hoveredDotID
-                        context.fill(
-                            Path(ellipseIn: rect),
-                            with: .color(dot.isClearOfHorizon ? .yellow : .secondary.opacity(0.5))
-                        )
-                        if isHovered {
-                            context.stroke(Path(ellipseIn: rect.insetBy(dx: -2, dy: -2)), with: .color(.white), lineWidth: 1.5)
-                        }
-                    }
-                }
-                .frame(width: diameter, height: diameter)
-                .background(Circle().fill(Color.black.opacity(0.85)))
-
-                GeometryReader { proxy in
-                    ForEach(dots) { dot in
-                        dotHitTarget(dot, in: proxy.size)
-                    }
-                    if isEditable {
-                        ForEach(CardinalDirection.allCases) { direction in
-                            horizonHandle(direction: direction, in: proxy.size)
-                        }
-                    }
-                }
-            }
-            .frame(width: diameter, height: diameter)
-            .scaleEffect(zoom, anchor: .center)
-            .clipped()
-            .gesture(
-                MagnificationGesture()
-                    .updating($gestureZoom) { value, state, _ in state = value }
-                    .onEnded { value in baseZoom = min(max(baseZoom * value, minZoom), maxZoom) }
-            )
-            .overlay(alignment: .top) {
-                if let hoveredDotID, let hovered = dots.first(where: { $0.id == hoveredDotID }) {
-                    Text(hovered.displayName)
-                        .font(.caption.bold())
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.black.opacity(0.75), in: Capsule())
-                        .foregroundStyle(.white)
-                        .padding(.top, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    dial(side: 320)
                 }
             }
 
@@ -1309,6 +1355,89 @@ private struct SkyCompassView: View {
                     hoveredDotID = nil
                 }
             }
+    }
+
+    /// The actual dial — a fixed `side` × `side` square, everything computed relative to that so
+    /// it works identically whether `side` is the compact embedded 320 or whatever the detached
+    /// window's available space resolves to.
+    @ViewBuilder
+    private func dial(side: CGFloat) -> some View {
+        ZStack {
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let radius = min(size.width, size.height) / 2 - margin
+
+                for altitude in stride(from: 0.0, through: 90.0, by: 30.0) {
+                    let r = radius * CGFloat(1 - altitude / 90)
+                    context.stroke(
+                        Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)),
+                        with: .color(.secondary.opacity(0.25))
+                    )
+                    let labelPoint = CGPoint(x: center.x + 4, y: center.y - r)
+                    context.draw(
+                        Text("\(Int(altitude))°").font(.caption2).foregroundStyle(.secondary),
+                        at: labelPoint, anchor: .leading
+                    )
+                }
+
+                context.fill(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.18)))
+                context.stroke(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.65)), lineWidth: 1.5)
+
+                for direction in CardinalDirection.allCases {
+                    let point = pointOnDial(center: center, radius: radius + margin * 0.55, azimuthDegrees: direction.azimuthDegrees, altitudeDegrees: 0)
+                    context.draw(
+                        Text(direction.rawValue).font(.caption.bold()).foregroundStyle(.secondary),
+                        at: point
+                    )
+                }
+
+                for dot in dots {
+                    let point = pointOnDial(center: center, radius: radius, azimuthDegrees: dot.azimuthDegrees, altitudeDegrees: dot.altitudeDegrees)
+                    let diameter = dotDiameter(forMagnitude: dot.magnitude)
+                    let rect = CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2, width: diameter, height: diameter)
+                    let isHovered = dot.id == hoveredDotID
+                    context.fill(
+                        Path(ellipseIn: rect),
+                        with: .color(dot.isClearOfHorizon ? .yellow : .secondary.opacity(0.5))
+                    )
+                    if isHovered {
+                        context.stroke(Path(ellipseIn: rect.insetBy(dx: -2, dy: -2)), with: .color(.white), lineWidth: 1.5)
+                    }
+                }
+            }
+            .frame(width: side, height: side)
+            .background(Circle().fill(Color.black.opacity(0.85)))
+
+            GeometryReader { proxy in
+                ForEach(dots) { dot in
+                    dotHitTarget(dot, in: proxy.size)
+                }
+                if isEditable {
+                    ForEach(CardinalDirection.allCases) { direction in
+                        horizonHandle(direction: direction, in: proxy.size)
+                    }
+                }
+            }
+        }
+        .frame(width: side, height: side)
+        .scaleEffect(zoom, anchor: .center)
+        .clipped()
+        .gesture(
+            MagnificationGesture()
+                .updating($gestureZoom) { value, state, _ in state = value }
+                .onEnded { value in baseZoom = min(max(baseZoom * value, minZoom), maxZoom) }
+        )
+        .overlay(alignment: .top) {
+            if let hoveredDotID, let hovered = dots.first(where: { $0.id == hoveredDotID }) {
+                Text(hovered.displayName)
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.black.opacity(0.75), in: Capsule())
+                    .foregroundStyle(.white)
+                    .padding(.top, 4)
+            }
+        }
     }
 
     private func horizonPath(center: CGPoint, radius: CGFloat) -> Path {

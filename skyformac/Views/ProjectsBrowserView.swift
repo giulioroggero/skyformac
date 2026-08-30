@@ -341,7 +341,7 @@ struct ProjectsBrowserView: View {
             // page's own search field, an unrelated concern this page shouldn't inherit.
             GalleryView(
                 cameraManager: cameraManager, projects: library.activeProjects.filter { !$0.isArchived },
-                onHome: { path.removeAll() }, onBack: { path.removeLast() }
+                onHome: { path.removeAll() }
             )
         }
     }
