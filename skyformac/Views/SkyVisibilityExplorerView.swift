@@ -23,12 +23,21 @@ struct SkyVisibilityExplorerView: View {
     var onOpenSession: (Project, Session) -> Void
 
     @State private var date = Date()
+    /// The calendar day the "Time of Day" slider is currently centered on — deliberately separate
+    /// state from `date` itself, not derived from it on every access: `date`'s own calendar day
+    /// flips at midnight, exactly the instant a user is most likely to scrub across, so if the
+    /// slider recomputed its center from `date` live, dragging through midnight would yank the
+    /// center (and the whole 48h window) out from under the thumb mid-drag. Only explicitly
+    /// re-pointed when the user picks a genuinely different date (the `DatePicker`) or hits
+    /// "Tonight" — never by the slider's own dragging, which only ever moves `date`'s time.
+    @State private var sliderAnchorDay: Date
     @State private var latitudeText: String
     @State private var longitudeText: String
     @State private var minAltitude: Double = 20
     @State private var results: [SkyVisibilityCalculator.Result] = []
     @State private var isCalculating = false
     @State private var hasCalculated = false
+    @State private var recalculationTask: Task<Void, Never>?
     @State private var addingToProjectObject: SkyCatalogObject?
     @State private var launchingCaptureObject: SkyCatalogObject?
     @State private var conjunctions: [SkyEventsCalculator.Conjunction] = []
@@ -81,6 +90,7 @@ struct SkyVisibilityExplorerView: View {
         let location = cameraManager.locationProvider.lastLocation
         _latitudeText = State(initialValue: location.map { String(format: "%.4f", $0.latitude) } ?? "")
         _longitudeText = State(initialValue: location.map { String(format: "%.4f", $0.longitude) } ?? "")
+        _sliderAnchorDay = State(initialValue: Date())
     }
 
     /// Messier + Caldwell + NGC — real deep-sky imaging targets. Bright stars are left out on
@@ -90,32 +100,39 @@ struct SkyVisibilityExplorerView: View {
         SkyCatalog.messierObjects + SkyCatalog.caldwellObjects + SkyCatalog.ngcObjects
     }
 
+    /// 23:59 of `sliderAnchorDay` — the fixed pivot the "Time of Day" slider is centered on. Using
+    /// a stable, separately-tracked anchor day (rather than deriving "which day" from `date`
+    /// itself on every access) is what keeps this constant for an entire drag — see
+    /// `sliderAnchorDay`'s own doc comment for why that matters.
+    private var sliderCenter: Date {
+        let calendar = Calendar(identifier: .gregorian)
+        return calendar.date(bySettingHour: 23, minute: 59, second: 0, of: sliderAnchorDay) ?? sliderAnchorDay
+    }
+
     /// The "move time like Stellarium" slider — reads/writes the same `date` the DatePicker above
-    /// does, as hours-since-midnight of its own calendar day, so dragging one moves the other.
-    /// Noon-to-noon, not midnight-to-midnight — a midnight-to-midnight slider splits an actual
-    /// night (dusk today through dawn tomorrow) across its two far edges instead of showing it as
-    /// one contiguous stretch. `0` is noon of "tonight"'s own evening, `12` is the midnight in the
-    /// middle, `24` is noon the following day — so the whole night sits centered on the slider,
-    /// which is the whole point of a "scrub through tonight" control. This is also exactly the
-    /// same noon anchor `SkyVisibilityCalculator.nightWindow` already scans from, so a value here
-    /// always lands within the same night "Find What's Visible" computes for `date`'s date.
+    /// does, as hours offset from `sliderCenter`. Spans a full 48 hours (`0...48`, `24` at the
+    /// center) rather than one 24-hour day, so both the night before *and* the night after the
+    /// picked date are reachable without ever having to re-pick a date — the center itself sits at
+    /// 23:59, not midday, so either night reads as one contiguous stretch on its own half of the
+    /// track instead of being split across the two ends the way a plain midnight-to-midnight
+    /// slider would.
     private var timeOfDayBinding: Binding<Double> {
         Binding(
-            get: {
-                let calendar = Calendar(identifier: .gregorian)
-                // Which calendar day's *evening* this moment belongs to: a pre-noon time (early
-                // morning) is still part of the night that started the *previous* day's evening.
-                let hour = calendar.component(.hour, from: date)
-                let eveningDay = hour < 12 ? calendar.date(byAdding: .day, value: -1, to: date) ?? date : date
-                let referenceNoon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: eveningDay) ?? date
-                return date.timeIntervalSince(referenceNoon) / 3600 + 12
-            },
+            get: { date.timeIntervalSince(sliderCenter) / 3600 + 24 },
+            set: { newValue in date = sliderCenter.addingTimeInterval((newValue - 24) * 3600) }
+        )
+    }
+
+    /// The `DatePicker`'s own binding — writing through this (rather than `$date` directly) is
+    /// what re-centers `sliderAnchorDay` on an explicit date pick, without the slider's own
+    /// dragging (which only ever writes `date` through `timeOfDayBinding`) doing the same on every
+    /// keystroke of scrubbing through midnight.
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { date },
             set: { newValue in
-                let calendar = Calendar(identifier: .gregorian)
-                let hour = calendar.component(.hour, from: date)
-                let eveningDay = hour < 12 ? calendar.date(byAdding: .day, value: -1, to: date) ?? date : date
-                let referenceNoon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: eveningDay) ?? date
-                date = referenceNoon.addingTimeInterval((newValue - 12) * 3600)
+                date = newValue
+                sliderAnchorDay = newValue
             }
         )
     }
@@ -129,6 +146,7 @@ struct SkyVisibilityExplorerView: View {
     /// rather than, say, 10am. Falls back to right now if there's no location yet to compute a
     /// night window from, or the sun never gets dark enough tonight (polar day).
     private func jumpToTonight() {
+        sliderAnchorDay = Date()
         guard let latitude = parsedLatitude, let longitude = parsedLongitude,
               let window = SkyVisibilityCalculator.nightWindow(
                   for: Date(), latitudeDegrees: latitude, longitudeDegrees: longitude, sunAltitudeThresholdDegrees: -12
@@ -276,7 +294,7 @@ struct SkyVisibilityExplorerView: View {
                 PageSection(title: "Where and When") {
                     LabeledContent("Date & Time") {
                         HStack {
-                            DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
+                            DatePicker("", selection: dateBinding, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
                             Button("Tonight") { jumpToTonight() }
                                 .help("Jump to tonight's dark sky — after sunset, once astronomical twilight ends")
                         }
@@ -286,11 +304,11 @@ struct SkyVisibilityExplorerView: View {
                         .foregroundStyle(.secondary)
                     LabeledContent("Time of Day") {
                         HStack {
-                            Slider(value: timeOfDayBinding, in: 0...24, step: 5.0 / 60)
-                            Text(Self.timeFormatter.string(from: date)).monospacedDigit().frame(width: 60, alignment: .trailing)
+                            Slider(value: timeOfDayBinding, in: 0...48, step: 5.0 / 60)
+                            Text(Self.sliderDateTimeFormatter.string(from: date)).monospacedDigit().frame(width: 110, alignment: .trailing)
                         }
                     }
-                    .help("Scrub through the day, Stellarium-style — moves the same \"Date & Time\" above.")
+                    .help("Scrub through 48 hours centered on midnight tonight, Stellarium-style — moves the same \"Date & Time\" above.")
                     LabeledContent("Latitude") {
                         TextField("e.g. 45.4642", text: $latitudeText).frame(width: 140)
                     }
@@ -398,6 +416,10 @@ struct SkyVisibilityExplorerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("What to See")
+        .onChange(of: date) { _, _ in scheduleRecalculation() }
+        .onChange(of: latitudeText) { _, _ in scheduleRecalculation() }
+        .onChange(of: longitudeText) { _, _ in scheduleRecalculation() }
+        .onChange(of: minAltitude) { _, _ in scheduleRecalculation() }
         .sheet(item: $addingToProjectObject) { object in
             AddSkyObjectToProjectSheet(candidates: cameraManager.projectsLibrary.activeProjects) { project in
                 let session = Session.newSession(name: object.displayName, goal: "Observe \(object.displayName)", plannedObjects: [object.displayName])
@@ -696,6 +718,23 @@ struct SkyVisibilityExplorerView: View {
         }
     }
 
+    /// Auto-recalculates "Find What's Visible" (and the Sky Map, which reads the same `results`/
+    /// `planetResults`) a beat after the user stops touching date/time/location/minimum-altitude —
+    /// debounced rather than firing on every keystroke or slider tick, since a full catalog scan
+    /// on every single change (especially while dragging the "Time of Day" slider) would be both
+    /// wasteful and visibly janky. Only kicks in once the user has already run the first
+    /// calculation manually — a fresh, untouched page shouldn't start scanning in the background
+    /// just because a location autofilled from `CoreLocationProvider`.
+    private func scheduleRecalculation() {
+        guard hasCalculated else { return }
+        recalculationTask?.cancel()
+        recalculationTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            await calculate()
+        }
+    }
+
     private func calculate() async {
         guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return }
         isCalculating = true
@@ -767,6 +806,15 @@ struct SkyVisibilityExplorerView: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .none
         formatter.timeStyle = .short
+        return formatter
+    }()
+
+    /// Shows the weekday alongside the time — the slider's own value display needs it now that it
+    /// spans 48 hours (two different calendar days), unlike every other time-only reading in this
+    /// view that's always about "tonight" specifically.
+    private static let sliderDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEE HH:mm")
         return formatter
     }()
 

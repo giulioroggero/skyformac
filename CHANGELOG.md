@@ -31,6 +31,13 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   astronomy. It now anchors on the evening the picked moment's night actually belongs to.
 
 ### Added
+- "What to See"'s "Time of Day" slider now spans a full 48 hours (was 24), centered on 23:59 of
+  the picked date — both the night before and the night after are reachable without re-picking a
+  date, and each night still reads as one contiguous stretch on its own half of the track.
+- "Find What's Visible" (and the Sky Map) now auto-recalculates a beat after you change the date,
+  time, location, or minimum altitude — debounced so dragging the "Time of Day" slider doesn't
+  trigger a rescan on every tick, only once you settle. Only kicks in after the first manual
+  calculation, so opening the page doesn't start scanning on its own.
 - "What to See" gains per-object cardinal direction (N/NE/E/.../NW, shown next to each "Altitude
   Now" reading), multiple simultaneous sort criteria (e.g. "current altitude, then magnitude" —
   add/remove/reorder from a new "Sort by" list), and multiple simultaneous filters (type, a
