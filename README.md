@@ -26,7 +26,8 @@
   <a href="EXAMPLES.md">Examples</a> ·
   <a href="RELNOTES.md">Release Notes</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
-  <a href="specs/README.md">Contributing</a> ·
+  <a href=".github/CONTRIBUTING.md">Contributing</a> ·
+  <a href="specs/skyformac_NINA_Parity_Roadmap_Spec.md">Roadmap</a> ·
   <a href="LICENSE.md">License</a> ·
   <a href="SBOM.md">SBOM</a> ·
   <a href="https://github.com/giulioroggero/skyformac/releases">Releases</a> ·
@@ -637,9 +638,13 @@ non-obvious design decisions behind them — live in [`docs/`](docs/):
 ## Contributing
 
 See [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) for how to report
-bugs, propose features, and submit code — including how new non-trivial
-features go through spec-driven development (see
-[`specs/README.md`](specs/README.md) for how that works). This project
+bugs, propose features, and submit code — including how work moves from a
+filed issue onto the [Roadmap project](https://github.com/users/giulioroggero/projects),
+gets prioritized by a maintainer, and goes through spec-driven development
+(see [`specs/README.md`](specs/README.md)) on its way through alpha, beta,
+and GA. [`specs/skyformac_NINA_Parity_Roadmap_Spec.md`](specs/skyformac_NINA_Parity_Roadmap_Spec.md)
+is the current top-level roadmap — the feature gaps against N.I.N.A. this
+project is working through, one Project item per gap. This project
 follows the [Contributor Covenant](.github/CODE_OF_CONDUCT.md). See
 [`.github/SECURITY.md`](.github/SECURITY.md) to report a vulnerability
 privately, and [`.github/SUPPORT.md`](.github/SUPPORT.md) for where to ask

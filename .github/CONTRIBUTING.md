@@ -18,6 +18,32 @@ reports, anything.
   using the feature request template.
 - **Contribute code** — see below.
 
+## How work gets planned
+
+Every bug and feature proposal starts as a GitHub Issue, then follows a fixed path from
+"reported" to "shipped":
+
+1. **Issue filed** — a bug report or feature request (see above).
+2. **Added to the [Roadmap project](https://github.com/users/giulioroggero/projects)** — every
+   open issue that isn't a trivial fix lands on the project board.
+3. **Prioritized** — a maintainer sets its priority on the board. This is what decides *when*
+   something gets picked up, not whether it's welcome.
+4. **Spec written** — for anything non-trivial, an `skyformac_<FeatureName>_Spec.md` gets written
+   in [`specs/`](../specs/) *before* implementation starts (see
+   [`specs/README.md`](../specs/README.md)). `specs/skyformac_NINA_Parity_Roadmap_Spec.md` is the
+   current top-level example: a roadmap of larger gaps, each of which gets its own dedicated spec
+   once prioritized.
+5. **Implemented**, against that spec.
+6. **Tested** — the full suite (`make test`) plus manual verification of the actual feature, not
+   just that it compiles.
+7. **Alpha → Beta → GA** — a non-trivial feature ships behind this progression (an
+   `[Unreleased]` `CHANGELOG.md` entry through at least one tagged pre-release before it's
+   considered done), not straight to a stable release.
+
+This is the same discipline `specs/README.md` already describes for spec-driven development —
+this section is just the wider loop that starts before a spec is even written and ends after
+the code ships.
+
 ## Before you open a pull request
 
 - For a small, obvious fix (typo, small bug), just open a PR.
