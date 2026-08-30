@@ -7,7 +7,8 @@ single-developer app, not a library with a public API.
 
 **[Unreleased]** is the `master`/dev branch — updated continuously as work lands,
 with everything folded under a proper version heading (and dated) only once it's
-actually tagged. Tags on GitHub: [v0.6.3](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.3),
+actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.4),
+[v0.6.3](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.3),
 [v0.6.2](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.2),
 [v0.6.1](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.1),
 [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0),
@@ -21,6 +22,14 @@ actually tagged. Tags on GitHub: [v0.6.3](https://github.com/giulioroggero/skyfo
 [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12).
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [0.6.4] - 2026-08-30
+
+**Alpha**: continues the same "What to See"/Gallery batch v0.6.3 started — still untested against
+a real session under a real sky; see [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)'s alpha → beta →
+GA progression. v0.7.0 is planned once this has had real field use.
 
 ### Added
 - Gallery now has a Photos-style sidebar: Favorites (up to 6 images, pinned in their own row above
