@@ -31,6 +31,15 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   astronomy. It now anchors on the evening the picked moment's night actually belongs to.
 
 ### Added
+- A "Field of View" filter and per-object indicator ("Fits/Small/Partially fits/Too large in
+  frame") — enter your own width × height in arcminutes and each result shows how its published
+  angular size compares, with an optional toggle to hide anything that plain won't fit. Objects
+  with no published size aren't judged either way.
+- The "Time of Day" slider and "Tonight" button moved next to "Sort by"/"Filter by" — scrubbing
+  time is itself a filter on what's visible right now, not a separate setup step. "Minimum
+  Altitude" moved down next to the Sky Map, and is now disabled (with an explanation) once your own
+  horizon profile there stops being flat — a per-direction profile is already a more precise cutoff
+  than one global number at that point.
 - Sky Map dots are now clickable (opens the same object detail sheet a list row does), show the
   object's name on hover, show altitude-ring degree labels, and the whole dial can be zoomed
   (pinch, or the new +/-/Reset controls) to separate dots that are crowded together near the

@@ -49,6 +49,9 @@ struct SkyVisibilityExplorerView: View {
     @State private var isHorizonClearanceFilterEnabled = false
     @State private var horizonProfile: HorizonProfile = AppSettings.horizonProfile
     @State private var isEditingHorizon = false
+    @State private var fovWidthArcmin: Double = AppSettings.fieldOfViewWidthArcmin
+    @State private var fovHeightArcmin: Double = AppSettings.fieldOfViewHeightArcmin
+    @State private var isFieldOfViewFilterEnabled = false
     @State private var planetResults: [SkyVisibilityCalculator.PlanetResult] = []
     @State private var detailSubject: DetailSubject?
     @State private var searchText = ""
@@ -182,6 +185,9 @@ struct SkyVisibilityExplorerView: View {
         if isHorizonClearanceFilterEnabled {
             filtered = filtered.filter { isClearOfHorizon(raDegrees: $0.object.raDegrees, decDegrees: $0.object.decDegrees) }
         }
+        if isFieldOfViewFilterEnabled {
+            filtered = filtered.filter { fieldOfViewFit(for: $0.object) != .tooLarge }
+        }
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSearch.isEmpty {
             filtered = filtered.filter {
@@ -249,6 +255,29 @@ struct SkyVisibilityExplorerView: View {
         return altitude > horizonProfile.altitudeDegrees(atAzimuthDegrees: azimuth)
     }
 
+    private func fieldOfViewFit(for object: SkyCatalogObject) -> FieldOfViewFit {
+        FieldOfViewFit.classify(majorAxisArcmin: object.majorAxisArcmin, fieldOfViewWidthArcmin: fovWidthArcmin, heightArcmin: fovHeightArcmin)
+    }
+
+    private func fieldOfViewFitLabel(_ fit: FieldOfViewFit) -> String? {
+        switch fit {
+        case .unknownSize: return nil
+        case .small: return "Small in frame"
+        case .fits: return "Fits in frame"
+        case .partiallyFits: return "Partially fits frame"
+        case .tooLarge: return "Too large for frame"
+        }
+    }
+
+    private func fieldOfViewFitColor(_ fit: FieldOfViewFit) -> Color {
+        switch fit {
+        case .unknownSize, .small: return .secondary
+        case .fits: return .green
+        case .partiallyFits: return .orange
+        case .tooLarge: return .red
+        }
+    }
+
     /// The Moon/planet's RA/Dec right now — pulled out since `altitudeNowText(planet:)` and the
     /// sky-map dots both need a planet's live position, not just the peak-tonight snapshot
     /// `PlanetResult` itself stores.
@@ -261,6 +290,15 @@ struct SkyVisibilityExplorerView: View {
             return (equatorial.rightAscensionDegrees, equatorial.declinationDegrees)
         }
         return nil
+    }
+
+    /// Whether every compass direction has the same obstruction altitude — the default, unedited
+    /// `HorizonProfile.clear` (everything at 0°) counts, and so would any other flat value, but the
+    /// moment one direction differs from the rest, a single "Minimum Altitude" number can no
+    /// longer represent what the profile already says more precisely.
+    private var isHorizonProfileUniform: Bool {
+        let rounded = horizonProfile.altitudesDegrees.map { ($0 * 10).rounded() / 10 }
+        return Set(rounded).count <= 1
     }
 
     /// Every filtered deep-sky result plus every planet/Moon result, projected onto the sky-map
@@ -300,22 +338,11 @@ struct SkyVisibilityExplorerView: View {
             VStack(alignment: .leading, spacing: 16) {
                 PageSection(title: "Where and When") {
                     LabeledContent("Date & Time") {
-                        HStack {
-                            DatePicker("", selection: dateBinding, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
-                            Button("Tonight") { jumpToTonight() }
-                                .help("Jump to tonight's dark sky — after sunset, once astronomical twilight ends")
-                        }
+                        DatePicker("", selection: dateBinding, displayedComponents: [.date, .hourAndMinute]).labelsHidden()
                     }
-                    Text("The date picks which night to scan; the time is used for each result's own \"Altitude Now\" reading below.")
+                    Text("Picks which night to scan. Once results are in, scrub the exact time and jump to tonight from \"Filter by,\" below — the time of day is itself a filter on what's visible right now.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    LabeledContent("Time of Day") {
-                        HStack {
-                            Slider(value: timeOfDayBinding, in: 0...48, step: 5.0 / 60)
-                            Text(Self.sliderDateTimeFormatter.string(from: date)).monospacedDigit().frame(width: 110, alignment: .trailing)
-                        }
-                    }
-                    .help("Scrub through 48 hours centered on midnight tonight, Stellarium-style — moves the same \"Date & Time\" above.")
                     LabeledContent("Latitude") {
                         TextField("e.g. 45.4642", text: $latitudeText).frame(width: 140)
                     }
@@ -327,11 +354,6 @@ struct SkyVisibilityExplorerView: View {
                             guard let location else { return }
                             latitudeText = String(format: "%.4f", location.latitude)
                             longitudeText = String(format: "%.4f", location.longitude)
-                        }
-                    }
-                    LabeledContent("Minimum Altitude") {
-                        Stepper(value: $minAltitude, in: 0...80, step: 5) {
-                            Text("\(Int(minAltitude))°")
                         }
                     }
                     HStack {
@@ -602,6 +624,9 @@ struct SkyVisibilityExplorerView: View {
                 if let altitudeNow = altitudeNowText(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees) {
                     Text(altitudeNow).font(.caption2).foregroundStyle(.tertiary)
                 }
+                if let fitLabel = fieldOfViewFitLabel(fieldOfViewFit(for: result.object)) {
+                    Text(fitLabel).font(.caption2).foregroundStyle(fieldOfViewFitColor(fieldOfViewFit(for: result.object)))
+                }
             }
             Spacer()
             if let curve = resultCurves[result.id] {
@@ -637,6 +662,36 @@ struct SkyVisibilityExplorerView: View {
     @ViewBuilder
     private var sortAndFilterControls: some View {
         VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Time of Day").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Tonight") { jumpToTonight() }
+                        .help("Jump to tonight's dark sky — after sunset, once astronomical twilight ends")
+                }
+                HStack {
+                    Slider(value: timeOfDayBinding, in: 0...48, step: 5.0 / 60)
+                    Text(Self.sliderDateTimeFormatter.string(from: date)).monospacedDigit().frame(width: 110, alignment: .trailing)
+                }
+                .help("Scrub through 48 hours centered on midnight tonight, Stellarium-style — a filter on \"what's visible right now\" just as much as type or magnitude are.")
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Field of View").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    TextField("Width", value: $fovWidthArcmin, format: .number).frame(width: 60)
+                    Text("×")
+                    TextField("Height", value: $fovHeightArcmin, format: .number).frame(width: 60)
+                    Text("arcmin")
+                    Toggle("Hide objects too large to fit", isOn: $isFieldOfViewFilterEnabled)
+                }
+                Text("Shown per object below as \"Fits/Small/Partially fits/Too large\" — objects with no published angular size aren't judged either way.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .onChange(of: fovWidthArcmin) { _, newValue in AppSettings.fieldOfViewWidthArcmin = newValue }
+            .onChange(of: fovHeightArcmin) { _, newValue in AppSettings.fieldOfViewHeightArcmin = newValue }
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("Sort by").font(.caption).foregroundStyle(.secondary)
                 ForEach($sortCriteria) { $criterion in
@@ -739,6 +794,17 @@ struct SkyVisibilityExplorerView: View {
                 .foregroundStyle(.secondary)
         } else {
             VStack(alignment: .leading, spacing: 8) {
+                LabeledContent("Minimum Altitude") {
+                    Stepper(value: $minAltitude, in: 0...80, step: 5) {
+                        Text("\(Int(minAltitude))°")
+                    }
+                }
+                .disabled(!isHorizonProfileUniform)
+                if !isHorizonProfileUniform {
+                    Text("Disabled: your horizon profile below isn't a flat line anymore, so it's already a more precise per-direction cutoff than one minimum-altitude number.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text("Dot size is relative brightness (magnitude); the shaded edge is your own horizon obstruction, not the mathematical one.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

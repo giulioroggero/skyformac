@@ -178,6 +178,29 @@ struct CardinalDirectionTests {
     }
 }
 
+struct FieldOfViewFitTests {
+    @Test func nilOrZeroSizeIsUnknown() {
+        #expect(FieldOfViewFit.classify(majorAxisArcmin: nil, fieldOfViewWidthArcmin: 60, heightArcmin: 40) == .unknownSize)
+        #expect(FieldOfViewFit.classify(majorAxisArcmin: 0, fieldOfViewWidthArcmin: 60, heightArcmin: 40) == .unknownSize)
+    }
+
+    @Test func tinyObjectIsSmall() {
+        #expect(FieldOfViewFit.classify(majorAxisArcmin: 1, fieldOfViewWidthArcmin: 60, heightArcmin: 40) == .small)
+    }
+
+    @Test func objectWithinTheNarrowSideFits() {
+        #expect(FieldOfViewFit.classify(majorAxisArcmin: 30, fieldOfViewWidthArcmin: 60, heightArcmin: 40) == .fits)
+    }
+
+    @Test func objectLargerThanTheNarrowSideOnlyPartiallyFits() {
+        #expect(FieldOfViewFit.classify(majorAxisArcmin: 50, fieldOfViewWidthArcmin: 60, heightArcmin: 40) == .partiallyFits)
+    }
+
+    @Test func objectLargerThanBothSidesIsTooLarge() {
+        #expect(FieldOfViewFit.classify(majorAxisArcmin: 90, fieldOfViewWidthArcmin: 60, heightArcmin: 40) == .tooLarge)
+    }
+}
+
 struct HorizonProfileTests {
     @Test func altitudeAtAnAnchorMatchesThatDirectionExactly() {
         var profile = HorizonProfile.clear

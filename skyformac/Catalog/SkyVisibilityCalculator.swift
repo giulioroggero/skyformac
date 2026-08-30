@@ -1,5 +1,35 @@
 import Foundation
 
+/// How an object's own angular size compares to a field of view — "is this fully in frame, too
+/// small to be worth much, or too big to fit," the question a framing decision actually turns on,
+/// not the raw arcminute numbers themselves.
+enum FieldOfViewFit: Equatable, Sendable {
+    /// No `majorAxisArcmin` on the catalog entry (most stars, and any object this catalog just
+    /// doesn't have a published size for) — there's nothing to compare, not a judgment either way.
+    case unknownSize
+    /// Smaller than a tenth of the frame's narrow side — technically fits, but framing it alone
+    /// would mean a lot of empty sky around a tiny target.
+    case small
+    case fits
+    /// Longer than the frame's narrow side but not its wide side — some real compositions
+    /// (a galaxy along the diagonal, say) still work, but a plain rectangular fit won't have it.
+    case partiallyFits
+    /// Longer than even the frame's wide side — no orientation fits it fully.
+    case tooLarge
+
+    /// Classifies `majorAxisArcmin` (an object's longest angular dimension) against a `width` ×
+    /// `height` field of view, both in arcminutes.
+    static func classify(majorAxisArcmin: Double?, fieldOfViewWidthArcmin width: Double, heightArcmin height: Double) -> FieldOfViewFit {
+        guard let majorAxisArcmin, majorAxisArcmin > 0 else { return .unknownSize }
+        let narrowSide = min(width, height)
+        let wideSide = max(width, height)
+        if majorAxisArcmin > wideSide { return .tooLarge }
+        if majorAxisArcmin > narrowSide { return .partiallyFits }
+        if majorAxisArcmin < narrowSide * 0.1 { return .small }
+        return .fits
+    }
+}
+
 /// An 8-point compass direction, derived from an azimuth (0° = north, increasing eastward) — the
 /// "which way do I actually have to look" framing an observer uses, not a raw bearing number.
 enum CardinalDirection: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {

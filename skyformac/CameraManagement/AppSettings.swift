@@ -70,6 +70,8 @@ enum AppSettings {
         case liveStackAutoBlackPointOffset
         case isLiveStackAutoColorBalanceEnabled
         case horizonProfile
+        case fieldOfViewWidthArcmin
+        case fieldOfViewHeightArcmin
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -311,6 +313,22 @@ enum AppSettings {
             guard let data = try? JSONEncoder().encode(newValue) else { return }
             UserDefaults.standard.set(data, forKey: Key.horizonProfile.rawValue)
         }
+    }
+
+    /// A custom field-of-view, in arcminutes — not tied to any particular `EquipmentSystem` (those
+    /// don't record focal length or sensor size today), just a number the user works out
+    /// themselves (their own focal-length/sensor-size math, or an online FOV calculator) so "What
+    /// to See" can flag whether an object actually fits the frame. Defaults to roughly a common
+    /// small-refractor-plus-APS-C-camera field (1° × 0.67°) — a reasonable starting point to tweak
+    /// from, not a claim about what the user actually owns.
+    static var fieldOfViewWidthArcmin: Double {
+        get { UserDefaults.standard.object(forKey: Key.fieldOfViewWidthArcmin.rawValue) != nil ? UserDefaults.standard.double(forKey: Key.fieldOfViewWidthArcmin.rawValue) : 60 }
+        set { UserDefaults.standard.set(newValue, forKey: Key.fieldOfViewWidthArcmin.rawValue) }
+    }
+
+    static var fieldOfViewHeightArcmin: Double {
+        get { UserDefaults.standard.object(forKey: Key.fieldOfViewHeightArcmin.rawValue) != nil ? UserDefaults.standard.double(forKey: Key.fieldOfViewHeightArcmin.rawValue) : 40 }
+        set { UserDefaults.standard.set(newValue, forKey: Key.fieldOfViewHeightArcmin.rawValue) }
     }
 
     // MARK: - Custom folder resolution
