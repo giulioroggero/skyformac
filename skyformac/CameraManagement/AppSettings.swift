@@ -69,6 +69,7 @@ enum AppSettings {
         case liveStackStretchAggressiveness
         case liveStackAutoBlackPointOffset
         case isLiveStackAutoColorBalanceEnabled
+        case horizonProfile
     }
 
     /// Defaults to `true` (GPU render path) when never explicitly set — `UserDefaults.bool`
@@ -292,6 +293,23 @@ enum AppSettings {
         set {
             guard let data = try? JSONEncoder().encode(newValue) else { return }
             UserDefaults.standard.set(data, forKey: Key.equipmentSystems.rawValue)
+        }
+    }
+
+    /// The observer's own real horizon (rooftops, trees, a neighboring building), not the
+    /// astronomical one — set once in "What to See," it should stick around across launches the
+    /// same way `equipmentSystems` does, since a physical obstruction doesn't change session to
+    /// session.
+    static var horizonProfile: HorizonProfile {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Key.horizonProfile.rawValue),
+                  let decoded = try? JSONDecoder().decode(HorizonProfile.self, from: data)
+            else { return .clear }
+            return decoded
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            UserDefaults.standard.set(data, forKey: Key.horizonProfile.rawValue)
         }
     }
 

@@ -37,7 +37,25 @@ enum PlanetaryPositionCalculator {
                         .init(n: 2.38980e-5, i: -1.081e-7, w: 2.97661e-5, a: 0, e: -9.499e-9, m: 0.0334442282))
             }
         }
+
+        /// A representative apparent magnitude — real brightness varies through the year with
+        /// Earth distance and phase (Venus alone swings roughly -3.8 to -4.9), but a fixed typical
+        /// value is plenty for "how big should this planet's dot be" on a sky map, the only place
+        /// this app uses planetary magnitude at all.
+        var typicalApparentMagnitude: Double {
+            switch self {
+            case .mercury: -0.4
+            case .venus: -4.4
+            case .mars: -0.5
+            case .jupiter: -2.2
+            case .saturn: 0.5
+            }
+        }
     }
+
+    /// The Moon's own typical full-phase apparent magnitude — same "representative, not live"
+    /// reasoning as `Planet.typicalApparentMagnitude`.
+    static let moonTypicalApparentMagnitude = -12.7
 
     fileprivate struct OrbitalElements {
         var n: Double

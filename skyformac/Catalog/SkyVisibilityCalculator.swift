@@ -1,5 +1,62 @@
 import Foundation
 
+/// An 8-point compass direction, derived from an azimuth (0° = north, increasing eastward) — the
+/// "which way do I actually have to look" framing an observer uses, not a raw bearing number.
+enum CardinalDirection: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+    case n = "N", ne = "NE", e = "E", se = "SE", s = "S", sw = "SW", w = "W", nw = "NW"
+    var id: String { rawValue }
+
+    /// The azimuth this compass point is centered on — the anchor `HorizonProfile` interpolates
+    /// between.
+    var azimuthDegrees: Double {
+        Double(CardinalDirection.allCases.firstIndex(of: self) ?? 0) * (360 / Double(CardinalDirection.allCases.count))
+    }
+
+    static func nearest(toAzimuthDegrees azimuth: Double) -> CardinalDirection {
+        let step = 360.0 / Double(allCases.count)
+        let normalized = azimuth.truncatingRemainder(dividingBy: 360)
+        let wrapped = normalized < 0 ? normalized + 360 : normalized
+        let index = Int((wrapped / step).rounded()) % allCases.count
+        return allCases[index]
+    }
+}
+
+/// A per-direction "how high do I actually need to clear before this is above my own rooftop,
+/// trees, or a neighboring building" horizon — the astronomical horizon (0°) is rarely the
+/// observer's *real* one. Stored as 8 compass-point anchors (`CardinalDirection.allCases` order);
+/// anything in between is linearly interpolated between its two neighbors, so the obstruction
+/// outline reads as one smooth shape rather than 8 flat steps.
+struct HorizonProfile: Codable, Equatable, Sendable {
+    /// One altitude value per `CardinalDirection.allCases`, in that order.
+    var altitudesDegrees: [Double]
+
+    static let clear = HorizonProfile(altitudesDegrees: Array(repeating: 0, count: CardinalDirection.allCases.count))
+
+    func altitude(for direction: CardinalDirection) -> Double {
+        guard let index = CardinalDirection.allCases.firstIndex(of: direction), altitudesDegrees.indices.contains(index) else { return 0 }
+        return altitudesDegrees[index]
+    }
+
+    mutating func setAltitude(_ altitude: Double, for direction: CardinalDirection) {
+        guard let index = CardinalDirection.allCases.firstIndex(of: direction) else { return }
+        while altitudesDegrees.count <= index { altitudesDegrees.append(0) }
+        altitudesDegrees[index] = altitude
+    }
+
+    func altitudeDegrees(atAzimuthDegrees azimuth: Double) -> Double {
+        let directions = CardinalDirection.allCases
+        let step = 360.0 / Double(directions.count)
+        let normalized = azimuth.truncatingRemainder(dividingBy: 360)
+        let wrapped = normalized < 0 ? normalized + 360 : normalized
+        let lowerIndex = Int(wrapped / step) % directions.count
+        let upperIndex = (lowerIndex + 1) % directions.count
+        let fraction = (wrapped - Double(lowerIndex) * step) / step
+        let lowerAltitude = altitude(for: directions[lowerIndex])
+        let upperAltitude = altitude(for: directions[upperIndex])
+        return lowerAltitude + (upperAltitude - lowerAltitude) * fraction
+    }
+}
+
 /// "A database of sky objects with what can be seen in a certain period of time, at what
 /// lat/long" — combines `SkyCatalog`'s bundled Messier/Caldwell/NGC/bright-star objects with
 /// `HorizontalCoordinates`' RA/Dec → Alt/Az conversion to answer "what's actually worth pointing
@@ -69,7 +126,15 @@ enum SkyVisibilityCalculator {
         for date: Date, latitudeDegrees: Double, longitudeDegrees: Double, sunAltitudeThresholdDegrees: Double = -12
     ) -> (start: Date, end: Date)? {
         let calendar = Calendar(identifier: .gregorian)
-        let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
+        // Which evening's night `date` belongs to: a pre-noon time (the small hours, still dark
+        // before dawn) is part of the night that started the *previous* day's evening, not a night
+        // that's still hours away. Scanning from that evening's own noon — rather than literal noon
+        // of `date`'s own calendar day — is what keeps a 2am `date` finding last night's already-
+        // passed dusk and this morning's upcoming dawn, instead of jumping a full day ahead to
+        // tonight's dusk and tomorrow's dawn.
+        let hour = calendar.component(.hour, from: date)
+        let eveningDay = hour < 12 ? calendar.date(byAdding: .day, value: -1, to: date) ?? date : date
+        let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: eveningDay) ?? date
         let sampleCount = 24 * 4 // every 15 minutes across the following 24h
         var samples: [(date: Date, altitude: Double)] = []
         samples.reserveCapacity(sampleCount + 1)
@@ -170,6 +235,10 @@ enum SkyVisibilityCalculator {
         let timeOfMaxAltitude: Date
         let riseTime: Date?
         let setTime: Date?
+        /// A representative typical apparent magnitude (see
+        /// `PlanetaryPositionCalculator.Planet.typicalApparentMagnitude`) — not this specific
+        /// night's real value, but enough to size a sky-map dot or apply a magnitude filter.
+        let magnitude: Double
     }
 
     /// Same idea as `visibleObjects`, for the Moon and every naked-eye planet — these don't have
@@ -210,7 +279,10 @@ enum SkyVisibilityCalculator {
                 raDegrees: position.rightAscensionDegrees, decDegrees: position.declinationDegrees,
                 latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, around: placement.time
             )
-            results.append(PlanetResult(name: planet.rawValue, maxAltitudeDegrees: placement.altitude, timeOfMaxAltitude: placement.time, riseTime: rise, setTime: set))
+            results.append(PlanetResult(
+                name: planet.rawValue, maxAltitudeDegrees: placement.altitude, timeOfMaxAltitude: placement.time,
+                riseTime: rise, setTime: set, magnitude: planet.typicalApparentMagnitude
+            ))
         }
 
         let moonPlacement = bestPlacement(
@@ -223,7 +295,10 @@ enum SkyVisibilityCalculator {
                 raDegrees: position.rightAscensionDegrees, decDegrees: position.declinationDegrees,
                 latitudeDegrees: latitudeDegrees, longitudeDegrees: longitudeDegrees, around: moonPlacement.time
             )
-            results.append(PlanetResult(name: "Moon", maxAltitudeDegrees: moonPlacement.altitude, timeOfMaxAltitude: moonPlacement.time, riseTime: rise, setTime: set))
+            results.append(PlanetResult(
+                name: "Moon", maxAltitudeDegrees: moonPlacement.altitude, timeOfMaxAltitude: moonPlacement.time,
+                riseTime: rise, setTime: set, magnitude: PlanetaryPositionCalculator.moonTypicalApparentMagnitude
+            ))
         }
 
         return results.sorted { $0.maxAltitudeDegrees > $1.maxAltitudeDegrees }

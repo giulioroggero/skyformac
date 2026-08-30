@@ -32,14 +32,28 @@ struct SkyVisibilityExplorerView: View {
     @State private var addingToProjectObject: SkyCatalogObject?
     @State private var launchingCaptureObject: SkyCatalogObject?
     @State private var conjunctions: [SkyEventsCalculator.Conjunction] = []
-    @State private var sortField: SortField = .peakAltitude
-    @State private var sortAscending = false
-    @State private var typeFilter: String?
+    @State private var sortCriteria: [SortCriterion] = [SortCriterion(field: .peakAltitude, ascending: false)]
+    @State private var typeFilters: Set<String> = []
+    @State private var cardinalFilters: Set<CardinalDirection> = []
+    @State private var isMagnitudeFilterEnabled = false
+    @State private var maxMagnitudeFilter: Double = 12
+    @State private var isHorizonClearanceFilterEnabled = false
+    @State private var horizonProfile: HorizonProfile = AppSettings.horizonProfile
+    @State private var isEditingHorizon = false
     @State private var planetResults: [SkyVisibilityCalculator.PlanetResult] = []
     @State private var detailSubject: DetailSubject?
     @State private var searchText = ""
     @State private var resultCurves: [String: [SkyVisibilityCalculator.AltitudeSample]] = [:]
     @State private var planetCurves: [String: [SkyVisibilityCalculator.AltitudeSample]] = [:]
+
+    /// One entry in the "sort by A, then by B…" list — order in the array is priority order
+    /// (earlier entries break ties in later ones), so "current altitude, then magnitude" and
+    /// "magnitude, then current altitude" are genuinely different orderings, not the same set.
+    private struct SortCriterion: Identifiable {
+        let id = UUID()
+        var field: SortField
+        var ascending: Bool
+    }
 
     private struct DetailSubject: Identifiable {
         let id = UUID()
@@ -132,27 +146,56 @@ struct SkyVisibilityExplorerView: View {
     }
 
     private var displayedResults: [SkyVisibilityCalculator.Result] {
-        var filtered = typeFilter.map { type in results.filter { $0.object.friendlyTypeName == type } } ?? results
+        var filtered = results
+        if !typeFilters.isEmpty {
+            filtered = filtered.filter { typeFilters.contains($0.object.friendlyTypeName) }
+        }
+        if isMagnitudeFilterEnabled {
+            filtered = filtered.filter { $0.object.magnitude <= maxMagnitudeFilter }
+        }
+        if !cardinalFilters.isEmpty {
+            filtered = filtered.filter {
+                cardinalFilters.contains(currentDirection(raDegrees: $0.object.raDegrees, decDegrees: $0.object.decDegrees))
+            }
+        }
+        if isHorizonClearanceFilterEnabled {
+            filtered = filtered.filter { isClearOfHorizon(raDegrees: $0.object.raDegrees, decDegrees: $0.object.decDegrees) }
+        }
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSearch.isEmpty {
             filtered = filtered.filter {
                 $0.object.displayName.localizedCaseInsensitiveContains(trimmedSearch) || $0.object.id.localizedCaseInsensitiveContains(trimmedSearch)
             }
         }
-        let sorted: [SkyVisibilityCalculator.Result]
-        switch sortField {
-        case .name: sorted = filtered.sorted { $0.object.displayName < $1.object.displayName }
-        case .type: sorted = filtered.sorted { $0.object.friendlyTypeName < $1.object.friendlyTypeName }
-        case .magnitude: sorted = filtered.sorted { $0.object.magnitude < $1.object.magnitude }
-        case .peakAltitude: sorted = filtered.sorted { $0.maxAltitudeDegrees < $1.maxAltitudeDegrees }
-        case .peakTime: sorted = filtered.sorted { $0.timeOfMaxAltitude < $1.timeOfMaxAltitude }
+        // Applied least-significant-first: `Array.sorted(by:)` is stable (guaranteed since Swift
+        // 5), so each later (more significant) pass only reorders across ties from the passes
+        // before it, rather than undoing them — exactly what "sort by A, then by B" needs.
+        var sorted = filtered
+        for criterion in sortCriteria.reversed() {
+            sorted = sortSingle(sorted, field: criterion.field, ascending: criterion.ascending)
+        }
+        return sorted
+    }
+
+    private func sortSingle(_ items: [SkyVisibilityCalculator.Result], field: SortField, ascending: Bool) -> [SkyVisibilityCalculator.Result] {
+        switch field {
+        case .name:
+            return items.sorted { ascending ? $0.object.displayName < $1.object.displayName : $0.object.displayName > $1.object.displayName }
+        case .type:
+            return items.sorted { ascending ? $0.object.friendlyTypeName < $1.object.friendlyTypeName : $0.object.friendlyTypeName > $1.object.friendlyTypeName }
+        case .magnitude:
+            return items.sorted { ascending ? $0.object.magnitude < $1.object.magnitude : $0.object.magnitude > $1.object.magnitude }
+        case .peakAltitude:
+            return items.sorted { ascending ? $0.maxAltitudeDegrees < $1.maxAltitudeDegrees : $0.maxAltitudeDegrees > $1.maxAltitudeDegrees }
+        case .peakTime:
+            return items.sorted { ascending ? $0.timeOfMaxAltitude < $1.timeOfMaxAltitude : $0.timeOfMaxAltitude > $1.timeOfMaxAltitude }
         case .currentAltitude:
-            sorted = filtered.sorted {
-                currentAltitude(raDegrees: $0.object.raDegrees, decDegrees: $0.object.decDegrees)
-                    < currentAltitude(raDegrees: $1.object.raDegrees, decDegrees: $1.object.decDegrees)
+            return items.sorted {
+                let lhs = currentAltitude(raDegrees: $0.object.raDegrees, decDegrees: $0.object.decDegrees)
+                let rhs = currentAltitude(raDegrees: $1.object.raDegrees, decDegrees: $1.object.decDegrees)
+                return ascending ? lhs < rhs : lhs > rhs
             }
         }
-        return sortAscending ? sorted : sorted.reversed()
     }
 
     /// The numeric value behind both `altitudeNowText(raDegrees:decDegrees:)` and the "Current
@@ -163,6 +206,68 @@ struct SkyVisibilityExplorerView: View {
         return HorizontalCoordinates.altitudeAzimuth(
             raDegrees: raDegrees, decDegrees: decDegrees, latitudeDegrees: latitude, longitudeDegrees: longitude, on: date
         ).altitude
+    }
+
+    private func currentAzimuth(raDegrees: Double, decDegrees: Double) -> Double {
+        guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return 0 }
+        return HorizontalCoordinates.altitudeAzimuth(
+            raDegrees: raDegrees, decDegrees: decDegrees, latitudeDegrees: latitude, longitudeDegrees: longitude, on: date
+        ).azimuth
+    }
+
+    private func currentDirection(raDegrees: Double, decDegrees: Double) -> CardinalDirection {
+        CardinalDirection.nearest(toAzimuthDegrees: currentAzimuth(raDegrees: raDegrees, decDegrees: decDegrees))
+    }
+
+    /// Whether this object is currently higher than the obstruction height the user has set for
+    /// *its own* current direction — "visible from here" in the sense that actually matters when
+    /// there's a real rooftop or tree in the way, not just "above the mathematical 0° horizon."
+    private func isClearOfHorizon(raDegrees: Double, decDegrees: Double) -> Bool {
+        let altitude = currentAltitude(raDegrees: raDegrees, decDegrees: decDegrees)
+        let azimuth = currentAzimuth(raDegrees: raDegrees, decDegrees: decDegrees)
+        return altitude > horizonProfile.altitudeDegrees(atAzimuthDegrees: azimuth)
+    }
+
+    /// The Moon/planet's RA/Dec right now — pulled out since `altitudeNowText(planet:)` and the
+    /// sky-map dots both need a planet's live position, not just the peak-tonight snapshot
+    /// `PlanetResult` itself stores.
+    private func planetEquatorial(_ planet: SkyVisibilityCalculator.PlanetResult) -> (raDegrees: Double, decDegrees: Double)? {
+        if planet.name == "Moon" {
+            let moon = PlanetaryPositionCalculator.moonPosition(on: date).equatorial
+            return (moon.rightAscensionDegrees, moon.declinationDegrees)
+        } else if let matched = PlanetaryPositionCalculator.Planet(rawValue: planet.name) {
+            let equatorial = PlanetaryPositionCalculator.position(of: matched, on: date)
+            return (equatorial.rightAscensionDegrees, equatorial.declinationDegrees)
+        }
+        return nil
+    }
+
+    /// Every filtered deep-sky result plus every planet/Moon result, projected onto the sky-map
+    /// dial — planets aren't affected by the deep-sky list's own type/search filters (there's
+    /// nothing there to filter on), but they do still respect the shared horizon-clearance coloring
+    /// so the dial reads as "everything currently up," not just the catalog half of it.
+    private var skyMapDots: [SkyCompassView.Dot] {
+        guard parsedLatitude != nil, parsedLongitude != nil else { return [] }
+        let objectDots = displayedResults.map { result in
+            SkyCompassView.Dot(
+                id: result.id,
+                azimuthDegrees: currentAzimuth(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees),
+                altitudeDegrees: currentAltitude(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees),
+                magnitude: result.object.magnitude,
+                isClearOfHorizon: isClearOfHorizon(raDegrees: result.object.raDegrees, decDegrees: result.object.decDegrees)
+            )
+        }
+        let planetDots = planetResults.compactMap { planet -> SkyCompassView.Dot? in
+            guard let position = planetEquatorial(planet) else { return nil }
+            return SkyCompassView.Dot(
+                id: planet.id,
+                azimuthDegrees: currentAzimuth(raDegrees: position.raDegrees, decDegrees: position.decDegrees),
+                altitudeDegrees: currentAltitude(raDegrees: position.raDegrees, decDegrees: position.decDegrees),
+                magnitude: planet.magnitude,
+                isClearOfHorizon: isClearOfHorizon(raDegrees: position.raDegrees, decDegrees: position.decDegrees)
+            )
+        }
+        return objectDots + planetDots
     }
 
     var body: some View {
@@ -246,6 +351,12 @@ struct SkyVisibilityExplorerView: View {
                 }
 
                 if hasCalculated {
+                    PageSection(title: "Sky Map") {
+                        skyMapSection
+                    }
+                }
+
+                if hasCalculated {
                     PageSection(title: "Planets & Moon Tonight") {
                         if planetResults.isEmpty {
                             Text("No planets or the Moon clear \(Int(minAltitude))° tonight from this location.")
@@ -272,26 +383,8 @@ struct SkyVisibilityExplorerView: View {
                                 .frame(width: 260)
                                 .padding(.bottom, 4)
 
-                            HStack {
-                                Picker("Sort by", selection: $sortField) {
-                                    ForEach(SortField.allCases) { field in Text(field.rawValue).tag(field) }
-                                }
-                                .frame(width: 220)
-                                Button {
-                                    sortAscending.toggle()
-                                } label: {
-                                    Image(systemName: sortAscending ? "arrow.up" : "arrow.down")
-                                }
-                                .help(sortAscending ? "Ascending" : "Descending")
-
-                                Picker("Type", selection: $typeFilter) {
-                                    Text("All Types").tag(String?.none)
-                                    ForEach(availableTypes, id: \.self) { type in Text(type).tag(String?.some(type)) }
-                                }
-                                .frame(width: 220)
-                                Spacer()
-                            }
-                            .padding(.bottom, 4)
+                            sortAndFilterControls
+                                .padding(.bottom, 4)
 
                             ForEach(displayedResults) { result in
                                 resultRow(result)
@@ -380,9 +473,17 @@ struct SkyVisibilityExplorerView: View {
             RuleMark(y: .value("Horizon", 0)).foregroundStyle(.secondary.opacity(0.4))
             RuleMark(x: .value("Now", date)).foregroundStyle(.orange.opacity(0.7))
         }
+        .chartYScale(domain: -90...90)
         .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .frame(width: 140, height: 40)
+        .chartYAxis {
+            AxisMarks(values: [-90, -45, 0, 45, 90]) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let altitude = value.as(Double.self) { Text("\(Int(altitude))°") }
+                }
+            }
+        }
+        .frame(width: 260, height: 90)
     }
 
     private func riseSetSummary(rise: Date?, peak: Date, set: Date?, peakAltitude: Double) -> String {
@@ -398,26 +499,13 @@ struct SkyVisibilityExplorerView: View {
     private func altitudeNowText(raDegrees: Double, decDegrees: Double) -> String? {
         guard parsedLatitude != nil, parsedLongitude != nil else { return nil }
         let altitude = currentAltitude(raDegrees: raDegrees, decDegrees: decDegrees)
-        return "Altitude at \(Self.timeFormatter.string(from: date)): \(Int(altitude))°"
+        let direction = currentDirection(raDegrees: raDegrees, decDegrees: decDegrees)
+        return "Altitude at \(Self.timeFormatter.string(from: date)): \(Int(altitude))° (\(direction.rawValue))"
     }
 
     private func altitudeNowText(planet: SkyVisibilityCalculator.PlanetResult) -> String? {
-        guard let latitude = parsedLatitude, let longitude = parsedLongitude else { return nil }
-        let position: (raDegrees: Double, decDegrees: Double)
-        if planet.name == "Moon" {
-            let moon = PlanetaryPositionCalculator.moonPosition(on: date).equatorial
-            position = (moon.rightAscensionDegrees, moon.declinationDegrees)
-        } else if let matched = PlanetaryPositionCalculator.Planet(rawValue: planet.name) {
-            let equatorial = PlanetaryPositionCalculator.position(of: matched, on: date)
-            position = (equatorial.rightAscensionDegrees, equatorial.declinationDegrees)
-        } else {
-            return nil
-        }
-        let (altitude, _) = HorizontalCoordinates.altitudeAzimuth(
-            raDegrees: position.raDegrees, decDegrees: position.decDegrees,
-            latitudeDegrees: latitude, longitudeDegrees: longitude, on: date
-        )
-        return "Altitude at \(Self.timeFormatter.string(from: date)): \(Int(altitude))°"
+        guard parsedLatitude != nil, parsedLongitude != nil, let position = planetEquatorial(planet) else { return nil }
+        return altitudeNowText(raDegrees: position.raDegrees, decDegrees: position.decDegrees)
     }
 
     @ViewBuilder
@@ -478,6 +566,133 @@ struct SkyVisibilityExplorerView: View {
                 riseTime: result.riseTime, peakTime: result.timeOfMaxAltitude, setTime: result.setTime,
                 skyCoordinates: (result.object.raDegrees, result.object.decDegrees)
             )
+        }
+    }
+
+    /// The "sort by A, then by B" + "filter by type/magnitude/direction/my horizon" controls for
+    /// the results list — a `Menu` per multi-select filter rather than a custom picker, since
+    /// SwiftUI has no built-in multi-select control and this reuses something already native.
+    @ViewBuilder
+    private var sortAndFilterControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Sort by").font(.caption).foregroundStyle(.secondary)
+                ForEach($sortCriteria) { $criterion in
+                    HStack {
+                        Picker("", selection: $criterion.field) {
+                            ForEach(SortField.allCases) { field in Text(field.rawValue).tag(field) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 200)
+                        Button {
+                            criterion.ascending.toggle()
+                        } label: {
+                            Image(systemName: criterion.ascending ? "arrow.up" : "arrow.down")
+                        }
+                        .help(criterion.ascending ? "Ascending" : "Descending")
+                        if sortCriteria.count > 1 {
+                            Button {
+                                sortCriteria.removeAll { $0.id == criterion.id }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                let unusedFields = SortField.allCases.filter { field in !sortCriteria.contains { $0.field == field } }
+                if !unusedFields.isEmpty {
+                    Menu("Add Sort…") {
+                        ForEach(unusedFields) { field in
+                            Button(field.rawValue) { sortCriteria.append(SortCriterion(field: field, ascending: false)) }
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Filter by").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    Menu {
+                        ForEach(availableTypes, id: \.self) { type in
+                            Button {
+                                if typeFilters.contains(type) { typeFilters.remove(type) } else { typeFilters.insert(type) }
+                            } label: {
+                                if typeFilters.contains(type) { Label(type, systemImage: "checkmark") } else { Text(type) }
+                            }
+                        }
+                        if !typeFilters.isEmpty {
+                            Divider()
+                            Button("Clear") { typeFilters.removeAll() }
+                        }
+                    } label: {
+                        Text(typeFilters.isEmpty ? "All Types" : "\(typeFilters.count) Type\(typeFilters.count == 1 ? "" : "s")")
+                    }
+                    .frame(width: 130)
+
+                    Menu {
+                        ForEach(CardinalDirection.allCases) { direction in
+                            Button {
+                                if cardinalFilters.contains(direction) { cardinalFilters.remove(direction) } else { cardinalFilters.insert(direction) }
+                            } label: {
+                                if cardinalFilters.contains(direction) { Label(direction.rawValue, systemImage: "checkmark") } else { Text(direction.rawValue) }
+                            }
+                        }
+                        if !cardinalFilters.isEmpty {
+                            Divider()
+                            Button("Clear") { cardinalFilters.removeAll() }
+                        }
+                    } label: {
+                        Text(cardinalFilters.isEmpty ? "Any Direction" : cardinalFilters.map(\.rawValue).sorted().joined(separator: ", "))
+                    }
+                    .frame(width: 150)
+
+                    Toggle(isOn: $isMagnitudeFilterEnabled) {
+                        Text("Magnitude ≤ \(String(format: "%.1f", maxMagnitudeFilter))")
+                    }
+                    if isMagnitudeFilterEnabled {
+                        Slider(value: $maxMagnitudeFilter, in: -2...18, step: 0.5).frame(width: 120)
+                    }
+
+                    Toggle("Clear of my horizon", isOn: $isHorizonClearanceFilterEnabled)
+                        .help("Only show objects currently above the obstruction height set for their direction — see the Sky Map below.")
+                }
+            }
+        }
+    }
+
+    /// The 360°-sky-as-a-2D-dial view: azimuth around the edge, altitude toward the center (the
+    /// zenith), every currently-filtered object plotted as a dot sized by brightness. Doubles as
+    /// the editor for `horizonProfile` — "Edit My Horizon" swaps in draggable handles on the same
+    /// dial instead of a separate control, since the whole point is seeing the obstruction shape
+    /// against the actual sky it's blocking.
+    @ViewBuilder
+    private var skyMapSection: some View {
+        if parsedLatitude == nil || parsedLongitude == nil {
+            Text("Enter a location above to see the sky map.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Dot size is relative brightness (magnitude); the shaded edge is your own horizon obstruction, not the mathematical one.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                SkyCompassView(dots: skyMapDots, horizonProfile: $horizonProfile, isEditable: isEditingHorizon)
+                Button(isEditingHorizon ? "Done Editing My Horizon" : "Edit My Horizon…") {
+                    isEditingHorizon.toggle()
+                }
+                if isEditingHorizon {
+                    Text("Drag a handle out to where trees, a roof, or a building actually block your view in that direction — objects below that line are filtered out by \"Clear of my horizon,\" above.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onChange(of: horizonProfile) { _, newValue in
+                AppSettings.horizonProfile = newValue
+            }
         }
     }
 
@@ -652,5 +867,122 @@ private struct LaunchCaptureForSkyObjectSheet: View {
             .padding()
         }
         .frame(width: 360, height: 420)
+    }
+}
+
+/// The 360°-sky-flattened-to-a-disc control: azimuth around the edge (north up, east to the
+/// right — the same orientation as facing north and looking up), altitude toward the center (the
+/// zenith), so "which direction, how high" reads as one glance instead of two separate numbers
+/// per object. Also the horizon-obstruction editor — `isEditable` swaps in drag handles on the
+/// same 8 compass anchors `horizonProfile` stores, so the shape being edited is always shown
+/// against the actual sky it's meant to be excluding.
+private struct SkyCompassView: View {
+    struct Dot: Identifiable {
+        let id: String
+        let azimuthDegrees: Double
+        let altitudeDegrees: Double
+        let magnitude: Double
+        let isClearOfHorizon: Bool
+    }
+
+    let dots: [Dot]
+    @Binding var horizonProfile: HorizonProfile
+    var isEditable: Bool
+
+    private let diameter: CGFloat = 320
+    private let margin: CGFloat = 26
+
+    var body: some View {
+        ZStack {
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let radius = min(size.width, size.height) / 2 - margin
+
+                for altitude in stride(from: 0.0, through: 90.0, by: 30.0) {
+                    let r = radius * CGFloat(1 - altitude / 90)
+                    context.stroke(
+                        Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)),
+                        with: .color(.secondary.opacity(0.25))
+                    )
+                }
+
+                context.fill(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.18)))
+                context.stroke(horizonPath(center: center, radius: radius), with: .color(.red.opacity(0.65)), lineWidth: 1.5)
+
+                for direction in CardinalDirection.allCases {
+                    let point = pointOnDial(center: center, radius: radius + margin * 0.55, azimuthDegrees: direction.azimuthDegrees, altitudeDegrees: 0)
+                    context.draw(
+                        Text(direction.rawValue).font(.caption.bold()).foregroundStyle(.secondary),
+                        at: point
+                    )
+                }
+
+                for dot in dots {
+                    let point = pointOnDial(center: center, radius: radius, azimuthDegrees: dot.azimuthDegrees, altitudeDegrees: dot.altitudeDegrees)
+                    let diameter = dotDiameter(forMagnitude: dot.magnitude)
+                    let rect = CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2, width: diameter, height: diameter)
+                    context.fill(Path(ellipseIn: rect), with: .color(dot.isClearOfHorizon ? .yellow : .secondary.opacity(0.5)))
+                }
+            }
+            .frame(width: diameter, height: diameter)
+            .background(Circle().fill(Color.black.opacity(0.85)))
+
+            if isEditable {
+                GeometryReader { proxy in
+                    ForEach(CardinalDirection.allCases) { direction in
+                        horizonHandle(direction: direction, in: proxy.size)
+                    }
+                }
+            }
+        }
+        .frame(width: diameter, height: diameter)
+    }
+
+    private func horizonPath(center: CGPoint, radius: CGFloat) -> Path {
+        var path = Path()
+        for (index, direction) in CardinalDirection.allCases.enumerated() {
+            let point = pointOnDial(center: center, radius: radius, azimuthDegrees: direction.azimuthDegrees, altitudeDegrees: horizonProfile.altitude(for: direction))
+            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    /// North up, east to the right, altitude 90° (zenith) at the center and 0° (horizon) at the
+    /// edge — `azimuth - 90` rotates the standard "0°=up" screen angle so north lands at the top.
+    private func pointOnDial(center: CGPoint, radius: CGFloat, azimuthDegrees: Double, altitudeDegrees: Double) -> CGPoint {
+        let clampedAltitude = min(max(altitudeDegrees, 0), 90)
+        let r = radius * CGFloat(1 - clampedAltitude / 90)
+        let angle = (azimuthDegrees - 90) * .pi / 180
+        return CGPoint(x: center.x + r * cos(angle), y: center.y + r * sin(angle))
+    }
+
+    /// Brighter (lower/negative magnitude) objects get a bigger dot — not to scale with real
+    /// perceived brightness, just enough spread to be visually obvious at a glance.
+    private func dotDiameter(forMagnitude magnitude: Double) -> CGFloat {
+        let clamped = min(max(magnitude, -6), 16)
+        return CGFloat(16 - clamped) * 0.7 + 4
+    }
+
+    @ViewBuilder
+    private func horizonHandle(direction: CardinalDirection, in size: CGSize) -> some View {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let radius = min(size.width, size.height) / 2 - margin
+        let point = pointOnDial(center: center, radius: radius, azimuthDegrees: direction.azimuthDegrees, altitudeDegrees: horizonProfile.altitude(for: direction))
+        Circle()
+            .fill(Color.orange)
+            .frame(width: 16, height: 16)
+            .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+            .position(point)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let dx = value.location.x - center.x
+                        let dy = value.location.y - center.y
+                        let distance = sqrt(dx * dx + dy * dy)
+                        let newAltitude = 90 * (1 - min(max(distance / radius, 0), 1))
+                        horizonProfile.setAltitude(newAltitude, for: direction)
+                    }
+            )
     }
 }

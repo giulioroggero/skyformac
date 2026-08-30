@@ -21,7 +21,28 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Fixed
+- `nightWindow` (the "when does it actually get dark" scan behind Sunset/Sunrise, every rise/peak/
+  set time, and "Tonight") used to anchor its 24h scan on literal noon of the picked date's own
+  calendar day — for an early-morning moment (already in the middle of a night that started the
+  *previous* evening), that meant reporting *tonight's* upcoming dusk and *tomorrow's* dawn instead
+  of the dusk that already passed and the dawn coming up: a full day off, and the actual cause of a
+  "sunset/sunrise are wrong for my coordinates" report that was really a wrong night, not wrong
+  astronomy. It now anchors on the evening the picked moment's night actually belongs to.
+
 ### Added
+- "What to See" gains per-object cardinal direction (N/NE/E/.../NW, shown next to each "Altitude
+  Now" reading), multiple simultaneous sort criteria (e.g. "current altitude, then magnitude" —
+  add/remove/reorder from a new "Sort by" list), and multiple simultaneous filters (type, a
+  magnitude cutoff, and cardinal direction, each multi-select). The per-row altitude chart is
+  larger and now shows its axis.
+- A new "Sky Map": the whole sky flattened to a 2D dial (azimuth around the edge, altitude toward
+  the center) with every currently-filtered object and planet plotted as a dot sized by brightness
+  — a faster way to spot "what's actually well-placed right now" than scanning a list. The same
+  dial doubles as an editor for a new, persistent "My Horizon" profile (8 compass directions, each
+  with its own obstruction height — real trees/roofs/buildings, not the mathematical horizon):
+  drag a direction's handle out to where your own view is actually blocked, and a new "Clear of my
+  horizon" filter hides anything currently behind it.
 - "What to See" gains a "Current Altitude" sort option (how high each object is *right now*, at
   the picked time, rather than only its peak tonight), a "Tonight" button next to "Date & Time"
   that jumps to the middle of tonight's actual dark sky (sunset plus astronomical twilight through
