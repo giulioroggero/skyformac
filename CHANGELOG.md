@@ -7,7 +7,8 @@ single-developer app, not a library with a public API.
 
 **[Unreleased]** is the `master`/dev branch — updated continuously as work lands,
 with everything folded under a proper version heading (and dated) only once it's
-actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.2),
+actually tagged. Tags on GitHub: [v0.6.3](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.3),
+[v0.6.2](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.2),
 [v0.6.1](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.1),
 [v0.6.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.0),
 [v0.5.3](https://github.com/giulioroggero/skyformac/releases/tag/v0.5.3),
@@ -20,6 +21,15 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
 [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12).
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [0.6.3] - 2026-08-30
+
+**Alpha**: everything in this release is the first cut of a large "What to See" batch (multi-sort/
+filter, the Sky Map, a custom horizon profile, Field of View) that hasn't yet been tested against a
+real session under a real sky — see [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)'s alpha → beta →
+GA progression. v0.7.0 is planned once this has had real field use.
 
 ### Changed
 - The "Time of Day" slider now only updates the rest of the page (per-row altitude readings, the
@@ -59,10 +69,7 @@ actually tagged. Tags on GitHub: [v0.6.2](https://github.com/giulioroggero/skyfo
   angular size compares, with an optional toggle to hide anything that plain won't fit. Objects
   with no published size aren't judged either way.
 - The "Time of Day" slider and "Tonight" button moved next to "Sort by"/"Filter by" — scrubbing
-  time is itself a filter on what's visible right now, not a separate setup step. "Minimum
-  Altitude" moved down next to the Sky Map, and is now disabled (with an explanation) once your own
-  horizon profile there stops being flat — a per-direction profile is already a more precise cutoff
-  than one global number at that point.
+  time is itself a filter on what's visible right now, not a separate setup step.
 - Sky Map dots are now clickable (opens the same object detail sheet a list row does), show the
   object's name on hover, show altitude-ring degree labels, and the whole dial can be zoomed
   (pinch, or the new +/-/Reset controls) to separate dots that are crowded together near the
