@@ -267,11 +267,11 @@ final class ProjectStore {
     func recordCapture(
         movingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String? = nil,
         object: String? = nil, location: GeoLocation? = nil, equipmentSystemID: UUID? = nil,
-        preset: AcquisitionPreset? = nil, into session: Session, project: inout Project
+        preset: AcquisitionPreset? = nil, date: Date = Date(), into session: Session, project: inout Project
     ) throws -> CaptureRecord {
         try recordCapture(
             at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, object: object, location: location,
-            equipmentSystemID: equipmentSystemID, preset: preset, into: session, project: &project,
+            equipmentSystemID: equipmentSystemID, preset: preset, date: date, into: session, project: &project,
             transfer: fileManager.moveItem
         )
     }
@@ -281,15 +281,19 @@ final class ProjectStore {
     /// wherever the user chose to save it (an `NSSavePanel` destination) and that location must
     /// keep working afterwards; the session folder gets its own curated copy for the timeline
     /// instead of stealing the user's file out from under them.
+    ///
+    /// `date` defaults to "now" (a real just-made capture), but an importer passes the file's own
+    /// actual capture date (see `MediaImporter.captureDate`) so an old astrophoto imported today
+    /// still sorts into the session timeline at when it was actually taken.
     @discardableResult
     func recordCapture(
         copyingFileAt sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String? = nil,
         object: String? = nil, location: GeoLocation? = nil, equipmentSystemID: UUID? = nil,
-        preset: AcquisitionPreset? = nil, into session: Session, project: inout Project
+        preset: AcquisitionPreset? = nil, date: Date = Date(), into session: Session, project: inout Project
     ) throws -> CaptureRecord {
         try recordCapture(
             at: sourceURL, kind: kind, thumbnail: thumbnail, note: note, object: object, location: location,
-            equipmentSystemID: equipmentSystemID, preset: preset, into: session, project: &project,
+            equipmentSystemID: equipmentSystemID, preset: preset, date: date, into: session, project: &project,
             transfer: fileManager.copyItem
         )
     }
@@ -297,7 +301,7 @@ final class ProjectStore {
     private func recordCapture(
         at sourceURL: URL, kind: CaptureRecord.Kind, thumbnail: Data?, note: String?,
         object: String?, location: GeoLocation?, equipmentSystemID: UUID?, preset: AcquisitionPreset?,
-        into session: Session, project: inout Project, transfer: (URL, URL) throws -> Void
+        date: Date, into session: Session, project: inout Project, transfer: (URL, URL) throws -> Void
     ) throws -> CaptureRecord {
         let sessionFolder = sessionFolderURL(for: session, in: project)
         try fileManager.createDirectory(at: sessionFolder, withIntermediateDirectories: true)
@@ -324,7 +328,7 @@ final class ProjectStore {
         }
 
         let record = CaptureRecord(
-            date: Date(), fileName: destinationURL.lastPathComponent, thumbnailFileName: thumbnailFileName, kind: kind,
+            date: date, fileName: destinationURL.lastPathComponent, thumbnailFileName: thumbnailFileName, kind: kind,
             note: note, object: object, location: location, equipmentSystemID: equipmentSystemID, preset: preset
         )
         guard let sessionIndex = project.sessions.firstIndex(where: { $0.id == session.id }) else { return record }

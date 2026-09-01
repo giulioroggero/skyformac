@@ -23,7 +23,14 @@ actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- Importing a file/photo into a session (Files or "From Photos…") always dated the new capture
+  "now" (the moment it was imported), not when it was actually taken — so an old astrophoto
+  imported today sorted into the session timeline at the wrong point entirely. Now reads the
+  file's own embedded metadata (EXIF `DateTimeOriginal`/TIFF `DateTime` for a still image,
+  QuickTime's own creation-date metadata for a video — Photos' own exported data keeps this, so it
+  works identically for a Photos import), falling back to the file's filesystem date only when no
+  such metadata exists (this app's own FITS files, or an unreadable/stripped file).
 
 ## [0.6.4] - 2026-08-30
 

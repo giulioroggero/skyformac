@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreGraphics
+import ImageIO
 import Foundation
 import UniformTypeIdentifiers
 
@@ -76,6 +77,62 @@ enum MediaImporter {
             guard let image = try? CGImageRenderer.loadDisplayImage(from: url) else { return nil }
             return ThumbnailGenerator.makeThumbnail(from: image)
         }
+    }
+
+    /// The file's own actual capture date — read from embedded metadata where the format carries
+    /// one (EXIF `DateTimeOriginal`/TIFF `DateTime` for a still image, QuickTime's own
+    /// creation-date metadata for a video), falling back to the file's own filesystem dates, and
+    /// only to "now" if neither is available. This is the whole point of importing existing media
+    /// rather than capturing it fresh: an old astrophoto imported today should still sort into the
+    /// session timeline at when it was actually taken, not at import time. A `PhotosPickerItem`'s
+    /// exported data keeps this same embedded metadata (Photos re-encodes the original, not a
+    /// stripped copy), so this works identically for a Photos import as for a Finder file — the
+    /// temp file `importFromPhotosPicker` writes it to has a fresh *filesystem* date, but the
+    /// bytes inside still carry the real one.
+    static func captureDate(for url: URL, kind: CaptureRecord.Kind) async -> Date {
+        switch kind {
+        case .video:
+            if let date = await videoCreationDate(for: url) { return date }
+        case .fits, .png, .tiff, .serVideo, .recording:
+            if let date = imageMetadataDate(for: url) { return date }
+        }
+        return fileSystemDate(for: url) ?? Date()
+    }
+
+    private static func imageMetadataDate(for url: URL) -> Date? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        formatter.timeZone = TimeZone.current
+        if let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
+           let raw = (exif[kCGImagePropertyExifDateTimeOriginal] ?? exif[kCGImagePropertyExifDateTimeDigitized]) as? String,
+           let date = formatter.date(from: raw) {
+            return date
+        }
+        if let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any],
+           let raw = tiff[kCGImagePropertyTIFFDateTime] as? String,
+           let date = formatter.date(from: raw) {
+            return date
+        }
+        return nil
+    }
+
+    private static func videoCreationDate(for url: URL) async -> Date? {
+        let asset = AVURLAsset(url: url)
+        guard let item = try? await asset.load(.creationDate) else { return nil }
+        return try? await item.load(.dateValue)
+    }
+
+    /// Only reached for FITS (this app's own `FITSWriter` never embeds a capture date at all) or
+    /// when a still image/video's own metadata is missing/unreadable — still meaningfully better
+    /// than "the moment Import was clicked" for a genuine Finder file, even though it's useless
+    /// for the Photos-picker path's own freshly-written temp file (which `captureDate` never
+    /// reaches for those formats unless the embedded metadata lookup already failed).
+    private static func fileSystemDate(for url: URL) -> Date? {
+        let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+        return values?.creationDate ?? values?.contentModificationDate
     }
 
     /// The file extension a `PhotosPicker`-loaded item's own `UTType` should be saved with —

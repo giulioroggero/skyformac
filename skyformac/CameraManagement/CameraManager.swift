@@ -2077,9 +2077,10 @@ final class CameraManager {
             else { break } // the session itself is gone — nothing left to import into.
             let currentSession = updatedProject.sessions[sessionIndex]
             let thumbnail = await MediaImporter.makeThumbnail(for: url, kind: kind)
+            let captureDate = await MediaImporter.captureDate(for: url, kind: kind)
             guard let record = try? projectStore.recordCapture(
                 copyingFileAt: url, kind: kind, thumbnail: thumbnail,
-                note: "Imported \(url.lastPathComponent)",
+                note: "Imported \(url.lastPathComponent)", date: captureDate,
                 into: currentSession, project: &updatedProject
             ) else {
                 skipped.append(url)
