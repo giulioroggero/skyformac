@@ -1012,7 +1012,8 @@ struct PlanetaryPostProcessingView: View {
                     bayerPattern: sequence.bayerPattern, keepBestPercent: percent, method: method,
                     progress: { fraction in sink.reportProgress(fraction, phase: "Stacking", total: frameCount) },
                     isCancelled: isCancelled,
-                    didUseGPU: { usedGPU in sink.reportGPUUsage(usedGPU, phase: "Stacking") }
+                    didUseGPU: { usedGPU in sink.reportGPUUsage(usedGPU, phase: "Stacking") },
+                    onPhaseChange: { line in sink.reportPhaseChange(line) }
                 )
             }
             guard !Task.isCancelled else { return }
@@ -1058,7 +1059,8 @@ struct PlanetaryPostProcessingView: View {
                 bayerPattern: sequence.bayerPattern, keepBestPercent: percent, method: method,
                 progress: { fraction in sink.reportProgress(fraction, phase: "Stacking", total: frameCount) },
                 isCancelled: isCancelled,
-                didUseGPU: { usedGPU in sink.reportGPUUsage(usedGPU, phase: "Stacking") }
+                didUseGPU: { usedGPU in sink.reportGPUUsage(usedGPU, phase: "Stacking") },
+                onPhaseChange: { line in sink.reportPhaseChange(line) }
             )
         }
         progressFraction = nil
@@ -1428,6 +1430,17 @@ private final class ProgressSink {
     nonisolated func reportGPUUsage(_ usedGPU: Bool, phase: String) {
         Task { @MainActor in
             owner.logLines.append("\(phase) used the \(usedGPU ? "GPU" : "CPU").")
+        }
+    }
+
+    /// A pass-boundary announcement (`PlanetaryPostProcessor.stack`'s own `onPhaseChange`) —
+    /// always appended to the visible log, not gated by `reportProgress`'s own 10%-milestone
+    /// throttle, since this is exactly the "why did the rate of progress just change" explanation
+    /// a milestone-gated line would bury among a dozen ordinary "N/Total frames" updates.
+    nonisolated func reportPhaseChange(_ line: String) {
+        Task { @MainActor in
+            owner.progressText = line
+            owner.logLines.append(line)
         }
     }
 }

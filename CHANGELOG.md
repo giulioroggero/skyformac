@@ -24,6 +24,12 @@ actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Planetary Post-Processing's log now explains *why* stacking's progress rate changes partway
+  through, instead of just a single blended 0-100% bar across three passes of very different
+  cost: it announces each pass by name as it starts ("Converting N frames…", "Aligning N frames
+  (parallel, CPU)…", "Combining N frames via median (CPU — sorts every frame's value at every
+  pixel, no GPU shortcut exists for this)…"), so a mid-stack slowdown reads as "now in the
+  no-GPU-shortcut median combine" instead of looking like it mysteriously stalled.
 - Planetary Post-Processing's per-frame registration/scoring now runs on the GPU for an imported
   video too, not just a native `.ser` capture — a new `rgbToLuma` Metal kernel handles the
   already-RGB (no debayer needed) case, cutting an imported clip's processing time noticeably,

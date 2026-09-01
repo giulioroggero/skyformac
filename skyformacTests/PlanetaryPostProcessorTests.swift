@@ -117,6 +117,22 @@ struct PlanetaryPostProcessorTests {
         #expect(reportedGPU == false)
     }
 
+    /// `onPhaseChange` is what turns "it sped up, then mysteriously crawled" into an actual
+    /// explanation in the log — a `.median` run should explicitly call out the no-GPU-shortcut
+    /// combine pass, not just silently take longer than the convert/align passes before it.
+    @Test func medianStackAnnouncesTheNoGPUShortcutCombinePass() throws {
+        let frames = makeStackedFrames(width: 4, height: 4, pixelValues: [100, 102, 250])
+        let registered = frames.indices.map { PlanetaryPostProcessor.RegisteredFrame(index: $0, quality: Double($0 + 1), shift: .zero) }
+        var announcements: [String] = []
+        _ = PlanetaryPostProcessor.stack(
+            frames: frames, registered: registered, isColorCamera: false, bayerPattern: ASI_BAYER_RG,
+            keepBestPercent: 100, method: .median, onPhaseChange: { announcements.append($0) }
+        )
+        #expect(announcements.contains { $0.contains("Converting") })
+        #expect(announcements.contains { $0.contains("Aligning") })
+        #expect(announcements.contains { $0.contains("median") && $0.contains("no GPU shortcut") })
+    }
+
     @Test func meanStackReportsWhetherItUsedGPU() throws {
         let frames = makeStackedFrames(width: 4, height: 4, pixelValues: [100, 150, 200])
         let registered = frames.indices.map { PlanetaryPostProcessor.RegisteredFrame(index: $0, quality: Double($0 + 1), shift: .zero) }

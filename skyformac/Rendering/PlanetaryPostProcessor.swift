@@ -370,11 +370,20 @@ enum PlanetaryPostProcessor {
     /// definitively which one actually ran a given burst, rather than only "GPU when available"
     /// — the same method can legitimately go either way run to run (a sandboxed CI runner has no
     /// `MTLDevice` at all; a real Mac's GPU call could still fail mid-burst and fall back).
+    /// `onPhaseChange`, when given, fires once at the start of each of this function's internal
+    /// passes (convert → align → combine, or the GPU mean-stack shortcut in place of the last two)
+    /// with a line naming the pass, how many frames it covers, and whether it's GPU- or
+    /// CPU-only — the whole point being: a single blended 0-100% progress bar covering three
+    /// passes of very different per-pixel cost (a plain normalize, a parallel bilinear resample,
+    /// and — for `.median` specifically — a per-pixel sort with no GPU shortcut at all) reads as
+    /// "it sped up, then mysteriously crawled" without something explaining *why* the rate of
+    /// progress just changed. This is that explanation, surfaced as its own log line rather than
+    /// left implicit in the progress bar's own pacing.
     static func stack(
         frames: [CapturedFrame], registered: [RegisteredFrame], isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN,
         keepBestPercent: Double, method: StackMethod, progress: ((Float) -> Void)? = nil,
         isCancelled: @escaping () -> Bool = { Task.isCancelled },
-        didUseGPU: ((Bool) -> Void)? = nil
+        didUseGPU: ((Bool) -> Void)? = nil, onPhaseChange: ((String) -> Void)? = nil
     ) -> StackedImage? {
         guard let first = frames.first else { return nil }
         let sortedByQuality = registered.sorted { $0.quality > $1.quality }
@@ -389,6 +398,7 @@ enum PlanetaryPostProcessor {
         // Pass 1 (serial — debayer): `gpuLuminanceConverter`'s texture cache is only safe for one
         // frame at a time (see its own doc comment), so this stays a plain loop; it's also the
         // pass the GPU debayer path above already speeds up, so it's rarely the bottleneck anymore.
+        onPhaseChange?("Converting \(selected.count) selected frames to RGB…")
         var normalizedFrames: [[Float]?] = Array(repeating: nil, count: selected.count)
         for (i, reg) in selected.enumerated() {
             if isCancelled() { break }
@@ -410,6 +420,7 @@ enum PlanetaryPostProcessor {
             let framesAndShifts = selected.indices.compactMap { i -> ([Float], SIMD2<Float>)? in
                 normalizedFrames[i].map { ($0, selected[i].shift) }
             }
+            onPhaseChange?("Aligning + combining \(framesAndShifts.count) frames on the GPU (mean)…")
             if !framesAndShifts.isEmpty, !isCancelled(),
                let combined = gpuStacker.meanStack(
                    framesAndShifts.map(\.0), shifts: framesAndShifts.map(\.1),
@@ -423,6 +434,11 @@ enum PlanetaryPostProcessor {
         }
         guard !isCancelled() else { return nil }
         didUseGPU?(false)
+        onPhaseChange?(
+            method == .mean
+                ? "GPU combine unavailable for this burst — falling back to the CPU passes below…"
+                : "Aligning \(selected.count) frames (parallel, CPU)…"
+        )
 
         // Pass 2 (parallel — bilinear resample): unlike the debayer step above, each selected
         // frame's shift is completely independent of every other's, so this full-resolution
@@ -449,6 +465,11 @@ enum PlanetaryPostProcessor {
         let compactedBuffers = alignedBuffers.compactMap { $0 }
         guard !compactedBuffers.isEmpty, !isCancelled() else { return nil }
 
+        onPhaseChange?(
+            method == .median
+                ? "Combining \(compactedBuffers.count) frames via median (CPU — sorts every frame's value at every pixel, no GPU shortcut exists for this)…"
+                : "Combining \(compactedBuffers.count) frames via mean (CPU, parallel)…"
+        )
         let combined = combine(compactedBuffers, method: method, isCancelled: isCancelled) { fraction in progress?(0.5 + fraction * 0.5) }
         guard !isCancelled() else { return nil }
         return StackedImage(width: width, height: height, channels: fixedChannels, values: combined)
