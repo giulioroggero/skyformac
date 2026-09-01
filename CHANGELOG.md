@@ -23,7 +23,17 @@ actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- Planetary Post-Processing's per-frame registration/scoring now runs on the GPU for an imported
+  video too, not just a native `.ser` capture — a new `rgbToLuma` Metal kernel handles the
+  already-RGB (no debayer needed) case, cutting an imported clip's processing time noticeably,
+  especially at phone-video resolutions.
+
 ### Fixed
+- Planetary Post-Processing's "Object to Track" crop box couldn't be drawn at all for an imported
+  video — the preview it needs `.mov`/`.mp4`/`.m4v` files was always trying to load through
+  `SERReader` (`.ser`-only), silently failing every time, so the page showed "Couldn't load a
+  preview to draw a box on" instead. Now reads a real first frame from the video file itself.
 - Importing a file/photo into a session (Files or "From Photos…") always dated the new capture
   "now" (the moment it was imported), not when it was actually taken — so an old astrophoto
   imported today sorted into the session timeline at the wrong point entirely. Now reads the

@@ -1,3 +1,4 @@
+import Accelerate
 import Metal
 
 /// GPU-accelerated replacement for the debayer step inside `PlanetaryPostProcessor.luminance
@@ -29,6 +30,7 @@ final class PlanetaryGPULuminanceConverter: @unchecked Sendable {
     private let commandQueue: MTLCommandQueue
     private let lumaPipelineState: MTLComputePipelineState
     private let rgbPipelineState: MTLComputePipelineState
+    private let rgbToLumaPipelineState: MTLComputePipelineState
     private let lock = NSLock()
 
     private var sourceTexture: MTLTexture?
@@ -38,19 +40,32 @@ final class PlanetaryGPULuminanceConverter: @unchecked Sendable {
     private var textureHeight = 0
     private var texturePixelFormat: MTLPixelFormat = .r8Unorm
 
+    /// Separate from `sourceTexture` above (deliberately not sharing its cache/pixel-format
+    /// bookkeeping) — an already-RGB video frame uploads as `.rgba8Unorm`, a genuinely different
+    /// shape from the single-channel Bayer-mosaic source `luminance(of:)`/`rgb(of:)` upload, and
+    /// the two paths are never interleaved within one burst (a burst is either all-Bayer or
+    /// all-already-RGB), so there's no real cost to keeping their caches independent instead of
+    /// generalizing `ensureSourceTexture` to cover both.
+    private var rgbaSourceTexture: MTLTexture?
+    private var rgbaTextureWidth = 0
+    private var rgbaTextureHeight = 0
+
     init?() {
         guard let device = MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
               let lumaFunction = library.makeFunction(name: "debayerToLuma"),
               let rgbFunction = library.makeFunction(name: "debayerToRGB"),
+              let rgbToLumaFunction = library.makeFunction(name: "rgbToLuma"),
               let lumaPipelineState = try? device.makeComputePipelineState(function: lumaFunction),
-              let rgbPipelineState = try? device.makeComputePipelineState(function: rgbFunction)
+              let rgbPipelineState = try? device.makeComputePipelineState(function: rgbFunction),
+              let rgbToLumaPipelineState = try? device.makeComputePipelineState(function: rgbToLumaFunction)
         else { return nil }
         self.device = device
         self.commandQueue = queue
         self.lumaPipelineState = lumaPipelineState
         self.rgbPipelineState = rgbPipelineState
+        self.rgbToLumaPipelineState = rgbToLumaPipelineState
     }
 
     /// Debayers `frame` (must be a color camera's RAW8/RAW16 Bayer mosaic — `nil` for anything
@@ -124,6 +139,94 @@ final class PlanetaryGPULuminanceConverter: @unchecked Sendable {
             rgb[pixel * 3 + 2] = rgba[pixel * 4 + 2]
         }
         return rgb
+    }
+
+    /// Same idea as `luminance(of:bayerPattern:)`, for an already-RGB (not Bayer-mosaic) frame —
+    /// an imported ordinary video's own decoded frame (`ASI_IMG_RGB24`), no demosaic needed at
+    /// all. Metal has no plain 3-byte-per-pixel texture format, so the RGB24 source is padded to
+    /// RGBA8 first via `vImage` (vectorized, the same technique `VideoFrameReader`'s own
+    /// BGRA→RGB24 conversion already uses) before upload — still meaningfully cheaper overall than
+    /// leaving the whole R/G/B→luma combine on the CPU, since this replaces that step for every
+    /// frame across the whole registration/stacking pipeline, not just once.
+    func luminanceOfRGB24(_ frame: CapturedFrame) -> [Float]? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard frame.imageType == ASI_IMG_RGB24, frame.width > 0, frame.height > 0,
+              frame.data.count >= frame.width * frame.height * 3
+        else { return nil }
+
+        var rgba = [UInt8](repeating: 0, count: frame.width * frame.height * 4)
+        let conversionError = frame.data.withUnsafeBytes { (srcRaw: UnsafeRawBufferPointer) -> vImage_Error in
+            rgba.withUnsafeMutableBytes { destRaw in
+                var srcBuffer = vImage_Buffer(
+                    data: UnsafeMutableRawPointer(mutating: srcRaw.baseAddress),
+                    height: vImagePixelCount(frame.height), width: vImagePixelCount(frame.width),
+                    rowBytes: frame.width * 3
+                )
+                var destBuffer = vImage_Buffer(
+                    data: destRaw.baseAddress, height: vImagePixelCount(frame.height),
+                    width: vImagePixelCount(frame.width), rowBytes: frame.width * 4
+                )
+                return vImageConvert_RGB888toRGBA8888(&srcBuffer, nil, 255, &destBuffer, false, vImage_Flags(kvImageNoFlags))
+            }
+        }
+        guard conversionError == kvImageNoError else { return nil }
+
+        ensureRGBASourceTexture(width: frame.width, height: frame.height)
+        guard let rgbaSourceTexture else { return nil }
+        rgba.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            rgbaSourceTexture.replace(
+                region: MTLRegionMake2D(0, 0, frame.width, frame.height), mipmapLevel: 0,
+                withBytes: base, bytesPerRow: frame.width * 4
+            )
+        }
+
+        ensureLumaDestinationTexture(width: frame.width, height: frame.height)
+        guard let lumaDestinationTexture,
+              let commandBuffer = commandQueue.makeCommandBuffer(),
+              let encoder = commandBuffer.makeComputeCommandEncoder()
+        else { return nil }
+
+        encoder.setComputePipelineState(rgbToLumaPipelineState)
+        encoder.setTexture(rgbaSourceTexture, index: 0)
+        encoder.setTexture(lumaDestinationTexture, index: 1)
+        let threadsPerGroup = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroups = MTLSize(
+            width: (frame.width + threadsPerGroup.width - 1) / threadsPerGroup.width,
+            height: (frame.height + threadsPerGroup.height - 1) / threadsPerGroup.height, depth: 1
+        )
+        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+        encoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        guard commandBuffer.error == nil else { return nil }
+
+        var output = [Float](repeating: 0, count: frame.width * frame.height)
+        output.withUnsafeMutableBytes { dst in
+            guard let base = dst.baseAddress else { return }
+            lumaDestinationTexture.getBytes(
+                base, bytesPerRow: frame.width * MemoryLayout<Float>.size,
+                from: MTLRegionMake2D(0, 0, frame.width, frame.height), mipmapLevel: 0
+            )
+        }
+        return output
+    }
+
+    private func ensureRGBASourceTexture(width: Int, height: Int) {
+        guard width != rgbaTextureWidth || height != rgbaTextureHeight else { return }
+        rgbaTextureWidth = width
+        rgbaTextureHeight = height
+        // Same invalidation `ensureSourceTexture` does on its own size change below — the shared
+        // `lumaDestinationTexture` this path also writes to must be recreated at the new
+        // dimensions too, not silently reused at whatever size a previous call (Bayer or RGB24)
+        // happened to leave it at.
+        lumaDestinationTexture = nil
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm, width: width, height: height, mipmapped: false
+        )
+        descriptor.usage = [.shaderRead]
+        rgbaSourceTexture = device.makeTexture(descriptor: descriptor)
     }
 
     /// Uploads `frame`'s raw bytes into the (possibly-cached) source texture — shared prep for

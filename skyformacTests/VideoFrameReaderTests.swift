@@ -69,6 +69,29 @@ struct VideoFrameReaderTests {
         }
     }
 
+    /// The cheap preview-only shortcut `PlanetaryPostProcessingView.loadSourcePreview` uses for an
+    /// imported video — should decode just the first frame (matching what `read`'s own first
+    /// frame would be), not the whole file.
+    @Test func readFirstFrameMatchesTheFirstFrameOfFullRead() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try await makeTestVideo(width: 16, height: 16, frameColors: [(200, 50, 50), (50, 200, 50), (50, 50, 200)], to: url)
+
+        let firstFrame = try VideoFrameReader.readFirstFrame(from: url)
+        let fullRead = try VideoFrameReader.read(from: url)
+
+        #expect(firstFrame.width == 16)
+        #expect(firstFrame.height == 16)
+        #expect(firstFrame.data == fullRead.frames[0].data)
+    }
+
+    @Test func readFirstFrameThrowsForAFileWithNoVideoTrack() {
+        let bogusURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mov")
+        #expect(throws: Error.self) {
+            _ = try VideoFrameReader.readFirstFrame(from: bogusURL)
+        }
+    }
+
     @Test func readThrowsForAFileWithNoVideoTrack() {
         // An empty/nonexistent file has no video track at all — `AVURLAsset` on a bogus URL
         // reports zero tracks rather than throwing itself, so this is `VideoFrameReader`'s own

@@ -505,6 +505,39 @@ struct PlanetaryPostProcessorTests {
         #expect(gpu.luminance(of: frame, bayerPattern: ASI_BAYER_RG) == nil)
     }
 
+    /// `luminanceOfRGB24` is the GPU counterpart to `PlanetaryPostProcessor.luminance(of:...)`'s
+    /// CPU vDSP RGB->luma combine for an already-RGB (imported video) frame — same cross-check
+    /// discipline as `gpuDebayerLumaMatchesCPUDebayerForAColorFrame` above, just without a debayer
+    /// step in between since there's no Bayer mosaic to demosaic here.
+    @Test func gpuLuminanceOfRGB24MatchesCPURGBToLumaCombine() throws {
+        let width = 8, height = 8
+        var bytes = [UInt8](repeating: 0, count: width * height * 3)
+        for i in 0..<(width * height) {
+            bytes[i * 3] = UInt8((i * 7) % 256) // R
+            bytes[i * 3 + 1] = UInt8((i * 13) % 256) // G
+            bytes[i * 3 + 2] = UInt8((i * 29) % 256) // B
+        }
+        let frame = CapturedFrame(width: width, height: height, imageType: ASI_IMG_RGB24, data: Data(bytes))
+        guard let gpu = PlanetaryGPULuminanceConverter() else { return }
+        let gpuValues = try #require(gpu.luminanceOfRGB24(frame))
+
+        var cpuLuma = [Float](repeating: 0, count: width * height)
+        for i in 0..<(width * height) {
+            let r = Float(bytes[i * 3]) / 255, g = Float(bytes[i * 3 + 1]) / 255, b = Float(bytes[i * 3 + 2]) / 255
+            cpuLuma[i] = r * 0.299 + g * 0.587 + b * 0.114
+        }
+        #expect(gpuValues.count == cpuLuma.count)
+        for i in gpuValues.indices {
+            #expect(abs(gpuValues[i] - cpuLuma[i]) < 0.02)
+        }
+    }
+
+    @Test func gpuLuminanceOfRGB24ReturnsNilForANonRGB24Frame() {
+        guard let gpu = PlanetaryGPULuminanceConverter() else { return }
+        let frame = CapturedFrame(width: 4, height: 4, imageType: ASI_IMG_RAW8, data: Data(repeating: 100, count: 16))
+        #expect(gpu.luminanceOfRGB24(frame) == nil)
+    }
+
     // MARK: - rendering / histogram
 
     @Test func histogramOfAFlatImageIsAllInOneBucket() {

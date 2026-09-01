@@ -1369,8 +1369,20 @@ struct PlanetaryPostProcessingView: View {
             : " (CPU — a true per-pixel median needs every sample, so there's no GPU shortcut here)"
     }
 
+    /// `.ser` is `SERReader`'s own cheap header-plus-first-frame read; an imported ordinary video
+    /// (`.mov`/`.mp4`/`.m4v`) instead needs `VideoFrameReader.readFirstFrame` — without this
+    /// branch, `SERReader.readFirstFrame` simply fails to parse a video file's header at all, so
+    /// `sourcePreview` stayed `nil` and the "Object to Track" crop box never had anything to draw
+    /// on for an imported video.
     private static func loadSourcePreview(_ url: URL) -> (image: NSImage, pixelSize: (width: Int, height: Int), isColorCamera: Bool)? {
-        guard let (frame, isColorCamera, bayerPattern) = try? SERReader.readFirstFrame(from: url),
+        let isVideo = MediaImporter.supportedVideoExtensions.contains(url.pathExtension.lowercased())
+        let loaded: (frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN)?
+        if isVideo {
+            loaded = (try? VideoFrameReader.readFirstFrame(from: url)).map { ($0, true, ASI_BAYER_RG) }
+        } else {
+            loaded = try? SERReader.readFirstFrame(from: url)
+        }
+        guard let (frame, isColorCamera, bayerPattern) = loaded,
               let auto = DisplayStretch.autoStretch(histogram: HistogramComputer.histogram(for: frame)),
               let cgImage = CGImageRenderer.makeDisplayImage(from: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern, stretch: auto)
         else { return nil }

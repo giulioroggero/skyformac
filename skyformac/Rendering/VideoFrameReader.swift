@@ -45,6 +45,32 @@ enum VideoFrameReader {
         )
     }
 
+    /// The same first-frame-only shortcut `SERReader.readFirstFrame` gives a `.ser` file — decodes
+    /// just enough of the video to produce one representative frame, for a quick "draw an Object
+    /// to Track box before committing to the full decode" preview
+    /// (`PlanetaryPostProcessingView.loadSourcePreview`) without paying `read(from:)`'s full
+    /// whole-file decode cost up front. Stops the `AVAssetReader` (`cancelReading()`) the instant
+    /// one frame decodes successfully, rather than reading on to the end.
+    static func readFirstFrame(from url: URL) throws -> CapturedFrame {
+        let asset = AVURLAsset(url: url)
+        guard let track = asset.tracks(withMediaType: .video).first else { throw VideoError.noVideoTrack }
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(
+            track: track, outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        )
+        output.alwaysCopiesSampleData = false
+        reader.add(output)
+        guard reader.startReading() else { throw VideoError.unreadableFrame }
+        defer { reader.cancelReading() }
+
+        while let sampleBuffer = output.copyNextSampleBuffer() {
+            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer), let frame = makeFrame(from: pixelBuffer)
+            else { continue }
+            return frame
+        }
+        throw VideoError.unreadableFrame
+    }
+
     private static func makeFrame(from pixelBuffer: CVPixelBuffer) -> CapturedFrame? {
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }

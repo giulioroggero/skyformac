@@ -226,13 +226,18 @@ enum PlanetaryPostProcessor {
     /// the shared first step both registration and stacking need, kept as one function so both
     /// stages agree on exactly what "the frame's intensity" means. Tries the GPU debayer path
     /// first for an actual Bayer-mosaic color frame (`gpuLuminanceConverter`'s own doc comment
-    /// explains why that step specifically is worth a Metal kernel); falls back to the CPU path
-    /// below — `normalizedRGB` + a vDSP-vectorized RGB→luma combination — when there's no GPU
-    /// available or the frame isn't a RAW8/16 Bayer mosaic (already-interleaved RGB24, or mono).
+    /// explains why that step specifically is worth a Metal kernel); for an already-RGB frame (an
+    /// imported ordinary video, decoded to `ASI_IMG_RGB24` by `VideoFrameReader` — no debayer step
+    /// needed, just the R/G/B→luma combine) tries the GPU's `luminanceOfRGB24` instead; falls back
+    /// to the CPU path below — `normalizedRGB` + a vDSP-vectorized RGB→luma combination — when
+    /// there's no GPU available at all, or for mono.
     static func luminance(
         of frame: CapturedFrame, isColorCamera: Bool, bayerPattern: ASI_BAYER_PATTERN
     ) -> (values: [Float], width: Int, height: Int)? {
         if isColorCamera, let gpuValues = gpuLuminanceConverter?.luminance(of: frame, bayerPattern: bayerPattern) {
+            return (gpuValues, frame.width, frame.height)
+        }
+        if frame.imageType == ASI_IMG_RGB24, let gpuValues = gpuLuminanceConverter?.luminanceOfRGB24(frame) {
             return (gpuValues, frame.width, frame.height)
         }
         guard let rgb = normalizedRGB(of: frame, isColorCamera: isColorCamera, bayerPattern: bayerPattern) else { return nil }

@@ -695,6 +695,23 @@ kernel void debayerToLuma(
     destination.write(float4(luma, 0.0, 0.0, 1.0), gid);
 }
 
+/// Same weighted R/G/B -> luma reduction as `debayerToLuma`'s own last line, but for a source
+/// that's already full RGB (an imported ordinary video's decoded frame, not a Bayer sensor
+/// mosaic) — no demosaic step needed at all, just this one combine, on the GPU instead of
+/// `PlanetaryPostProcessor`'s CPU vDSP path (`PlanetaryGPULuminanceConverter.luminanceOfRGB24`'s
+/// own doc comment explains why this is a separate kernel rather than sharing one with
+/// `debayerToLuma`).
+kernel void rgbToLuma(
+    texture2d<float, access::read> source [[texture(0)]],
+    texture2d<float, access::write> destination [[texture(1)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= source.get_width() || gid.y >= source.get_height()) { return; }
+    float4 rgba = source.read(gid);
+    float luma = rgba.r * 0.299 + rgba.g * 0.587 + rgba.b * 0.114;
+    destination.write(float4(luma, 0.0, 0.0, 1.0), gid);
+}
+
 /// Same GPU bilinear demosaic as `debayerToLuma`, but writing the full `(r, g, b)` triple to an
 /// `rgba32Float` texture instead of collapsing to luma — the batch-pipeline counterpart used by
 /// `PlanetaryPostProcessor.stack`'s per-selected-frame debayer (previously always CPU-only, the
