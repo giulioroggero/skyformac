@@ -24,6 +24,14 @@ actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- New standalone "Hubble Palette" tool (Dashboard → Common Tasks): combines separately-captured
+  Sulfur-II, Hydrogen-alpha, and Oxygen-III narrowband channels into a false-color SHO composite.
+  Accepts still images or video/`.ser` captures per channel (video is auto-stacked through the
+  existing planetary pipeline first), and auto-aligns the SII/OIII channels against Hα via a
+  coarse-to-fine correlation search — narrowband channels are usually shot in separate sessions and
+  won't already be pixel-aligned, and a single bright-disk centroid (used elsewhere for planetary
+  alignment) isn't a good fit here since different elements glow brightest in different nebula
+  structures.
 - Planetary Post-Processing's log now explains *why* stacking's progress rate changes partway
   through, instead of just a single blended 0-100% bar across three passes of very different
   cost: it announces each pass by name as it starts ("Converting N frames…", "Aligning N frames
@@ -47,6 +55,12 @@ actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyfo
   QuickTime's own creation-date metadata for a video — Photos' own exported data keeps this, so it
   works identically for a Photos import), falling back to the file's filesystem date only when no
   such metadata exists (this app's own FITS files, or an unreadable/stripped file).
+- Opening an elaborated image with no siblings (e.g. an "Edit Image" result) from a project's
+  detail view spun forever instead of ever showing the image — the full-screen viewer's loader only
+  ran when it had more than one image to step through, but a single-image case built through the
+  same multi-image code path never seeded the image any other way. It now loads regardless, through
+  the same on-disk thumbnail cache the gallery/timeline/project browser already share instead of a
+  second separate decode path.
 
 ## [0.6.4] - 2026-08-30
 

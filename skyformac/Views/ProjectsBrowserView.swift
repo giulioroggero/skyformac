@@ -37,6 +37,11 @@ struct ProjectsBrowserView: View {
     @State private var isShowingQuickStartSheet = false
     @State private var searchText = ""
     @State private var filter = ProjectFilterState()
+    /// `HubblePaletteView` opens as a real, independently movable/resizable window (its 3-source
+    /// combine + touch-up controls are the same shape as `MosaicComposerView`'s own detached
+    /// window), not a pushed page — it has no one project/session to navigate "back" from, unlike
+    /// everything else `path` drives.
+    @State private var hubblePaletteWindowController: DetachedContentWindowController?
 
     private var library: ProjectsLibrary { cameraManager.projectsLibrary }
 
@@ -131,6 +136,7 @@ struct ProjectsBrowserView: View {
                 onShowGallery: { path.append(.gallery) },
                 onShowSkyVisibility: { path.append(.skyVisibility) },
                 onShowGuideLog: { path.append(.guideLog) },
+                onShowHubblePalette: { openHubblePaletteWindow() },
                 onShowSettings: { cameraManager.isSettingsPresented = true }
             )
             .navigationDestination(for: ProjectsRoute.self) { route in
@@ -210,6 +216,21 @@ struct ProjectsBrowserView: View {
             cameraManager.isShowingGalleryRequested = false
             path = [.gallery]
         }
+    }
+
+    /// Same "real, independently movable/resizable window" reasoning as
+    /// `SessionDetailPane.openMosaicComposerWindow` — the difference here is there's no
+    /// project/session context to hand it at all (its three sources are picked from Finder
+    /// directly), so it saves by presenting its own project picker instead of already knowing
+    /// which project/session to attribute the result to.
+    private func openHubblePaletteWindow() {
+        hubblePaletteWindowController = DetachedContentWindowController(
+            title: "Hubble Palette", contentSize: HubblePaletteView.fullScreenSize, minSize: HubblePaletteView.minWindowSize,
+            onClose: { hubblePaletteWindowController = nil }
+        ) {
+            HubblePaletteView(cameraManager: cameraManager, onDismiss: { hubblePaletteWindowController?.close() })
+        }
+        hubblePaletteWindowController?.showWindow(nil)
     }
 
     @ViewBuilder

@@ -145,12 +145,19 @@ struct FullScreenImageViewer: View {
     /// `NSWindow` via `DetachedContentWindowController` instead, precisely so it can be moved and
     /// resized like any other window.
     var onDismiss: () -> Void
+    /// True only for the single-image convenience initializer below, which seeds `loadedImage`
+    /// with the image the caller already loaded itself. Deliberately NOT derived from
+    /// `entries.count == 1` — the `entries:` initializer can just as well be called with a single
+    /// element (an elaborated image with no siblings), and that case still needs its `.task` to
+    /// actually run or `loadedImage` sits at its initial `nil` forever, spinning indefinitely.
+    private let usesPreloadedImage: Bool
 
     init(image: NSImage, fileURL: URL, onSetAsThumbnail: (() -> Void)? = nil, moreMenuItems: (() -> AnyView)? = nil, onDismiss: @escaping () -> Void) {
         self.entries = [Entry(fileURL: fileURL, displayName: fileURL.lastPathComponent)]
         self._currentIndex = State(initialValue: 0)
         self.originalIndex = 0
         self._loadedImage = State(initialValue: image)
+        self.usesPreloadedImage = true
         self.onSetAsThumbnail = onSetAsThumbnail
         self.moreMenuItems = moreMenuItems
         self.onDismiss = onDismiss
@@ -164,6 +171,7 @@ struct FullScreenImageViewer: View {
         self._currentIndex = State(initialValue: resolvedStartIndex)
         self.originalIndex = resolvedStartIndex
         self._loadedImage = State(initialValue: nil)
+        self.usesPreloadedImage = false
         self.onSetAsThumbnail = onSetAsThumbnail
         self.moreMenuItems = moreMenuItems
         self.onDismiss = onDismiss
@@ -215,8 +223,10 @@ struct FullScreenImageViewer: View {
             // Skipped for the single-entry convenience initializer, which already seeds
             // `loadedImage` directly with the image the caller loaded itself — no need to
             // re-decode the exact same file from disk a second time.
-            guard entries.count > 1 else { return }
-            loadedImage = NSImage(contentsOf: currentEntry.fileURL)
+            guard !usesPreloadedImage else { return }
+            // Same cache `TimelineStripView`/`ProjectsBrowserView`/`CaptureDetailPage` already load
+            // thumbnails through, rather than a second direct `NSImage(contentsOf:)` decode path.
+            loadedImage = ThumbnailCache.image(at: currentEntry.fileURL)
         }
     }
 
