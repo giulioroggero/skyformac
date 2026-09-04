@@ -7,7 +7,8 @@ single-developer app, not a library with a public API.
 
 **[Unreleased]** is the `master`/dev branch — updated continuously as work lands,
 with everything folded under a proper version heading (and dated) only once it's
-actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.4),
+actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.7.0),
+[v0.6.4](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.4),
 [v0.6.3](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.3),
 [v0.6.2](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.2),
 [v0.6.1](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.1),
@@ -22,6 +23,13 @@ actually tagged. Tags on GitHub: [v0.6.4](https://github.com/giulioroggero/skyfo
 [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12).
 
 ## [Unreleased]
+
+## [0.7.0] - 2026-09-04
+
+**Beta**: promoted from the alpha track per [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)'s
+alpha → beta → GA progression — the "What to See"/Gallery/Planetary Post-Processing work from
+v0.6.2 through v0.6.4 has since had real field use with no regressions found. Still short of a
+GA release; see the same doc for what that bar is.
 
 ### Added
 - New standalone "Hubble Palette" tool (Dashboard → Common Tasks): combines separately-captured
