@@ -41,7 +41,6 @@ enum AppSettings {
         case aiProvider
         case anthropicModel
         case geminiModel
-        case geminiImageModel
         case geminiUsesVertex
         case geminiVertexProjectID
         case geminiVertexRegion
@@ -523,19 +522,10 @@ enum AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: Key.geminiModel.rawValue) }
     }
 
-    /// Which Gemini image-generation ("Nano Banana" family) model Edit Image's "AI Enhance" uses
-    /// — a separate setting from `geminiModel` above, since that one's for the text/vision chat
-    /// and this family of models is a genuinely different capability (only some Gemini models can
-    /// output an edited image at all). `nil` picks `GeminiImageEnhancer`'s own default.
-    static var geminiImageModel: String? {
-        get { UserDefaults.standard.string(forKey: Key.geminiImageModel.rawValue) }
-        set { UserDefaults.standard.set(newValue, forKey: Key.geminiImageModel.rawValue) }
-    }
-
     /// `true` routes every Gemini request through Vertex AI (a GCP project, billed/quota'd there)
     /// instead of the plain Gemini API (`generativelanguage.googleapis.com`, billed against a
     /// simple AI Studio API key) — same request/response JSON shape either way
-    /// (`GeminiTransport`/`GeminiImageEnhancer`'s own payload-building code is unchanged), only the
+    /// (`GeminiTransport`'s own payload-building code is unchanged), only the
     /// endpoint URL and how the request authenticates differ. See `geminiVertexServiceAccountJSON`.
     static var geminiUsesVertex: Bool {
         get { UserDefaults.standard.bool(forKey: Key.geminiUsesVertex.rawValue) }

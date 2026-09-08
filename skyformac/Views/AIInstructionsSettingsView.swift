@@ -41,7 +41,7 @@ struct AIInstructionsSettingsView: View {
                 onSave: { AppSettings.planetaryStackingInstructions = $0 }
             )
             instructionSection(
-                title: "Edit Image AI Assistant", caption: "Used by Edit Image's own AI Assistant chat, including AI Enhance.",
+                title: "Edit Image AI Assistant", caption: "Used by Edit Image's own AI Assistant chat.",
                 text: $imageAssistantInstructions, default: AppSettings.defaultImageAssistantInstructions,
                 onSave: { AppSettings.imageAssistantInstructions = $0 }
             )

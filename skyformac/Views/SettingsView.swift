@@ -28,7 +28,6 @@ struct SettingsView: View {
     @State private var geminiVertexRegionText = AppSettings.geminiVertexRegion ?? ""
     @State private var isImportingVertexServiceAccount = false
     @State private var vertexServiceAccountErrorMessage: String?
-    @State private var geminiImageModelText = AppSettings.geminiImageModel ?? GeminiImageEnhancer.availableModels[0]
     @State private var aiSettingsSegment = 0
     @State private var integrationsSegment = 0
 
@@ -304,15 +303,6 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Picker("AI Enhance Model", selection: $geminiImageModelText) {
-                            ForEach(GeminiImageEnhancer.availableModels, id: \.self) { model in
-                                Text(model).tag(model)
-                            }
-                        }
-                        .onChange(of: geminiImageModelText) { _, newValue in AppSettings.geminiImageModel = newValue }
-                        Text("Which Gemini image-generation model Edit Image's \"AI Enhance\" uses — a separate capability from the chat model above (only these specific models can output an edited image at all).")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
                 if aiProvider == .ollama {

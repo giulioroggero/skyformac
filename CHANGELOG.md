@@ -24,6 +24,13 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Removed
+- Edit Image's "AI Enhance" (sent the image to Google Gemini's image-generation model for a
+  pixel-regenerated result, watermarked "AI - Sky For Mac"). The AI Assistant chat that proposes
+  slider adjustments is unaffected — only the separate genuine-pixel-regeneration path is gone,
+  along with its now-unused `GeminiImageEnhancer`/`AIWatermark` code and Settings' "AI Enhance
+  Model" picker. Gemini remains available as a general AI provider for the chat assistant.
+
 ## [0.7.0] - 2026-09-04
 
 **Beta**: promoted from the alpha track per [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)'s

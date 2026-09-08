@@ -88,9 +88,8 @@ struct AnthropicTransport: OllamaTransport {
 /// Resolves where a Gemini request actually goes and how it authenticates — the plain Gemini API
 /// (`generativelanguage.googleapis.com`, a simple `?key=` query param) by default, or Vertex AI
 /// (`{region}-aiplatform.googleapis.com`, an `Authorization: Bearer` token minted from a service
-/// account) when `AppSettings.geminiUsesVertex` is on. Shared by `GeminiTransport` and
-/// `GeminiImageEnhancer` since the request *body* (`contents`/`parts`/`generationConfig`) is
-/// identical either way — only the URL and auth differ, which is exactly what this factors out.
+/// account) when `AppSettings.geminiUsesVertex` is on. Used by `GeminiTransport` regardless of
+/// which mode is active — only the URL and auth differ, which is exactly what this factors out.
 enum GeminiEndpoint {
     /// Most current Gemini models (2.5+) on Vertex are only served from the "global" location, not
     /// a specific region — pinning a region like `"us-central1"` 404s for exactly those models
@@ -180,69 +179,5 @@ struct GeminiTransport: OllamaTransport {
               let text = parts.first?["text"] as? String
         else { throw OllamaError.badResponse(message: nil) }
         return try AnthropicTransport.wrapAsOllamaResponse(text)
-    }
-}
-
-/// True pixel-level image editing via Gemini's own image-generation model ("Nano Banana") — unlike
-/// `GeminiTransport` above (routed through `OllamaPlanner`'s text-only envelope, used for
-/// "suggest slider values" chat), this calls Gemini's image-output endpoint directly and gets a
-/// genuinely re-rendered image back. Neither Ollama's plain-text `/api/generate` protocol nor
-/// Anthropic's Messages API (no image-generation capability at all, as of this writing) can express
-/// that, which is why `SingleImagePostProcessingView`'s "AI Enhance" button is Gemini-only — see
-/// its own doc comment for why the result gets a visible watermark once applied.
-enum GeminiImageEnhancer {
-    /// Every current Gemini image-generation ("Nano Banana" family) model — verified directly
-    /// against Google's own model documentation, not guessed (a guessed Gemini model ID has
-    /// already 404'd in production once this session; the fix both times was checking the real
-    /// docs first). `gemini-2.5-flash-image` first/default since it's the longest-established GA
-    /// one. A plain constant here (not on `SettingsView`, a `View` and therefore implicitly
-    /// `@MainActor`-isolated) so `enhanceWithAI()`'s own `Task.detached` can read it — confirmed
-    /// live: referencing a `SettingsView` static from a detached task is a real Swift 6
-    /// concurrency error CI's stricter Xcode caught (this app's local toolchain didn't).
-    static let availableModels = [
-        "gemini-2.5-flash-image",
-        "gemini-3.1-flash-lite-image",
-        "gemini-3.1-flash-image",
-        "gemini-3-pro-image",
-    ]
-
-    enum EnhanceError: Error {
-        /// The request succeeded, but Gemini's reply had no image part at all — e.g. it declined
-        /// and only replied with text explaining why, or the chosen model doesn't actually support
-        /// image output.
-        case noImageInResponse
-    }
-
-    static func enhance(image: Data, apiKey: String, model: String, instructions: String) async throws -> Data {
-        let (url, authHeader) = try await GeminiEndpoint.resolve(model: model, apiKey: apiKey)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let authHeader { request.setValue(authHeader.value, forHTTPHeaderField: authHeader.name) }
-        request.timeoutInterval = 120
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "contents": [["role": "user", "parts": [
-                ["inlineData": ["mimeType": "image/jpeg", "data": image.base64EncodedString()]],
-                ["text": instructions],
-            ]]],
-            "generationConfig": ["responseModalities": ["IMAGE"]],
-        ])
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            let message = (envelope?["error"] as? [String: Any])?["message"] as? String
-            let status = (response as? HTTPURLResponse)?.statusCode
-            throw OllamaError.badResponse(message: message ?? status.map { "HTTP \($0)" })
-        }
-        guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let candidates = envelope["candidates"] as? [[String: Any]],
-              let content = candidates.first?["content"] as? [String: Any],
-              let parts = content["parts"] as? [[String: Any]],
-              let inlineData = parts.compactMap({ $0["inlineData"] as? [String: Any] }).first,
-              let base64 = inlineData["data"] as? String,
-              let outputData = Data(base64Encoded: base64)
-        else { throw EnhanceError.noImageInResponse }
-        return outputData
     }
 }
