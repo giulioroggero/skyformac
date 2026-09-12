@@ -30,7 +30,8 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
   `specs/skyformac_Mobile_Remote_Spec.md`. So far: the app target itself, and the handful of small
   data-model types it shares with the Mac app (extracted into their own top-level declarations so
   they don't drag in Mac-only rendering/filesystem code — see the spec's own "as actually built"
-  note). Not yet reachable from the Mac app's UI or usable end-to-end.
+  note), and now `RemoteProtocol.swift`'s client/server message types. Not yet reachable from the
+  Mac app's UI or usable end-to-end.
 
 ### Removed
 - Edit Image's "AI Enhance" (sent the image to Google Gemini's image-generation model for a

@@ -138,7 +138,7 @@ app doesn't target — see `docs/distribution.md`).
   runs in Simulator.
 - [x] Extend `ObservationModels.swift`'s target membership to the iOS target; confirm (or fix)
   `ElaboratedImage.planetarySettings`'s type is safe to compile there too.
-- [ ] Add `RemoteProtocol.swift` (message types), shared by both targets.
+- [x] Add `RemoteProtocol.swift` (message types), shared by both targets.
 - [ ] Mac: `RemoteControlServer` — Bonjour advertise + `NWListener`, answers `.listProjects`/
   `.listSessions`/`.listGalleryImages` from real data.
 - [ ] iOS: discovery screen (`NWBrowser` scan) + pairing-code entry + persisted trusted server.

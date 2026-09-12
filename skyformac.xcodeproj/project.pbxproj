@@ -52,6 +52,7 @@
 		21102E63FACEC3338DA9A048 /* SkyformacRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CE0A9600EB44D39676D540 /* SkyformacRemoteApp.swift */; };
 		234BFE9447EF4B92ABEDB512 /* TikhonovDeconvolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A409D1C3ECC4D6C9C741E80 /* TikhonovDeconvolverTests.swift */; };
 		2502EF75D1573890901952A5 /* StreakDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58B778D665C2941AEAB0293 /* StreakDetectorTests.swift */; };
+		25524DBDA854DB730960A1B9 /* RemoteProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EE7FA6FE18CDC58E85FF57A /* RemoteProtocol.swift */; };
 		268E153AB6EDCBE25D96C62F /* SkyCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B3143AE013A5ABC22FE60B /* SkyCatalog.swift */; };
 		27095FA0EC5C4F201A7B876A /* PHD2GuideLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7533871FEE9916E06EE8DD9 /* PHD2GuideLog.swift */; };
 		290DC68D0C0CA132626D597C /* FocusTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14B676FB83C3E9370D129CF /* FocusTracker.swift */; };
@@ -246,6 +247,7 @@
 		CCF6E0ADA01D388356646E28 /* SharpnessScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E5F55953A1FF914B2B0198 /* SharpnessScorer.swift */; };
 		D0928FCDD5BE2BFBA792C89B /* AssistantChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */; };
 		D3708CA729AE6707602727E5 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F13C1C9CF0E0B4CED92347FC /* ContentView.swift */; };
+		D38F063EF06D6BD61DD6F287 /* RemoteProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EE7FA6FE18CDC58E85FF57A /* RemoteProtocol.swift */; };
 		D46D68D1BDC34143FD29E400 /* DashboardHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA196A3778D3F126C830BBA7 /* DashboardHomeView.swift */; };
 		D49C73CF5EA2075A596A84D7 /* ObservationTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E58BB115186A5229E3FC09 /* ObservationTimelineView.swift */; };
 		D62AF7B09D4BBCBAE0BB9B40 /* SERWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1268AC14C8DB94BC5F57BE9 /* SERWriterTests.swift */; };
@@ -394,6 +396,7 @@
 		2B97B82E0DE1F75083C77992 /* ASICamera2.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ASICamera2.h; sourceTree = "<group>"; };
 		2C2C2FB3AAC03207933FAC88 /* WikipediaLookupService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WikipediaLookupService.swift; sourceTree = "<group>"; };
 		2E813AEB385426A777F99203 /* NightModeTint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightModeTint.swift; sourceTree = "<group>"; };
+		2EE7FA6FE18CDC58E85FF57A /* RemoteProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteProtocol.swift; sourceTree = "<group>"; };
 		2F188C9AA2C56922FA2E61A7 /* CalibrationLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalibrationLibraryTests.swift; sourceTree = "<group>"; };
 		323B04EDD5766E5A3ABF06C6 /* ImageExporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageExporterTests.swift; sourceTree = "<group>"; };
 		3300E705A6AD404B91F04E5A /* WCSProjectionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WCSProjectionTests.swift; sourceTree = "<group>"; };
@@ -744,6 +747,7 @@
 				95BE520F0A0C515EC3EFE9EB /* Views */,
 				3564C26F8A18E14E35E3DFE0 /* Help */,
 				7E9DAD47D8C0FDE2F143E30E /* Resources */,
+				BB94CCA124B58444EADA7B6B /* Networking */,
 			);
 			name = skyformac;
 			path = skyformac;
@@ -1100,6 +1104,15 @@
 			);
 			name = Bridging;
 			path = Bridging;
+			sourceTree = "<group>";
+		};
+		BB94CCA124B58444EADA7B6B /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				2EE7FA6FE18CDC58E85FF57A /* RemoteProtocol.swift */,
+			);
+			name = Networking;
+			path = Networking;
 			sourceTree = "<group>";
 		};
 		DBBFC61503EBDAEFC5BD9F3D /* ZWO */ = {
@@ -1584,6 +1597,7 @@
 				92A58CA59C292F62F185200C /* HubblePaletteView.swift in Sources */,
 				34971C8A1B2C8F777101181A /* PlanetaryElaborationSnapshot.swift in Sources */,
 				AD6C17AA374E432E060B947D /* AcquisitionPreset.swift in Sources */,
+				D38F063EF06D6BD61DD6F287 /* RemoteProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1597,6 +1611,7 @@
 				7DA0C4D68A6BE10CB587C587 /* ObservationModels.swift in Sources */,
 				9EB2926D63AF0D275A23DE48 /* AcquisitionPreset.swift in Sources */,
 				3F9E2B7B2E4204D5BE4C45CC /* AstronomyFilter.swift in Sources */,
+				25524DBDA854DB730960A1B9 /* RemoteProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
