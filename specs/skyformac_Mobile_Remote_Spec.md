@@ -125,12 +125,15 @@ its own fresh SwiftUI views — none of the Mac's AppKit-flavored views are reus
 - **Capture control**: a single start/stop button reflecting real Mac-side state, per the v1 scope
   above.
 
-`Info.plist` additions required on the iOS target: `NSLocalNetworkUsageDescription` (privacy
-string shown on first local-network access) and `NSBonjourServices` declaring
-`_skyformac-remote._tcp`. No entitlement changes needed on the Mac side for opening the listening
-socket — `skyformac.entitlements` already has `com.apple.security.app-sandbox = false`, so there's
-no sandbox restriction to work around there (unlike a hypothetical Mac App Store build, which this
-app doesn't target — see `docs/distribution.md`).
+`Info.plist` additions required — **as actually built (milestone 4), on both targets, not just
+iOS**: macOS enforces the same Local Network privacy permission as iOS for any app that advertises/
+browses Bonjour, regardless of App Sandbox status, so `NSLocalNetworkUsageDescription` and
+`NSBonjourServices` (`_skyformac-remote._tcp`) were added to both `skyformac/Resources/Info.plist`
+and `skyformacRemote/Resources/Info.plist`. No entitlement changes needed on the Mac side for
+opening the listening socket itself — `skyformac.entitlements` already has
+`com.apple.security.app-sandbox = false`, so there's no sandbox restriction to work around there
+(unlike a hypothetical Mac App Store build, which this app doesn't target — see
+`docs/distribution.md`).
 
 ## 3. Milestones
 
@@ -139,7 +142,7 @@ app doesn't target — see `docs/distribution.md`).
 - [x] Extend `ObservationModels.swift`'s target membership to the iOS target; confirm (or fix)
   `ElaboratedImage.planetarySettings`'s type is safe to compile there too.
 - [x] Add `RemoteProtocol.swift` (message types), shared by both targets.
-- [ ] Mac: `RemoteControlServer` — Bonjour advertise + `NWListener`, answers `.listProjects`/
+- [x] Mac: `RemoteControlServer` — Bonjour advertise + `NWListener`, answers `.listProjects`/
   `.listSessions`/`.listGalleryImages` from real data.
 - [ ] iOS: discovery screen (`NWBrowser` scan) + pairing-code entry + persisted trusted server.
 - [ ] iOS: Projects → Sessions → Gallery browsing screens, backed by real data over the connection.

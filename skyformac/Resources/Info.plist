@@ -34,5 +34,11 @@
 	<string>Used to tag a project or session with your observing location — recorded once per request, not tracked continuously, and only when you tap "Use Current Location."</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Used only when you tap "Save to Photos" on an image — adds that one file to your library, never reads or modifies your existing photos.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Used so "Skyformac Remote" on your iPhone can find and connect to this Mac over your local network — browsing projects, watching a live view, and starting/stopping capture remotely. Nothing leaves your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_skyformac-remote._tcp</string>
+	</array>
 </dict>
 </plist>

@@ -9,7 +9,7 @@ import Foundation
 /// side once that lands.
 enum RemoteProtocol {
     /// Sent by the iOS app.
-    enum ClientMessage: Codable, Sendable {
+    enum ClientMessage: Codable, Sendable, Equatable {
         /// The 6-digit code the user typed in, completing first-time pairing.
         case pair(code: String)
         case listProjects
@@ -28,7 +28,7 @@ enum RemoteProtocol {
     }
 
     /// Sent by the Mac.
-    enum ServerMessage: Codable, Sendable {
+    enum ServerMessage: Codable, Sendable, Equatable {
         /// `false` (with no further reply to whatever prompted pairing) means the code was wrong —
         /// the client should let the user retry rather than treating this as a fatal error.
         case paired(success: Bool)

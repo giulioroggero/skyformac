@@ -22,6 +22,12 @@
 	<string>Copyright © 2026 Giulio Roggero. Licensed under the GNU General Public License v3.0 (GPLv3).</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Used to find and connect to Skyformac running on your Mac over your local network — browsing projects, watching a live view, and starting/stopping capture remotely. Nothing leaves your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_skyformac-remote._tcp</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
