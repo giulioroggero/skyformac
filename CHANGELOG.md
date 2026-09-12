@@ -30,10 +30,11 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
   `specs/skyformac_Mobile_Remote_Spec.md`. So far: the app target itself, and the handful of small
   data-model types it shares with the Mac app (extracted into their own top-level declarations so
   they don't drag in Mac-only rendering/filesystem code — see the spec's own "as actually built"
-  note), `RemoteProtocol.swift`'s client/server message types, and now the Mac's own
-  `RemoteControlServer`: advertises over Bonjour, pairs with a one-time on-screen code, and answers
-  real Projects/Sessions/Gallery queries. Not yet reachable from the Mac app's own UI (nothing
-  starts the server yet) or usable end-to-end from the phone side.
+  note), `RemoteProtocol.swift`'s client/server message types, the Mac's own `RemoteControlServer`
+  (advertises over Bonjour, pairs with a one-time on-screen code, answers real Projects/Sessions/
+  Gallery queries), a new Settings → Remote tab to turn it on, and the iOS app's real discovery/
+  pairing screen (finds the Mac over Bonjour, remembers a trusted device so reconnecting skips the
+  code). Projects/Gallery browsing, live view, and capture control are still ahead.
 
 ### Removed
 - Edit Image's "AI Enhance" (sent the image to Google Gemini's image-generation model for a

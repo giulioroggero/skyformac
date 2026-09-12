@@ -144,7 +144,7 @@ opening the listening socket itself — `skyformac.entitlements` already has
 - [x] Add `RemoteProtocol.swift` (message types), shared by both targets.
 - [x] Mac: `RemoteControlServer` — Bonjour advertise + `NWListener`, answers `.listProjects`/
   `.listSessions`/`.listGalleryImages` from real data.
-- [ ] iOS: discovery screen (`NWBrowser` scan) + pairing-code entry + persisted trusted server.
+- [x] iOS: discovery screen (`NWBrowser` scan) + pairing-code entry + persisted trusted server.
 - [ ] iOS: Projects → Sessions → Gallery browsing screens, backed by real data over the connection.
 - [ ] Mac: live-view frame relay (throttled JPEG stream) wired to `CameraManager.currentImage`,
   with a real change-notification hook (not a polling timer).
@@ -153,6 +153,36 @@ opening the listening socket itself — `skyformac.entitlements` already has
 - [ ] iOS: start/stop capture control + status indicator, reflecting real Mac-side state.
 - [ ] Manual end-to-end test: Mac and iPhone on the same Wi-Fi, a real session running, phone shows
   live view and can start/stop it.
+
+**As actually built (milestone 5):**
+- The trusted-device pairing described in §2.2 wasn't actually wired up when milestone 4 landed —
+  `RemoteControlServer.trustedDeviceIDs` existed but `.pair` carried no device identifier for it to
+  check against. Fixed here: `RemoteProtocol.ClientMessage.pair` now carries `deviceID` alongside
+  `code`; the Mac auto-approves an already-trusted `deviceID` without checking `code` at all, and
+  adds a device to the trusted set on its first successful pairing. `RemoteClient.deviceID` is a
+  plain generated/persisted `UUID` (not `UIDevice.identifierForVendor`), so `RemoteClient` has no
+  UIKit dependency and needs no real device/simulator identity to test against. Also found and
+  fixed while adding this: `RemoteControlServer`'s trusted-device list read/wrote
+  `UserDefaults.standard` directly with no test seam — every test run would have permanently
+  polluted the real app's own preferences. Now takes an injectable `UserDefaults` (defaulting to
+  `.standard`), the same test-isolation shape `ProjectStore(rootDirectory:)` already has.
+- The milestone list never actually included *starting* `RemoteControlServer` from the real app —
+  milestone 4 only built the class. Added here, since discovery is untestable without something to
+  discover: `CameraManager.remoteControlServer` (owned, constructed in `init` — `self` can't be
+  passed to `RemoteControlServer.init` before `CameraManager`'s own two-phase init completes, so
+  it's constructed with `cameraManager: nil` and `attach(cameraManager:)`'d immediately after) and
+  a new "Remote" tab in Settings (`RemoteControlSettingsView.swift`) with an Enable toggle and the
+  live pairing code/connection status.
+- `bonjourServiceType` moved from `RemoteControlServer` (Mac-only) to `RemoteProtocol` (shared) —
+  `RemoteClient`'s `NWBrowser` needs the exact same string and can't reach a Mac-only type.
+- Verification: `RemoteControlServerTests` extended to cover the new deviceID-based pairing (still
+  a real loopback socket, not just types). Real Mac app process launched standalone and confirmed
+  it starts without crashing with the new `CameraManager` wiring — this sandboxed environment has
+  no attached display (`screencapture` returns a blank frame), so the Settings UI/toggle and a full
+  Mac↔Simulator Bonjour handshake couldn't be visually driven end-to-end here; the iOS discovery
+  screen was confirmed rendering for real in Simulator (screenshot: idle state, "Find My Mac"
+  button). Full local-network handshake verification is deferred to the spec's own final "manual
+  end-to-end test" milestone, on real hardware.
 
 ## 4. Directives / constraints
 

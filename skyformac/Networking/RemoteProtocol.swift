@@ -8,10 +8,21 @@ import Foundation
 /// then the UTF-8 JSON payload) — see `RemoteControlServer`'s own doc comment for the transport
 /// side once that lands.
 enum RemoteProtocol {
+    /// Bonjour service type both `RemoteControlServer` (advertising) and `RemoteClient`
+    /// (browsing) use — lives here, not on either of those Mac-only/iOS-only types, since it's
+    /// exactly the kind of thing both sides need to agree on and this file is the one already
+    /// shared between them. Must also match the `NSBonjourServices` entry in both targets'
+    /// `Info.plist`.
+    static let bonjourServiceType = "_skyformac-remote._tcp"
+
     /// Sent by the iOS app.
     enum ClientMessage: Codable, Sendable, Equatable {
-        /// The 6-digit code the user typed in, completing first-time pairing.
-        case pair(code: String)
+        /// `deviceID` is the iOS app's own stable per-install identifier (`UIDevice
+        /// .identifierForVendor`) — sent on every connection, first-time or not, so the Mac can
+        /// recognize an already-trusted phone and skip asking for `code` again. `code` is only
+        /// actually checked the first time a given `deviceID` connects; a reconnecting trusted
+        /// device can send any value there (empty string is fine) since the Mac never looks at it.
+        case pair(deviceID: String, code: String)
         case listProjects
         case listSessions(projectID: UUID)
         case listGalleryImages(projectID: UUID)

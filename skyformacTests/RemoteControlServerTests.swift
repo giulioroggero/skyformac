@@ -60,7 +60,10 @@ struct RemoteControlServerTests {
     private func makeServer() -> (server: RemoteControlServer, manager: CameraManager, root: URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let manager = CameraManager(projectStore: ProjectStore(rootDirectory: root))
-        let server = RemoteControlServer(cameraManager: manager, projectsLibrary: manager.projectsLibrary)
+        // A throwaway suite, not `.standard` — otherwise every test run would permanently trust
+        // "test-device-1"/"test-device-2" in the real app's actual preferences.
+        let defaults = UserDefaults(suiteName: "RemoteControlServerTests-\(UUID().uuidString)")!
+        let server = RemoteControlServer(cameraManager: manager, projectsLibrary: manager.projectsLibrary, userDefaults: defaults)
         return (server, manager, root)
     }
 
@@ -85,7 +88,7 @@ struct RemoteControlServerTests {
         await client.connect()
         defer { client.cancel() }
 
-        client.send(.pair(code: "000000"))
+        client.send(.pair(deviceID: "test-device-1", code: "000000"))
         // Astronomically unlikely to collide with the real random code, and even if it did, the
         // assertion below would just be checking the wrong thing rather than flaking — accepted
         // for a test this cheap to run many times over.
@@ -118,7 +121,7 @@ struct RemoteControlServerTests {
             Issue.record("Server never generated a pairing code")
             return
         }
-        client.send(.pair(code: code))
+        client.send(.pair(deviceID: "test-device-2", code: code))
         let pairedReply = await client.receiveOneMessage()
         #expect(pairedReply == .paired(success: true))
 

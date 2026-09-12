@@ -2130,6 +2130,10 @@ final class CameraManager {
     let projectStore: ProjectStore
     let locationProvider: CoreLocationProvider
     let projectsLibrary: ProjectsLibrary
+    /// "Skyformac Remote" (see `specs/skyformac_Mobile_Remote_Spec.md`) — off by default; started/
+    /// stopped from Settings' own "Remote" tab, never automatically, since it opens a listening
+    /// socket and advertises this Mac over Bonjour.
+    let remoteControlServer: RemoteControlServer
     /// Not `let` — `updateOllamaConfiguration(serverURL:model:)` rebuilds this in place whenever
     /// Settings or the AI panel's own model menu changes the server URL or pinned model.
     private(set) var ollamaPlanner: OllamaPlanner
@@ -2399,6 +2403,8 @@ final class CameraManager {
         self.ollamaPlanner = ollamaPlanner
         self.aiChatLibrary = aiChatLibrary
         self.equipmentLibrary = equipmentLibrary
+        self.remoteControlServer = RemoteControlServer(cameraManager: nil, projectsLibrary: self.projectsLibrary)
+        self.remoteControlServer.attach(cameraManager: self)
         AstronomyKnowledgeBase.ensureDefaultsExist()
         refreshCameraList()
         // `activeProject` starts `nil` on every launch, full stop — there's no "resume last

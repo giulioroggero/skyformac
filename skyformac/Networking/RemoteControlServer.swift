@@ -26,10 +26,6 @@ final class RemoteControlServer {
         }
     }
 
-    /// Bonjour service type iOS's `NWBrowser` scans for — must match exactly on both ends, and
-    /// must also be declared in the iOS target's `Info.plist` under `NSBonjourServices`.
-    static let bonjourServiceType = "_skyformac-remote._tcp"
-
     private(set) var isRunning = false
     /// Set while waiting for the phone to type in the code shown here — `nil` once pairing
     /// succeeds (or if no connection has attempted pairing yet). A real `NWConnection` only ever
@@ -46,6 +42,7 @@ final class RemoteControlServer {
     private var isActiveConnectionPaired = false
     private weak var cameraManager: CameraManager?
     private weak var projectsLibrary: ProjectsLibrary?
+    private let userDefaults: UserDefaults
 
     /// Device IDs (the iOS app's own `UIDevice.identifierForVendor`, sent once as part of
     /// `.pair`) that have already completed pairing — persisted so a reconnect from the same
@@ -53,13 +50,25 @@ final class RemoteControlServer {
     /// need to be on the same local network to matter at all, which is this whole feature's
     /// already-accepted v1 security scope (see the spec's own "Security limitation" note).
     private var trustedDeviceIDs: Set<String> {
-        get { Set(UserDefaults.standard.stringArray(forKey: "remoteControlTrustedDeviceIDs") ?? []) }
-        set { UserDefaults.standard.set(Array(newValue), forKey: "remoteControlTrustedDeviceIDs") }
+        get { Set(userDefaults.stringArray(forKey: "remoteControlTrustedDeviceIDs") ?? []) }
+        set { userDefaults.set(Array(newValue), forKey: "remoteControlTrustedDeviceIDs") }
     }
 
-    init(cameraManager: CameraManager, projectsLibrary: ProjectsLibrary) {
+    /// `userDefaults` defaults to `.standard` for real use — injectable so tests don't leak
+    /// pairing state into the real app's actual preferences (the same isolation
+    /// `ProjectStore(rootDirectory:)` already gives tests for on-disk state).
+    init(cameraManager: CameraManager?, projectsLibrary: ProjectsLibrary, userDefaults: UserDefaults = .standard) {
         self.cameraManager = cameraManager
         self.projectsLibrary = projectsLibrary
+        self.userDefaults = userDefaults
+    }
+
+    /// `CameraManager.init` can't pass `self` while still inside its own
+    /// `self.remoteControlServer = RemoteControlServer(...)` assignment (Swift's two-phase init:
+    /// `self` isn't usable as a value until that very assignment completes) — it constructs this
+    /// with `cameraManager: nil` instead, then calls this immediately after.
+    func attach(cameraManager: CameraManager) {
+        self.cameraManager = cameraManager
     }
 
     func start() throws {
@@ -71,7 +80,7 @@ final class RemoteControlServer {
         } catch {
             throw ServerError.listenerFailed(error.localizedDescription)
         }
-        listener.service = NWListener.Service(name: Host.current().localizedName ?? "Skyformac", type: Self.bonjourServiceType)
+        listener.service = NWListener.Service(name: Host.current().localizedName ?? "Skyformac", type: RemoteProtocol.bonjourServiceType)
         listener.newConnectionHandler = { [weak self] connection in
             Task { @MainActor in self?.accept(connection) }
         }
@@ -190,8 +199,8 @@ final class RemoteControlServer {
     // MARK: - Message handling
 
     private func handle(_ message: RemoteProtocol.ClientMessage, on connection: NWConnection) {
-        if case .pair(let code) = message {
-            handlePairing(code: code, on: connection)
+        if case .pair(let deviceID, let code) = message {
+            handlePairing(deviceID: deviceID, code: code, on: connection)
             return
         }
         guard isActiveConnectionPaired else { return }
@@ -229,13 +238,20 @@ final class RemoteControlServer {
         }
     }
 
-    private func handlePairing(code: String, on connection: NWConnection) {
+    private func handlePairing(deviceID: String, code: String, on connection: NWConnection) {
+        if trustedDeviceIDs.contains(deviceID) {
+            isActiveConnectionPaired = true
+            pendingPairingCode = nil
+            send(RemoteProtocol.ServerMessage.paired(success: true), on: connection)
+            return
+        }
         guard let expected = pendingPairingCode, code == expected else {
             send(RemoteProtocol.ServerMessage.paired(success: false), on: connection)
             return
         }
         isActiveConnectionPaired = true
         pendingPairingCode = nil
+        trustedDeviceIDs.insert(deviceID)
         send(RemoteProtocol.ServerMessage.paired(success: true), on: connection)
     }
 }

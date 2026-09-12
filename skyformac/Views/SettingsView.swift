@@ -93,6 +93,8 @@ struct SettingsView: View {
                     .tabItem { Label("Storage", systemImage: "internaldrive") }
                 integrationsTabContent
                     .tabItem { Label("Integrations", systemImage: "puzzlepiece.extension") }
+                RemoteControlSettingsView(cameraManager: cameraManager)
+                    .tabItem { Label("Remote", systemImage: "antenna.radiowaves.left.and.right") }
                 CommunitySettingsView()
                     .tabItem { Label("Community", systemImage: "person.2") }
             }
