@@ -91,14 +91,10 @@ enum SirilElaborationService {
     /// long `.ser` capture at all. Same shape as `FrameCropper.crop(_:toPixelRect:)`'s own
     /// parameter, just `Equatable`/`Sendable` so it can round-trip through `ElaborateSheet`'s
     /// `@State`.
-    struct PixelRect: Equatable, Sendable, Codable {
-        var x: Int
-        var y: Int
-        var width: Int
-        var height: Int
-
-        fileprivate var asCropperRect: (x: Int, y: Int, width: Int, height: Int) { (x, y, width, height) }
-    }
+    /// Extracted to the top-level `ROIPixelRect` in `PlanetaryElaborationSnapshot.swift` so
+    /// `ObservationModels.swift` can share it with the iOS Remote target without this file's own
+    /// `Process`-based Siril invocation (not available on iOS) coming along for the ride.
+    typealias PixelRect = ROIPixelRect
 
     /// "Allow the user also to set some parameters changing the defaults" — `rejectionSigmaLow`/
     /// `rejectionSigmaHigh` are Siril's own `stack ... rej <low> <high>` sigma-clipping bounds

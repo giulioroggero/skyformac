@@ -51,10 +51,31 @@ modularization (`Vendor/ZWO` is a vendored binary framework, not a local package
 gaining a second target is simpler than standing up a package for a single shared file. Revisit
 only if the shared surface grows meaningfully beyond this.
 
-One field needs checking before that target-membership change: `ElaboratedImage.planetarySettings:
-PlanetaryPostProcessor.SettingsSnapshot?` — confirm `SettingsSnapshot` is itself platform-agnostic;
-if it embeds anything AppKit-specific, either extract a `Codable` subset or make the property
-`nil`-only on the iOS side.
+**As actually built** (milestone 2): the naive "just add the target membership" approach didn't
+compile as-is — `ObservationModels.swift` transitively reached into several Mac-only files through
+nested types and one static function:
+- `ElaboratedImage.planetarySettings: PlanetaryPostProcessor.SettingsSnapshot?` needed
+  `PlanetaryPostProcessor`'s nested `SettingsSnapshot`/`StackMethod`/`WaveletLayer`,
+  `SirilElaborationService`'s nested `PixelRect` (that file uses `Process`, unavailable on iOS
+  entirely), and `ImageEditor`'s nested `Adjustments`.
+- `CaptureRecord.preset: AcquisitionPreset?` needed `AcquisitionMode`/`AcquisitionPreset`, both
+  originally in `AcquisitionTarget.swift` alongside `AcquisitionTarget`/`DeepSkyObject`, which
+  reference `PlanetaryPreset` (defined inside the giant Mac-only `CameraManager.swift`).
+- Two of `ObservationModels.swift`'s own methods called `ProjectStore.sanitizeForFilename` — a
+  pure string function on an otherwise 500+-line real Mac-only filesystem-persistence type.
+
+Fixed by extracting each of these into small top-level (non-nested) declarations in
+`skyformac/Projects/PlanetaryElaborationSnapshot.swift` (`ROIPixelRect`, `PlanetaryStackMethod`,
+`PlanetaryWaveletLayer`, `ImageAdjustments`, `PlanetarySettingsSnapshot`, `FilenameSanitizer`) and
+`skyformac/CameraManagement/AcquisitionPreset.swift` (`AcquisitionMode`, `AcquisitionPreset`,
+moved out of `AcquisitionTarget.swift` entirely), with the original locations left as
+`typealias`es (or, for `sanitizeForFilename`, a one-line delegating call) so every existing call
+site kept compiling unchanged. `ObservationModels.swift` itself was updated to reference the
+extracted top-level names directly (e.g. `PlanetarySettingsSnapshot?`, not
+`PlanetaryPostProcessor.SettingsSnapshot?`) since it can't reach through a namespace whose base
+declaration isn't in the iOS target at all. `AstronomyFilter.swift` (`FilterSelection`,
+`AstronomyFilterType`) turned out to already be fully self-contained and was shared as a whole
+file, no extraction needed. Verified: both targets build, full Mac suite (895 tests) still passes.
 
 A new shared file, `skyformac/Networking/RemoteProtocol.swift`, defines the wire message types
 (plain `Codable`/`Sendable` enums/structs — client→server: `.listProjects`, `.listSessions(projectID:)`,
@@ -115,7 +136,7 @@ app doesn't target — see `docs/distribution.md`).
 
 - [x] Add the iOS app target to `skyformac.xcodeproj`; a minimal SwiftUI "Hello World" builds and
   runs in Simulator.
-- [ ] Extend `ObservationModels.swift`'s target membership to the iOS target; confirm (or fix)
+- [x] Extend `ObservationModels.swift`'s target membership to the iOS target; confirm (or fix)
   `ElaboratedImage.planetarySettings`'s type is safe to compile there too.
 - [ ] Add `RemoteProtocol.swift` (message types), shared by both targets.
 - [ ] Mac: `RemoteControlServer` — Bonjour advertise + `NWListener`, answers `.listProjects`/

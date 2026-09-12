@@ -67,6 +67,7 @@
 		31438A98F7B142BBA391BEA4 /* WindowArranger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E149001BD54AA6AC6D9A22 /* WindowArranger.swift */; };
 		32A221DA34824A4797233ACC /* AstroBinPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F559202BC8594D7BB8C548C9 /* AstroBinPublisher.swift */; };
 		336D073447277B191BD9CA37 /* CameraManagerAssistantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711E830BA3192C236281EC94 /* CameraManagerAssistantTests.swift */; };
+		34971C8A1B2C8F777101181A /* PlanetaryElaborationSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44DC821C24A2724D12A5CFAF /* PlanetaryElaborationSnapshot.swift */; };
 		34ADC5FC3B72545D90A47FA3 /* PlanetaryGPULuminanceConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F990EF1378818CE22BE575 /* PlanetaryGPULuminanceConverter.swift */; };
 		37A64BE1A4544856BD8BC4A5 /* WCSProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390BD552FE334BDBA04A7447 /* WCSProjection.swift */; };
 		3879D4A9450B9B00DAB4F839 /* StarNetElaborationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC653B9CD6FB08FB1E5AC0F /* StarNetElaborationTests.swift */; };
@@ -76,6 +77,7 @@
 		3D566667B59F7EA90BB29E93 /* SkyVisibilityExplorerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F514788D8470C9BCF08D45 /* SkyVisibilityExplorerView.swift */; };
 		3E1C633F7143E6BE817DFCC2 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87791B80E37FA5FFFEEAC02C /* Cocoa.framework */; };
 		3E946BCE3689D6DF88FFE542 /* LiveWCSSolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2916DD5705E1C8396832843 /* LiveWCSSolver.swift */; };
+		3F9E2B7B2E4204D5BE4C45CC /* AstronomyFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B6388ED3A137828CD46D07 /* AstronomyFilter.swift */; };
 		4127007901D24615B6F1D3A5 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0672F6FA2F6147A782BA6AE9 /* CatalogRepositoryTests.swift */; };
 		419094AD8CE543E1B3D9C582 /* DetachedContentWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F5330BA97F42999A4B0B9F /* DetachedContentWindowController.swift */; };
 		422A7100CFBF016B8F955D52 /* StackingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC383379ED21F4A5373A0DC /* StackingStatusView.swift */; };
@@ -101,6 +103,7 @@
 		57BA8F7E0BAA4CAAB1622BE7 /* MosaicComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56C1E64DB04459D9398B638 /* MosaicComposerTests.swift */; };
 		58C8C84D2D082EFED7F1BE93 /* LuckyImagingFrameBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B75D3B271F9C06ECB3BB9B6 /* LuckyImagingFrameBrowserView.swift */; };
 		59012F0493E0A68CC0C0C8A2 /* FrameBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE7DA51F7B4CABA4250F23B /* FrameBuffer.swift */; };
+		5981F54AFC06E15083E1E16D /* PlanetaryElaborationSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44DC821C24A2724D12A5CFAF /* PlanetaryElaborationSnapshot.swift */; };
 		59CD583EC45DF4AFBB18E170 /* SkyTonightCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74AFDE6661A15C048A2F81D6 /* SkyTonightCalculator.swift */; };
 		5A96263746F17899DF2DAAA6 /* StarPatternRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36AD0E9120D1B73D98FDCCC /* StarPatternRecognizer.swift */; };
 		5AA29BA6F6D16D2662BE036F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */; };
@@ -137,6 +140,7 @@
 		7C099FFCF11241F691BD55D6 /* FullScreenImageViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588BB9FECC3348379BBE4C0D /* FullScreenImageViewer.swift */; };
 		7C6D4B3F157385668C70D9B1 /* AtlasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BB808D7623A429743A9F5AF /* AtlasView.swift */; };
 		7C862C8CBCE441F7B737903F /* AcquisitionWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3D1F97307E7FBA44C64908 /* AcquisitionWizardView.swift */; };
+		7DA0C4D68A6BE10CB587C587 /* ObservationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C1927858D0564ECE3183F6 /* ObservationModels.swift */; };
 		7DBD449FAB21485291CAB8E9 /* GradientExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBDD00EAB6624F4F8FE1984A /* GradientExtractorTests.swift */; };
 		7FF8800F1BF446797258F1B4 /* HistogramComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC2E5F195F93B6B68A6C451 /* HistogramComputer.swift */; };
 		7FFD6C435093FD0FF9465FDC /* StarPatternRecognizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B4262EED9229D4223E6FE78 /* StarPatternRecognizerTests.swift */; };
@@ -182,6 +186,7 @@
 		9B66C665CD08AE8D3E38D97F /* LiveWCSSolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2C0DD35B6D8AD74A597E92C /* LiveWCSSolverTests.swift */; };
 		9C5D89801144516B3045566A /* InsightsDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6848FCCAA1577D9102906DE3 /* InsightsDataTests.swift */; };
 		9C7BD43B0D57802391BDB2CF /* EquipmentLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF68ABFAD332657505915E8E /* EquipmentLibrary.swift */; };
+		9EB2926D63AF0D275A23DE48 /* AcquisitionPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0E9F99D34C3BE4164CC49A /* AcquisitionPreset.swift */; };
 		9F3706562428F173206180CB /* libASICamera2.dylib in Embed ZWO SDK */ = {isa = PBXBuildFile; fileRef = 49279E5E42C4EDA3AAC31E5B /* libASICamera2.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A006B5C70327444FB8FC66B7 /* StarNetSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03B715973D42F6E04278F45 /* StarNetSettingsView.swift */; };
 		A05020090FAE2338A11DB166 /* ZWOCameraInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF58D85B9F8A4D2487C38AB6 /* ZWOCameraInfo.swift */; };
@@ -198,6 +203,7 @@
 		AA5B34C3D87DDFE2E9B8D6D5 /* LuckyImagingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA8DAE31701FC35BE8DBA669 /* LuckyImagingSession.swift */; };
 		AB7D4190BA90A6FA00E42BA8 /* ProjectDetailPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8B604A4DA7C2BF43829A2D /* ProjectDetailPane.swift */; };
 		AC88102D5E61CA51F4A2E951 /* ProjectsLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FD8F2235B9216DECF573C7 /* ProjectsLibraryTests.swift */; };
+		AD6C17AA374E432E060B947D /* AcquisitionPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0E9F99D34C3BE4164CC49A /* AcquisitionPreset.swift */; };
 		AD962C0E6D2127BD6629CCC6 /* ProjectsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19F56B8562111F91F0D4DB3 /* ProjectsBrowserView.swift */; };
 		AE4B3B2F3E9A93FEC227D482 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D62DF43DD336DC4B958BEC14 /* ContentView.swift */; };
 		AF544BD4594F4990AED3122B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 392148FF8E1F44F886E731F8 /* PrivacyInfo.xcprivacy */; };
@@ -409,6 +415,7 @@
 		40F2F1582CB2F3EFDAA11F5C /* AssistantChatPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantChatPanel.swift; sourceTree = "<group>"; };
 		41A74554FF1E98E12617F232 /* GPUSharpnessScorerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GPUSharpnessScorerTests.swift; sourceTree = "<group>"; };
 		43100083AC964BDEAEF5ABAB /* WebcamCaptureEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WebcamCaptureEngine.swift; sourceTree = "<group>"; };
+		44DC821C24A2724D12A5CFAF /* PlanetaryElaborationSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanetaryElaborationSnapshot.swift; sourceTree = "<group>"; };
 		45347BEB6CA354F563145EEF /* skyformac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = skyformac.entitlements; sourceTree = "<group>"; };
 		4668DD1AFF704C72AB5B01D3 /* AIChatLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatLibrary.swift; sourceTree = "<group>"; };
 		466D7C0D28E9CF0F733FD8DD /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -559,6 +566,7 @@
 		BAC872B515085B7D11644CA5 /* AllSkyAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AllSkyAnalyzerTests.swift; sourceTree = "<group>"; };
 		BC5A230979004C3AAC6AFBAA /* TikhonovDeconvolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TikhonovDeconvolver.swift; sourceTree = "<group>"; };
 		BCC3074349F7D44055727ADF /* CTupleConversions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CTupleConversions.swift; sourceTree = "<group>"; };
+		BD0E9F99D34C3BE4164CC49A /* AcquisitionPreset.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcquisitionPreset.swift; sourceTree = "<group>"; };
 		BD41BB54B6FA6311D8F15D65 /* ProjectSearchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectSearchTests.swift; sourceTree = "<group>"; };
 		BD62C68CD3043578F26D36EA /* LiveStackerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveStackerTests.swift; sourceTree = "<group>"; };
 		BFAF769E6141421382530A9A /* CaptureKindBadge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureKindBadge.swift; sourceTree = "<group>"; };
@@ -971,6 +979,7 @@
 				F5916FF50E124AEB9BCBB8C3 /* KeychainStore.swift */,
 				7230C6EFCEF487C24F56FDC7 /* ExportHistoryEntry.swift */,
 				FC34926B3929D1C5721D34DA /* AcquisitionTarget.swift */,
+				BD0E9F99D34C3BE4164CC49A /* AcquisitionPreset.swift */,
 			);
 			name = CameraManagement;
 			path = CameraManagement;
@@ -1133,6 +1142,7 @@
 				238549CA84E6FC23DEB5860A /* StarNetElaborationService.swift */,
 				9DC667EE7A66F65B70E0C9F5 /* PixInsightAppLauncher.swift */,
 				F559202BC8594D7BB8C548C9 /* AstroBinPublisher.swift */,
+				44DC821C24A2724D12A5CFAF /* PlanetaryElaborationSnapshot.swift */,
 			);
 			name = Projects;
 			path = Projects;
@@ -1572,6 +1582,8 @@
 				F2B3478B710F4275B56EBF0E /* SingleImagePostProcessingView.swift in Sources */,
 				2B060A7D578F4BE988832EB2 /* MosaicComposerView.swift in Sources */,
 				92A58CA59C292F62F185200C /* HubblePaletteView.swift in Sources */,
+				34971C8A1B2C8F777101181A /* PlanetaryElaborationSnapshot.swift in Sources */,
+				AD6C17AA374E432E060B947D /* AcquisitionPreset.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1581,6 +1593,10 @@
 			files = (
 				21102E63FACEC3338DA9A048 /* SkyformacRemoteApp.swift in Sources */,
 				D3708CA729AE6707602727E5 /* ContentView.swift in Sources */,
+				5981F54AFC06E15083E1E16D /* PlanetaryElaborationSnapshot.swift in Sources */,
+				7DA0C4D68A6BE10CB587C587 /* ObservationModels.swift in Sources */,
+				9EB2926D63AF0D275A23DE48 /* AcquisitionPreset.swift in Sources */,
+				3F9E2B7B2E4204D5BE4C45CC /* AstronomyFilter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

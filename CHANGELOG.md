@@ -24,6 +24,14 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
 
 ## [Unreleased]
 
+### Added
+- (In progress) "Skyformac Remote" — a new iOS companion app target for browsing Projects/
+  Sessions/Gallery, live-view streaming, and remote start/stop capture over the local network; see
+  `specs/skyformac_Mobile_Remote_Spec.md`. So far: the app target itself, and the handful of small
+  data-model types it shares with the Mac app (extracted into their own top-level declarations so
+  they don't drag in Mac-only rendering/filesystem code — see the spec's own "as actually built"
+  note). Not yet reachable from the Mac app's UI or usable end-to-end.
+
 ### Removed
 - Edit Image's "AI Enhance" (sent the image to Google Gemini's image-generation model for a
   pixel-regenerated result, watermarked "AI - Sky For Mac"). The AI Assistant chat that proposes

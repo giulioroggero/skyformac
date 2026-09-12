@@ -338,11 +338,9 @@ enum PlanetaryPostProcessor {
 
     // MARK: - Stage 3: Frame stacking
 
-    enum StackMethod: String, CaseIterable, Identifiable, Sendable, Codable {
-        case mean = "Mean"
-        case median = "Median"
-        var id: String { rawValue }
-    }
+    /// Extracted to the top-level `PlanetaryStackMethod` in `PlanetaryElaborationSnapshot.swift`
+    /// so `ObservationModels.swift` can share it with the iOS Remote target.
+    typealias StackMethod = PlanetaryStackMethod
 
     /// A stacked (or intermediate wavelet/color-aligned) image — normalized `[0, 1]` float
     /// samples, interleaved if `channels == 3`. The pipeline's "master frame."
@@ -600,32 +598,16 @@ enum PlanetaryPostProcessor {
     /// shape to an arbitrary layer count via the same repeated-doubling-spacing à trous technique
     /// (5-tap B3-spline `[1, 4, 6, 4, 1]/16`, separable, edge-clamped) that function already uses
     /// — just not hardcoded to stop at 2.
-    struct WaveletLayer: Identifiable, Sendable, Equatable, Codable {
-        var id: Int
-        var gain: Double
-    }
+    /// Extracted to the top-level `PlanetaryWaveletLayer` in `PlanetaryElaborationSnapshot.swift`
+    /// so `ObservationModels.swift` can share it with the iOS Remote target.
+    typealias WaveletLayer = PlanetaryWaveletLayer
 
     /// Every Stage 3-5 parameter a `PlanetaryPostProcessingView` result was actually produced
     /// with — recorded on the saved `ElaboratedImage` (`ElaboratedImage.planetarySettings`) so a
-    /// saved result carries its own recipe, not just the finished pixels. `roi` reuses
-    /// `SirilElaborationService.PixelRect` rather than a second copy of the same 4 `Int`s —
-    /// exactly what `PlanetaryPostProcessingView.roiRect` already is.
-    struct SettingsSnapshot: Codable, Sendable, Equatable {
-        var roi: SirilElaborationService.PixelRect?
-        var keepBestPercent: Double
-        var stackMethod: StackMethod
-        var waveletLayers: [WaveletLayer]
-        var denoise: Double
-        var alignRGBChannels: Bool
-        var blackPoint: Double
-        var whitePoint: Double
-        var logStretchIntensity: Double?
-        /// The "Single Shot" sidebar tab's own further touch-up, applied on top of everything
-        /// above — `nil` (not `.identity`) both for old JSON written before this field existed
-        /// and for a result that never touched that tab at all, so `applyInitialSettingsIfNeeded`
-        /// can tell "nothing to restore" apart from "restore to explicitly untouched."
-        var singleShotAdjustments: ImageEditor.Adjustments?
-    }
+    /// saved result carries its own recipe, not just the finished pixels. Extracted to the
+    /// top-level `PlanetarySettingsSnapshot` in `PlanetaryElaborationSnapshot.swift` so
+    /// `ObservationModels.swift` can share it with the iOS Remote target.
+    typealias SettingsSnapshot = PlanetarySettingsSnapshot
 
     /// `denoise` (0...1) softens only the finest layer's own gain (`layers[0]`) — the
     /// highest-frequency scale is where sensor/seeing noise actually lives, so attenuating it

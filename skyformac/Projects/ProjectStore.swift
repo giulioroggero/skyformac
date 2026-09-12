@@ -565,12 +565,5 @@ final class ProjectStore {
     /// used for both `Project.folderName`/`Session.folderName` and `recordCapture`'s destination
     /// name. Collapses to a single placeholder rather than an empty string if nothing survives
     /// (an all-emoji or all-punctuation name, say), since an empty path component is invalid.
-    static func sanitizeForFilename(_ raw: String) -> String {
-        let invalid = CharacterSet(charactersIn: "/:\\?%*|\"<>")
-        let cleaned = raw
-            .components(separatedBy: invalid)
-            .joined(separator: "-")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return String(cleaned.prefix(80))
-    }
+    static func sanitizeForFilename(_ raw: String) -> String { FilenameSanitizer.sanitize(raw) }
 }

@@ -234,7 +234,7 @@ struct Session: Codable, Equatable, Identifiable, Sendable {
     var customThumbnailFileName: String?
 
     static func makeFolderName(name: String, id: UUID) -> String {
-        let sanitized = ProjectStore.sanitizeForFilename(name)
+        let sanitized = FilenameSanitizer.sanitize(name)
         return sanitized.isEmpty ? String(id.uuidString.prefix(8)) : "\(sanitized)-\(id.uuidString.prefix(8))"
     }
 
@@ -385,7 +385,11 @@ struct ElaboratedImage: Codable, Identifiable, Equatable, Sendable {
     /// Image Editor result, which have no equivalent parameter set to record). Lets a saved
     /// result's own detail view show exactly how it was made, alongside `sourceSessionIDs`/
     /// `sourceCaptureID` already pointing back at the original capture/session it came from.
-    var planetarySettings: PlanetaryPostProcessor.SettingsSnapshot?
+    /// Typed as `PlanetarySettingsSnapshot` directly (not `PlanetaryPostProcessor.SettingsSnapshot`,
+    /// though they're the exact same type via that enum's own `typealias`) — this file is shared
+    /// with the iOS Remote target, which doesn't include `PlanetaryPostProcessor`'s own
+    /// declaration at all, so it must reach the extracted top-level name instead.
+    var planetarySettings: PlanetarySettingsSnapshot?
 
     var displayLabel: String { title ?? toolLabel ?? recipe?.label ?? "Elaborated" }
 }
@@ -485,7 +489,7 @@ struct Project: Codable, Equatable, Identifiable, Sendable {
     /// Stable, folder-safe project directory name — see `Session.makeFolderName`'s doc comment
     /// for the identical reasoning (decoupled from `name`, computed once, never recomputed).
     static func makeFolderName(name: String, id: UUID) -> String {
-        let sanitized = ProjectStore.sanitizeForFilename(name)
+        let sanitized = FilenameSanitizer.sanitize(name)
         return sanitized.isEmpty ? String(id.uuidString.prefix(8)) : "\(sanitized)-\(id.uuidString.prefix(8))"
     }
 
