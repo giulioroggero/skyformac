@@ -113,7 +113,7 @@ app doesn't target — see `docs/distribution.md`).
 
 ## 3. Milestones
 
-- [ ] Add the iOS app target to `skyformac.xcodeproj`; a minimal SwiftUI "Hello World" builds and
+- [x] Add the iOS app target to `skyformac.xcodeproj`; a minimal SwiftUI "Hello World" builds and
   runs in Simulator.
 - [ ] Extend `ObservationModels.swift`'s target membership to the iOS target; confirm (or fix)
   `ElaboratedImage.planetarySettings`'s type is safe to compile there too.
