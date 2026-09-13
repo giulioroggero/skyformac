@@ -113,6 +113,15 @@ struct ElaborateSheet: View {
                 }
             }
 
+            // A hover tooltip alone is easy to miss before clicking — shown inline too so a
+            // `.serVideo` user isn't surprised to see raw gray frames in Siril having never
+            // hovered `directOpenHelpText`'s own longer explanation.
+            if case .serVideo = source {
+                Label("Opens as raw Bayer data — Siril can't pre-debayer an existing video without stacking it.", systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             HStack {
                 Button {
                     openInSiril()
@@ -124,7 +133,7 @@ struct ElaborateSheet: View {
                     }
                 }
                 .disabled(isPreparingDirectOpen)
-                .help("Debayers the source, then opens Siril's own app with it loaded, for full manual control — alignment, rejection, curves, PixelMath — beyond what this automated recipe covers.")
+                .help(directOpenHelpText)
                 Spacer()
                 if completedImage != nil {
                     Button("Done") { dismiss() }
@@ -221,6 +230,23 @@ struct ElaborateSheet: View {
         case .deepSky:
             return "Registers frames against their star field, stacks with outlier-pixel rejection, then auto-stretches. Best for star clusters, galaxies, and nebulae."
         }
+    }
+
+    /// What "Open Siril Directly…" actually does to `source` before handing off, which genuinely
+    /// differs by kind — misrepresenting this as one blanket "debayers the source" claim (the
+    /// previous wording, for every source kind) is exactly what left a `.serVideo` user surprised
+    /// to see raw gray frames in Siril despite the tooltip's promise. Debayering an *existing*
+    /// `.ser` outside of stacking it has no headless-CLI equivalent at all — confirmed against
+    /// Siril's own `convert`/`convertraw` docs (they convert loose FITS/TIFF/PNG/... frames into a
+    /// new sequence, not an already-recorded `.ser` container) and a Siril maintainer's own answer
+    /// on a support thread ("there is no equivalent to the checkbox in the CLI" for debayering a
+    /// `.ser` on the fly) — so a `.serVideo` is staged as-is, same as `prepareForDirectOpen`'s own
+    /// doc comment already explains.
+    private var directOpenHelpText: String {
+        if case .serVideo = source {
+            return "Opens Siril's own app with the raw video loaded, for full manual control. Siril can't pre-debayer an existing video outside of stacking it, so this opens as raw Bayer data — use the Bayer toggle in Siril's own toolbar, or its Conversion tab's Debayer option, to see it in color."
+        }
+        return "Debayers the source, then opens Siril's own app with it loaded, for full manual control — alignment, rejection, curves, PixelMath — beyond what this automated recipe covers."
     }
 
     /// The log's last non-blank line — Siril's own output is one step/progress message per line,

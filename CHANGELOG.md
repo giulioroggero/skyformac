@@ -36,6 +36,16 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
   pairing screen (finds the Mac over Bonjour, remembers a trusted device so reconnecting skips the
   code). Projects/Gallery browsing, live view, and capture control are still ahead.
 
+### Fixed
+- "Open Siril Directly…" (the manual hand-off button in the Siril elaboration sheet) claimed it
+  always debayers the source first — true for a still FITS frame/burst, but not for a `.ser` video:
+  Siril has no headless way to demosaic an already-recorded video without fully stacking it first
+  (confirmed against Siril's own `convert`/`convertraw` docs and a Siril maintainer's own answer on
+  this), so a video was always opened as raw Bayer data regardless of what the tooltip promised —
+  the reason it looked gray until manually enabling Debayer in Siril itself. The button's tooltip
+  and a new inline note (shown only for a video) now say so upfront, with exactly which Siril
+  control to use (its toolbar's Bayer toggle, or the Conversion tab's Debayer option).
+
 ### Removed
 - Edit Image's "AI Enhance" (sent the image to Google Gemini's image-generation model for a
   pixel-regenerated result, watermarked "AI - Sky For Mac"). The AI Assistant chat that proposes
