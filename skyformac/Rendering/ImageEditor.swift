@@ -111,6 +111,14 @@ enum ImageEditor {
             }
         }
 
+        // Snapshot before the whole "Color & Contrast" block (white balance → brightness/
+        // contrast/saturation → vibrance → gamma → highlights/shadows) — if `protectBackground`
+        // is on, this is blended back in afterward wherever the *original* image was near-black,
+        // so raising Brightness/Contrast/etc. can't lift a planet's black sky background along
+        // with it. See the blend below (right after highlightShadow) for why this is deliberately
+        // one mask over the whole block, not each slider independently.
+        let preColorAdjustmentImage = ciImage
+
         if adjustments.warmth != 0 || adjustments.tint != 0 {
             // Standard "re-render as if captured under a different illuminant" white-balance
             // trick — `inputNeutral` is a fixed reference point (an arbitrary but consistent
@@ -155,6 +163,10 @@ enum ImageEditor {
             highlightShadow.shadowAmount = Float(adjustments.shadowLift)
             highlightShadow.highlightAmount = Float(1 - adjustments.highlightRecovery)
             if let output = highlightShadow.outputImage { ciImage = output }
+        }
+
+        if adjustments.protectBackground {
+            ciImage = maskedByBrightness(adjusted: ciImage, original: preColorAdjustmentImage)
         }
 
         if adjustments.starSizeReduction > 0 {
@@ -208,6 +220,50 @@ enum ImageEditor {
         // what actually produces a correctly-sized bitmap instead of silently ignoring them.
         guard let rendered = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return adjustments.greenCastRemoval > 0 ? applyGreenCastRemoval(rendered, amount: adjustments.greenCastRemoval) : rendered
+    }
+
+    /// "Protect Background" — blends `adjusted` (the image after the whole Color & Contrast
+    /// block) back toward `original` (the same image just before it) wherever `original` was
+    /// near-black, so a planet/star field's genuinely empty sky background can't be lifted toward
+    /// gray by Brightness/Contrast/Gamma/etc. the way it otherwise would be (`CIColorControls` and
+    /// friends operate on every pixel uniformly, background included — there's no "only the
+    /// subject" concept built into any of them). Masking the whole block as one unit, from a
+    /// single snapshot taken *before* any of it ran, rather than masking each slider independently
+    /// — `original`'s own luminance is a stable reference the whole time; masking against a
+    /// *moving* target (each filter's own output) would fight the very brightening/darkening
+    /// that's the point of these controls in the first place.
+    ///
+    /// Deliberately an additive blend, not a multiplicative gray-world rescale — the mask is a
+    /// smooth two-point threshold (`CIToneCurve`) on `original`'s own luminance: fully protected
+    /// (mask = 0, `original` wins) at or below 2%, fully adjusted (mask = 1, `adjusted` wins) at
+    /// or above 8%, smoothly feathered in between so there's no hard edge around the subject.
+    /// Those two thresholds are fixed, not user-adjustable — a real astrophoto's sky background
+    /// sits far below 2% and any real subject (a planetary disk, a star, actual nebulosity) clears
+    /// 8% quickly, so this needs no per-image tuning for the cases it's meant for.
+    private static func maskedByBrightness(adjusted: CIImage, original: CIImage) -> CIImage {
+        let luminanceWeights = CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0)
+        let luminanceMatrix = CIFilter.colorMatrix()
+        luminanceMatrix.inputImage = original
+        luminanceMatrix.rVector = luminanceWeights
+        luminanceMatrix.gVector = luminanceWeights
+        luminanceMatrix.bVector = luminanceWeights
+        luminanceMatrix.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        guard let luminanceImage = luminanceMatrix.outputImage else { return adjusted }
+
+        let toneCurve = CIFilter.toneCurve()
+        toneCurve.inputImage = luminanceImage
+        toneCurve.point0 = CGPoint(x: 0, y: 0)
+        toneCurve.point1 = CGPoint(x: 0.02, y: 0)
+        toneCurve.point2 = CGPoint(x: 0.08, y: 1)
+        toneCurve.point3 = CGPoint(x: 0.5, y: 1)
+        toneCurve.point4 = CGPoint(x: 1, y: 1)
+        guard let maskImage = toneCurve.outputImage else { return adjusted }
+
+        let blend = CIFilter.blendWithMask()
+        blend.inputImage = adjusted
+        blend.backgroundImage = original
+        blend.maskImage = maskImage
+        return blend.outputImage?.cropped(to: adjusted.extent) ?? adjusted
     }
 
     /// A small, fixed number of Richardson-Lucy deconvolution iterations, modeling the blur as a

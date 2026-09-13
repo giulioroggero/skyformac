@@ -71,6 +71,11 @@ struct ImageAdjustmentsControls: View {
     private var colorSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Color & Contrast").font(.title3.bold())
+            Toggle("Protect Background", isOn: $adjustments.protectBackground)
+                .onChange(of: adjustments.protectBackground) { _, _ in onChange() }
+            Text("Confines every slider below to the actual subject, so raising Brightness/Contrast/etc. can't lift a planet's or star field's black sky background along with it. Leave off for a deep-sky image where bringing out faint background nebulosity is the point.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             slider("Brightness", value: $adjustments.brightness, range: -1...1, defaultValue: 0)
             slider("Contrast", value: $adjustments.contrast, range: 0.25...4, defaultValue: 1)
             slider("Saturation", value: $adjustments.saturation, range: 0...2, defaultValue: 1)

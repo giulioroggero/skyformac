@@ -213,6 +213,56 @@ struct ImageEditorTests {
         #expect(rendered.height == 32)
     }
 
+    /// A near-black `width`×`height` frame (standing in for a planetary/star-field sky
+    /// background) with one bright square block in the center (the "subject") — deliberately
+    /// near 0, not merely dark, so it sits well below `maskedByBrightness`'s own 2%/8% thresholds
+    /// regardless of 8-bit rounding.
+    private func makeBlackBackgroundWithBrightSquareImage(width: Int, height: Int) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 2, count: width * height * 4)
+        let squareStart = width / 4, squareEnd = width - width / 4
+        for y in squareStart..<squareEnd {
+            for x in squareStart..<squareEnd {
+                let offset = (y * width + x) * 4
+                pixels[offset] = 200
+                pixels[offset + 1] = 200
+                pixels[offset + 2] = 200
+            }
+        }
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        return context.makeImage()!
+    }
+
+    @Test func protectBackgroundKeepsTheSkyNearBlackWhileBrighteningTheSubject() throws {
+        let image = makeBlackBackgroundWithBrightSquareImage(width: 40, height: 40)
+        var adjustments = ImageEditor.Adjustments()
+        adjustments.brightness = 0.5
+        adjustments.contrast = 2
+        adjustments.protectBackground = true
+        let rendered = try #require(ImageEditor.render(image, with: adjustments))
+
+        // Corner, well away from the subject — should still read as near-black.
+        #expect(pixelValue(at: 2, 2, in: rendered) < 15)
+        // The subject itself should still have been brightened by the same sliders.
+        let originalSubject = pixelValue(at: 20, 20, in: image)
+        let renderedSubject = pixelValue(at: 20, 20, in: rendered)
+        #expect(renderedSubject > originalSubject)
+    }
+
+    /// Regression baseline for the toggle's default (off) state — confirms `protectBackground`
+    /// only changes anything when actually turned on, not that brightness/contrast silently
+    /// stopped affecting the background in general.
+    @Test func brightnessLiftsTheBackgroundWhenProtectBackgroundIsOff() throws {
+        let image = makeBlackBackgroundWithBrightSquareImage(width: 40, height: 40)
+        var adjustments = ImageEditor.Adjustments()
+        adjustments.brightness = 0.5
+        let rendered = try #require(ImageEditor.render(image, with: adjustments))
+        #expect(pixelValue(at: 2, 2, in: rendered) > 40)
+    }
+
     /// Red-channel value at an arbitrary `(x, y)` — the general-purpose counterpart to
     /// `topLeftPixel(of:)`, which only ever reads `(0, 0)`.
     private func pixelValue(at x: Int, _ y: Int, in image: CGImage) -> Int {

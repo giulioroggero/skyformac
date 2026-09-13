@@ -77,13 +77,21 @@ struct ImageAdjustments: Equatable, Sendable, Codable {
     var warmth: Double = 0
     var tint: Double = 0
     var deconvolutionSharpen: Double = 0
+    /// "Protect Background" — confines the whole Color & Contrast block (white balance through
+    /// highlights/shadows) to wherever the *original* image wasn't already near-black, so raising
+    /// Brightness/Contrast/etc. can't lift a planet's or star field's genuinely empty sky
+    /// background along with the actual subject. See `ImageEditor.maskedByBrightness`'s own doc
+    /// comment for exactly how. Off by default — for a deep-sky image where faint real background
+    /// nebulosity *is* the thing worth bringing out, protecting it would be actively wrong.
+    var protectBackground: Bool = false
 
     static let identity = ImageAdjustments()
 
     enum CodingKeys: String, CodingKey {
         case rotationDegrees, cropRect, brightness, contrast, saturation, gamma, sharpenIntensity,
              denoiseAmount, removesHotPixels, chromaNoiseReduction, greenCastRemoval, starSizeReduction,
-             shadowLift, highlightRecovery, posterizeLevels, vibrance, warmth, tint, deconvolutionSharpen
+             shadowLift, highlightRecovery, posterizeLevels, vibrance, warmth, tint, deconvolutionSharpen,
+             protectBackground
     }
 
     init(from decoder: Decoder) throws {
@@ -107,6 +115,7 @@ struct ImageAdjustments: Equatable, Sendable, Codable {
         warmth = try container.decodeIfPresent(Double.self, forKey: .warmth) ?? 0
         tint = try container.decodeIfPresent(Double.self, forKey: .tint) ?? 0
         deconvolutionSharpen = try container.decodeIfPresent(Double.self, forKey: .deconvolutionSharpen) ?? 0
+        protectBackground = try container.decodeIfPresent(Bool.self, forKey: .protectBackground) ?? false
     }
 
     init(
@@ -114,7 +123,8 @@ struct ImageAdjustments: Equatable, Sendable, Codable {
         saturation: Double = 1, gamma: Double = 1, sharpenIntensity: Double = 0, denoiseAmount: Double = 0,
         removesHotPixels: Bool = false, chromaNoiseReduction: Double = 0, greenCastRemoval: Double = 0,
         starSizeReduction: Double = 0, shadowLift: Double = 0, highlightRecovery: Double = 0, posterizeLevels: Double = 0,
-        vibrance: Double = 0, warmth: Double = 0, tint: Double = 0, deconvolutionSharpen: Double = 0
+        vibrance: Double = 0, warmth: Double = 0, tint: Double = 0, deconvolutionSharpen: Double = 0,
+        protectBackground: Bool = false
     ) {
         self.rotationDegrees = rotationDegrees
         self.cropRect = cropRect
@@ -135,6 +145,7 @@ struct ImageAdjustments: Equatable, Sendable, Codable {
         self.warmth = warmth
         self.tint = tint
         self.deconvolutionSharpen = deconvolutionSharpen
+        self.protectBackground = protectBackground
     }
 }
 

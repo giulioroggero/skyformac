@@ -664,4 +664,40 @@ struct OllamaPlannerTests {
         let images = try #require(json["images"] as? [String])
         #expect(images == [imageBytes.base64EncodedString()])
     }
+
+    /// Mirrors `suggestPlanetaryStackingSettingsThrowsWithTheRawTextForUnusableText` above —
+    /// `discussImage` gets its own `OllamaError` case (not the generic `.invalidPlanJSON`)
+    /// specifically so `userFacingMessage` can quote what the model actually said, since this is
+    /// the one planner request the user watches fail live in a chat panel.
+    @Test func discussImageThrowsWithTheRawTextForUnusableReply() async {
+        let transport = FakeTransport()
+        transport.responseText = "I'm not able to help with that request."
+        let planner = OllamaPlanner(transport: transport)
+
+        do {
+            _ = try await planner.discussImage(
+                message: "what do you see?", adjustmentsDescription: "No adjustments applied yet.",
+                image: Data([0xFF, 0xD8, 0xFF]), history: []
+            )
+            Issue.record("expected an error")
+        } catch let error as OllamaError {
+            guard case .imageAssistantReplyNotUnderstood(let rawText) = error else {
+                Issue.record("expected .imageAssistantReplyNotUnderstood, got \(error)")
+                return
+            }
+            #expect(rawText == "I'm not able to help with that request.")
+        } catch {
+            Issue.record("expected OllamaError, got \(error)")
+        }
+    }
+
+    @Test func imageAssistantReplyNotUnderstoodMessageQuotesWhatTheModelActuallySaid() {
+        let error = OllamaError.imageAssistantReplyNotUnderstood(rawText: "I cannot see an image attached to this request.")
+        #expect(error.userFacingMessage.contains("I cannot see an image attached to this request."))
+    }
+
+    @Test func imageAssistantReplyNotUnderstoodMessageHandlesAnEmptyReply() {
+        let error = OllamaError.imageAssistantReplyNotUnderstood(rawText: "   ")
+        #expect(!error.userFacingMessage.contains("\u{201C}"))
+    }
 }

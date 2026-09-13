@@ -25,6 +25,13 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Edit Image: a new "Protect Background" toggle in Color & Contrast, off by default — confines
+  Brightness/Contrast/Saturation/Gamma/Vibrance/Warmth/Tint/Shadow-Highlight to wherever the
+  *original* image wasn't already near-black, so raising Brightness on a planetary or star-field
+  image can't lift its black sky background into gray along with the actual subject. An additive
+  mask blend (a smooth luminance threshold), not a rescale, so it doesn't fight the sliders it's
+  scoping — leave it off for a deep-sky image where bringing out faint background nebulosity is
+  the actual point.
 - Planetary Post-Processing: a new "Neutralize Background Color Cast" step (on by default,
   alongside the existing "Align RGB Channels"). Audited the whole planetary stacking pipeline
   end-to-end — Bayer pattern handling turned out to already be correct everywhere (always read
@@ -59,6 +66,12 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
   applies to both.
 
 ### Fixed
+- Edit Image's AI chat: "The model's reply didn't contain a usable plan" gave no indication of
+  *why*, regardless of actual cause (a declined/refused answer, a conversational aside instead of
+  the requested JSON, a vision-incapable local model ignoring the attached image entirely) — the
+  model's raw reply was discarded before the error was even thrown. Now quotes what the model
+  actually said, so the message is genuinely informative instead of the same opaque sentence every
+  time.
 - "Open Siril Directly…" (the manual hand-off button in the Siril elaboration sheet) claimed it
   always debayers the source first — true for a still FITS frame/burst, but not for a `.ser` video:
   Siril has no headless way to demosaic an already-recorded video without fully stacking it first

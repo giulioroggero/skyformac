@@ -90,6 +90,14 @@ enum OllamaError: Error, Equatable {
     /// most likely a smaller/less-capable local model ignoring the "respond with only JSON"
     /// instruction, which no amount of retrying the same prompt reliably fixes.
     case invalidPlanJSON
+    /// Same underlying failure as `invalidPlanJSON` (no parseable JSON of the expected shape),
+    /// but for `discussImage` specifically, which — unlike every other planner request — the user
+    /// watches happen live in a chat panel and can plausibly want to know *why* it failed, not
+    /// just that it did. Carries the model's actual raw reply so `userFacingMessage` can quote it
+    /// (often the real reason: a declined/refused answer, a conversational aside instead of the
+    /// requested JSON, a vision-incapable local model ignoring the attached image entirely) rather
+    /// than repeating the same opaque sentence regardless of cause.
+    case imageAssistantReplyNotUnderstood(rawText: String)
     /// `model` was left `nil` (auto-detect) but the server reports zero installed models — there
     /// is nothing to fall back to; the user needs to `ollama pull` something first.
     case noModelsInstalled
@@ -102,10 +110,18 @@ enum OllamaError: Error, Equatable {
     /// `badResponse(message: Optional("..."))`-shaped debug dump.
     var userFacingMessage: String {
         switch self {
-        case .badResponse(let message): message ?? "Couldn't reach the Ollama server."
-        case .invalidPlanJSON: "The model's reply didn't contain a usable plan — try again, or try a different model."
-        case .noModelsInstalled: "No models are installed. Run `ollama pull <model>` first."
-        case .emptySummary: "The model didn't return any text — try again, or try a different model."
+        case .badResponse(let message): return message ?? "Couldn't reach the Ollama server."
+        case .invalidPlanJSON: return "The model's reply didn't contain a usable plan — try again, or try a different model."
+        case .imageAssistantReplyNotUnderstood(let rawText):
+            let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let snippet = trimmed.prefix(220)
+            guard !snippet.isEmpty else {
+                return "The model didn't reply with anything usable — try again, or try a different model."
+            }
+            let ellipsis = snippet.count < trimmed.count ? "…" : ""
+            return "The model didn't reply in the expected format. It said: \u{201C}\(snippet)\(ellipsis)\u{201D} — try again, rephrase your request, or try a different model."
+        case .noModelsInstalled: return "No models are installed. Run `ollama pull <model>` first."
+        case .emptySummary: return "The model didn't return any text — try again, or try a different model."
         }
     }
 }
@@ -451,8 +467,10 @@ struct OllamaPlanner: Sendable {
             prompt: Self.imageAssistantPrompt(message: message, adjustmentsDescription: adjustmentsDescription, history: history),
             image: image
         )
-        guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.invalidPlanJSON }
-        guard let raw = try? JSONDecoder().decode(ImageAssistantRawResponse.self, from: json) else { throw OllamaError.invalidPlanJSON }
+        guard let json = Self.extractJSONObject(from: text) else { throw OllamaError.imageAssistantReplyNotUnderstood(rawText: text) }
+        guard let raw = try? JSONDecoder().decode(ImageAssistantRawResponse.self, from: json) else {
+            throw OllamaError.imageAssistantReplyNotUnderstood(rawText: text)
+        }
         switch raw.kind {
         case "reply":
             return .reply(raw.text ?? raw.message ?? "")
@@ -466,7 +484,7 @@ struct OllamaPlanner: Sendable {
                 vibrance: raw.vibrance, warmth: raw.warmth, tint: raw.tint, deconvolutionSharpen: raw.deconvolutionSharpen
             ))
         default:
-            throw OllamaError.invalidPlanJSON
+            throw OllamaError.imageAssistantReplyNotUnderstood(rawText: text)
         }
     }
 
