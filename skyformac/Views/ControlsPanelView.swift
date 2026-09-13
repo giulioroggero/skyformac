@@ -2355,6 +2355,8 @@ struct ControlsPanelView: View {
             gainRow(cap)
         case ASI_FLIP:
             flipRow(cap)
+        case ASI_WB_R, ASI_WB_B:
+            whiteBalanceRow(cap)
         case ASI_TEMPERATURE:
             temperatureReadoutRow(cap)
         default:
@@ -2541,6 +2543,42 @@ struct ControlsPanelView: View {
             .help(cap.controlDescription)
             HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.flip")
         }
+    }
+
+    /// Color cameras only (`ASI_WB_R`/`ASI_WB_B`) — previously fell through to
+    /// `genericSliderRow`, labeled with whatever raw string the SDK reports (`"WB_R"`/`"WB_B"`),
+    /// buried under "Advanced" with no indication this is what actually fixes a magenta/green
+    /// color cast baked into a recorded frame (this app applies no white-balance correction of
+    /// its own anywhere in the planetary stacking pipeline — see `PlanetaryPostProcessor`'s own
+    /// doc comment — so an off hardware white balance here is never compensated for downstream).
+    @ViewBuilder
+    private func whiteBalanceRow(_ cap: ZWOControlCaps) -> some View {
+        let current = currentValue(for: cap)
+        let label = cap.controlType == ASI_WB_R ? "White Balance — Red" : "White Balance — Blue"
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                HelpLinkButton(cameraManager: cameraManager, topicID: "config-reference", sectionID: "setting.whiteBalance")
+                Spacer()
+                Text("\(current)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            if cap.isWritable, cap.minValue < cap.maxValue {
+                Slider(
+                    value: Binding(
+                        get: { Double(current) },
+                        set: { cameraManager.setControlValue(cap.controlType, value: Int($0)) }
+                    ),
+                    in: Double(cap.minValue)...Double(cap.maxValue)
+                )
+            } else {
+                Text(cap.isWritable ? "Fixed value" : "Read-only")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .help(cap.controlDescription)
     }
 
     @ViewBuilder

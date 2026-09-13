@@ -762,6 +762,65 @@ enum PlanetaryPostProcessor {
         return StackedImage(width: image.width, height: image.height, channels: image.channels, values: output)
     }
 
+    /// Neutralizes a color cast baked into the *background* (a magenta or green tint across the
+    /// whole frame, most commonly from the camera's own hardware white-balance gains — this
+    /// pipeline applies no white-balance/color correction of its own anywhere else, so whatever
+    /// the camera recorded is what gets stacked). Distinct from `alignRGBChannels` above, which
+    /// corrects *position* (atmospheric-dispersion fringing at the disk's edges), not *level* — a
+    /// perfectly-aligned frame can still be uniformly tinted, and an untinted one can still have
+    /// fringing; the two problems are independent and this app now corrects both.
+    ///
+    /// Samples the darkest `backgroundPercentile` of pixels by luminance as a stand-in for "sky
+    /// background" (a planetary frame is a single bright disk on an otherwise near-black frame, so
+    /// there's no star field to exclude the way `GradientExtractor.detectBackgroundSamples`
+    /// exists for) — reuses that same function's own correction formula though:
+    /// `corrected = original - background + mean`, i.e. subtract each channel's own measured
+    /// background level, then add back the *shared* mean of all three so overall brightness is
+    /// unchanged. That's deliberately an additive per-channel offset, not a multiplicative
+    /// gray-world rescale of the whole frame — the latter would also wash out the planet's own
+    /// real color (Saturn's genuine cream-yellow, say) toward neutral gray, which isn't the goal;
+    /// only the background needs to end up neutral.
+    static func neutralizeBackground(
+        _ image: StackedImage, backgroundPercentile: Double = 0.2, isCancelled: () -> Bool = { false }
+    ) -> StackedImage {
+        guard image.channels == 3, !isCancelled() else { return image }
+        let count = image.width * image.height
+        guard count > 0 else { return image }
+
+        var luminances = [Float](repeating: 0, count: count)
+        for i in 0..<count {
+            luminances[i] = 0.2126 * image.values[i * 3] + 0.7152 * image.values[i * 3 + 1] + 0.0722 * image.values[i * 3 + 2]
+        }
+        guard !isCancelled() else { return image }
+
+        let cutoff = luminances.sorted()[Int(Double(count - 1) * min(max(backgroundPercentile, 0), 1))]
+        var sumR = 0.0, sumG = 0.0, sumB = 0.0
+        var backgroundCount = 0
+        for i in 0..<count where luminances[i] <= cutoff {
+            sumR += Double(image.values[i * 3])
+            sumG += Double(image.values[i * 3 + 1])
+            sumB += Double(image.values[i * 3 + 2])
+            backgroundCount += 1
+        }
+        guard backgroundCount > 0, !isCancelled() else { return image }
+
+        let backgroundR = sumR / Double(backgroundCount)
+        let backgroundG = sumG / Double(backgroundCount)
+        let backgroundB = sumB / Double(backgroundCount)
+        let sharedMean = (backgroundR + backgroundG + backgroundB) / 3
+        let offsetR = Float(sharedMean - backgroundR)
+        let offsetG = Float(sharedMean - backgroundG)
+        let offsetB = Float(sharedMean - backgroundB)
+
+        var output = image.values
+        for i in 0..<count {
+            output[i * 3] = min(max(output[i * 3] + offsetR, 0), 1)
+            output[i * 3 + 1] = min(max(output[i * 3 + 1] + offsetG, 0), 1)
+            output[i * 3 + 2] = min(max(output[i * 3 + 2] + offsetB, 0), 1)
+        }
+        return StackedImage(width: image.width, height: image.height, channels: image.channels, values: output)
+    }
+
     /// Renders `image` to an 8-bit `CGImage` for display/export — a linear black/white-point
     /// stretch by default (matching `DisplayStretch`'s own convention elsewhere in this app), or
     /// the spec's own non-linear stretch formula (`ln(1 + a·x) / ln(1 + a)`) when

@@ -25,6 +25,22 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- Planetary Post-Processing: a new "Neutralize Background Color Cast" step (on by default,
+  alongside the existing "Align RGB Channels"). Audited the whole planetary stacking pipeline
+  end-to-end — Bayer pattern handling turned out to already be correct everywhere (always read
+  from the camera/file's own metadata, never guessed or hardcoded), but this app applied no
+  white-balance/color correction of its own anywhere, so a magenta or green tint from the camera's
+  own hardware white balance always survived straight through to the stacked result. The new step
+  samples the darkest fraction of the frame as "sky background" and neutralizes each channel's own
+  level there (an additive per-channel offset, not a gray-world rescale of the whole frame — the
+  planet's own real color, e.g. Saturn's actual cream-yellow, isn't washed toward gray). Distinct
+  from "Align RGB Channels," which fixes atmospheric-dispersion *position* fringing at the disk's
+  edge, not background *color level* — a frame can need either, both, or neither independently.
+- Settings' camera Controls panel: `WB_R`/`WB_B` (white balance, color cameras only) now get a
+  proper "White Balance — Red/Blue" label and dedicated help — previously fell through to a
+  generic slider labeled with the raw SDK string ("WB_R"), buried under "Advanced" with no
+  indication this is what actually fixes a magenta/green cast baked into a recorded frame. The
+  underlying control already worked; it just wasn't discoverable or explained.
 - (In progress) "Skyformac Remote" — a new iOS companion app target for browsing Projects/
   Sessions/Gallery, live-view streaming, and remote start/stop capture over the local network; see
   `specs/skyformac_Mobile_Remote_Spec.md`. So far: the app target itself, and the handful of small

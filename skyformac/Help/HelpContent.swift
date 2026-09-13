@@ -249,7 +249,16 @@ enum HelpContent {
             ),
             HelpSection(
                 id: "setting.genericControl", heading: "Offset/Brightness (and other generic sliders)",
-                body: "A raw min/max control for whatever else your specific camera model reports (bandwidth, gamma, white balance on color cameras, etc.); hover any control for its exact description from the camera's own SDK."
+                body: "A raw min/max control for whatever else your specific camera model reports (bandwidth, gamma, etc.); hover any control for its exact description from the camera's own SDK."
+            ),
+            HelpSection(
+                id: "setting.whiteBalance", heading: "White Balance — Red / Blue",
+                body: "Color cameras only. Adjusts the camera's own per-channel gain before the image is ever recorded — this app applies no white-balance/color correction of its own anywhere in the planetary stacking pipeline, so a color cast baked in here (the classic magenta or green tint on a planet) is never compensated for downstream. Not related to the Bayer/debayer pattern itself, which this app always reads from the camera or file's own metadata rather than guessing.",
+                bullets: [
+                    "To calibrate: point at a bright, isolated white star (not a planet — a planet has its own real color). Raise/lower Red and Blue until the star looks neutral white on screen rather than tinted.",
+                    "A common ZWO color-camera starting point is roughly WB Red in the low 50s and WB Blue in the low-to-mid 90s, then fine-tune against a real star — exact values vary by camera/filter and aren't universal.",
+                    "A UV/IR-cut filter is unrelated to this — it corrects focus (color cameras are natively sensitive to IR/UV the telescope's optics can't focus to the same plane as visible light), not color balance.",
+                ]
             ),
             HelpSection(
                 id: "setting.binningModes", heading: "Hardware Bin / High Speed Mode / Mono Bin",

@@ -312,6 +312,82 @@ struct PlanetaryPostProcessorTests {
         #expect(aligned.values == image.values)
     }
 
+    @Test func neutralizeBackgroundIsANoOpForMonoImages() {
+        let image = PlanetaryPostProcessor.StackedImage(width: 4, height: 4, channels: 1, values: [Float](repeating: 0.5, count: 16))
+        let result = PlanetaryPostProcessor.neutralizeBackground(image)
+        #expect(result.values == image.values)
+    }
+
+    /// Regression test for the exact failure reported: a magenta-tinted background (elevated
+    /// red/blue, deficient green — the classic symptom of the camera's own hardware white balance
+    /// being off, not a debayer-pattern bug) should come out neutral (R ≈ G ≈ B) after correction,
+    /// while the bright disk's own distinct color survives largely intact — this is a per-channel
+    /// *offset* correction, not a gray-world rescale of the whole frame that would wash the
+    /// planet's real color toward neutral too.
+    @Test func neutralizeBackgroundNeutralizesAMagentaTintWithoutWashingOutTheDisk() {
+        let width = 20, height = 20
+        var values = [Float](repeating: 0, count: width * height * 3)
+        // Magenta-tinted background: R/B elevated, G deficient, everywhere.
+        for i in 0..<(width * height) {
+            values[i * 3] = 0.12       // R
+            values[i * 3 + 1] = 0.02   // G
+            values[i * 3 + 2] = 0.10   // B
+        }
+        // A cream-colored "disk" in the center, on top of that same tinted background.
+        for y in 8...11 {
+            for x in 8...11 {
+                values[(y * width + x) * 3] = 0.85
+                values[(y * width + x) * 3 + 1] = 0.80
+                values[(y * width + x) * 3 + 2] = 0.55
+            }
+        }
+        let originalDiskR = values[(9 * width + 9) * 3]
+        let originalDiskG = values[(9 * width + 9) * 3 + 1]
+        let originalDiskB = values[(9 * width + 9) * 3 + 2]
+
+        let image = PlanetaryPostProcessor.StackedImage(width: width, height: height, channels: 3, values: values)
+        let corrected = PlanetaryPostProcessor.neutralizeBackground(image, backgroundPercentile: 0.5)
+
+        // Background corner (well away from the disk) should now be neutral.
+        let backgroundIndex = (1 * width + 1) * 3
+        let bgR = corrected.values[backgroundIndex]
+        let bgG = corrected.values[backgroundIndex + 1]
+        let bgB = corrected.values[backgroundIndex + 2]
+        #expect(abs(bgR - bgG) < 0.01)
+        #expect(abs(bgB - bgG) < 0.01)
+
+        // The disk's own color should still be recognizably itself, not washed toward gray — its
+        // largest channel (red) should still clearly outweigh the smallest (blue), the same
+        // relative shape as the uncorrected original.
+        let diskIndex = (9 * width + 9) * 3
+        let diskR = corrected.values[diskIndex]
+        let diskG = corrected.values[diskIndex + 1]
+        let diskB = corrected.values[diskIndex + 2]
+        #expect(diskR > diskB)
+        // Tolerance covers the actual applied per-channel offset (bounded by how far off the
+        // background tint was, ~0.06 here) — the point is "still recognizably itself," not
+        // pixel-exact, since a real per-channel offset correction does shift every pixel a little.
+        #expect(abs(diskR - originalDiskR) < 0.08)
+        #expect(abs(diskG - originalDiskG) < 0.08)
+        #expect(abs(diskB - originalDiskB) < 0.08)
+    }
+
+    @Test func neutralizeBackgroundPreservesOverallMeanBrightness() {
+        let width = 10, height = 10
+        var values = [Float](repeating: 0, count: width * height * 3)
+        for i in 0..<(width * height) {
+            values[i * 3] = 0.2
+            values[i * 3 + 1] = 0.05
+            values[i * 3 + 2] = 0.15
+        }
+        let image = PlanetaryPostProcessor.StackedImage(width: width, height: height, channels: 3, values: values)
+        let corrected = PlanetaryPostProcessor.neutralizeBackground(image)
+
+        let originalMean = image.values.reduce(0, +) / Float(image.values.count)
+        let correctedMean = corrected.values.reduce(0, +) / Float(corrected.values.count)
+        #expect(abs(originalMean - correctedMean) < 0.001)
+    }
+
     // MARK: - GPU registration (PlanetaryGPURegistrar)
 
     private func luminanceGrid(width: Int, height: Int, value: (Int, Int) -> Float) -> [Float] {

@@ -92,6 +92,10 @@ struct PlanetaryPostProcessingView: View {
 
     // Stage 5 parameters.
     @State private var alignRGBChannels = true
+    /// Corrects a color cast baked into the background (typically the camera's own hardware
+    /// white balance) — see `PlanetaryPostProcessor.neutralizeBackground`'s own doc comment for
+    /// why this is a separate, independent fix from `alignRGBChannels` above (position vs. level).
+    @State private var neutralizeBackground = true
     @State private var blackPoint: Double = 0
     @State private var whitePoint: Double = 1
     @State private var useLogStretch = false
@@ -714,6 +718,11 @@ struct PlanetaryPostProcessingView: View {
                 Text("Aligns R/G/B to fix atmospheric-dispersion fringing at the disk's edge — most accurate with an \"Object to Track\" box drawn on the setup screen, so it isn't thrown off by noise/background elsewhere in the frame.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                Toggle("Neutralize Background Color Cast", isOn: $neutralizeBackground)
+                    .onChange(of: neutralizeBackground) { _, _ in scheduleSharpen() }
+                Text("Corrects a magenta/green tint across the whole frame (usually the camera's own hardware white balance — this app applies no color correction of its own during capture) by neutralizing the sky background, without touching the planet's own real color.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             } else {
                 Text("This sequence is monochrome — no color channels to align.")
                     .font(.caption2)
@@ -1090,6 +1099,7 @@ struct PlanetaryPostProcessingView: View {
         let layers = waveletLayers
         let denoiseAmount = denoise
         let align = alignRGBChannels
+        let neutralize = neutralizeBackground
         // Same region the "Object to Track" selector restricted registration to — narrowing the
         // per-channel centroid to just the object is what keeps this stage from being fooled by
         // background/noise the way a whole-frame centroid was; see `alignRGBChannels`'s own doc
@@ -1101,6 +1111,7 @@ struct PlanetaryPostProcessingView: View {
             let sharpened = await Task.detached(priority: .userInitiated) {
                 var image = PlanetaryPostProcessor.waveletSharpen(baseStack, layers: layers, denoise: denoiseAmount, isCancelled: { flag.isCancelled })
                 if align { image = PlanetaryPostProcessor.alignRGBChannels(image, roi: roi, isCancelled: { flag.isCancelled }) }
+                if neutralize { image = PlanetaryPostProcessor.neutralizeBackground(image, isCancelled: { flag.isCancelled }) }
                 return image
             }.value
             if Task.isCancelled || flag.isCancelled { return }
@@ -1288,6 +1299,7 @@ struct PlanetaryPostProcessingView: View {
         PlanetaryPostProcessor.SettingsSnapshot(
             roi: roiRect, keepBestPercent: appliedKeepBestPercent, stackMethod: appliedStackMethod,
             waveletLayers: waveletLayers, denoise: denoise, alignRGBChannels: alignRGBChannels,
+            neutralizeBackground: neutralizeBackground,
             blackPoint: blackPoint, whitePoint: whitePoint,
             logStretchIntensity: useLogStretch ? logStretchIntensity : nil,
             singleShotAdjustments: singleShotAdjustments == .identity ? nil : singleShotAdjustments
@@ -1308,6 +1320,7 @@ struct PlanetaryPostProcessingView: View {
         waveletLayers = settings.waveletLayers
         denoise = settings.denoise
         alignRGBChannels = settings.alignRGBChannels
+        neutralizeBackground = settings.neutralizeBackground ?? true
         blackPoint = settings.blackPoint
         whitePoint = settings.whitePoint
         useLogStretch = settings.logStretchIntensity != nil

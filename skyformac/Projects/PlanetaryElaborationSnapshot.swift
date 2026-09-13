@@ -147,6 +147,12 @@ struct PlanetarySettingsSnapshot: Codable, Sendable, Equatable {
     var waveletLayers: [PlanetaryWaveletLayer]
     var denoise: Double
     var alignRGBChannels: Bool
+    /// `Optional`, not a plain `Bool` — a result saved before this field existed decodes as `nil`,
+    /// not a decode failure (Swift's synthesized `Decodable` treats a missing key for an
+    /// `Optional` property as absent), same reasoning as `logStretchIntensity` below. Read sites
+    /// should do `?? true` — the feature defaults on for new processing, and an old saved result
+    /// never gets silently reprocessed just because this field is missing.
+    var neutralizeBackground: Bool?
     var blackPoint: Double
     var whitePoint: Double
     var logStretchIntensity: Double?
