@@ -1087,11 +1087,12 @@ struct ElaboratedImageCard: View {
     /// `FullScreenImageViewer`'s own "More" menu too. Each action closes the preview's own window
     /// first (unlike the context menu's own actions, which don't have one open in the first
     /// place) so it doesn't linger behind whatever it opens.
+    /// Edit Image… and Delete moved to `FullScreenImageViewer`'s own toolbar (as per-entry
+    /// `onEdit`/`onDelete` on each `Entry` — see `openFullScreenViewer()`) so both work for
+    /// whichever sibling Next/Previous has scrolled to, not just the entry this viewer was
+    /// originally opened for like everything below still is.
     @ViewBuilder
     private var fullScreenMoreMenuItems: some View {
-        // Skyformac's own tools first, "Edit Image…" foremost — the action someone opening this
-        // preview reaches for most.
-        Button("Edit Image…", systemImage: "slider.horizontal.3") { viewingFullScreenWindowController?.close(); openEditingImageWindow() }
         if originalSERCaptureURL != nil {
             Button("Redo from Original…", systemImage: "arrow.counterclockwise") { viewingFullScreenWindowController?.close(); openRedoFromOriginalWindow() }
         }
@@ -1107,8 +1108,6 @@ struct ElaboratedImageCard: View {
             onSendToStarNet: { viewingFullScreenWindowController?.close(); startSendingToStarNet() },
             onOpenInPixInsight: { try? PixInsightAppLauncher.open(fileURL) }
         )
-        Divider()
-        Button("Delete…", systemImage: "trash", role: .destructive) { viewingFullScreenWindowController?.close(); isConfirmingDelete = true }
     }
 
     var body: some View {
@@ -1265,7 +1264,9 @@ struct ElaboratedImageCard: View {
         let entries = pairs.map { pair in
             FullScreenImageViewer.Entry(
                 fileURL: cameraManager.projectStore.elaboratedImagesFolderURL(for: pair.project).appendingPathComponent(pair.image.fileName),
-                displayName: pair.image.displayLabel
+                displayName: pair.image.displayLabel,
+                onEdit: { viewingFullScreenWindowController?.close(); openEditingImageWindow(for: pair) },
+                onDelete: { try? cameraManager.projectsLibrary.deleteElaboratedImage(pair.image.id, in: pair.project) }
             )
         }
         let startIndex = pairs.firstIndex { $0.image.id == image.id } ?? 0
@@ -1321,7 +1322,14 @@ struct ElaboratedImageCard: View {
         redoingFromOriginalWindowController?.showWindow(nil)
     }
 
-    private func openEditingImageWindow() {
+    /// Defaults to this card's own `(project, image)` — every pre-existing call site (the card's
+    /// context menu, the old "More" menu item) keeps editing exactly what it always did. The
+    /// full-screen viewer's per-entry `onEdit` (`openFullScreenViewer()`) passes a sibling's own
+    /// pair instead, so editing works for whichever image Next/Previous is currently showing.
+    private func openEditingImageWindow(for pair: (project: Project, image: ElaboratedImage)? = nil) {
+        let project = pair?.project ?? self.project
+        let image = pair?.image ?? self.image
+        let fileURL = cameraManager.projectStore.elaboratedImagesFolderURL(for: project).appendingPathComponent(image.fileName)
         editingImageWindowController = DetachedContentWindowController(
             title: "Edit Image — \(image.fileName)", contentSize: SingleImagePostProcessingView.fullScreenSize,
             minSize: SingleImagePostProcessingView.minWindowSize,

@@ -35,6 +35,12 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
   Gallery queries), a new Settings → Remote tab to turn it on, and the iOS app's real discovery/
   pairing screen (finds the Mac over Bonjour, remembers a trusted device so reconnecting skips the
   code). Projects/Gallery browsing, live view, and capture control are still ahead.
+- The elaborated-image full-screen viewer now has Edit Image… and Delete (with a confirmation)
+  directly in its toolbar, working for whichever image Next/Previous has scrolled to — previously
+  both only lived in the "More" menu, and only actually worked for the exact image the viewer was
+  originally opened for; navigating to a sibling silently hid "More" entirely rather than acting on
+  the wrong image, so the same real fix (per-entry callbacks, not one closure scoped to entry 0)
+  applies to both.
 
 ### Fixed
 - "Open Siril Directly…" (the manual hand-off button in the Siril elaboration sheet) claimed it

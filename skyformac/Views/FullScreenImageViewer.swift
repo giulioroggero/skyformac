@@ -117,6 +117,13 @@ struct FullScreenImageViewer: View {
     struct Entry {
         let fileURL: URL
         let displayName: String
+        /// Per-entry, unlike `onSetAsThumbnail`/`moreMenuItems` below — those two stay scoped to
+        /// whichever entry this viewer was originally opened for (see `canActOnCurrentEntry`'s own
+        /// doc comment), but Edit/Delete are common enough actions that they need to work for
+        /// whichever sibling Next/Previous has scrolled to, not just the starting one. `nil` hides
+        /// each button entirely, same "not every caller has this concept" reasoning as those two.
+        var onEdit: (() -> Void)? = nil
+        var onDelete: (() -> Void)? = nil
     }
 
     /// Every image Next/Previous can step to, in display order — a single-element array (the
@@ -180,6 +187,7 @@ struct FullScreenImageViewer: View {
     @State private var isSavingToPhotos = false
     @State private var photosResultMessage: String?
     @State private var didSetThumbnail = false
+    @State private var isConfirmingDelete = false
     @State private var loadedImage: NSImage?
     private let zoomController = ImageZoomController()
 
@@ -218,6 +226,16 @@ struct FullScreenImageViewer: View {
             Button("OK") {}
         } message: {
             Text(photosResultMessage ?? "")
+        }
+        .confirmationDialog(
+            "Delete this image?", isPresented: $isConfirmingDelete, titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                currentEntry.onDelete?()
+                onDismiss()
+            }
+        } message: {
+            Text("This removes the file from disk — this can't be undone.")
         }
         .task(id: currentIndex) {
             // Skipped for the single-entry convenience initializer, which already seeds
@@ -293,6 +311,14 @@ struct FullScreenImageViewer: View {
 
             ShareLink(item: fileURL) {
                 Label("Share", systemImage: "square.and.arrow.up")
+            }
+
+            if let onEdit = currentEntry.onEdit {
+                Button("Edit Image…", systemImage: "slider.horizontal.3") { onEdit() }
+            }
+
+            if currentEntry.onDelete != nil {
+                Button("Delete", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
             }
 
             if let onSetAsThumbnail, canActOnCurrentEntry {
