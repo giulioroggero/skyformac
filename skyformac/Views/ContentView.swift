@@ -391,10 +391,14 @@ struct ContentView: View {
 
     @ViewBuilder
     private var imageTypePicker: some View {
-        // RGB24-only sources (webcam/iPhone) have no RAW8/RAW16 to switch between — showing an
-        // empty segmented control would be worse than showing none.
+        // RGB24-only sources (webcam/iPhone) already always use `ASI_IMG_RGB24` with no picker at
+        // all (nothing else to switch to) — this picker is for a ZWO camera that reports more
+        // than one supported format, RGB24 included for whichever models advertise on-chip
+        // debayering (`ASI_IMG_RGB24` per `ASICamera2.h`) alongside the usual RAW8/RAW16. Showing
+        // an empty segmented control would be worse than showing none.
         if let camera = cameraManager.connectedCamera,
-           camera.supportedVideoFormats.contains(ASI_IMG_RAW8) || camera.supportedVideoFormats.contains(ASI_IMG_RAW16) {
+           camera.supportedVideoFormats.contains(ASI_IMG_RAW8) || camera.supportedVideoFormats.contains(ASI_IMG_RAW16)
+               || camera.supportedVideoFormats.contains(ASI_IMG_RGB24) {
             Picker("Format", selection: Binding(
                 get: { cameraManager.selectedImageType.rawValue },
                 set: { raw in
@@ -407,9 +411,13 @@ struct ContentView: View {
                 if camera.supportedVideoFormats.contains(ASI_IMG_RAW16) {
                     Text("RAW16").tag(ASI_IMG_RAW16.rawValue)
                 }
+                if camera.supportedVideoFormats.contains(ASI_IMG_RGB24) {
+                    Text("RGB").tag(ASI_IMG_RGB24.rawValue)
+                }
             }
             .pickerStyle(.segmented)
-            .frame(width: 160)
+            .frame(width: 220)
+            .help("RAW8/RAW16 record the sensor's own undemosaiced Bayer data — the right choice for stacking (this app debayers once at the end, not per frame). RGB has the camera itself debayer on-chip before this app ever sees a frame — 3x the data per pixel, no benefit for stacking, but useful if you specifically want a straightforward already-color feed.")
         }
     }
 

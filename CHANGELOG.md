@@ -25,6 +25,15 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
 ## [Unreleased]
 
 ### Added
+- The camera Format picker (RAW8/RAW16) gets a third option, RGB, for camera models that report
+  supporting on-chip debayering (`ASI_IMG_RGB24`) — verified first that `.ser` recording was
+  already correctly using the sensor's raw undemosaiced Bayer data (RAW8/RAW16) regardless of the
+  live preview showing color (that's a separate, decoupled display-only debayer step; nothing
+  wrong there), then added RGB as a real alternative for whoever specifically wants the camera
+  itself to output already-color frames — tooltip explains why RAW is still the right choice for
+  stacking. The rest of the pipeline (`.ser` writing, live-preview rendering) already handled
+  `ASI_IMG_RGB24` correctly end-to-end via the existing webcam/iPhone path; this just makes it
+  selectable for a ZWO camera too when the model actually supports it.
 - Edit Image: a new "Protect Background" toggle in Color & Contrast, off by default — confines
   Brightness/Contrast/Saturation/Gamma/Vibrance/Warmth/Tint/Shadow-Highlight to wherever the
   *original* image wasn't already near-black, so raising Brightness on a planetary or star-field
