@@ -101,8 +101,27 @@ final class AIChatLibrary {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return files
-            .filter { $0.pathExtension == "json" }
+            .filter { $0.pathExtension == "json" && isReadableWithoutBlocking($0) }
             .compactMap { url in (try? Data(contentsOf: url)).flatMap { try? decoder.decode(AIChatSession.self, from: $0) } }
             .sorted { $0.updatedDate > $1.updatedDate }
+    }
+
+    /// A file iCloud has evicted locally ("dataless") can only be read by synchronously downloading
+    /// it from the cloud first — a real app-launch hang was captured blocked inside the kernel's
+    /// `apfs_materialize_dataless_file_ext`, on the main thread, right here: `AIChatLibrary.init`
+    /// runs as part of `CameraManager`'s own `@State` default-value evaluation during SwiftUI app-graph
+    /// instantiation, before the first frame renders. Rather than let `Data(contentsOf:)` block on
+    /// that download, a dataless file is skipped for this launch — its download is kicked off in the
+    /// background so a later launch (or relaunch) picks it up once iCloud finishes syncing it.
+    private static func isReadableWithoutBlocking(_ url: URL) -> Bool {
+        guard let values = try? url.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
+              values.isUbiquitousItem == true else {
+            return true
+        }
+        if values.ubiquitousItemDownloadingStatus == .current {
+            return true
+        }
+        try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+        return false
     }
 }

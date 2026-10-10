@@ -89,6 +89,15 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
   the reason it looked gray until manually enabling Debayer in Siril itself. The button's tooltip
   and a new inline note (shown only for a video) now say so upfront, with exactly which Siril
   control to use (its toolbar's Bayer toggle, or the Conversion tab's Debayer option).
+- A saved AI chat whose JSON file iCloud has evicted locally (Documents, or a custom chats folder,
+  under iCloud Drive) could hang app launch for an unpredictable duration: `AIChatLibrary.init`
+  runs synchronously on the main thread as part of `CameraManager`'s own `@State` default-value
+  evaluation, before the first frame renders, and reading a "dataless" placeholder file forces
+  macOS to synchronously download it from iCloud first — confirmed via a captured hang report
+  blocked inside the kernel's `apfs_materialize_dataless_file_ext`. `AIChatLibrary.loadAll` now
+  checks each file's iCloud download status first; a file that isn't fully downloaded yet is
+  skipped for this launch (its own download is kicked off in the background) instead of blocking
+  on it.
 
 ### Removed
 - Edit Image's "AI Enhance" (sent the image to Google Gemini's image-generation model for a
