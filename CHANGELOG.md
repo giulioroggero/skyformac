@@ -7,7 +7,8 @@ single-developer app, not a library with a public API.
 
 **[Unreleased]** is the `master`/dev branch — updated continuously as work lands,
 with everything folded under a proper version heading (and dated) only once it's
-actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.7.0),
+actually tagged. Tags on GitHub: [v0.8.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.8.0),
+[v0.7.0](https://github.com/giulioroggero/skyformac/releases/tag/v0.7.0),
 [v0.6.4](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.4),
 [v0.6.3](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.3),
 [v0.6.2](https://github.com/giulioroggero/skyformac/releases/tag/v0.6.2),
@@ -23,6 +24,8 @@ actually tagged. Tags on GitHub: [v0.7.0](https://github.com/giulioroggero/skyfo
 [v0.1.12](https://github.com/giulioroggero/skyformac/releases/tag/v0.1.12).
 
 ## [Unreleased]
+
+## [0.8.0] - 2026-10-13
 
 ### Added
 - The camera Format picker (RAW8/RAW16) gets a third option, RGB, for camera models that report
